@@ -30,7 +30,7 @@ from ..rfbrushes.cut_brush import RFBrush_Cut
 from ..rfoverlays.loopstrip_selection_overlay import create_loopstrip_selection_overlay
 
 from ..rftool_base import RFTool_Base
-from ..common.bmesh import get_bmesh_emesh, has_mirror_x, has_mirror_y, has_mirror_z
+from ..common.bmesh import get_bmesh_emesh
 from ..common.drawing import Drawing
 from ..common.icons import get_path_to_blender_icon
 from ..common.maths import view_forward_direction
@@ -55,6 +55,7 @@ from ...addon_common.common.maths import Plane, Point
 from ...addon_common.common.resetter import Resetter
 from ...addon_common.ext.circle_fit import hyperLSQ
 
+from ..rfoperators.twist import twist_detect_symmetry, twist_fit_axis, twist_apply, TWIST_SENSITIVITY
 from ..rfoperators.quickswitch import RFOperator_Relax_QuickSwitch, RFOperator_Tweak_QuickSwitch
 from ..rfoperators.transform import RFOperator_Translate, sync_projection_from_blender
 from ..rfoperators.maximize_watcher import RFOperator_MaximizeWatcher
@@ -394,93 +395,49 @@ def switch_rftool(context):
 
 
 class RFOperator_Contours_Twist(RFRegisterClass, bpy.types.Operator):
-    bl_idname = 'retopoflow.contours_twist'
-    bl_label = 'Contours: Adjust Twist'
-    bl_description = 'Rotate selected loop about its plane'
-    bl_options = {'UNDO', 'INTERNAL'}
+    bl_idname     = 'retopoflow.contours_twist'
+    bl_label      = 'Contours: Adjust Twist'
+    bl_description = 'Rotate selected loop about its plane (Alt R)'
+    bl_options    = {'UNDO', 'INTERNAL'}
 
     rf_keymaps = []
 
     @classmethod
     def poll(cls, context):
-        if not context.edit_object or context.edit_object.type != 'MESH':
-            return False
-        bm = bmesh.from_edit_mesh(context.edit_object.data)
-        return any(v.select for v in bm.verts)
+        return context.mode == 'EDIT_MESH'
 
     def invoke(self, context, event):
         bm, em = get_bmesh_emesh(context)
         sel_verts = [v for v in bm.verts if v.select]
         if len(sel_verts) < 3:
             return {'CANCELLED'}
-
-        self._bm  = bm
-        self._em  = em
-        self._mw  = context.edit_object.matrix_world.copy()
-        self._mwi = self._mw.inverted()
+        self._bm          = bm
+        self._em          = em
+        self._mw          = context.edit_object.matrix_world.copy()
+        self._mwi         = self._mw.inverted()
+        self._initial_cos = {v: v.co.copy() for v in sel_verts}
+        self._sym_verts, self._sym_axes = twist_detect_symmetry(context, sel_verts)
+        self._normal, self._center      = twist_fit_axis(sel_verts)
         self._initial_mouse_x = event.mouse_x
-        self._initial_verts   = {v: v.co.copy() for v in sel_verts}
-
-        # vertices on a symmetry plane must not be rotated
-        self._sym_verts = set()
-        mx, my, mz = has_mirror_x(context), has_mirror_y(context), has_mirror_z(context)
-        if mx or my or mz:
-            threshold = 1e-4
-            for v in sel_verts:
-                if mx and abs(v.co.x) < threshold: self._sym_verts.add(v)
-                if my and abs(v.co.y) < threshold: self._sym_verts.add(v)
-                if mz and abs(v.co.z) < threshold: self._sym_verts.add(v)
-
-        # derive rotation axis and center from the selected verts' best-fit plane/circle
-        points = [Point(v.co) for v in sel_verts]
-        try:
-            plane = Plane.fit_to_points(points)
-            self._normal = plane.n.copy()
-            try:
-                circle = hyperLSQ([list(plane.w2l_point(p).xy) for p in points])
-                self._center = Vector(plane.l2w_point(Point((circle[0], circle[1], 0))))
-            except Exception:
-                self._center = sum((v.co for v in sel_verts), Vector()) / len(sel_verts)
-        except Exception:
-            self._normal = None
-            self._center = sum((v.co for v in sel_verts), Vector()) / len(sel_verts)
-
         context.window_manager.modal_handler_add(self)
         return {'RUNNING_MODAL'}
 
-    def _apply_preview(self, context, delta_degrees):
-        if not self._normal:
-            return
-        T0    = Matrix.Translation(-self._center)
-        T1    = Matrix.Translation(self._center)
-        RT    = Matrix.Rotation(math.radians(delta_degrees), 4, self._normal)
-        xform = T1 @ RT @ T0
-        for v, co0 in self._initial_verts.items():
-            if v in self._sym_verts:
-                continue
-            v.co = xform @ co0
-            snapped = nearest_point_valid_sources(context, self._mw @ v.co, world=True, respect_clip_planes=True)
-            if snapped:
-                v.co = self._mwi @ snapped
-        self._bm.normal_update()
-        bmesh.update_edit_mesh(self._em, loop_triangles=False)
-
     def modal(self, context, event):
         if event.type == 'MOUSEMOVE':
-            delta_x = event.mouse_x - self._initial_mouse_x
-            self._apply_preview(context, delta_x * 0.05)
+            delta = event.mouse_x - self._initial_mouse_x
+            twist_apply(self._bm, self._em, self._mw, self._mwi,
+                        self._initial_cos, self._sym_verts, self._sym_axes,
+                        self._normal, self._center, delta * TWIST_SENSITIVITY,
+                        snap_fn=lambda pt: nearest_point_valid_sources(context, pt, world=True, respect_clip_planes=True))
             return {'RUNNING_MODAL'}
-
         if event.type in {'LEFTMOUSE', 'RET', 'NUMPAD_ENTER'} and event.value == 'PRESS':
             return {'FINISHED'}
-
         if event.type in {'RIGHTMOUSE', 'ESC'} and event.value == 'PRESS':
-            for v, co0 in self._initial_verts.items():
+            for v, co0 in self._initial_cos.items():
                 v.co = co0.copy()
             self._bm.normal_update()
             bmesh.update_edit_mesh(self._em, loop_triangles=False)
             return {'CANCELLED'}
-
         return {'RUNNING_MODAL'}
 
 

@@ -22,4 +22,6 @@ Created by Jonathan Denning, Jonathan Lampel
 
 def draw_vertex_menu_items(self, context):
     self.layout.separator()
-    self.layout.operator("retopoflow.relax_selected", icon='MOD_SMOOTH')
+    self.layout.operator("retopoflow.relax_selected")
+    self.layout.operator_context = 'INVOKE_REGION_WIN'
+    self.layout.operator("retopoflow.twist_loop")
