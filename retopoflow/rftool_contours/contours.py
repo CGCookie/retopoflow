@@ -132,6 +132,14 @@ class RFOperator_Contours_Insert(
         default=False,  # will be set on initial cut
     )
 
+    loop_count: bpy.props.IntProperty(
+        name='Loop Count',
+        description='Number of loops to create when bridging',
+        default=1,
+        min=1,
+        max=20,
+    )
+
     logic : Contours_Logic
     contours_data = None
 
@@ -157,6 +165,7 @@ class RFOperator_Contours_Insert(
             process_source_method=logic.process_source_method,
             twist=logic.twist,
             is_cycle=logic.cyclic,
+            loop_count=logic.loop_count,
         )
 
     def draw(self, context):
@@ -177,6 +186,9 @@ class RFOperator_Contours_Insert(
         if logic.show_span_count:
             layout.prop(self, 'span_count', text='Spans')
 
+        if logic.show_loop_count:
+            layout.prop(self, 'loop_count', text='Loops')
+
         if logic.show_twist:
             layout.prop(self, 'twist', text='Twist')
 
@@ -189,6 +201,7 @@ class RFOperator_Contours_Insert(
         logic.process_source_method = self.process_source_method
         logic.twist                 = self.twist
         logic.cyclic                = self.is_cycle
+        logic.loop_count            = self.loop_count
 
         try:
             logic.update(context)
@@ -204,6 +217,7 @@ class RFOperator_Contours_Insert(
         self.process_source_method = logic.process_source_method
         self.twist                 = logic.twist
         self.is_cycle              = logic.cyclic
+        self.loop_count            = logic.loop_count
 
         return {'FINISHED'}
 
@@ -233,14 +247,20 @@ class RFOperator_Contours_Insert(
 
     @create_redo_operator('contours_insert_spans_decreased', 'Reinsert cut with decreased spans',
                           {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'ctrl': 1},
-                          {'km_context': ('init', 'ready'), 'km_label': 'Change Spans'})
+                          {'km_context': ('init', 'ready'), 'km_label': 'Change Spans / Loops'})
     def decrease_spans(context, logic):
-        logic.span_count -= 1
+        if logic.show_loop_count:
+            logic.loop_count = max(1, logic.loop_count - 1)
+        else:
+            logic.span_count -= 1
 
     @create_redo_operator('contours_insert_spans_increased', 'Reinsert cut with increased spans',
                           {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'ctrl': 1})
     def increase_spans(context, logic):
-        logic.span_count += 1
+        if logic.show_loop_count:
+            logic.loop_count += 1
+        else:
+            logic.span_count += 1
 
     @create_redo_operator('contours_insert_twist_decreased', 'Reinsert cut with decreased twist',
                           {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'shift': 1},
