@@ -53,7 +53,6 @@ from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.debug import debugger
 from ...addon_common.common.maths import Plane, Point
 from ...addon_common.common.resetter import Resetter
-from ...addon_common.ext.circle_fit import hyperLSQ
 
 from ..rfoperators.twist import twist_detect_symmetry, twist_fit_axis, twist_apply, TWIST_SENSITIVITY
 from ..rfoperators.quickswitch import RFOperator_Relax_QuickSwitch, RFOperator_Tweak_QuickSwitch
@@ -106,6 +105,18 @@ class RFOperator_Contours_Insert_Properties:
         default='walk',
     )
 
+    cut_orientation: bpy.props.EnumProperty(               # pyright: ignore [reportUninitializedInstanceVariable]
+        name='Cut Orientation',
+        description='How the cut plane is aligned before processing',
+        items=[
+            ('world',  'World',  'Align the cut to the closest world axis', 'ORIENTATION_GLOBAL', 0),
+            ('local',  'Local',  'Align the cut to the closest local axis of the source object', 'ORIENTATION_LOCAL', 1),
+            ('normal', 'Normal', 'Align the cut to the face normal under the stroke', 'ORIENTATION_LOCAL', 2),
+            ('stroke', 'View', 'Align the cut to the direction of the stroke on screen', 'ORIENTATION_VIEW', 3),
+        ],
+        default='stroke',
+    )
+
 
 class RFOperator_Contours_Insert(
         RFOperator_Contours_Insert_Keymaps,
@@ -144,15 +155,16 @@ class RFOperator_Contours_Insert(
     contours_data = None
 
     @staticmethod
-    def insert(context, hit, plane, circle_hit, span_count, process_source_method, hits):
+    def insert(context, hit, plane, circle_points, span_count, process_source_method, hits, cut_orientation):
         RFOperator_Contours_Insert.logic = Contours_Logic(
             context,
             hit,
             plane,
-            circle_hit,
+            circle_points,
             span_count,
             process_source_method,
             hits,
+            cut_orientation,
         )
         RFOperator_Contours_Insert.reinsert(context)
 
@@ -372,9 +384,9 @@ class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
             [hit['co_world'] for hit in hits if hit],
             pts_neg_back, pts_pos_back
         ))
-        circle_hit = hyperLSQ([list(plane.w2l_point(pt).xy) for pt in points if pt])
+        circle_points = [pt for pt in points if pt]
 
-        RFOperator_Contours_Insert.insert(context, hit, plane, circle_hit, self.span_count, self.process_source_method, hits)
+        RFOperator_Contours_Insert.insert(context, hit, plane, circle_points, self.span_count, self.process_source_method, hits, self.cut_orientation)
 
     def update(self, context, event):
         if event.value in {'CLICK', 'DOUBLE_CLICK'} and event_modifier_check(event, ctrl=True, shift=False, alt=False, oskey=False):
@@ -498,6 +510,7 @@ class RFTool_Contours(RFTool_Base):
         if context.region.type == 'TOOL_HEADER':
             layout.label(text='Insert:')
             layout.prop(props_contours, 'span_count')
+            layout.prop(props_contours, 'cut_orientation', text='')
             layout.prop(props_contours, 'process_source_method', text=f'')
             if props_contours.process_source_method == 'fast':
                 layout.prop(props_contours, 'sample_points', text=f'Samples')
@@ -520,6 +533,7 @@ class RFTool_Contours(RFTool_Base):
             header.label(text="Insert")
             if panel:
                 panel.prop(props_contours, 'span_count')
+                panel.prop(props_contours, 'cut_orientation', text='Direction')
                 panel.prop(props_contours, 'process_source_method', text=f'Method')
                 if props_contours.process_source_method == 'fast':
                     panel.prop(props_contours, 'sample_points', text=f'Samples')

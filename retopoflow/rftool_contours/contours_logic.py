@@ -40,7 +40,7 @@ from ..common.bmesh import (
 from ..common.maths import (
     bvec_to_point, point_to_bvec3,
     pt_x0, pt_y0, pt_z0,
-    lerp,
+    lerp, get_closest_axis, snap_plane_to_direction
 )
 from ..common.raycast import raycast_ray_valid_sources, nearest_point_valid_sources, nearest_normal_valid_sources
 from ...addon_common.common import bmesh_ops as bmops
@@ -60,6 +60,7 @@ class Contours_Logic:
     hits : list[dict[str, ...]]
     plane : Plane
     circle_hit : tuple[float, ...]
+    cut_orientation : str
     initial : bool
 
     process_source_method : str
@@ -86,11 +87,12 @@ class Contours_Logic:
     path_length : float | None
     mirror_clipped_loop : bool | None
 
-    def __init__(self, context:Context, hit:dict[str,...], plane:Plane, circle_hit:tuple[float, ...], span_count:int, process_source_method:str, hits:list[dict[str, ...]]):
+    def __init__(self, context:Context, hit:dict[str,...], plane:Plane, circle_points:list[Vector], span_count:int, process_source_method:str, hits:list[dict[str, ...]], cut_orientation:str='stroke'):
         self.hit = hit
-        self.plane = plane
-        self.circle_hit = circle_hit
         self.hits = hits
+        self.cut_orientation = cut_orientation
+        self.plane = snap_plane_to_direction(plane, hit, cut_orientation)
+        self.circle_hit = hyperLSQ([list(self.plane.w2l_point(pt).xy) for pt in circle_points if pt])
         self.process_source_method = process_source_method
         self.last_process_source_method = None
 
