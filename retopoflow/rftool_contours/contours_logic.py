@@ -40,9 +40,9 @@ from ..common.bmesh import (
 from ..common.maths import (
     bvec_to_point, point_to_bvec3,
     pt_x0, pt_y0, pt_z0,
-    lerp,
+    lerp, get_closest_axis, snap_plane_to_direction
 )
-from ..common.raycast import raycast_ray_valid_sources, nearest_point_valid_sources
+from ..common.raycast import raycast_ray_valid_sources, nearest_point_valid_sources, nearest_normal_valid_sources
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.debug import debugger
 from ...addon_common.common.maths import Point, Plane
@@ -60,6 +60,7 @@ class Contours_Logic:
     hits : list[dict[str, ...]]
     plane : Plane
     circle_hit : tuple[float, ...]
+    cut_orientation : str
     initial : bool
 
     process_source_method : str
@@ -70,6 +71,8 @@ class Contours_Logic:
     span_count : int
     show_twist : bool
     twist : float
+    show_loop_count : bool
+    loop_count : int
     cyclic : bool
 
     edge_ring : set[BMEdge] | None
@@ -84,11 +87,12 @@ class Contours_Logic:
     path_length : float | None
     mirror_clipped_loop : bool | None
 
-    def __init__(self, context:Context, hit:dict[str,...], plane:Plane, circle_hit:tuple[float, ...], span_count:int, process_source_method:str, hits:list[dict[str, ...]]):
+    def __init__(self, context:Context, hit:dict[str,...], plane:Plane, circle_points:list[Vector], span_count:int, process_source_method:str, hits:list[dict[str, ...]], cut_orientation:str='stroke'):
         self.hit = hit
-        self.plane = plane
-        self.circle_hit = circle_hit
         self.hits = hits
+        self.cut_orientation = cut_orientation
+        self.plane = snap_plane_to_direction(plane, hit, cut_orientation)
+        self.circle_hit = hyperLSQ([list(self.plane.w2l_point(pt).xy) for pt in circle_points if pt])
         self.process_source_method = process_source_method
         self.last_process_source_method = None
 
@@ -100,6 +104,9 @@ class Contours_Logic:
 
         self.show_twist = False
         self.twist = 0
+
+        self.show_loop_count = False
+        self.loop_count = 1
 
         self.cyclic = False
         self.bm, self.em = None, None
@@ -314,12 +321,63 @@ class Contours_Logic:
         self.show_twist = self.cyclic
 
     def insert_bridge(self, context:Context):
+        orig_verts = {bv for bme in self.sel_path for bv in bme.verts}
+
         nbmelems = bmesh.ops.extrude_edge_only(self.bm, edges=self.sel_path)['geom']
         nbmvs = [bmelem for bmelem in nbmelems if type(bmelem) is BMVert]
 
         self.finish_edgering_bridge(context, nbmelems, nbmvs)
+
+        if self.loop_count > 1:
+            # Add more loop cuts to the bridge
+            new_verts_set = set(nbmvs)
+            lateral_edges = list({
+                bme
+                for bmv in nbmvs
+                for bme in bmv.link_edges
+                if any(bv in orig_verts for bv in bme.verts)
+            })
+            if lateral_edges:
+                result = bmesh.ops.subdivide_edgering(
+                    self.bm,
+                    edges=lateral_edges,
+                    cuts=self.loop_count - 1,
+                )
+                intermediate_verts = list({
+                    bv
+                    for bmf in result['faces']
+                    for bv in bmf.verts
+                    if bv not in orig_verts and bv not in new_verts_set
+                })
+                # Find final positions before moving any vert so loop normals are accurate
+                new_cos = {}
+                for bmv in intermediate_verts:
+                    npt_world = point_to_bvec3(self.matrix_world @ bvec_to_point(bmv.co))
+                    # Find nearest surface point as reference / fallback.
+                    nearest = nearest_point_valid_sources(context, npt_world, world=True, respect_clip_planes=True)
+                    npt_snapped = nearest
+                    # Get the outward surface normal at that nearest point.
+                    surface_normal = nearest_normal_valid_sources(context, npt_world, world=True)
+                    if surface_normal is not None and nearest is not None:
+                        # Raycast in both directions and pick whichever hit is closest to the nearest surface.
+                        hits = []
+                        for sign in (1, -1):
+                            ray_dir = Vector((*(surface_normal * sign), 0.0))
+                            hit = raycast_ray_valid_sources(context, (Vector((*npt_world, 1.0)), ray_dir), world=True, respect_clip_planes=True)
+                            if hit is not None:
+                                hits.append(hit)
+                        if hits:
+                            npt_snapped = min(hits, key=lambda h: (h - nearest).length)
+                    if npt_snapped is not None:
+                        new_cos[bmv] = self.matrix_world_inv @ npt_snapped
+                # Apply all positions at once.
+                for bmv, co in new_cos.items():
+                    bmv.co = co
+                ensure_correct_normals(self.bm, result['faces'])
+
         self.action = 'Bridging Loop' if self.cyclic else 'Bridging Strip'
         self.show_twist = self.cyclic
+        self.show_loop_count = True
 
     def finish_edgering_bridge(self, context:Context, nbmelems:Sequence[BMVert|BMEdge|BMFace], nbmvs:Sequence[BMVert]):
         if self.points is None or self.plane_fit is None or self.circle_fit is None:
@@ -668,7 +726,15 @@ class Contours_Logic:
         hit_obj = self.hit['object']
         M = hit_obj.matrix_world
         hit_bm = get_object_bmesh(hit_obj)
-        hit_bmf = hit_bm.faces[self.hit['face_index']]
+        face_index = self.hit['face_index']
+        if face_index >= len(hit_bm.faces):
+            # cache is stale, source mesh changed face count
+            get_object_bmesh.cache.pop(hit_obj, None)
+            hit_bm = get_object_bmesh(hit_obj)
+        if face_index >= len(hit_bm.faces):
+            print(f'CONTOURS: face_index {face_index} out of range for mesh with {len(hit_bm.faces)} faces')
+            return False
+        hit_bmf = hit_bm.faces[face_index]
 
         # TODO: walk from hit_bmf to find bmf that crosses plane_cut
 

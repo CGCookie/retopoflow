@@ -31,7 +31,7 @@ import numpy as np
 import random
 from collections.abc import Sequence
 
-from ...addon_common.common.maths import clamp, Point, Vector, Normal
+from ...addon_common.common.maths import clamp, Point, Vector, Normal, Plane
 
 def view_forward_direction(context:Context) -> Vector:
     r3d = context.region_data
@@ -196,3 +196,43 @@ def perpendicular_direction2(vec2 : Vector, vec2_along : Vector) -> Vector:
     if vec2_perp.dot(vec2_along) < 0:
         vec2_perp.negate()
     return vec2_perp
+
+def get_closest_axis(normal: Vector, axes: list[Vector]) -> Vector:
+    '''Return the axis from `axes` (and its negatives) with the smallest angle to `normal`.'''
+    best, best_dot = axes[0], -2.0
+    for ax in axes:
+        for candidate in (ax, -ax):
+            d = normal.dot(candidate)
+            if d > best_dot:
+                best_dot, best = d, candidate
+    return best
+
+def snap_plane_to_direction(plane: Plane, hit: dict, orientation: str) -> Plane:
+    '''Return a new plane with the same origin but with its normal aligned per `orientation`.'''
+    if orientation == 'stroke':
+        return plane
+
+    origin = plane.o
+    stroke_normal = Vector(plane.n)
+
+    if orientation == 'world':
+        axes = [Vector((1, 0, 0)), Vector((0, 1, 0)), Vector((0, 0, 1))]
+        new_normal = get_closest_axis(stroke_normal, axes)
+
+    elif orientation == 'local':
+        M3 = hit['object'].matrix_world.to_3x3()
+        axes = [M3.col[i].normalized() for i in range(3)]
+        new_normal = get_closest_axis(stroke_normal, axes)
+
+    elif orientation == 'normal':
+        face_normal = Vector(hit['no_world']).normalized()
+        projected = stroke_normal - stroke_normal.dot(face_normal) * face_normal
+        if projected.length > 0.01:
+            new_normal = projected.normalized()
+        else:
+            return plane  # stroke is collinear with face normal so keep it as-is
+
+    else:
+        return plane
+
+    return Plane(origin, new_normal)
