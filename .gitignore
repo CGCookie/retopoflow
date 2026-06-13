@@ -126,3 +126,7 @@ issues/
 *.blend2
 *.blend3
 *.blend4
+
+
+.venv/
+.mypy_cache/

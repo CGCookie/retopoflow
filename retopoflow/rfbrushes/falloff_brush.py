@@ -23,6 +23,7 @@ import bpy
 from mathutils import Vector, Matrix
 
 import math
+from ..rfglobals import RFGlobals
 from ..rfbrush_base import RFBrush_Base
 from ..common.drawing import (
     Drawing,
@@ -257,9 +258,11 @@ def create_falloff_brush(idname, label, **kwargs):
             # Drawing.draw2D_circle(context, center2D, 2, cm, width=1)
 
         def draw_postview(self, context):
+            RFCore = RFGlobals.RFCore_None
+            if not RFCore: return
             if context.area not in self.mouse_areas: return
             if RFOperator_FalloffBrush_Adjust.is_active(): return
-            if not self.RFCore or not (self.RFCore.is_top_modal(context) or self.is_top_modal(context)): return
+            if not RFCore or not (RFCore.is_top_modal(context) or self.is_top_modal(context)): return
             if self.disabled: return
             self._update(context)
             if not self.hit or self.hit_n is None: return # Ensure we have a hit and a normal

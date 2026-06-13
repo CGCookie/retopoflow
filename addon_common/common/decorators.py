@@ -25,6 +25,7 @@ import json
 import time
 import inspect
 from functools import wraps
+from typing import Callable, Any
 
 import bpy
 
@@ -206,7 +207,7 @@ def timed_call(label):
 
 # corrected bug in previous version of blender_version fn wrapper
 # https://github.com/CGCookie/retopoflow/commit/135746c7b4ee0052ad0c1842084b9ab983726b33#diff-d4260a97dcac93f76328dfaeb5c87688
-def blender_version_wrapper(op, ver):
+def blender_version_wrapper(op : str, ver : str) -> Callable[[...], Any]:
     self = blender_version_wrapper
     if not hasattr(self, 'fns'):
         major, minor, rev = bpy.app.version

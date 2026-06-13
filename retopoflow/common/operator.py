@@ -20,10 +20,12 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 from __future__ import annotations
+from typing import Callable
 
 import bpy
 from bpy.types import Context
 
+from ..rfglobals import RFGlobals
 from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.debug import Debugger
 from ...addon_common.common.useractions import event_match_blenderop, get_kmi_properties
@@ -71,16 +73,17 @@ def chain_rf_keymaps(*classes, extra=[]):
 
 
 def update_km_context(self, context:Context):
-    if RFOperator.RFCore is None:
-        return
+    RFCore = RFGlobals.RFCore_None
+    if not RFCore: return
+
     if self.km_context == 'OVERRIDE':
         # NOTE: 'km_status_override' is set by caller ('set_statusbar_override')
         # NOTE: 'km_context' is not reset as we need is as a fallback when we exit the override
         pass
     else:
-        # print(f'RFOperator_KeymapContext._update_km_context {RFOperator.RFCore.km_context=} -> {km_context=}')
-        RFOperator.RFCore.km_status_override = None
-        RFOperator.RFCore.km_context = self.km_context if self.km_context else None
+        # print(f'RFOperator_KeymapContext._update_km_context {RFCore.km_context=} -> {km_context=}')
+        RFCore.km_status_override = None
+        RFCore.km_context = self.km_context if self.km_context else None
 
 class RFOperator_KeymapContext:
     km_context: bpy.props.StringProperty(
@@ -94,12 +97,15 @@ class RFOperator_KeymapContext:
         update_km_context(km_context, context)
 
     def set_statusbar_override(self, status: str | tuple[str, ...] | None):
+        RFCore = RFGlobals.RFCore_None
+        if not RFCore: return
+
         if status is None:
             # print(f'RFOperator_KeymapContext:: reset_override {RFOperator.RFCore.km_context=}')
-            self.km_context = RFOperator.RFCore.km_context if RFOperator.RFCore.km_context is not None else ''
+            self.km_context = RFCore.km_context if RFCore.km_context is not None else ''
             return
         # print(f'RFOperator_KeymapContext:: set_statusbar_override. {status=}')
-        RFOperator.RFCore.km_status_override = status
+        RFCore.km_status_override = status
         self.km_context = 'OVERRIDE'  # IMPORTANT: updating a property triggers statusbar update!
 
 
@@ -138,7 +144,6 @@ class RFOperator_Execute(RFOperator_KeymapContext, bpy.types.Operator):
 class RFAssetShelf(bpy.types.AssetShelf):
     bl_space_type = 'VIEW_3D'
     asset_library_reference = 'CUSTOM'
-    RFCore = None
 
     _subclasses = []
     def __init_subclass__(cls, **kwargs):
@@ -163,8 +168,9 @@ class RFAssetShelf(bpy.types.AssetShelf):
 
     @classmethod
     def poll(cls, context):
+        RFCore = RFGlobals.RFCore_None
         # make sure RFCore is running
-        if not RFAssetShelf.RFCore.is_running: return False
+        if not RFCore or not RFCore.is_running: return False
 
         if not context.edit_object: return False
         if context.edit_object.type != 'MESH': return False
@@ -187,13 +193,11 @@ class RFAssetShelf(bpy.types.AssetShelf):
 
 
 class RFOperator(RFOperator_KeymapContext, bpy.types.Operator):
-    active_operators = []
-    RFCore : object|None = None
-    InvalidationManager = None
-    tickled = None
-    _subclasses : list[RFOperator] = []
+    active_operators : list[RFOperator] = []
+    tickled : Callable[[], None] | None = None
+    _subclasses : list[type[RFOperator]] = []
 
-    rf_idname : str
+    rf_idname : str = ''
 
     def __init_subclass__(cls, **kwargs):
         RFOperator._subclasses.append(cls)
@@ -207,17 +211,18 @@ class RFOperator(RFOperator_KeymapContext, bpy.types.Operator):
     def is_active(cls) -> bool:
         return type(RFOperator.active_operator()) is cls
     @staticmethod
-    def is_active_static(cls) -> bool:
-        return type(RFOperator.active_operator()) is cls
+    def is_active_static(op_cls : type) -> bool:
+        return type(RFOperator.active_operator()) is op_cls
 
     @classmethod
     def is_running(cls) -> bool:
         return any(cls is type(op) for op in RFOperator.active_operators)
 
     @staticmethod
-    def get_all_RFOperators() -> list[RFOperator]:
+    def get_all_RFOperators() -> list[type[RFOperator]]:
         return RFOperator._subclasses
         # return RFOperator.__subclasses__()  # this only works if the subclass is still in scope!!!!!
+
     @staticmethod
     def register_all():
         for op in RFOperator.get_all_RFOperators():
@@ -263,9 +268,9 @@ class RFOperator(RFOperator_KeymapContext, bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
+        RFCore = RFGlobals.RFCore_None
         # make sure RFCore is running
-        if not RFOperator.RFCore: return False
-        if not RFOperator.RFCore.is_running: return False
+        if not RFCore or not RFCore.is_running: return False
 
         if not context.edit_object: return False
         if context.edit_object.type != 'MESH': return False
@@ -301,7 +306,7 @@ class RFOperator(RFOperator_KeymapContext, bpy.types.Operator):
         else:
             self._draw_postpixel_overlay = None
 
-        self.InvalidationManager.prevent_invalidation()
+        RFGlobals.InvalidationManager.prevent_invalidation()
 
         try:
             self.init(context, event)
@@ -339,16 +344,17 @@ class RFOperator(RFOperator_KeymapContext, bpy.types.Operator):
         type(self)._is_running = False
 
     def modal(self, context, event):
-        if not RFOperator.RFCore.is_running or self._stop:
+        RFCore = RFGlobals.RFCore_None
+        if not RFCore or not RFCore.is_running or self._stop:
             ret = {'CANCELLED'}
         else:
-            RFOperator.RFCore.is_controlling = True
+            RFCore.is_controlling = True
             if RFOperator.tickled:
                 # we were tickled by another RF operator (ex: Translate finished when using PolyPen)
                 # handle tickle event (which will remove tickle timer / handler)
                 RFOperator.tickled()
 
-            RFOperator.RFCore.event_mouse = (event.mouse_x, event.mouse_y)
+            RFCore.event_mouse = (event.mouse_x, event.mouse_y)
 
             last_op = ops[-1] if (ops := context.window_manager.operators) else None
             if self.last_op != last_op:
@@ -395,7 +401,7 @@ class RFOperator(RFOperator_KeymapContext, bpy.types.Operator):
             if RFOperator.active_operators:
                 # other RF operators on stack, so tickle them so they can see the changes
                 RFOperator.tickle(context)
-            self.InvalidationManager.resume_invalidation()
+            RFGlobals.InvalidationManager.resume_invalidation()
             type(self)._is_running = False
             return ret
 
@@ -417,9 +423,9 @@ class RFOperator(RFOperator_KeymapContext, bpy.types.Operator):
                 #     with bpy.context.temp_override(**ctx):
                 #         bpy.ops.screen.screen_full_area(**props)
                 # self.stop()
-                # # self.RFCore.switch_to_tool('builtin.move')
-                # # self.RFCore.quick_switch_with_call(tickle, go_full_now, self.rf_idname, delay=0.125)
-                # self.RFCore.quick_switch_with_call(go_full_now, self.rf_idname, delay=0.125)
+                # # RFCore.switch_to_tool('builtin.move')
+                # # RFCore.quick_switch_with_call(tickle, go_full_now, self.rf_idname, delay=0.125)
+                # RFCore.quick_switch_with_call(go_full_now, self.rf_idname, delay=0.125)
                 # return {'FINISHED'}
 
         return ret
@@ -434,10 +440,12 @@ class RFOperator(RFOperator_KeymapContext, bpy.types.Operator):
         wm, win, area = context.window_manager, context.window, context.area
         timer = wm.event_timer_add(0.01, window=win)
         def tickled():
+            RFCore = RFGlobals.RFCore_None
+            if not RFCore: return
             try:
                 wm.event_timer_remove(timer)
                 RFOperator.tickled = None
-                RFOperator.RFCore.tag_redraw_areas()
+                RFCore.tag_redraw_areas()
             except Exception as e:
                 print(f'Ignoring uncaught Exception while trying to remove event timer')
                 print(e)

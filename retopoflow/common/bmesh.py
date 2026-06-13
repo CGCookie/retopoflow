@@ -102,6 +102,9 @@ def get_object_bmesh(obj):
             eval_obj.to_mesh_clear()
     return bm
 
+def clear_object_bmesh():
+    get_object_bmesh.cache.clear() # pyright: ignore[reportFunctionMemberAccess]
+
 def clean_select_layers(bm):
     if 'rf_vert_select_after_move' in bm.verts.layers.int:
         bm.verts.layers.int.remove(bm.verts.layers.int.get('rf_vert_select_after_move'))

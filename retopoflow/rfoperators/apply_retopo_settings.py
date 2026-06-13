@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2025 CG Cookie
+Copyright (C) 2026 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -20,11 +20,14 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 
-import bpy
+from bpy.types import Context, Operator
 from ..common.operator import RFRegisterClass
+from ..rfglobals import RFGlobals
 
 
-class RFOperator_ApplyRetopoSettings(RFRegisterClass, bpy.types.Operator):
+
+
+class RFOperator_ApplyRetopoSettings(RFRegisterClass, Operator):
     bl_idname = "retopoflow.applysettings"
     bl_label = "Apply Retopology Settings"
     bl_description = "Apply the retopology settings from Retopoflow to Blender for use in other Edit Mode tools"
@@ -33,31 +36,19 @@ class RFOperator_ApplyRetopoSettings(RFRegisterClass, bpy.types.Operator):
     bl_options = {'UNDO'}
 
     rf_label = "Apply Retopology Settings"
-    RFCore = None
 
     @classmethod
-    def poll(cls, context):
+    def poll(cls, context : Context) -> bool:
         return context.mode == 'EDIT_MESH'
 
-    def execute(self, context):
-        from ..rfcore import RFCore
-        from ..rftool_polypen.polypen import RFTool_PolyPen
-        from ..rftool_polystrips.polystrips import RFTool_PolyStrips
-        from ..rftool_strokes.strokes import RFTool_Strokes
-        from ..rftool_contours.contours import RFTool_Contours
-        from ..rftool_tweak.tweak import RFTool_Tweak
-        from ..rftool_relax.relax import RFTool_Relax
-        RFCore.resetter.clear()
-        if hasattr(RFTool_PolyPen, 'resetter'): RFTool_PolyPen.resetter.clear()
-        if hasattr(RFTool_PolyStrips, 'resetter'): RFTool_PolyStrips.resetter.clear()
-        if hasattr(RFTool_Strokes, 'resetter'): RFTool_Strokes.resetter.clear()
-        if hasattr(RFTool_Contours, 'resetter'): RFTool_Contours.resetter.clear()
-        if hasattr(RFTool_Tweak, 'resetter'): RFTool_Tweak.resetter.clear()
-        if hasattr(RFTool_Relax, 'resetter'): RFTool_Relax.resetter.clear()
+    def execute(self, context : Context) -> set[str]:
+        RFCore = RFGlobals.RFCore_None
+        if not RFCore: return {'CANCELLED'}
+        RFCore.resetter_clear_all()
         return {'FINISHED'}
 
 
-class RFOperator_RestoreRetopoSettings(RFRegisterClass, bpy.types.Operator):
+class RFOperator_RestoreRetopoSettings(RFRegisterClass, Operator):
     bl_idname = "retopoflow.restoresettings"
     bl_label = "Restore Retopology Settings"
     bl_description = "Restore the retopology settings to non-Retopoflow tools if you accidentally applied them"
@@ -66,25 +57,13 @@ class RFOperator_RestoreRetopoSettings(RFRegisterClass, bpy.types.Operator):
     bl_options = {'UNDO'}
 
     rf_label = "Restore Retopology Settings"
-    RFCore = None
 
     @classmethod
-    def poll(cls, context):
+    def poll(cls, context : Context) -> bool:
         return context.mode == 'EDIT_MESH'
 
-    def execute(self, context):
-        from ..rfcore import RFCore
-        from ..rftool_polypen.polypen import RFTool_PolyPen
-        from ..rftool_polystrips.polystrips import RFTool_PolyStrips
-        from ..rftool_strokes.strokes import RFTool_Strokes
-        from ..rftool_contours.contours import RFTool_Contours
-        from ..rftool_tweak.tweak import RFTool_Tweak
-        from ..rftool_relax.relax import RFTool_Relax
-        RFCore.resetter.restore()
-        if hasattr(RFTool_PolyPen, 'resetter'): RFTool_PolyPen.resetter.restore()
-        if hasattr(RFTool_PolyStrips, 'resetter'): RFTool_PolyStrips.resetter.restore()
-        if hasattr(RFTool_Strokes, 'resetter'): RFTool_Strokes.resetter.restore()
-        if hasattr(RFTool_Contours, 'resetter'): RFTool_Contours.resetter.restore()
-        if hasattr(RFTool_Tweak, 'resetter'): RFTool_Tweak.resetter.restore()
-        if hasattr(RFTool_Relax, 'resetter'): RFTool_Relax.resetter.restore()
+    def execute(self, context : Context) -> set[str]:
+        RFCore = RFGlobals.RFCore_None
+        if not RFCore: return {'CANCELLED'}
+        RFCore.resetter_restore_all()
         return {'FINISHED'}

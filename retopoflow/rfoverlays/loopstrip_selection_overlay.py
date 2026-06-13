@@ -25,6 +25,8 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d
 
 from .overlays import overlay_names
 
+from ..rfglobals import RFGlobals
+from ..rfoverlay_base import RFOverlay_Base
 from ..common.operator import RFOperator
 from ..common.bmesh import get_bmesh_emesh, bme_midpoint, get_boundary_strips_cycles
 from ..common.drawing import Drawing
@@ -56,7 +58,7 @@ def get_label_pos(context, label, mids, corners):
 
 def create_loopstrip_selection_overlay(opname, rftool_idname, idname, label, only_boundary):
     overlay_names.add(label)
-    class RFOperator_LoopStrip_Selection_Overlay:
+    class RFOperator_LoopStrip_Selection_Overlay(RFOverlay_Base):
         bl_idname = f'retopoflow.{idname}'
         bl_label = label
         bl_description = 'Overlay info about selected loops and strips'
@@ -70,17 +72,22 @@ def create_loopstrip_selection_overlay(opname, rftool_idname, idname, label, onl
             self.depsgraph_version = None
 
         def update(self, context, event):
-            is_done = (self.RFCore.selected_RFTool_idname != rftool_idname)
+            RFCore = RFGlobals.RFCore_None
+            if not RFCore: return {'CANCELLED'}
+            is_done = (RFCore.selected_RFTool_idname != rftool_idname)
             return {'CANCELLED'} if is_done else {'PASS_THROUGH'}
 
         def draw_postpixel_overlay(self):
-            is_done = (self.RFCore.selected_RFTool_idname != rftool_idname)
+            RFCore = RFGlobals.RFCore_None
+            if not RFCore: return
+
+            is_done = (RFCore.selected_RFTool_idname != rftool_idname)
             if is_done: return
 
-            if self.depsgraph_version != self.RFCore.depsgraph_version:
+            if self.depsgraph_version != RFCore.depsgraph_version:
                 # depsgraph changed, so recollect boundary details
 
-                self.depsgraph_version = self.RFCore.depsgraph_version
+                self.depsgraph_version = RFCore.depsgraph_version
 
                 # find selected boundary strips
                 bm, _ = get_bmesh_emesh(bpy.context)

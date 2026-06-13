@@ -86,7 +86,6 @@ class RFOperator_ApplyRetopoSettings(RFRegisterClass, bpy.types.Operator):
     bl_options = {'UNDO'}
 
     rf_label = "Reset Retopoflow Settings"
-    RFCore = None
 
     @classmethod
     def poll(cls, context):

@@ -30,6 +30,7 @@ import bpy
 from mathutils import Vector
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 
+from ..rfglobals import RFGlobals
 from ..rftool_base import RFTool_Base
 from ..rfbrushes.stroke_brush import create_stroke_brush
 from ..preferences import RF_Prefs
@@ -693,7 +694,9 @@ class RFAssetShelf_Patches(RFAssetShelf):
 
     @classmethod
     def can_start(cls, context):
-        return RFAssetShelf.RFCore.selected_RFTool_idname == RFTool_Patches.bl_idname
+        RFCore = RFGlobals.RFCore_None
+        if not RFCore: return False
+        return RFCore.selected_RFTool_idname == RFTool_Patches.bl_idname
 
 
 
@@ -1140,7 +1143,8 @@ class RFOperator_Patches_Drag_template(RFOperator):
 
 
     def draw_postpixel(self, context):
-        if not self.RFCore.is_current_area(context): return
+        RFCore = RFGlobals.RFCore_None
+        if not RFCore or not RFCore.is_current_area(context): return
 
         ptnos = self.compute_points(context)
         # project to screen

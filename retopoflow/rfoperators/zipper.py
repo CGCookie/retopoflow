@@ -31,6 +31,7 @@ from mathutils import Vector, Matrix
 from bmesh.types import BMVert, BMesh
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 
+from ..rfglobals import RFGlobals
 from ..common.bmesh import (
     bmvs_shared_bme,
     bme_other_bmv,
@@ -491,5 +492,6 @@ class RFOperator_Zipper(RFOperator):
         return {'RUNNING_MODAL'}
 
     def draw_postpixel(self, context):
-        if not self.RFCore.is_current_area(context): return
+        RFCore = RFGlobals.RFCore_None
+        if not RFCore or not RFCore.is_current_area(context): return
         self.logic.draw(context)

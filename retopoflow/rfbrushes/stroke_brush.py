@@ -25,6 +25,7 @@ from bmesh.types import BMVert
 from mathutils import Vector, Matrix
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 
+from ..rfglobals import RFGlobals
 from ..rfbrush_base import RFBrush_Base
 from ..common.bmesh import (
     get_bmesh_emesh,
@@ -272,6 +273,9 @@ def create_stroke_brush(
 
 
         def update(self, context, event):
+            RFCore = RFGlobals.RFCore_None
+            if not RFCore: return
+
             try:
                 if self.operator: self.operator.is_active()
             except ReferenceError as referr:
@@ -284,7 +288,7 @@ def create_stroke_brush(
                 self.hit = False
                 return
 
-            if not self.RFCore.is_current_area(context):
+            if not RFCore.is_current_area(context):
                 self.reset()
                 return
 
@@ -989,7 +993,8 @@ def create_stroke_brush(
                     Drawing.draw2D_linestrip(context, cos + [cos[0]], self.snap_color, width=2)
 
         def draw_postpixel(self, context):
-            if not self.RFCore.is_current_area(context): return
+            RFCore = RFGlobals.RFCore_None
+            if not RFCore or not RFCore.is_current_area(context): return
             if not self.operator and not RFOperator_StrokeBrush_Adjust.is_active(): return
             if self.shift_held: return
             if not self.matrix_world: return
@@ -1055,7 +1060,8 @@ def create_stroke_brush(
             return s
 
         def draw_postview(self, context):
-            if not self.RFCore.is_current_area(context): return
+            RFCore = RFGlobals.RFCore_None
+            if not RFCore or not RFCore.is_current_area(context): return
             if context.area not in self.mouse_areas: return
             if not self.matrix_world: return
             if self.shift_held: return

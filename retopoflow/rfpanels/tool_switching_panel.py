@@ -20,6 +20,7 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
+from ..rfglobals import RFGlobals
 from ..preferences import RF_Prefs
 from ..common.interface import draw_section_header, draw_section_indent
 
@@ -55,7 +56,8 @@ def draw_tool_switching_options(context, layout):
         layout.separator(type='SPACE')
         layout.separator(type='LINE', factor=1)
     else:
-        from ..rfcore import RFCore
+        RFCore = RFGlobals.RFCore_None
+
         row = layout.row()
         draw_section_indent(context, row)
         col = row.column()
@@ -64,7 +66,7 @@ def draw_tool_switching_options(context, layout):
         row2 = col.row(align=False)
         row2.operator('retopoflow.applysettings')
         col2 = row2.column()
-        col2.enabled = RFCore.resetter._backup != {}
+        col2.enabled = RFCore and RFCore.resetter._backup != {}
         col2.operator('retopoflow.restoresettings', text='', icon='RECOVER_LAST')
 
         col.separator(type='LINE', factor=4)

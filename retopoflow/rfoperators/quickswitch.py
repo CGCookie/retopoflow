@@ -22,6 +22,7 @@ import importlib
 
 import bpy
 
+from ..rfglobals import RFGlobals
 from ..common.operator import RFOperator
 
 
@@ -89,10 +90,14 @@ class RFOperator_Relax_QuickSwitch(RFOperator):
     ]
 
     def init(self, context, event):
+        RFCore = RFGlobals.RFCore
+
         self.running = False
-        self.prev_tool = self.RFCore.selected_RFTool_idname
+        self.prev_tool = RFCore.selected_RFTool_idname
 
     def update(self, context, event):
+        RFCore = RFGlobals.RFCore
+
         if not self.running:
             self.running = True
             quick_switch_tool('relax')
@@ -105,7 +110,7 @@ class RFOperator_Relax_QuickSwitch(RFOperator):
 
         # finished relaxing
         self.running = False
-        self.RFCore.switch_to_tool(self.prev_tool)
+        RFCore.switch_to_tool(self.prev_tool)
         return {'FINISHED'}
 
 class RFOperator_Tweak_QuickSwitch(RFOperator):
@@ -121,10 +126,14 @@ class RFOperator_Tweak_QuickSwitch(RFOperator):
     ]
 
     def init(self, context, event):
+        RFCore = RFGlobals.RFCore
+
         self.running = False
-        self.prev_tool = self.RFCore.selected_RFTool_idname
+        self.prev_tool = RFCore.selected_RFTool_idname
 
     def update(self, context, event):
+        RFCore = RFGlobals.RFCore
+
         if not self.running:
             self.running = True
             quick_switch_tool('tweak')
@@ -137,5 +146,5 @@ class RFOperator_Tweak_QuickSwitch(RFOperator):
 
         # finished tweaking
         self.running = False
-        self.RFCore.switch_to_tool(self.prev_tool)
+        RFCore.switch_to_tool(self.prev_tool)
         return {'FINISHED'}

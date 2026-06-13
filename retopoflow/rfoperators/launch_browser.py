@@ -21,6 +21,7 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy
 import re
+from ..rfglobals import RFGlobals
 from ..common.operator import RFRegisterClass
 
 
@@ -37,7 +38,9 @@ class RFOperator_Launch_Help(RFRegisterClass, bpy.types.Operator):
         return RFCore.is_running
 
     def execute(self, context):
-        from ..rfcore import RFCore
+        RFCore = RFGlobals.RFCore_None
+        if not RFCore: return {'CANCELLED'}
+
         active_tool = RFCore.selected_RFTool_idname
         help = {
             'retopoflow.polypen': 'https://docs.retopoflow.com/v4/polypen.html',
@@ -63,8 +66,8 @@ class RFOperator_Launch_NewIssue(RFRegisterClass, bpy.types.Operator):
 
     @classmethod
     def poll(self, context):
-        from ..rfcore import RFCore
-        return RFCore.is_running
+        RFCore = RFGlobals.RFCore_None
+        return RFCore and RFCore.is_running
 
     def execute(self, context):
         bpy.ops.wm.url_open(url='https://github.com/CGCookie/retopoflow/issues/new/choose')
@@ -147,7 +150,8 @@ def poll_help(context):
     return RF_Prefs.get_prefs(context).enable_help_hotkey
 
 def launch_help(context):
-    from ..rfcore import RFCore
+    RFCore = RFGlobals.RFCore
+    if not RFCore: return {'CANCELLED}
     active_tool = RFCore.selected_RFTool_idname
     help = {
         'retopoflow.polypen': 'https://docs.retopoflow.com/v4/polypen.html',

@@ -37,7 +37,6 @@ class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO', 'PRESET'}
 
     rf_label = "Clean Up Mesh"
-    RFCore = None
 
     affect_all: bpy.props.BoolProperty(
         default=False

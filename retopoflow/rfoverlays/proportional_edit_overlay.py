@@ -24,12 +24,13 @@ from bpy.types import Context, Event
 from bmesh.types import BMVert, BMEdge, BMFace, BMesh
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 from mathutils import Vector
+from ..rfoverlay_base import RFOverlay_Base
 from ...addon_common.common.maths import Color
 from ..common.drawing import Drawing
 from ...addon_common.common import gpustate
 
 
-class ProportionalEditOverlay:
+class ProportionalEditOverlay(RFOverlay_Base):
     center_2d: Vector | None = None
     center_3d: Vector | None = None
 

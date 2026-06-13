@@ -26,6 +26,7 @@ from mathutils import Vector, Matrix
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 from bpy.types import Context
 
+from ..rfglobals import RFGlobals
 from ..rfbrushes.cut_brush import RFBrush_Cut
 from ..rfoverlays.loopstrip_selection_overlay import create_loopstrip_selection_overlay
 
@@ -210,7 +211,7 @@ class RFOperator_Contours_Insert(
     def create_redo_operator(idname: str, description: str, keymap: dict, op_props: dict | None = None):
         # add keymap to RFOperator_Contours_Insert.rf_keymaps
         # note: still creating RFOperator_Contours_Insert, so using RFOperator_Contours_Insert_Keymaps.rf_keymaps
-        def _poll(context) -> bool:
+        def _poll(context:Context) -> bool:
             last_op = context.window_manager.operators[-1].name if context.window_manager.operators else None
             return last_op == RFOperator_Contours_Insert.bl_label
 
@@ -356,6 +357,9 @@ class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
         RFOperator_Contours_Insert.insert(context, hit, plane, circle_hit, self.span_count, self.process_source_method, hits)
 
     def update(self, context, event):
+        RFCore = RFGlobals.RFCore_None
+        if not RFCore: return {'CANCELLED'}
+
         if event.value in {'CLICK', 'DOUBLE_CLICK'} and event_modifier_check(event, ctrl=True, shift=False, alt=False, oskey=False):
             return {'RUNNING_MODAL'}
 
@@ -367,7 +371,7 @@ class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
         if RFTool_Contours.rf_brush.is_stroking():
             self.set_statusbar_override(self.rf_status['insert'])
             if event.type in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE', 'LEFTMOUSE', 'RIGHTMOUSE', 'ESC'}:
-                self.RFCore.handle_update(context, event)
+                RFCore.handle_update(context, event)
                 return {'RUNNING_MODAL'}
         else:
             self.set_statusbar_override(None)
