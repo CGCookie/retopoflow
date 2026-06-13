@@ -1098,6 +1098,7 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
                     'retain_segments': segs,
                     'bfs_level':       ring_levels[ring_idx],
                     'weight':          1.0,
+                    'is_prop':         False,
                 })
 
             # ---- Proportional ring detection ----
@@ -1106,10 +1107,10 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
             # groups are treated as rings with their own axis, twisted by
             # angle × falloff(avg_dist).  This keeps valid prop loops rotating
             # around their own axis rather than being IDW-dragged by the core.
+            prop_non_ring_weights = {}   # {vert: falloff_weight} for all prop non-ring verts
             prop_sym_verts = set()
             if prop_distances:
-                ts           = context.tool_settings
-                prop_radius  = ts.proportional_distance
+                prop_radius  = self.proportional_distance
                 prop_falloff = self.proportional_falloff
 
                 # BFS from core component outward through prop_distances verts
@@ -1138,10 +1139,24 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
                             if mz and abs(v.co.z) < threshold: prop_sym_verts.add(v)
 
                     prop_rings, prop_unreachable = _find_prop_rings(comp_prop, component_set)
+                    for v in prop_unreachable:
+                        d_v     = comp_prop[v]
+                        dist_in = max(1.0 - d_v / prop_radius, 0.0)
+                        prop_non_ring_weights[v] = proportional_edit(prop_falloff, dist_in)
                     bfs_non_ring.extend(prop_unreachable)
+
+                    # Offset prop ring bfs_levels above all core ring levels so
+                    # _build_loft_sequence never groups core and prop rings into
+                    # the same level bucket (core inner rings and prop rings both
+                    # start at level 1, causing wrong adjacency pairings in the loft).
+                    max_core_level = max((rd['bfs_level'] for rd in ring_groups), default=0)
 
                     for ring_verts, avg_d, hop_lv in prop_rings:
                         if len(ring_verts) < 3:
+                            for v in ring_verts:
+                                d_v     = comp_prop[v]
+                                dist_in = max(1.0 - d_v / prop_radius, 0.0)
+                                prop_non_ring_weights[v] = proportional_edit(prop_falloff, dist_in)
                             bfs_non_ring.extend(ring_verts)
                             continue
                         initial_cos = {v: v.co.copy() for v in ring_verts}
@@ -1152,7 +1167,18 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
                                 ref_normal = normal.copy()
                             elif normal.dot(ref_normal) < 0:
                                 normal = -normal
-                        lp   = _traverse_loop_params(ring_verts, initial_cos, mw)
+                        lp = _traverse_loop_params(ring_verts, initial_cos, mw)
+                        # Poles have > 2 edges leaving this ring group, so arc-
+                        # sliding them around the ring's fitted axis produces the
+                        # wrong motion.  Force them to IDW/bary instead.
+                        if lp is not None:
+                            ring_set = set(ring_verts)
+                            if any(
+                                sum(1 for e in v.link_edges
+                                    if e.other_vert(v) not in ring_set) > 2
+                                for v in ring_verts
+                            ):
+                                lp = None
                         segs = _build_retain_segments(ring_verts, initial_cos, mw) if lp is None else None
                         # Winding fix — same as core rings
                         check_normal = normal if normal is not None else ref_normal
@@ -1182,9 +1208,15 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
                             'center':          center,
                             'loop_params':     lp,
                             'retain_segments': segs,
-                            'bfs_level':       hop_lv,
+                            'bfs_level':       max_core_level + hop_lv,
                             'weight':          weight,
+                            'is_prop':         True,
                         })
+                        # Broken prop rings need per-vert weights so _run_apply
+                        # can lerp between original and bary/IDW positions.
+                        if lp is None:
+                            for v in ring_verts:
+                                prop_non_ring_weights[v] = weight
 
             if ring_groups:
                 # Build barycentric loft surface and embed all non-ring verts.
@@ -1202,33 +1234,108 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
                 bary_embeddings   = {}
                 bary_fallback_cos = {}
 
+                # Separate non-ring verts by origin so core poles are never
+                # embedded in prop-ring triangles (prop ring verts move at reduced
+                # weight, which would pull the core pole away from full-twist).
+                core_non_ring_cos = {}
+                prop_non_ring_cos = {}
+                for rd in ring_groups:
+                    if rd['loop_params'] is None:
+                        target = prop_non_ring_cos if rd.get('is_prop') else core_non_ring_cos
+                        target.update(rd['initial_cos'])
+                for v in bfs_non_ring:
+                    co = v.co.copy()
+                    if v in prop_non_ring_weights:
+                        prop_non_ring_cos[v] = co
+                    else:
+                        core_non_ring_cos[v] = co
+                non_ring_initial_cos = {**core_non_ring_cos, **prop_non_ring_cos}
+
+                # prop_bary_lerp_embeddings: {vert: (v0,v1,v2,w0,w1,w2,offset,lerp_weight)}
+                # Prop non-ring verts that couldn't embed in the prop-only loft fall
+                # back to the full loft + an explicit lerp by the vert's falloff weight.
+                # Using bary (not IDW) here preserves retain-shape behaviour because
+                # _bary_reconstruct reads v.co from ring verts already arc-slid in Pass 1.
+                prop_bary_lerp_embeddings = {}
+
+                # Build full_loft: a proper cylinder/surface when >=2 complete rings
+                # exist, or a single end-cap when only 1 exists.  The cap is used as a
+                # last-resort embedding surface for prop non-ring verts so that the
+                # falloff works even when the topology has no complete prop rings
+                # (e.g. a pole-heavy mesh where every hop tier is broken).
                 if len(active_rings_lp) >= 2:
-                    loft_tris = _build_loft_surface(active_rings_lp, all_ring_initial_cos)
+                    full_loft = _build_loft_surface(active_rings_lp, all_ring_initial_cos)
+                elif len(active_rings_lp) == 1:
+                    full_loft = _cap_ring(active_rings_lp[0]['loop_params'][0])
+                else:
+                    full_loft = []
 
-                    non_ring_cos = {}
+                # Core non-ring verts must only be embedded in all-core-ring
+                # triangles.  Filter the full loft so prop-ring verts can't
+                # reduce a core pole's displacement.  Requires >=2 complete rings
+                # to produce a loft surface (a single-ring cap has no "between" zone).
+                if core_non_ring_cos and len(active_rings_lp) >= 2:
+                    core_ring_vert_set = set()
                     for rd in ring_groups:
-                        if rd['loop_params'] is None:
-                            non_ring_cos.update(rd['initial_cos'])
-                    for v in bfs_non_ring:
-                        non_ring_cos[v] = v.co.copy()
-
-                    for v, co0 in non_ring_cos.items():
-                        result = _find_bary_embedding(co0, loft_tris, all_ring_initial_cos)
+                        if not rd.get('is_prop'):
+                            core_ring_vert_set.update(rd['initial_cos'].keys())
+                    core_loft = [(v0, v1, v2) for v0, v1, v2 in full_loft
+                                 if v0 in core_ring_vert_set
+                                 and v1 in core_ring_vert_set
+                                 and v2 in core_ring_vert_set]
+                    for v, co0 in core_non_ring_cos.items():
+                        result = _find_bary_embedding(co0, core_loft, all_ring_initial_cos)
                         if result is not None:
-                            bary_embeddings[v] = result   # (v0,v1,v2, w0,w1,w2, offset)
+                            bary_embeddings[v] = result
                         else:
                             bary_fallback_cos[v] = co0
+
+                # Prop non-ring verts must never be embedded in core-ring triangles.
+                # Build a prop-only loft so the tier-2 nearest-centroid fallback in
+                # _find_bary_embedding can't assign a falloff-boundary vert to a
+                # core ring triangle (which would reconstruct at full-strength twist).
+                # Verts that fail the prop-only loft fall back to the full loft + an
+                # explicit lerp by the vert's own falloff weight.  This path works
+                # even when active_rings_lp has only 1 ring (full_loft is a cap).
+                if prop_non_ring_cos and full_loft:
+                    prop_rings_lp = [rd for rd in ring_groups
+                                     if rd.get('is_prop') and rd['loop_params'] is not None]
+                    if len(prop_rings_lp) >= 2:
+                        prop_loft = _build_loft_surface(prop_rings_lp, all_ring_initial_cos)
+                    elif len(prop_rings_lp) == 1:
+                        prop_loft = _cap_ring(prop_rings_lp[0]['loop_params'][0])
+                    else:
+                        prop_loft = []
+                    for v, co0 in prop_non_ring_cos.items():
+                        result = _find_bary_embedding(co0, prop_loft, all_ring_initial_cos)
+                        if result is not None:
+                            bary_embeddings[v] = result
+                        else:
+                            # Can't embed in prop-only loft (vert is in the core/prop
+                            # transition zone or prop loft is empty).  Fall back to
+                            # the full loft + lerp so bary reconstruction uses the
+                            # arc-slid ring vert positions (retain-shape correct) and
+                            # the lerp applies the vert's own falloff weight.
+                            result2 = _find_bary_embedding(co0, full_loft, all_ring_initial_cos)
+                            w = prop_non_ring_weights.get(v, 0.0)
+                            if result2 is not None:
+                                prop_bary_lerp_embeddings[v] = (*result2, w)
+                            else:
+                                bary_fallback_cos[v] = co0
 
                 bfs_non_ring_set = set(bfs_non_ring)
                 bfs_sym = {v for v in sym_verts       if v in bfs_non_ring_set}
                 bfs_sym.update(v for v in prop_sym_verts if v in bfs_non_ring_set)
                 components.append({
-                    'ring_groups':       ring_groups,
-                    'bfs_non_ring_cos':  {v: v.co.copy() for v in bfs_non_ring},
-                    'bfs_non_ring_sym':  bfs_sym,
-                    'sym_axes':          sym_axes,
-                    'bary_embeddings':   bary_embeddings,
-                    'bary_fallback_cos': bary_fallback_cos,
+                    'ring_groups':               ring_groups,
+                    'bfs_non_ring_cos':          {v: v.co.copy() for v in bfs_non_ring},
+                    'bfs_non_ring_sym':          bfs_sym,
+                    'sym_axes':                  sym_axes,
+                    'bary_embeddings':           bary_embeddings,
+                    'bary_fallback_cos':         bary_fallback_cos,
+                    'prop_bary_lerp_embeddings': prop_bary_lerp_embeddings,
+                    'non_ring_initial_cos':      non_ring_initial_cos,
+                    'prop_non_ring_weights':     prop_non_ring_weights,
                 })
         return components
 
@@ -1304,13 +1411,28 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
                         continue
                     v.co = _bary_reconstruct(v0, v1, v2, w0, w1, w2, offset)
 
-                # IDW fallback for verts with no loft coverage.
+                # IDW fallback for core non-ring verts with no loft coverage.
                 if bary_fallback_cos:
                     fallback_sym = {v for v in sym_all if v in bary_fallback_cos}
                     twist_apply_blend_axis(active_rings, bary_fallback_cos,
                                            fallback_sym, cd['sym_axes'],
                                            mw, mwi, deg,
                                            retain_shape=self.retain_shape)
+
+                # Prop non-ring verts that fell back from the prop-only loft to the
+                # full loft.  Reconstruct from the full-loft bary embedding (which
+                # reads arc-slid ring vert positions → retain-shape correct), then
+                # lerp by the stored falloff weight so verts near the falloff boundary
+                # don't inherit full-strength movement from core ring verts.
+                prop_bary_lerp_embeddings = cd.get('prop_bary_lerp_embeddings', {})
+                if prop_bary_lerp_embeddings:
+                    ni_cos = cd.get('non_ring_initial_cos', {})
+                    for v, (v0, v1, v2, w0, w1, w2, offset, lerp_w) in prop_bary_lerp_embeddings.items():
+                        if v in sym_all:
+                            continue
+                        co0 = ni_cos.get(v)
+                        bary_co = _bary_reconstruct(v0, v1, v2, w0, w1, w2, offset)
+                        v.co = co0 + lerp_w * (bary_co - co0) if co0 is not None else bary_co
 
                 # Symmetry clamp for all non-ring sym verts.
                 for v in sym_all:
