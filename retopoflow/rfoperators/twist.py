@@ -1,5 +1,6 @@
 import bpy
 import bmesh
+import heapq
 import math
 from mathutils import Matrix, Vector
 
@@ -7,6 +8,7 @@ from ..common.bmesh import get_bmesh_emesh, has_mirror_x, has_mirror_y, has_mirr
 from ..common.operator import RFRegisterClass
 from ...addon_common.common.maths import Plane, Point
 from ...addon_common.ext.circle_fit import hyperLSQ
+from ..common.maths import proportional_edit
 
 
 TWIST_SENSITIVITY  = 0.05  # degrees per pixel of horizontal mouse movement
@@ -48,6 +50,92 @@ def _find_loops(sel_verts):
             queue.extend(adj.get(nb, []))
         components.append(component)
     return components
+
+
+def _gather_proportional_verts(sel_verts, mw, radius):
+    '''
+    Dijkstra from sel_verts along edges, collecting all connected vertices
+    within world-space distance `radius`.
+    Returns {vert: geodesic_distance} — sel_verts are included at distance 0.
+    '''
+    visited = {}
+    queue   = [(0.0, v.index, v) for v in sel_verts]
+    while queue:
+        d, _, v = heapq.heappop(queue)
+        if v in visited:
+            continue
+        visited[v] = d
+        for e in v.link_edges:
+            nb    = e.other_vert(v)
+            d_new = d + (mw @ v.co - mw @ nb.co).length
+            if d_new <= radius and nb not in visited:
+                heapq.heappush(queue, (d_new, nb.index, nb))
+    return visited
+
+
+def _find_prop_rings(comp_prop, core_set):
+    '''
+    Group proportional-edit verts into ring tiers by edge-hop distance from
+    the core selection, then split each tier into edge-connected sub-rings.
+
+    Returns:
+        rings       – list of (ring_verts, avg_world_dist, hop_level)
+        unreachable – verts not reached by the hop BFS (edge case; normally empty)
+
+    Hop-distance avoids the `sel_faces` dependency of _find_rings_in_component,
+    which breaks when only one prop tier exists (no faces are entirely inside
+    the prop region).
+    '''
+    prop_set = set(comp_prop.keys())
+
+    # BFS hop count from prop verts that are directly adjacent to core
+    hop   = {}
+    queue = []
+    for v in prop_set:
+        if any(e.other_vert(v) in core_set for e in v.link_edges):
+            hop[v] = 1
+            queue.append(v)
+    qi = 0
+    while qi < len(queue):
+        v = queue[qi]; qi += 1
+        for e in v.link_edges:
+            nb = e.other_vert(v)
+            if nb not in prop_set or nb in hop:
+                continue
+            hop[nb] = hop[v] + 1
+            queue.append(nb)
+
+    # Group by hop level
+    by_hop = {}
+    for v, h in hop.items():
+        by_hop.setdefault(h, []).append(v)
+
+    # Within each hop level, split into edge-connected sub-groups
+    rings = []
+    for h in sorted(by_hop.keys()):
+        group     = by_hop[h]
+        group_set = set(group)
+        visited   = set()
+        for start in group:
+            if start in visited:
+                continue
+            ring_verts = []
+            q = [start]
+            while q:
+                v = q.pop()
+                if v in visited:
+                    continue
+                visited.add(v)
+                ring_verts.append(v)
+                for e in v.link_edges:
+                    nb = e.other_vert(v)
+                    if nb in group_set and nb not in visited:
+                        q.append(nb)
+            avg_d = sum(comp_prop[v] for v in ring_verts) / len(ring_verts)
+            rings.append((ring_verts, avg_d, h))
+
+    unreachable = [v for v in prop_set if v not in hop]
+    return rings, unreachable
 
 
 def _selected_faces(component_verts):
@@ -888,6 +976,29 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
         description='Slide vertices along the original selection edges while twisting',
         default=True,
     )
+    use_proportional_edit: bpy.props.BoolProperty(
+        name='Proportional Editing',
+        description='Extend twist to connected vertices within the falloff radius',
+        default=False,
+    )
+    proportional_distance: bpy.props.FloatProperty(
+        name='Proportional Size',
+        description='Radius of proportional editing falloff',
+        default=1.0,
+        min=1e-6,
+        subtype='DISTANCE',
+        unit='LENGTH',
+    )
+    proportional_falloff: bpy.props.EnumProperty(
+        name='Falloff',
+        description='Curve shape used to reduce the twist angle with distance',
+        items=[
+            ('SMOOTH',  'Smooth',   'Smooth falloff (3t²−2t³)'),
+            ('LINEAR',  'Linear',   'Linear falloff'),
+            ('SPHERE',  'Sphere',   'Spherical falloff (√(2t−t²))'),
+        ],
+        default='SMOOTH',
+    )
 
     @classmethod
     def poll(cls, context):
@@ -897,8 +1008,12 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
         layout = self.layout
         layout.prop(self, 'twist_angle')
         layout.prop(self, 'retain_shape')
+        layout.prop(self, 'use_proportional_edit')
+        if self.use_proportional_edit:
+            layout.prop(self, 'proportional_distance')
+            layout.prop(self, 'proportional_falloff')
 
-    def _build_component_data(self, context, sel_verts, mw):
+    def _build_component_data(self, context, sel_verts, mw, prop_distances=None):
         '''Build per-component twist data.
 
         Returns a list of component dicts, each containing:
@@ -982,7 +1097,94 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
                     'loop_params':     lp,
                     'retain_segments': segs,
                     'bfs_level':       ring_levels[ring_idx],
+                    'weight':          1.0,
                 })
+
+            # ---- Proportional ring detection ----
+            # Prop verts are gathered per-component via BFS from the core, then
+            # grouped into hop-distance tiers.  Each tier's edge-connected sub-
+            # groups are treated as rings with their own axis, twisted by
+            # angle × falloff(avg_dist).  This keeps valid prop loops rotating
+            # around their own axis rather than being IDW-dragged by the core.
+            prop_sym_verts = set()
+            if prop_distances:
+                ts           = context.tool_settings
+                prop_radius  = ts.proportional_distance
+                prop_falloff = self.proportional_falloff
+
+                # BFS from core component outward through prop_distances verts
+                comp_prop    = {}
+                component_set = set(component_verts)
+                visited_prop  = set(component_set)
+                queue = list(component_verts)
+                while queue:
+                    v = queue.pop()
+                    for e in v.link_edges:
+                        nb = e.other_vert(v)
+                        if nb in visited_prop:
+                            continue
+                        if nb in prop_distances:
+                            comp_prop[nb] = prop_distances[nb]
+                            visited_prop.add(nb)
+                            queue.append(nb)
+
+                if comp_prop:
+                    mx, my, mz = sym_axes
+                    if mx or my or mz:
+                        threshold = 1e-4
+                        for v in comp_prop:
+                            if mx and abs(v.co.x) < threshold: prop_sym_verts.add(v)
+                            if my and abs(v.co.y) < threshold: prop_sym_verts.add(v)
+                            if mz and abs(v.co.z) < threshold: prop_sym_verts.add(v)
+
+                    prop_rings, prop_unreachable = _find_prop_rings(comp_prop, component_set)
+                    bfs_non_ring.extend(prop_unreachable)
+
+                    for ring_verts, avg_d, hop_lv in prop_rings:
+                        if len(ring_verts) < 3:
+                            bfs_non_ring.extend(ring_verts)
+                            continue
+                        initial_cos = {v: v.co.copy() for v in ring_verts}
+                        ring_sym    = {v for v in prop_sym_verts if v in set(ring_verts)}
+                        normal, center = twist_fit_axis(ring_verts)
+                        if normal is not None:
+                            if ref_normal is None:
+                                ref_normal = normal.copy()
+                            elif normal.dot(ref_normal) < 0:
+                                normal = -normal
+                        lp   = _traverse_loop_params(ring_verts, initial_cos, mw)
+                        segs = _build_retain_segments(ring_verts, initial_cos, mw) if lp is None else None
+                        # Winding fix — same as core rings
+                        check_normal = normal if normal is not None else ref_normal
+                        if lp is not None and check_normal is not None:
+                            order, cumul, total = lp
+                            ctr = sum((initial_cos[v] for v in order), Vector()) / len(order)
+                            area_vec = Vector((0.0, 0.0, 0.0))
+                            for i in range(len(order)):
+                                a = initial_cos[order[i]] - ctr
+                                b = initial_cos[order[(i + 1) % len(order)]] - ctr
+                                area_vec += a.cross(b)
+                            if area_vec.dot(check_normal) < 0:
+                                order = [order[0]] + list(reversed(order[1:]))
+                                cumul = [0.0]
+                                for i in range(1, len(order)):
+                                    seg = (mw @ initial_cos[order[i]]) - (mw @ initial_cos[order[i - 1]])
+                                    cumul.append(cumul[-1] + seg.length)
+                                lp = (order, cumul, total)
+                        norm_d  = avg_d / prop_radius if prop_radius > 1e-12 else 0.0
+                        dist_in = max(1.0 - norm_d, 0.0)
+                        weight  = proportional_edit(prop_falloff, dist_in)
+                        ring_groups.append({
+                            'initial_cos':     initial_cos,
+                            'sym_verts':       ring_sym,
+                            'sym_axes':        sym_axes,
+                            'normal':          normal,
+                            'center':          center,
+                            'loop_params':     lp,
+                            'retain_segments': segs,
+                            'bfs_level':       hop_lv,
+                            'weight':          weight,
+                        })
 
             if ring_groups:
                 # Build barycentric loft surface and embed all non-ring verts.
@@ -1017,7 +1219,9 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
                         else:
                             bary_fallback_cos[v] = co0
 
-                bfs_sym = {v for v in sym_verts if v in set(bfs_non_ring)}
+                bfs_non_ring_set = set(bfs_non_ring)
+                bfs_sym = {v for v in sym_verts       if v in bfs_non_ring_set}
+                bfs_sym.update(v for v in prop_sym_verts if v in bfs_non_ring_set)
                 components.append({
                     'ring_groups':       ring_groups,
                     'bfs_non_ring_cos':  {v: v.co.copy() for v in bfs_non_ring},
@@ -1069,11 +1273,11 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
                     broken_rings.append(rd)
                 else:
                     # Complete closed loop — arc-length or pure rotation.
-                    lp = rd['loop_params'] if self.retain_shape else None
-                    # retain_segments is None for complete rings by construction.
+                    lp      = rd['loop_params'] if self.retain_shape else None
+                    deg_ring = deg * rd.get('weight', 1.0)
                     twist_apply(bm, em, mw, mwi,
                                 rd['initial_cos'], rd['sym_verts'], rd['sym_axes'],
-                                rd['normal'], rd['center'], deg,
+                                rd['normal'], rd['center'], deg_ring,
                                 loop_params=lp, retain_segments=None,
                                 finalize=False)
                     active_rings.append(rd)
@@ -1117,10 +1321,11 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
                 # No complete rings at all (plain non-loop selection).
                 # Fall back to per-ring rotation / retain_segments so verts move.
                 for rd in broken_rings:
-                    segs = rd['retain_segments'] if self.retain_shape else None
+                    segs     = rd['retain_segments'] if self.retain_shape else None
+                    deg_ring = deg * rd.get('weight', 1.0)
                     twist_apply(bm, em, mw, mwi,
                                 rd['initial_cos'], rd['sym_verts'], rd['sym_axes'],
-                                rd['normal'], rd['center'], deg,
+                                rd['normal'], rd['center'], deg_ring,
                                 loop_params=None, retain_segments=segs,
                                 finalize=False)
                 # BFS non-ring verts: no reference rings → keep original position.
@@ -1135,7 +1340,10 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
             return {'CANCELLED'}
         mw  = context.edit_object.matrix_world.copy()
         mwi = mw.inverted()
-        component_data = self._build_component_data(context, sel_verts, mw)
+        prop_distances = None
+        if self.use_proportional_edit:
+            prop_distances = _gather_proportional_verts(sel_verts, mw, self.proportional_distance)
+        component_data = self._build_component_data(context, sel_verts, mw, prop_distances=prop_distances)
         if not component_data:
             return {'CANCELLED'}
         self._run_apply(bm, em, mw, mwi, component_data)
@@ -1150,7 +1358,21 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
         self._em  = em
         self._mw  = context.edit_object.matrix_world.copy()
         self._mwi = self._mw.inverted()
-        self._component_data = self._build_component_data(context, sel_verts, self._mw)
+        # Seed the redo-panel properties from the scene's current values so the
+        # first run matches what the user already has configured.
+        ts = context.tool_settings
+        self.use_proportional_edit  = ts.use_proportional_edit
+        self.proportional_distance  = ts.proportional_distance
+        supported_falloffs = {'SMOOTH', 'LINEAR', 'SPHERE'}
+        self.proportional_falloff   = (
+            ts.proportional_edit_falloff
+            if ts.proportional_edit_falloff in supported_falloffs
+            else 'SMOOTH'
+        )
+        prop_distances = None
+        if self.use_proportional_edit:
+            prop_distances = _gather_proportional_verts(sel_verts, self._mw, self.proportional_distance)
+        self._component_data = self._build_component_data(context, sel_verts, self._mw, prop_distances=prop_distances)
         if not self._component_data:
             return {'CANCELLED'}
         self._initial_mouse_x = event.mouse_x
