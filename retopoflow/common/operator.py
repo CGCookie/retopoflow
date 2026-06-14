@@ -95,7 +95,7 @@ class RFOperator_Base(Operator):
         for op in RFOperator_Base.get_all_RFOperators():
             bpy.utils.register_class(op)
             op.register()
-        print(f'RF registered {len(RFOperator_Base.get_all_RFOperators())} RFOperator classes')
+        print(f'RF registered {len(RFOperator_Base.get_all_RFOperators())} RFOperators')
     @staticmethod
     def unregister_all():
         exceptions : list[tuple[str, str, Exception]] = []
@@ -185,7 +185,7 @@ class RFAssetShelf(bpy.types.AssetShelf):
         for op in RFAssetShelf.get_all_RFOperators():
             bpy.utils.register_class(op)
             op.register()
-        print(f'RF registered {len(RFAssetShelf.get_all_RFOperators())} RFAssetShelfs')
+        print(f'RF registered {len(RFAssetShelf.get_all_RFOperators())} RFAssetShelves')
     @staticmethod
     def unregister_all():
         for op in reversed(RFAssetShelf.get_all_RFOperators()):
