@@ -131,6 +131,7 @@ def restore_pinning(context):
         bmesh.update_edit_mesh(obj.data)
     else:
         bm.to_mesh(obj.data)
+        print('pinning.py')
         bm.free()
 
 

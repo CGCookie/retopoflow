@@ -21,6 +21,7 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy
 import bmesh
+from bpy.types import Context, Event
 from bmesh.types import BMVert
 from mathutils import Vector, Matrix
 from bpy_extras.view3d_utils import location_3d_to_region_2d
@@ -272,7 +273,7 @@ def create_stroke_brush(
                     self.snap_bmf1 = self.nearest_bmf.bmf
 
 
-        def update(self, context, event):
+        def update(self, context : Context, event : Event):
             RFCore = RFGlobals.RFCore_None
             if not RFCore: return
 
@@ -393,10 +394,12 @@ def create_stroke_brush(
                 if self.stroke_far and not self.snap_bmv0 and not self.snap_bmv1:
                     self.stroke_cycle = (self.stroke_original[0] - self.stroke_original[-1]).length < Drawing.scale(self.snap_distance)
 
+            mouse_inside : bool = False
             if self.operator.is_active() or RFOperator_StrokeBrush_Adjust.is_active():
                 # artist is actively stroking or adjusting brush properties, so always consider us inside if we're in the same area
                 active_op = RFOperator.active_operator()
-                mouse_inside = (context.area == active_op.working_area) and (context.window == active_op.working_window)
+                if active_op:
+                    mouse_inside = (context.area == active_op.working_area) and (context.window == active_op.working_window)
             else:
                 mouse_inside = (0 <= mouse[0] < context.area.width) and (0 <= mouse[1] < context.area.height)
 

@@ -22,7 +22,7 @@ Created by Jonathan Denning, Jonathan Lampel
 import bpy
 import bl_ui
 import bmesh
-from bpy.types import Context, Menu, Event, Depsgraph, Scene, Area, Region, Space, RegionView3D, Screen
+from bpy.types import Context, Menu, Event, Depsgraph, Scene, Area, Region, Space, SpaceView3D, RegionView3D, Screen
 
 import time
 import traceback
@@ -37,7 +37,8 @@ from ..addon_common.common.resetter import Resetter
 from ..config.theme import Theme
 from ..config.keymaps import alter_user_keymaps, restore_user_keymaps
 from .common.bmesh import get_object_bmesh, get_bmesh_emesh, clear_object_bmesh
-from .common.operator import RFOperator, RFOperator_Execute, RFRegisterClass, RFAssetShelf
+from .common.bpy_helper import bpy_ops_retopoflow
+from .common.operator import RFOperator_Base, RFOperator, RFOperator_Execute, RFRegisterClass, RFAssetShelf
 from .common.raycast import prep_raycast_valid_sources, iter_all_valid_sources
 from .common.interface import show_message
 from .common import icons as icons_module
@@ -106,7 +107,7 @@ class RFCore:
     reset_attempts         = 0
     last_reset_attempt     = 0
     km_context             = None   # context for the active tool keymap (used by the statusbar drawing to filter out keymaps that does not match the current tool context)
-    km_status_override : str | tuple[str, ...] | None = None   # override for the statusbar text (used to display additional information about the current tool)
+    km_status_override : str | Sequence[str] | None = None   # override for the statusbar text (used to display additional information about the current tool)
 
     _last_rf_mesh_update_time: float = 0.0
     _original_bmesh_update_edit_mesh = None   # used to know when to pause statusbar drawing to let Blender info be displayed
@@ -131,8 +132,7 @@ class RFCore:
         rfprops_scene.register()
         rfprops_object.register()
         RFTool_Base.register_all()
-        RFOperator.register_all()
-        RFOperator_Execute.register_all()
+        RFOperator_Base.register_all()
         RFRegisterClass.register_all()
         RFAssetShelf.register_all()
         mesh_cleanup_panel.register()
@@ -223,8 +223,7 @@ class RFCore:
         # unregister RF operator and RF tools
         RFAssetShelf.unregister_all()
         RFRegisterClass.unregister_all()
-        RFOperator_Execute.unregister_all()
-        RFOperator.unregister_all()
+        RFOperator_Base.unregister_all()
         RFTool_Base.unregister_all()
         mesh_cleanup_panel.unregister()
         tweaking_panel.unregister()
@@ -497,9 +496,10 @@ class RFCore:
         pinning.setup_pinning(context)
 
         try:
-            bpy.ops.retopoflow.core()
-        except:
-            pass
+            bpy_ops_retopoflow('core')
+        except Exception as e:
+            print('Caught Exception when calling bpy.ops.retopoflow.core() while trying to start')
+            print(f'  Exception: {e}')
 
 
     @staticmethod
@@ -512,15 +512,15 @@ class RFCore:
             region : Region | None = next((rgn for rgn in area.regions if rgn.type == 'WINDOW'), None)
             if not region: return
             space : Space | None = area.spaces.active
-            if not space: return
+            if not isinstance(space, SpaceView3D): return
             r3d : RegionView3D | None = space.region_3d
             if not r3d: return
             with bpy.context.temp_override(area=area, region=region, space=space, region_3d=r3d):
                 try:
-                    bpy.ops.retopoflow.core()
+                    bpy_ops_retopoflow('core')
                 except Exception as e:
-                    print(f'Caught Exception while trying to restart')
-                    print(f'    {e}')
+                    print('Caught Exception when calling bpy.ops.retopoflow.core() while trying to restart')
+                    print(f'  Exception: {e}')
         bpy.app.timers.register(rerun, first_interval=0.01)
 
     @staticmethod
@@ -634,7 +634,7 @@ class RFCore:
         # print(f'{RFTools[RFCore.selected_RFTool_idname]}')
         if context.area not in RFCore.running_in_areas:
             print(f'LAUNCHING IN NEW AREA {context.area.x},{context.area.y}')
-            bpy.ops.retopoflow.core()
+            bpy_ops_retopoflow('core')
         else:
             # print(f'handle_draw_cursor: context.area: {context.area.x},{context.area.y}')
             if not RFCore.is_current_area(context):
@@ -734,6 +734,13 @@ class RFCore:
             return
         if context.mode != 'EDIT_MESH': return
         # print(f'handle_postview {len(area.spaces)}')
+
+        # import gpu
+        # from .common.nearestcpp.test import batch, shader
+        # gpu.state.depth_test_set('LESS_EQUAL')
+        # gpu.state.depth_mask_set(True)
+        # batch.draw(shader)
+
         if not RFCore.is_controlling: return
         if not RFCore.is_running: return
 
@@ -987,7 +994,7 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
             RFCore_Operator.running_operators -= 1
         print(f'  done')
 
-    def execute(self, context):
+    def execute(self, context : Context) -> set[str]:
         prep_raycast_valid_sources(context)
         context.window_manager.modal_handler_add(self)
         self.running_in_area = context.area
@@ -1017,7 +1024,7 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
         print(f'RFCore_Operator executing')
         return {'RUNNING_MODAL'}
 
-    def modal(self, context : Context, event : Event):
+    def modal(self, context : Context, event : Event) -> set[str]:
         # print(f'MODAL {event.type} {event.value}')
         # print(f'RFCore_Operator:')
         # print(dir(context))

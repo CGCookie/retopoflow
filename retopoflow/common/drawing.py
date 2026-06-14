@@ -23,6 +23,7 @@ import bpy
 import bmesh
 import gpu
 from mathutils import Vector, Matrix, Color
+from bpy.types import Context
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 from gpu_extras.batch import batch_for_shader
 from gpu.types import (
@@ -33,7 +34,8 @@ from gpu.types import (
 
 import math
 from math import sin, cos, pi
-from typing import List, Tuple, Type, Generator, Self
+from typing import List, Tuple, Type, Generator, Self, Literal
+from collections.abc import Sequence
 from contextlib import contextmanager
 
 from ...addon_common.common.blender import get_path_from_addon_common
@@ -42,7 +44,7 @@ from ...addon_common.common.colors import Color4
 from ...addon_common.common.fontmanager import FontManager as fm
 from ...addon_common.common.maths import Point, Normal, Direction, Frame, Point2D
 from ...addon_common.common.utils import iter_pairs
-
+from ...addon_common.common.maths import Color as CC_Color
 
 
 def create_shader(fn_glsl, *, segments=1, pos=None):
@@ -477,7 +479,15 @@ class Drawing:
         gpu.shader.unbind()
 
     @staticmethod
-    def draw2D_smooth_circle(context, center:Point2D | Vector | Tuple[float, float], radius:float, color:Color, *, width=0, smooth_threshold=1.5):
+    def draw2D_smooth_circle(
+        context : Context,
+        center : Point2D | Vector | tuple[float, float],
+        radius : float,
+        color : Color | Sequence[float] | CC_Color,
+        *,
+        width : float = 0,
+        smooth_threshold : float = 1.5,
+    ):
         '''
         Draw an anti-aliased 2D circle using a quad-based approach for efficient rendering
 
@@ -506,7 +516,16 @@ class Drawing:
         gpu.shader.unbind()
 
     @staticmethod
-    def draw2D_radial_gradient(context, center:Point2D, radius:float, color_center:Color, color_edge:Color, *, t=1.0, easing_type=0):
+    def draw2D_radial_gradient(
+        context : Context,
+        center : Point2D | Vector | Sequence[float],
+        radius : float,
+        color_center : Sequence[float] | Color | CC_Color,
+        color_edge : Sequence[float] | Color | CC_Color,
+        *,
+        t : float = 1.0,
+        easing_type : float = 0,
+    ):
         '''
         Draw a radial gradient from center to edge with easing functions
 
@@ -791,10 +810,10 @@ class Drawing:
     fontsize = None
     last_font_key = None
     line_cache = {}
-    size_cache = {}
+    size_cache : dict[tuple[str, float, int], dict[Literal["width"] | Literal["height"] | Literal['line height'], float]] = {}
 
     @staticmethod
-    def set_font_size(fontsize:float, fontid=None, force=False):
+    def set_font_size(fontsize:float, fontid=None, force=False) -> float|None:
         if fontid is None: fontid = fm._last_fontid
         else: fontid = fm.load(fontid)
         fontsize_prev = Drawing.fontsize
@@ -829,29 +848,44 @@ class Drawing:
         return fontsize_prev
 
     @staticmethod
-    def get_text_size_info(text, item, fontsize=None, fontid=None):
+    def get_text_size_info(
+        text : str | list[str] | None,
+        item : Literal["width"] | Literal["height"] | Literal['line height'],
+        fontsize : float | None = None,
+        fontid : int | None = None
+    ) -> float:
         if fontsize:
             size_prev = Drawing.set_font_size(fontsize, fontid=fontid) or fontsize
         else:
             size_prev = None
 
-        if text is None: text, lines = '', []
-        elif type(text) is list: text, lines = '\n'.join(text), text
-        else: text, lines = text, text.splitlines()
+        match text:
+            case None:
+                text, lines = '', []
+            case list():
+                text, lines = '\n'.join(text), text
+            case str():
+                text, lines = text, text.splitlines()
+            case _: # pyright: ignore[reportUnnecessaryComparison]
+                assert False, f'Unhandled type {type(text)}: {text}' # pyright: ignore[reportUnreachable]
+        
+
+        def get_width(t:str) -> float:
+            return math.ceil(fm.dimensions(t, fontid=fontid)[0])
+        def get_height(t:str) -> float:
+            return math.ceil(fm.dimensions(t, fontid=fontid)[1])
 
         fontid = fm.load(fontid)
         key = (text, Drawing.fontsize_scaled, fontid)
         # key = (text, Drawing.fontsize_scaled, Drawing.font_id)
         if key not in Drawing.size_cache:
-            d = {}
+            d : dict[Literal["width"] | Literal["height"] | Literal['line height'], float] = {}
             if not text:
                 d['width'] = 0
                 d['height'] = 0
                 d['line height'] = Drawing.line_height
             else:
-                get_width = lambda t: math.ceil(fm.dimensions(t, fontid=fontid)[0])
-                get_height = lambda t: math.ceil(fm.dimensions(t, fontid=fontid)[1])
-                d['width'] = max(get_width(l) for l in lines)
+                d['width'] = max(get_width(line) for line in lines)
                 d['height'] = get_height(text)
                 d['line height'] = Drawing.line_height * len(lines)
             Drawing.size_cache[key] = d
@@ -863,17 +897,18 @@ class Drawing:
                 print('>   size: %s' % str(d))
                 print('--------------------------------------')
                 print('')
-        if size_prev is not None: Drawing.set_font_size(size_prev, fontid=fontid)
+        if size_prev is not None:
+            _ = Drawing.set_font_size(size_prev, fontid=fontid)
         return Drawing.size_cache[key][item]
 
     @staticmethod
-    def get_text_width(text, fontsize=None, fontid=None):
+    def get_text_width(text:str|None, fontsize=None, fontid=None) -> float:
         return Drawing.get_text_size_info(text, 'width', fontsize=fontsize, fontid=fontid)
     @staticmethod
-    def get_text_height(text, fontsize=None, fontid=None):
+    def get_text_height(text:str|None, fontsize=None, fontid=None) -> float:
         return Drawing.get_text_size_info(text, 'height', fontsize=fontsize, fontid=fontid)
     @staticmethod
-    def get_line_height(text=None, fontsize=None, fontid=None):
+    def get_line_height(text=None, fontsize=None, fontid=None) -> float:
         return Drawing.get_text_size_info(text, 'line height', fontsize=fontsize, fontid=fontid)
 
     @staticmethod
@@ -903,7 +938,7 @@ class Drawing:
         if size_prev is not None: Drawing.set_font_size(size_prev, fontid=fontid)
 
     @staticmethod
-    def text_draw2D_simple(text, pos:Point2D):
+    def text_draw2D_simple(text:str, pos:Point2D|Vector|Sequence[float]):
         l,t = round(pos[0]),round(pos[1])
         lb = Drawing.line_base
         fm.draw_simple(text, xyz=(l, t - lb, 0))

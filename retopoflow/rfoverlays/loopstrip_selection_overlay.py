@@ -22,9 +22,11 @@ Created by Jonathan Denning, Jonathan Lampel
 import bpy
 from mathutils import Vector
 from bpy_extras.view3d_utils import location_3d_to_region_2d
+from bpy.types import Context, Event
 
 from .overlays import overlay_names
 
+from ..common.bpy_helper import bpy_ops_retopoflow
 from ..rfglobals import RFGlobals
 from ..rfoverlay_base import RFOverlay_Base
 from ..common.operator import RFOperator
@@ -64,11 +66,14 @@ def create_loopstrip_selection_overlay(opname, rftool_idname, idname, label, onl
         bl_description = 'Overlay info about selected loops and strips'
         bl_options = { 'INTERNAL' }
 
+        depsgraph_version : None | int = None
+        selected_boundaries : tuple[list[tuple[list[Vector], list[Vector]]], list[tuple[list[Vector], list[Vector]]]] = ([],[])
+
         @staticmethod
         def activate():
-            getattr(bpy.ops.retopoflow, idname)('INVOKE_DEFAULT')
+            bpy_ops_retopoflow(idname, 'INVOKE_DEFAULT')
 
-        def init(self, context, event):
+        def init(self, _context : Context, _event : Event):
             self.depsgraph_version = None
 
         def update(self, context, event):
@@ -96,9 +101,15 @@ def create_loopstrip_selection_overlay(opname, rftool_idname, idname, label, onl
                     # filter selected edges to only boundaries
                     sel_bmes = [ bme for bme in sel_bmes if bme.is_wire or bme.is_boundary ]
                 if len(sel_bmes) < 1000:
-                    strips, cycles = get_boundary_strips_cycles(sel_bmes)
-                    strips = [([bme_midpoint(bme) for bme in strip], [bmv.co for bme in strip for bmv in bme.verts]) for strip in strips]
-                    cycles = [([bme_midpoint(bme) for bme in cycle], [bmv.co for bme in cycle for bmv in bme.verts]) for cycle in cycles]
+                    bmes_strips, bmes_cycles = get_boundary_strips_cycles(sel_bmes)
+                    strips = [
+                        ([bme_midpoint(bme) for bme in strip], [bmv.co for bme in strip for bmv in bme.verts])
+                        for strip in bmes_strips
+                    ]
+                    cycles = [
+                        ([bme_midpoint(bme) for bme in cycle], [bmv.co for bme in cycle for bmv in bme.verts])
+                        for cycle in bmes_cycles
+                    ]
                     if len(strips) + len(cycles) <= 5:
                         self.selected_boundaries = (strips, cycles)
                     else:
