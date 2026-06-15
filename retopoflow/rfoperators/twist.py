@@ -4,7 +4,7 @@ import math
 from mathutils import Matrix, Vector
 
 from ..common.bmesh import get_bmesh_emesh, has_mirror_x, has_mirror_y, has_mirror_z
-from ..common.operator import RFRegisterClass
+from ..common.operator import RFRegisterClass, RFKeyMaps
 from ...addon_common.common.maths import Plane, Point
 from ...addon_common.ext.circle_fit import hyperLSQ
 
@@ -875,7 +875,7 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
     bl_region_type = 'WINDOW'
     bl_options     = {'REGISTER', 'UNDO'}
 
-    rf_keymaps = []
+    rf_keymaps : RFKeyMaps = []
 
     twist_angle: bpy.props.FloatProperty(
         name='Twist',

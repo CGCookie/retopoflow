@@ -34,7 +34,7 @@ from ..common.icons import get_path_to_blender_icon
 from ..common.raycast import raycast_point_valid_sources
 from ..common.operator import (
     execute_operator,
-    RFOperator, RFOperator_Execute,
+    RFOperator, RFOperator_Execute, RFKeyMaps, BLKeyMaps,
     chain_rf_keymaps,
     wrap_property, poll_retopoflow,
 )
@@ -78,7 +78,7 @@ class RFOperator_Stroke_Insert_Keymaps:
     # used to collect redo shortcuts, which is filled in by redo_ fns below...
     # note: cannot use RFOperator_Stroke_Insert.rf_keymaps, because RFOperator_Stroke_Insert
     #       is not yet created!
-    rf_keymaps = []
+    rf_keymaps : RFKeyMaps = []
 
 class RFOperator_Stroke_Insert_Properties:
     '''
@@ -387,7 +387,7 @@ class RFOperator_Strokes(RFOperator_Stroke_Insert_Properties, RFOperator):
 
     loop_select_op = 'mesh.select_edge_loop_multi' if bpy.app.version >= (5, 1, 0) else 'mesh.loop_multi_select'
 
-    rf_keymaps = [
+    rf_keymaps : RFKeyMaps = [
         (bl_idname, {'type': 'LEFT_CTRL',  'value': 'PRESS'}, None),
         (bl_idname, {'type': 'RIGHT_CTRL', 'value': 'PRESS'}, None),
 
@@ -526,7 +526,7 @@ class RFTool_Strokes(RFTool_Base):
 
     props = None  # needed to reset properties
 
-    bl_keymap = chain_rf_keymaps(
+    bl_keymap : BLKeyMaps = chain_rf_keymaps(
         RFOperator_Strokes,
         RFOperator_Stroke_Insert,
         RFOperator_StrokesBrush_Adjust,

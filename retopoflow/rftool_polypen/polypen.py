@@ -19,36 +19,14 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-import blf
-import bmesh
 import bpy
-import gpu
-import os
-from bmesh.types import BMVert, BMEdge, BMFace
-from bpy_extras.view3d_utils import location_3d_to_region_2d
-from mathutils import Vector, Matrix
-from mathutils.bvhtree import BVHTree
-
-import math
-import time
-from typing import List
-from enum import Enum
 
 from ..rfglobals import RFGlobals
 from ..rftool_base import RFTool_Base
-from ..common.bmesh import get_bmesh_emesh, NearestBMVert
 from ..common.icons import get_path_to_blender_icon
-from ..common.operator import invoke_operator, execute_operator, RFOperator, RFRegisterClass, chain_rf_keymaps, wrap_property, poll_retopoflow
-from ..common.raycast import raycast_point_valid_sources
-from ..common.maths import view_forward_direction
-from ...addon_common.common import bmesh_ops as bmops
-from ...addon_common.common.blender_cursors import Cursors
+from ..common.operator import execute_operator, RFOperator, RFRegisterClass, chain_rf_keymaps, wrap_property, poll_retopoflow, RFKeyMaps, BLKeyMaps
 from ...addon_common.common.resetter import Resetter
-from ...addon_common.common.blender import get_path_from_addon_common, event_modifier_check
-from ...addon_common.common import gpustate
-from ...addon_common.common.colors import Color4
-from ...addon_common.common.maths import clamp
-from ...addon_common.common.utils import iter_pairs
+from ...addon_common.common.blender import event_modifier_check
 
 from ..rfoperators.quickswitch import RFOperator_Relax_QuickSwitch, RFOperator_Tweak_QuickSwitch
 from ..rfoperators.transform import RFOperator_Translate, sync_projection_from_blender
@@ -160,7 +138,7 @@ class RFOperator_PolyPen(RFOperator):
     bl_region_type = "TOOLS"
     bl_options = set()
 
-    rf_keymaps = [
+    rf_keymaps : RFKeyMaps = [
         (bl_idname, {'type': 'LEFT_CTRL', 'value': 'PRESS'}, {'km_context': 'init', 'km_label': ' Start PolyPen'}),
         (bl_idname, {'type': 'RIGHT_CTRL', 'value': 'PRESS'}, None),
         # below is needed to handle case when CTRL is pressed when mouse is initially outside area
@@ -271,7 +249,7 @@ class RFTool_PolyPen(RFTool_Base):
 
     props = None  # needed to reset properties
 
-    bl_keymap = chain_rf_keymaps(
+    bl_keymap : BLKeyMaps = chain_rf_keymaps(
         RFOperator_PolyPen,
         RFOperator_MaximizeWatcher,
         RFOperator_Translate,

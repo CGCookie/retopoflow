@@ -38,7 +38,7 @@ from ..common.bmesh_maths import is_bmvert_hidden
 from ..common.drawing import Drawing
 from ..common.raycast import raycast_valid_sources, size2D_to_size, mouse_from_event
 from ..common.maths import bvec_point_to_bvec4
-from ..common.operator import RFOperator
+from ..common.operator import RFOperator, RFKeyMaps
 from ..common.easing import CubicEaseOut
 from ...addon_common.common import gpustate
 from ...addon_common.common.blender import event_modifier_check
@@ -1145,7 +1145,7 @@ def create_stroke_brush(
         bl_space_type = 'TOOLS'
         bl_options = set()
 
-        rf_keymaps = [
+        rf_keymaps : RFKeyMaps = [
             # bl_idname
             (f'retopoflow.{idname}', {'type': 'F', 'value': 'PRESS'}, {'km_context': 'init', 'km_label': 'Adjust Radius'}),  #, 'ctrl': False, 'shift': False
         ]

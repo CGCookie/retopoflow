@@ -38,7 +38,7 @@ from ..common.raycast import raycast_point_valid_sources, mouse_from_event, size
 from ..common.raycast import is_point_hidden, nearest_point_valid_sources, raycast_valid_sources
 from ..common.operator import (
     execute_operator,
-    RFOperator, RFOperator_Execute,
+    RFOperator, RFOperator_Execute, RFKeyMap, RFKeyMaps, BLKeyMaps,
     chain_rf_keymaps,
     wrap_property, poll_retopoflow,
 )
@@ -88,7 +88,7 @@ class RFOperator_PolyStrips_Insert_Keymaps:
           is not yet created!
     '''
 
-    rf_keymaps = []
+    rf_keymaps : RFKeyMaps = []
 
 
 class RFOperator_PolyStrips_Insert_Properties:
@@ -271,7 +271,7 @@ class RFOperator_PolyStrips_Insert(
         return {'FINISHED'}
 
     @staticmethod
-    def create_redo_operator(idname, description, keymap):
+    def create_redo_operator(idname : str, description : str, keymap : RFKeyMap):
         # add keymap to RFOperator_PolyStrips_Insert.rf_keymaps
         # note: still creating RFOperator_PolyStrips_Insert, so using RFOperator_PolyStrips_Insert_Keymaps.rf_keymaps
         RFOperator_PolyStrips_Insert_Keymaps.rf_keymaps.append( (f'retopoflow.{idname}', keymap, None) )
@@ -313,7 +313,7 @@ class RFOperator_PolyStrips_Edit(RFOperator):
     bl_description = 'Insert quad strip'
     bl_options = { 'REGISTER', 'UNDO', 'INTERNAL' }
 
-    rf_keymaps = [
+    rf_keymaps : RFKeyMaps = [
         (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS'}, None),
     ]
 
@@ -576,7 +576,7 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
 
     loop_select_op = 'mesh.loop_select' if bpy.app.version >= (5, 1, 0) else 'mesh.loop_multi_select'
 
-    rf_keymaps = [
+    rf_keymaps : RFKeyMaps = [
         (bl_idname, {'type': 'LEFT_CTRL',  'value': 'PRESS'}, None),
         (bl_idname, {'type': 'RIGHT_CTRL', 'value': 'PRESS'}, None),
 
@@ -723,7 +723,7 @@ class RFTool_PolyStrips(RFTool_Base):
 
     props = None  # needed to reset properties
 
-    bl_keymap = chain_rf_keymaps(
+    bl_keymap : BLKeyMaps = chain_rf_keymaps(
         RFOperator_PolyStrips,
         RFOperator_PolyStrips_Insert,
         RFOperator_PolyStrips_Edit,

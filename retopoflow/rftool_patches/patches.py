@@ -23,15 +23,15 @@ import os
 import time
 import random
 from itertools import chain
-from math import sqrt, atan2, radians, cos, sin, pi
+from math import sqrt, atan2, cos, sin, pi
 from enum import Enum
 
 import bpy
 from mathutils import Vector
 from bpy_extras.view3d_utils import location_3d_to_region_2d
+from bpy.types import Context, Operator
 
 from ..rfglobals import RFGlobals
-from ..rftool_base import RFTool_Base
 from ..rfbrushes.stroke_brush import create_stroke_brush
 from ..preferences import RF_Prefs
 
@@ -41,27 +41,23 @@ from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.colors import Color4
 from ...addon_common.common.decorators import add_cache
 from ...addon_common.common.debug import debugger
-from ...addon_common.common.maths import Frame, Direction, Point, Normal
-from ...addon_common.common.resetter import Resetter
+from ...addon_common.common.maths import Frame, Point, Normal
 from ...addon_common.common.utils import iter_pairs
 from ...addon_common.common.useractions import Actions
 
-from ..common.bmesh import get_bmesh_emesh, NearestBMVert
+from ..common.bmesh import get_bmesh_emesh
 from ..common.drawing import (
     Drawing,
     CC_2D_POINTS,
     CC_2D_LINES,
     CC_2D_TRIANGLES,
 )
-from ..common.icons import get_path_to_blender_icon
 from ..common.operator import (
     execute_operator,
-    poll_retopoflow,
-    chain_rf_keymaps,
     RFOperator,
     RFOperator_Execute,
-    RFAssetShelf,
     RFRegisterClass,
+    RFKeyMaps,
     wrap_property,
 )
 from ..common.maths import (
@@ -75,23 +71,16 @@ from ..common.maths import (
     normal_to_bvec3,
 )
 from ..common.raycast import (
-    ray_from_mouse, ray_from_point,
-    direction_from_mouse, direction_from_point,
+    ray_from_mouse,
+    direction_from_point,
     raycast_ray_valid_sources,
     raycast_valid_sources,
     nearest_point_normal_valid_sources,
     size2D_to_size,
 )
 
-from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
-from ..rfpanels.tweaking_panel import draw_tweaking_panel
-from ..rfpanels.general_panel import draw_general_panel
-from ..rfpanels.mirror_panel import draw_mirror_panel
-from ..rfpanels.help_panel import draw_help_panel
-
 from .patches_logic import Patches_Logic, Patches_Template
 
-from ..rfoperators.topo_rotate import RFOperator_TopoRotate
 
 
 
@@ -175,7 +164,7 @@ class RFOperator_Patches_Insert(RFOperator):
 
     loop_select_op = 'mesh.select_edge_loop_multi' if bpy.app.version >= (5, 1, 0) else 'mesh.loop_multi_select'
 
-    rf_keymaps = [
+    rf_keymaps : RFKeyMaps = [
         (bl_idname, {'type': 'I', 'value': 'PRESS'}, None),
         # (bl_idname, {'type': 'LEFT_CTRL', 'value': 'PRESS'}, None),
         # (bl_idname, {'type': 'RIGHT_CTRL', 'value': 'PRESS'}, None),
@@ -660,8 +649,8 @@ class RFOperator_Patches_Insert(RFOperator):
 
 
 @add_cache('active', {'asset identifier': None, 'library identifier': None, 'library type': None})
-@execute_operator('patches_activate_template', 'Patches: Activate Template from Asset Shelf', pass_self=True, asset_shelf=True)
-def activate_template(self, context):
+@execute_operator('patches_activate_template', 'Patches: Activate Template from Asset Shelf', asset_shelf=True)
+def activate_template(self : Operator, context : Context):
     Patches_Template.activate(
         context,
         self.relative_asset_identifier,

@@ -21,9 +21,10 @@ Created by Jonathan Denning, Jonathan Lampel
 import importlib
 
 import bpy
+from bpy.types import Context, Event
 
 from ..rfglobals import RFGlobals
-from ..common.operator import RFOperator
+from ..common.operator import RFOperator, RFKeyMaps
 
 
 _op_prop_names_cache: dict[str, list[str]] = {}
@@ -85,7 +86,7 @@ class RFOperator_Relax_QuickSwitch(RFOperator):
     bl_space_type  = 'TOOLS'
     bl_options     = {'INTERNAL'}
 
-    rf_keymaps = [
+    rf_keymaps : RFKeyMaps = [
         (bl_idname, {'type': 'LEFTMOUSE', 'value': 'CLICK_DRAG', 'ctrl': 0, 'shift': 1}, None),
     ]
 
@@ -121,17 +122,20 @@ class RFOperator_Tweak_QuickSwitch(RFOperator):
     bl_space_type  = 'TOOLS'
     bl_options     = {'INTERNAL'}
 
-    rf_keymaps = [
+    rf_keymaps : RFKeyMaps = [
         (bl_idname, {'type': 'LEFTMOUSE', 'value': 'CLICK_DRAG', 'ctrl': 1, 'shift': 1}, None),
     ]
 
-    def init(self, context, event):
+    running : bool # pyright: ignore[reportUninitializedInstanceVariable]
+    prev_tool : str | None # pyright: ignore[reportUninitializedInstanceVariable]
+
+    def init(self, context : Context, event : Event):
         RFCore = RFGlobals.RFCore
 
         self.running = False
         self.prev_tool = RFCore.selected_RFTool_idname
 
-    def update(self, context, event):
+    def update(self, context : Context, event : Event) -> set[str]:
         RFCore = RFGlobals.RFCore
 
         if not self.running:

@@ -20,21 +20,58 @@ Created by Jonathan Denning, Jonathan Williamson
 '''
 
 from functools import wraps
-from inspect import isfunction, signature, getmodule
-
+from inspect import signature, getmodule, getfile, currentframe, getframeinfo
+from types import FrameType
+from typing import ParamSpec, TypeVar
+from collections.abc import Callable
 
 ##################################################
 
+Param = ParamSpec('Param')
+RetType = TypeVar('RetType')
 
-def wrap_function(fn_original, *, fn_pre=None, fn_post=None):
+def wrap_function(
+    fn_original : Callable[Param, RetType],
+    *,
+    fn_pre : Callable[Param, None] | None = None,
+    fn_post : Callable[Param, None] | None = None,
+) -> Callable[[], None]:
     mod_original = getmodule(fn_original)
 
-    @wraps(fn_original)
-    def wrapped(*args, **kwargs):
-        if fn_pre: fn_pre(*args, **kwargs)
-        ret = fn_original(*args, **kwargs)
-        if fn_post: fn_post(*args, **kwargs)
+    # gather debug info
+    f_current : FrameType | None = currentframe()
+    assert f_current
+    f_calling : FrameType | None = f_current.f_back
+    assert f_calling
+    info = getframeinfo(f_calling)
+
+    def call_and_report_exception(
+        label : str,
+        fn : Callable[Param, RetType|None] | None,
+        args : ..., kwargs : ... # pyright: ignore[reportAny]
+    ) -> RetType | None:
+        if not fn:
+            return None
+    
+        try:
+            ret = fn(*args, **kwargs) # pyright: ignore[reportCallIssue, reportAny]
+        except Exception as e:
+            print(f'Caught Exceptions while calling {label} on wrapped {fn_original.__name__}')
+            print(f'  *args: {args}')
+            print(f'  **kwargs: {kwargs}')
+            print(f'  wrapped from: {info.filename}:{info.lineno} in {info.function}')
+            print(f'  fn_original file: {getfile(fn_original)}')
+            print(f'  Exception: {e}')
+            raise
         return ret
+
+    @wraps(fn_original)
+    def wrapped(*args : ..., **kwargs : ...) -> RetType: # pyright: ignore[reportAny]
+        _   = call_and_report_exception('pre',      fn_pre,      args, kwargs)
+        ret = call_and_report_exception('original', fn_original, args, kwargs)
+        _   = call_and_report_exception('post',     fn_post,     args, kwargs)
+        return ret # pyright: ignore[reportReturnType]
+
     def unwrap():
         # print(f'unwrapping')
         setattr(mod_original, fn_original.__name__, fn_original)

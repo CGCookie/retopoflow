@@ -25,6 +25,7 @@ import inspect
 from copy import deepcopy
 
 import bpy
+from bpy.types import Event, KeyMapItem
 
 from .blender import get_view3d_area, get_view3d_space, get_view3d_region
 from .debug import dprint
@@ -243,7 +244,7 @@ def get_kmi_properties(kmi):
         if k not in {'__doc__', '__module__', '__slots__', 'bl_rna', 'rna_type'}
     }
 
-def event_match_blenderop(event, blenderop):
+def event_match_blenderop(event : Event, blenderop : str) -> KeyMapItem | None:
     for kmi in blenderop_to_kmis(blenderop):
         if event.ctrl  != kmi.ctrl_ui:  continue
         if event.alt   != kmi.alt_ui:   continue
@@ -260,7 +261,7 @@ def event_match_blenderop(event, blenderop):
         return kmi
     return None
 
-def blenderop_to_kmis(blenderop):
+def blenderop_to_kmis(blenderop : str) -> set[KeyMapItem]:
     keymaps = bpy.context.window_manager.keyconfigs.user.keymaps
     i18n_translate = bpy.app.translations.pgettext                  # bpy.app.translations.pgettext tries to translate the given parameter
 

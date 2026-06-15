@@ -31,7 +31,7 @@ from ..rfglobals import RFGlobals
 from ..rfbrush_base import RFBrush_Base
 from ..common.bpy_helper import bpy_ops_retopoflow
 from ..common.drawing import Drawing
-from ..common.operator import RFOperator, execute_operator
+from ..common.operator import RFOperator, execute_operator, RFKeyMaps
 from ..common.raycast import raycast_valid_sources, size2D_to_size, mouse_from_event
 from ...addon_common.common.maths import Color, clamp
 from ...addon_common.common import gpustate
@@ -349,7 +349,7 @@ def create_falloff_brush(idname : str, label : str, **kwargs):
         bl_region_type : str = 'TOOLS'
         bl_options     : set[str] = set()
 
-        rf_keymaps : list[tuple[str, dict[str,str|int|bool], dict[str,str]]] = [
+        rf_keymaps : RFKeyMaps = [
             # see hacks below
             (f'retopoflow.{idname}_radius',   {'type': 'F', 'value': 'PRESS', 'ctrl': 0, 'shift': 0}, {'km_context': 'init', 'km_label': 'Adjust Radius'}),
             (f'retopoflow.{idname}_falloff',  {'type': 'F', 'value': 'PRESS', 'ctrl': 1, 'shift': 0}, {'km_context': 'init', 'km_label': 'Adjust Falloff'}),
