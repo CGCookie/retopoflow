@@ -615,9 +615,9 @@ class Contours_Logic:
         hits = []
         pt = origin
         for _ in range(n):
-            hit = raycast_ray_valid_sources(context, (pt + direction * 1e-4, direction), world=True, respect_clip_planes=True)
-            if hit is None:
-                break
+            ray = (pt + direction * max(1e-4, pt.length * 1e-5), direction) # Scaled to improve result for huge or tiny objects
+            hit = raycast_ray_valid_sources(context, ray, world=True, respect_clip_planes=True)
+            if hit is None: break
             hits.append(hit)
             pt = hit
         return hits
