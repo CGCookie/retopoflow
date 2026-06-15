@@ -92,18 +92,37 @@ class RFOperator_Contours_Insert_Properties:
         min=3,
         max=100,
     )
-
     process_source_method: bpy.props.EnumProperty(      # pyright: ignore [reportUninitializedInstanceVariable]
         name='Process Source Method',
         description="Source processing method",
         items=[
             ('walk', 'Walk', 'Process source accurately by walking the source mesh (slow but accurate)'),
-            ('skip', 'Skip (experimental)', 'Process source approximately by skipping about the source mesh'),
-            ('fast', 'Fast (experimental)', 'Process source approximately (fast but inaccurate)'),
+            ('skip', 'Skip', 'Process source approximately by skipping about the source mesh'),
+            ('fast', 'Fast', 'Process source approximately (fast but inaccurate)'),
         ],
         default='walk',
     )
-
+    fast_depth: bpy.props.IntProperty(                   # pyright: ignore [reportUninitializedInstanceVariable]
+        name='Depth',
+        description='Number of surfaces to pass through when raycasting. For example, a regular cylinder needs 1 while a solidified cylinder needs 2.)',
+        default=1,
+        min=1,
+        max=5,
+    )
+    sample_points: bpy.props.IntProperty(                # pyright: ignore [reportUninitializedInstanceVariable]
+        name='Samples',
+        description='The both the number of rays to fire at the mesh to find the center and the number to fire from that center to find the surface',
+        default=100,
+        min=10,
+        max=1000,
+    )
+    sample_width: bpy.props.FloatProperty(               # pyright: ignore [reportUninitializedInstanceVariable]
+        name='Sample Width',
+        description='How far from the center hitpoint to search for the volume center before raycasting from there to the surface in all directions',
+        default=0.75,
+        min=0.10,
+        max=1.00,
+    )
     cut_orientation: bpy.props.EnumProperty(               # pyright: ignore [reportUninitializedInstanceVariable]
         name='Cut Orientation',
         description='How the cut plane is aligned before processing',
@@ -135,13 +154,11 @@ class RFOperator_Contours_Insert(
         max= math.pi / 2,
         subtype='ANGLE',
     )
-
     is_cycle: bpy.props.BoolProperty(
         name='Cyclic Cut',
         description='Force cut to be cyclic or strip',
         default=False,  # will be set on initial cut
     )
-
     loop_count: bpy.props.IntProperty(
         name='Loop Count',
         description='Number of loops to create when bridging',
@@ -154,7 +171,7 @@ class RFOperator_Contours_Insert(
     contours_data = None
 
     @staticmethod
-    def insert(context, hit, plane, circle_points, span_count, process_source_method, hits, cut_orientation):
+    def insert(context, hit, plane, circle_points, span_count, process_source_method, hits, cut_orientation, fast_depth=1, sample_points=100):
         RFOperator_Contours_Insert.logic = Contours_Logic(
             context,
             hit,
@@ -164,6 +181,8 @@ class RFOperator_Contours_Insert(
             process_source_method,
             hits,
             cut_orientation,
+            fast_depth,
+            sample_points,
         )
         RFOperator_Contours_Insert.reinsert(context)
 
@@ -174,6 +193,8 @@ class RFOperator_Contours_Insert(
             'INVOKE_DEFAULT', True,
             span_count=logic.span_count,
             process_source_method=logic.process_source_method,
+            fast_depth=logic.fast_depth,
+            sample_points=logic.sample_points,
             twist=logic.twist,
             is_cycle=logic.cyclic,
             loop_count=logic.loop_count,
@@ -192,24 +213,26 @@ class RFOperator_Contours_Insert(
             col.label(text='Insert')
             split.label(text=logic.action)
 
-        layout.prop(self, 'process_source_method', text='Method')
-
         if logic.show_span_count:
             layout.prop(self, 'span_count', text='Spans')
-
         if logic.show_loop_count:
             layout.prop(self, 'loop_count', text='Loops')
-
         if logic.show_twist:
             layout.prop(self, 'twist', text='Twist')
-
         layout.row(heading='Cyclic').prop(self, 'is_cycle', text='')
+
+        layout.prop(self, 'process_source_method', text='Method')
+        if self.process_source_method == 'fast':
+            layout.prop(self, 'fast_depth', text='Depth')
+            layout.prop(self, 'sample_points', text='Samples')
 
     def execute(self, context):
         logic = RFOperator_Contours_Insert.logic
 
         logic.span_count            = self.span_count
         logic.process_source_method = self.process_source_method
+        logic.fast_depth            = self.fast_depth
+        logic.sample_points         = self.sample_points
         logic.twist                 = self.twist
         logic.cyclic                = self.is_cycle
         logic.loop_count            = self.loop_count
@@ -226,6 +249,8 @@ class RFOperator_Contours_Insert(
 
         self.span_count            = logic.span_count
         self.process_source_method = logic.process_source_method
+        self.fast_depth            = logic.fast_depth
+        self.sample_points         = logic.sample_points
         self.twist                 = logic.twist
         self.is_cycle              = logic.cyclic
         self.loop_count            = logic.loop_count
@@ -313,18 +338,6 @@ class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
         'insert': ('RMB: Cancel', )
     }
 
-    sample_points: bpy.props.IntProperty(
-        name='Samples',
-        default=100,
-        min=10,
-        max=1000,
-    )
-    sample_width: bpy.props.FloatProperty(
-        name='Sample Width',
-        default=0.75,
-        min=0.10,
-        max=1.00,
-    )
     select_loops: bpy.props.BoolProperty(
         name = 'Tweak Loops',
         description = 'Select and transform loops while tweaking edges with the mouse',
@@ -385,7 +398,7 @@ class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
         ))
         circle_points = [pt for pt in points if pt]
 
-        RFOperator_Contours_Insert.insert(context, hit, plane, circle_points, self.span_count, self.process_source_method, hits, self.cut_orientation)
+        RFOperator_Contours_Insert.insert(context, hit, plane, circle_points, self.span_count, self.process_source_method, hits, self.cut_orientation, self.fast_depth, self.sample_points)
 
     def update(self, context, event):
         RFCore = RFGlobals.RFCore_None
@@ -484,8 +497,9 @@ class RFTool_Contours(RFTool_Base):
             layout.prop(props_contours, 'cut_orientation', text='')
             layout.prop(props_contours, 'process_source_method', text=f'')
             if props_contours.process_source_method == 'fast':
-                layout.prop(props_contours, 'sample_points', text=f'Samples')
+                layout.prop(props_contours, 'fast_depth', text=f'Depth')
                 layout.prop(props_contours, 'sample_width', text=f'Width')
+                layout.prop(props_contours, 'sample_points', text=f'Samples')
             draw_line_separator(layout)
             row = layout.row(align=True)
             row.prop(props_contours, 'select_loops', text='Loops', toggle=True)
@@ -507,8 +521,9 @@ class RFTool_Contours(RFTool_Base):
                 panel.prop(props_contours, 'cut_orientation', text='Direction')
                 panel.prop(props_contours, 'process_source_method', text=f'Method')
                 if props_contours.process_source_method == 'fast':
-                    panel.prop(props_contours, 'sample_points', text=f'Samples')
+                    panel.prop(props_contours, 'fast_depth', text=f'Depth')
                     panel.prop(props_contours, 'sample_width', text=f'Width')
+                    panel.prop(props_contours, 'sample_points', text=f'Samples')
             draw_tweaking_panel(context, layout)
             draw_snapping_panel(context, layout, idname='contours_snapping_panel')
             draw_cleanup_panel(context, layout)

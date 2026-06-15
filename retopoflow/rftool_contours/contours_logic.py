@@ -65,6 +65,10 @@ class Contours_Logic:
 
     process_source_method : str
     last_process_source_method : str | None
+    fast_depth : int
+    last_fast_depth : int | None
+    sample_points : int
+    last_sample_points : int | None
 
     action : str
     show_span_count : bool
@@ -87,7 +91,7 @@ class Contours_Logic:
     path_length : float | None
     mirror_clipped_loop : bool | None
 
-    def __init__(self, context:Context, hit:dict[str,...], plane:Plane, circle_points:list[Vector], span_count:int, process_source_method:str, hits:list[dict[str, ...]], cut_orientation:str='stroke'):
+    def __init__(self, context:Context, hit:dict[str,...], plane:Plane, circle_points:list[Vector], span_count:int, process_source_method:str, hits:list[dict[str, ...]], cut_orientation:str='stroke', fast_depth:int=1, sample_points:int=100):
         self.hit = hit
         self.hits = hits
         self.cut_orientation = cut_orientation
@@ -95,6 +99,10 @@ class Contours_Logic:
         self.circle_hit = hyperLSQ([list(self.plane.w2l_point(pt).xy) for pt in circle_points if pt])
         self.process_source_method = process_source_method
         self.last_process_source_method = None
+        self.fast_depth = fast_depth
+        self.last_fast_depth = None
+        self.sample_points = sample_points
+        self.last_sample_points = None
 
         self.action = ''
         self.initial = True
@@ -142,10 +150,12 @@ class Contours_Logic:
 
     def process_source(self, context:Context) -> bool:
         # process source only once, unless settings have changed
-        if not self.initial and self.last_process_source_method == self.process_source_method:
+        if not self.initial and self.last_process_source_method == self.process_source_method and self.last_fast_depth == self.fast_depth and self.last_sample_points == self.sample_points:
             # print(f'skipping re-processing source')
             return True
         self.last_process_source_method = self.process_source_method
+        self.last_fast_depth = self.fast_depth
+        self.last_sample_points = self.sample_points
 
         match self.process_source_method:
             case 'fast':
@@ -600,13 +610,40 @@ class Contours_Logic:
     #######################################################
     # different methods for processing source
 
+    def _raycast_hits(self, context:Context, origin:Vector, direction:Vector, n:int) -> list[Vector]:
+        '''Cast a ray up to n times, nudging past each hit to collect subsequent intersections.'''
+        hits = []
+        pt = origin
+        for _ in range(n):
+            hit = raycast_ray_valid_sources(context, (pt + direction * 1e-4, direction), world=True, respect_clip_planes=True)
+            if hit is None:
+                break
+            hits.append(hit)
+            pt = hit
+        return hits
+
     def process_source_fast(self, context:Context) -> bool:
         plane_cut = self.plane
         hit_obj = self.hit['object']
         M = hit_obj.matrix_world
 
         center_plane = Vector((self.circle_hit[0], self.circle_hit[1], 0, 1))
-        nsamples = 100
+
+        # For depth > 1, cast inward through the mesh to find the opposite surface.
+        # The midpoint of the initial hit and that surface gives the true cross-section center,
+        # which corrects for solidified meshes where the stroke hits only the outer wall.
+        # Falls back to the shallower result if the mesh has fewer surfaces than requested.
+        if self.fast_depth >= 2:
+            hit_world = self.hit['co_world']
+            inward_dir = -Vector(self.hit['no_world'])
+            n_inward = 2 * (self.fast_depth - 1) + 1
+            inward_hits = self._raycast_hits(context, hit_world, inward_dir, n_inward)
+            if inward_hits:
+                midpoint = (hit_world + inward_hits[-1]) / 2
+                midpoint_local = plane_cut.w2l_point(midpoint)
+                center_plane = Vector((midpoint_local.x, midpoint_local.y, 0, 1))
+
+        nsamples = self.sample_points
         dirs_plane = [
             Vector((math.cos(2 * math.pi * d/nsamples), math.sin(2 * math.pi * d/nsamples), 0, 0))
             for d in range(nsamples)
@@ -614,11 +651,21 @@ class Contours_Logic:
 
         center_world = plane_cut.l2w_point(center_plane)
         dirs_world = [ plane_cut.l2w_direction(dir_plane) for dir_plane in dirs_plane ]
-        rays_world = [ (center_world, dir_world) for dir_world in dirs_world ]
-        points_world = [
-            raycast_ray_valid_sources(context, ray_world, world=True, respect_clip_planes=True)
-            for ray_world in rays_world
-        ]
+
+        if self.fast_depth <= 1:
+            rays_world = [ (center_world, dir_world) for dir_world in dirs_world ]
+            points_world = [
+                raycast_ray_valid_sources(context, ray_world, world=True, respect_clip_planes=True)
+                for ray_world in rays_world
+            ]
+        else:
+            # Pass through the first surfaces and use the next hit.
+            # Depth = 2 on a solidified mesh skips the inner wall and lands on the outer wall.
+            # Falls back to a shallower hit if the mesh has fewer surfaces than requested.
+            points_world = []
+            for dir_world in dirs_world:
+                hits = self._raycast_hits(context, center_world, dir_world, self.fast_depth)
+                points_world.append(hits[-1] if hits else None)
 
         points = [ self.matrix_world_inv @ pt_world for pt_world in points_world if pt_world ]
         cyclic = True
