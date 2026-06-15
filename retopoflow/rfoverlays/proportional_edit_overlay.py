@@ -61,15 +61,16 @@ class ProportionalEditOverlay(RFOverlay_Base):
                 if bmv.select:
                     sel_coords.append(bmv.co)
             if sel_coords:
-                pivot_co = sum(sel_coords, Vector()) / len(sel_coords)
+                pivot_co = context.active_object.matrix_world @ (sum(sel_coords, Vector()) / len(sel_coords))
         elif pivot_point == 'ACTIVE_ELEMENT':
             active_elem = bm.select_history.active
+            mw = context.active_object.matrix_world
             if isinstance(active_elem, BMVert):
-                pivot_co = active_elem.co
+                pivot_co = mw @ active_elem.co
             elif isinstance(active_elem, BMEdge):
-                pivot_co = (active_elem.verts[0].co + active_elem.verts[1].co) / 2
+                pivot_co = mw @ ((active_elem.verts[0].co + active_elem.verts[1].co) / 2)
             elif isinstance(active_elem, BMFace):
-                pivot_co = active_elem.calc_center_median()
+                pivot_co = mw @ active_elem.calc_center_median()
 
         # If no pivot point was set, use the object's location.
         if pivot_co is None:
@@ -89,8 +90,8 @@ class ProportionalEditOverlay(RFOverlay_Base):
         # Use view's right vector to ensure consistent screen-space projection regardless of view angle to calculate the final radius.
         # This way we virtually have a 3D circle (`center_3d` as center, `radius_3d_point` as radius) that we can project to 2D.
         view_matrix = context.region_data.view_matrix
-        right_vector = Vector((view_matrix[0][0], view_matrix[1][0], view_matrix[2][0])).normalized()
-        radius_3d_point = self.center_3d + right_vector * prop_dist_world
+        right_vector = Vector(view_matrix[0][:3]).normalized()
+        radius_3d_point = self.center_3d + right_vector * prop_dist_world / 2
         radius_2d_point = location_3d_to_region_2d(context.region, context.region_data, radius_3d_point, default=None)
 
         if radius_2d_point is None:
@@ -99,13 +100,9 @@ class ProportionalEditOverlay(RFOverlay_Base):
         # Calculate 2D radius as the distance between projected center and radius point
         radius = (radius_2d_point - self.center_2d).length
 
-        # Internally Blender proportional editing circle is based on the 3d view grid color.
-        grid = context.preferences.themes[0].view_3d.grid
-        col_off = 20/255
-        color_in = Color((grid[0]+col_off, grid[1]+col_off, grid[2]+col_off, 1.0))  # lighter than grid color. full alpha
-        color_out = Color((grid[0]-col_off, grid[1]-col_off, grid[2]-col_off, 1.0))  # darker than grid color. full alpha
+        grid  = context.preferences.themes[0].view_3d.grid
+        color = Color((grid[0] - 20/255, grid[1] - 20/255, grid[2] - 20/255, 1.0))
 
         gpustate.blend('ALPHA')
-        Drawing.draw2D_smooth_circle(context, self.center_2d, radius, color_out, width=3)
-        Drawing.draw2D_smooth_circle(context, self.center_2d, radius-1, color_in, width=1)
+        Drawing.draw2D_smooth_circle(context, self.center_2d, radius, color, width=1)
         gpustate.blend('NONE')
