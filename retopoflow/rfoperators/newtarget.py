@@ -21,10 +21,12 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy
 import bl_ui
+from bpy.types import Menu, Context
 
 from bpy_extras.object_utils import object_data_add
 from ..preferences import RF_Prefs
 
+from ..rfglobals import RFGlobals
 from ..common.operator import RFRegisterClass
 
 
@@ -40,11 +42,10 @@ class RFCore_NewTarget_Cursor(RFRegisterClass, bpy.types.Operator):
     rf_label = "Retopology at Cursor"
     rf_icon = 'CURSOR'
 
-    RFCore = None
-
     @staticmethod
-    def draw_menu_item(self, context):
-        self.layout.operator(
+    def draw_menu_item(menu : Menu, _context : Context):
+        if not menu.layout: return
+        menu.layout.operator(
             RFCore_NewTarget_Cursor.bl_idname,
             text=RFCore_NewTarget_Cursor.rf_label,
             icon=RFCore_NewTarget_Cursor.rf_icon,
@@ -62,6 +63,9 @@ class RFCore_NewTarget_Cursor(RFRegisterClass, bpy.types.Operator):
         return True
 
     def execute(self, context):
+        RFCore = RFGlobals.RFCore_None
+        if not RFCore: return {'CANCELLED'}
+
         prefs = RF_Prefs.get_prefs(context)
         auto_edit_mode = context.preferences.edit.use_enter_edit_mode # working around blender bug, see https://github.com/CGCookie/retopoflow/issues/786
         context.preferences.edit.use_enter_edit_mode = False
@@ -81,7 +85,7 @@ class RFCore_NewTarget_Cursor(RFRegisterClass, bpy.types.Operator):
 
         bpy.context.preferences.edit.use_enter_edit_mode = auto_edit_mode
 
-        bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', self.RFCore.default_RFTool.bl_idname)
+        bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', RFCore.default_RFTool.bl_idname)
 
         return {'FINISHED'}
 
@@ -98,11 +102,10 @@ class RFCore_NewTarget_Active(RFRegisterClass, bpy.types.Operator):
     rf_label = "Retopology from Active"
     rf_icon = 'PIVOT_ACTIVE' # 'MOD_MESHDEFORM'
 
-    RFCore = None
-
     @staticmethod
-    def draw_menu_item(self, context):
-        self.layout.operator(
+    def draw_menu_item(menu : Menu, _context : Context):
+        if not menu.layout: return
+        menu.layout.operator(
             RFCore_NewTarget_Active.bl_idname,
             text=RFCore_NewTarget_Active.rf_label,
             icon=RFCore_NewTarget_Active.rf_icon,
@@ -142,7 +145,10 @@ class RFCore_NewTarget_Active(RFRegisterClass, bpy.types.Operator):
         return active_name + f'_{first_letter}etopology'
         """
 
-    def execute(self, context):
+    def execute(self, context : Context) -> set[str]:
+        RFCore = RFGlobals.RFCore_None
+        if not RFCore: return {'CANCELLED'}
+
         matrix_world = context.view_layer.objects.active.matrix_world
 
         auto_edit_mode = context.preferences.edit.use_enter_edit_mode # working around blender bug, see https://github.com/CGCookie/retopoflow/issues/786
@@ -163,6 +169,6 @@ class RFCore_NewTarget_Active(RFRegisterClass, bpy.types.Operator):
 
         bpy.context.preferences.edit.use_enter_edit_mode = auto_edit_mode
 
-        bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', self.RFCore.default_RFTool.bl_idname)
+        bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', RFCore.default_RFTool.bl_idname)
 
         return {'FINISHED'}

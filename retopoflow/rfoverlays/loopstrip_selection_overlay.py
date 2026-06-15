@@ -22,9 +22,13 @@ Created by Jonathan Denning, Jonathan Lampel
 import bpy
 from mathutils import Vector
 from bpy_extras.view3d_utils import location_3d_to_region_2d
+from bpy.types import Context, Event
 
 from .overlays import overlay_names
 
+from ..common.bpy_helper import bpy_ops_retopoflow
+from ..rfglobals import RFGlobals
+from ..rfoverlay_base import RFOverlay_Base
 from ..common.operator import RFOperator
 from ..common.bmesh import get_bmesh_emesh, bme_midpoint, get_boundary_strips_cycles
 from ..common.drawing import Drawing
@@ -56,31 +60,39 @@ def get_label_pos(context, label, mids, corners):
 
 def create_loopstrip_selection_overlay(opname, rftool_idname, idname, label, only_boundary):
     overlay_names.add(label)
-    class RFOperator_LoopStrip_Selection_Overlay:
+    class RFOperator_LoopStrip_Selection_Overlay(RFOverlay_Base):
         bl_idname = f'retopoflow.{idname}'
         bl_label = label
         bl_description = 'Overlay info about selected loops and strips'
         bl_options = { 'INTERNAL' }
 
+        depsgraph_version : None | int = None
+        selected_boundaries : tuple[list[tuple[list[Vector], list[Vector]]], list[tuple[list[Vector], list[Vector]]]] = ([],[])
+
         @staticmethod
         def activate():
-            getattr(bpy.ops.retopoflow, idname)('INVOKE_DEFAULT')
+            bpy_ops_retopoflow(idname, 'INVOKE_DEFAULT')
 
-        def init(self, context, event):
+        def init(self, _context : Context, _event : Event):
             self.depsgraph_version = None
 
         def update(self, context, event):
-            is_done = (self.RFCore.selected_RFTool_idname != rftool_idname)
+            RFCore = RFGlobals.RFCore_None
+            if not RFCore: return {'CANCELLED'}
+            is_done = (RFCore.selected_RFTool_idname != rftool_idname)
             return {'CANCELLED'} if is_done else {'PASS_THROUGH'}
 
         def draw_postpixel_overlay(self):
-            is_done = (self.RFCore.selected_RFTool_idname != rftool_idname)
+            RFCore = RFGlobals.RFCore_None
+            if not RFCore: return
+
+            is_done = (RFCore.selected_RFTool_idname != rftool_idname)
             if is_done: return
 
-            if self.depsgraph_version != self.RFCore.depsgraph_version:
+            if self.depsgraph_version != RFCore.depsgraph_version:
                 # depsgraph changed, so recollect boundary details
 
-                self.depsgraph_version = self.RFCore.depsgraph_version
+                self.depsgraph_version = RFCore.depsgraph_version
 
                 # find selected boundary strips
                 bm, _ = get_bmesh_emesh(bpy.context)
@@ -89,9 +101,15 @@ def create_loopstrip_selection_overlay(opname, rftool_idname, idname, label, onl
                     # filter selected edges to only boundaries
                     sel_bmes = [ bme for bme in sel_bmes if bme.is_wire or bme.is_boundary ]
                 if len(sel_bmes) < 1000:
-                    strips, cycles = get_boundary_strips_cycles(sel_bmes)
-                    strips = [([bme_midpoint(bme) for bme in strip], [bmv.co for bme in strip for bmv in bme.verts]) for strip in strips]
-                    cycles = [([bme_midpoint(bme) for bme in cycle], [bmv.co for bme in cycle for bmv in bme.verts]) for cycle in cycles]
+                    bmes_strips, bmes_cycles = get_boundary_strips_cycles(sel_bmes)
+                    strips = [
+                        ([bme_midpoint(bme) for bme in strip], [bmv.co for bme in strip for bmv in bme.verts])
+                        for strip in bmes_strips
+                    ]
+                    cycles = [
+                        ([bme_midpoint(bme) for bme in cycle], [bmv.co for bme in cycle for bmv in bme.verts])
+                        for cycle in bmes_cycles
+                    ]
                     if len(strips) + len(cycles) <= 5:
                         self.selected_boundaries = (strips, cycles)
                     else:

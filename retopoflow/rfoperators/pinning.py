@@ -21,6 +21,7 @@ Created by Jonathan Denning, Jonathan Lampel
 
 
 import bpy, bmesh
+from ..rfglobals import RFGlobals
 from ..common.operator import RFRegisterClass
 
 
@@ -130,6 +131,7 @@ def restore_pinning(context):
         bmesh.update_edit_mesh(obj.data)
     else:
         bm.to_mesh(obj.data)
+        print('pinning.py')
         bm.free()
 
 
@@ -183,12 +185,11 @@ class RFOperator_PinVerts(RFRegisterClass, bpy.types.Operator):
     bl_options = {'UNDO'}
 
     rf_label = "Pin Verts"
-    RFCore = None
 
     @classmethod
     def poll(cls, context):
-        from ..rfcore import RFCore
-        return RFCore.is_running and context.active_object and context.mode == 'EDIT_MESH'
+        RFCore = RFGlobals.RFCore_None
+        return RFCore and RFCore.is_running and context.active_object and context.mode == 'EDIT_MESH'
 
     def execute(self, context):
         obj = context.active_object
@@ -207,12 +208,11 @@ class RFOperator_UnpinVerts(RFRegisterClass, bpy.types.Operator):
     bl_options = {'UNDO'}
 
     rf_label = "Unpin Verts"
-    RFCore = None
 
     @classmethod
     def poll(cls, context):
-        from ..rfcore import RFCore
-        return RFCore.is_running and context.active_object and context.mode == 'EDIT_MESH'
+        RFCore = RFGlobals.RFCore_None
+        return RFCore and RFCore.is_running and context.active_object and context.mode == 'EDIT_MESH'
 
     def execute(self, context):
         obj = context.active_object

@@ -108,8 +108,9 @@ def prettyprint_matrices(*args, format='% 7.3f'):
         line.append(spc + '└' + (' '*(w*8-1)) + ' ┘')
     print('  '.join(line))
 
-def size2D_to_size(context, depth3D, *, pt=None):
-    w, h = context.region.width * 0.5, context.region.height * 0.5
+def size2D_to_size(context : Context, depth3D : float, *, pt : Vector | Sequence[float] | None = None) -> float | None:
+    w : float = context.region.width * 0.5
+    h : float = context.region.height * 0.5
     scale = min(w, h)
 
     # note: scaling then unscaling helps with numerical instability when clip_start is small

@@ -22,6 +22,7 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy
 
+from ..rfglobals import RFGlobals
 from ..common.operator import RFRegisterClass
 from ..common.append import append_node
 from ..common.object import clear_transforms
@@ -73,6 +74,8 @@ def update_nodes_preview(context, preview_mod=None):
 
 
 def setup_nodes_preview(context):
+    RFCore = RFGlobals.RFCore
+
     props = context.scene.retopoflow
     mirror_obj = context.active_object
     mirror_mod = get_mirror_mod(mirror_obj)
@@ -80,7 +83,6 @@ def setup_nodes_preview(context):
     node_name = mirror_node_tree_name
 
     if '.' + node_name not in [x.name for x in bpy.data.node_groups]:
-        from ..rfcore import RFCore
         RFCore.pause()
         bpy.ops.object.mode_set(mode='OBJECT')
         node_group = append_node('.' + node_name)
@@ -238,7 +240,6 @@ class RFOperator_AddMirror(RFRegisterClass, bpy.types.Operator):
     bl_options = {'UNDO'}
 
     rf_label = "Add Mirror"
-    RFCore = None
 
     @classmethod
     def poll(cls, context):
@@ -259,7 +260,6 @@ class RFOperator_ApplyMirror(RFRegisterClass, bpy.types.Operator):
     bl_options = {'UNDO'}
 
     rf_label = "Apply Mirror"
-    RFCore = None
 
     @classmethod
     def poll(cls, context):
@@ -267,7 +267,9 @@ class RFOperator_ApplyMirror(RFRegisterClass, bpy.types.Operator):
         return get_mirror_mod(context.active_object) is not None
 
     def execute(self, context):
-        from ..rfcore import RFCore
+        RFCore = RFGlobals.RFCore_None
+        if not RFCore: return {'CANCELLED'}
+
         RFCore.pause()
         bpy.ops.object.mode_set(mode='OBJECT')
 

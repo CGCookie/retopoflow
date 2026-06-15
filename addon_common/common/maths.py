@@ -19,11 +19,13 @@ Created by Jonathan Denning, Jonathan Williamson
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+from __future__ import annotations
+
 import re
 import random
 import numpy as np
 from math import sqrt, acos, cos, sin, floor, ceil, isinf, sqrt, pi, isnan
-from typing import List
+from typing import List, ClassVar
 from itertools import combinations
 
 import gpu
@@ -417,6 +419,10 @@ class Direction2D(Vector, Entity2D):
 
 
 class Direction(VecUtils, Entity3D):
+    X : ClassVar[Direction]
+    Y : ClassVar[Direction]
+    Z : ClassVar[Direction]
+
     @stats_wrapper
     def __init__(self, t=None):
         if t is not None:

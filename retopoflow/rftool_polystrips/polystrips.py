@@ -25,6 +25,7 @@ import math
 from mathutils import Vector
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_location_3d
 
+from ..rfglobals import RFGlobals
 from ..rfbrushes.stroke_brush import create_stroke_brush
 from ..rfoverlays.quadstrip_selection_overlay import create_quadstrip_selection_overlay
 
@@ -669,6 +670,9 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
         )
 
     def update(self, context, event):
+        RFCore = RFGlobals.RFCore_None
+        if not RFCore: return {'CANCELLED'}
+
         if event.value in {'CLICK', 'DOUBLE_CLICK'} and event_modifier_check(event, ctrl=True, shift=False, alt=False, oskey=False):
             # prevents object selection with Ctrl+LMB Click
             return {'RUNNING_MODAL'}
@@ -676,7 +680,7 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
         if RFTool_PolyStrips.rf_brush.is_stroking():
             self.set_statusbar_override(self.rf_status['insert'])
             if event.type in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE', 'LEFTMOUSE'}:
-                self.RFCore.handle_update(context, event)
+                RFCore.handle_update(context, event)
                 return {'RUNNING_MODAL'}
         else:
             self.set_statusbar_override(None)

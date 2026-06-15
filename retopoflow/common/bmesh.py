@@ -29,6 +29,7 @@ from mathutils.bvhtree import BVHTree
 from mathutils import Vector, Matrix
 from math import inf, isnan, cos, radians
 from typing import Callable, Iterator, Sequence
+from collections.abc import Sequence
 
 from ...addon_common.common.decorators import add_cache
 from ...addon_common.common import bmesh_ops as bmops
@@ -103,6 +104,9 @@ def get_object_bmesh(obj):
             get_object_bmesh.cache[obj] = bm
             eval_obj.to_mesh_clear()
     return bm
+
+def clear_object_bmesh():
+    get_object_bmesh.cache.clear() # pyright: ignore[reportFunctionMemberAccess]
 
 def clean_select_layers(bm):
     if 'rf_vert_select_after_move' in bm.verts.layers.int:
@@ -302,26 +306,28 @@ def quad_bmf_opposite_bme(bmf, bme):
 def is_bmv_end(bmv, bmes):
     return len(set(bmv.link_edges) & bmes) != 2
 
-def get_boundary_strips_cycles(bmes):
+def get_boundary_strips_cycles(bmes : Sequence[BMEdge]) -> tuple[list[list[BMEdge]], list[list[BMEdge]]]:
     if not bmes: return ([], [])
 
-    bmes = set(bmes)
+    bmes_set = set(bmes)
 
-    strips, cycles = [], []
+    strips : list[list[BMEdge]] = []
+    cycles : list[list[BMEdge]] = []
 
     # first start with bmvert ends to find strips
-    bmv_ends = { bmv for bme in bmes for bmv in bme.verts if is_bmv_end(bmv, bmes) }
+    bmv_ends = { bmv for bme in bmes_set for bmv in bme.verts if is_bmv_end(bmv, bmes_set) }
     while True:
-        current_strip = []
-        bmv = next(( bmv for bme in bmes for bmv in bme.verts if bmv in bmv_ends ), None)
+        current_strip : list[BMEdge] = []
+        bmv = next(( bmv for bme in bmes_set for bmv in bme.verts if bmv in bmv_ends ), None)
         if not bmv: break
         bme = None
         while True:
-            bme = next(iter(set(bmv.link_edges) & bmes - {bme}), None)
+            bme : BMEdge | None = next(iter(set(bmv.link_edges) & bmes_set - {bme}), None)
+            if not bme: break
             current_strip += [bme]
             bmv = bme_other_bmv(bme, bmv)
-            if bmv in bmv_ends: break
-        bmes -= set(current_strip)
+            if not bmv or bmv in bmv_ends: break
+        bmes_set -= set(current_strip)
         strips += [current_strip]
 
     # some of the strips may actually be cycles...
@@ -330,18 +336,19 @@ def get_boundary_strips_cycles(bmes):
             strips.remove(strip)
             cycles.append(strip)
 
-    # any bmedges still in bmes _should_ be part of cycles
+    # any bmedges still in bmes_set _should_ be part of cycles
     while True:
         current_cycle = []
-        bmv = next(( bmv for bme in bmes for bmv in bme.verts ), None)
+        bmv = next(( bmv for bme in bmes_set for bmv in bme.verts ), None)
         if not bmv: break
         bme = None
         while True:
-            bme = next(iter(set(bmv.link_edges) & bmes - {bme}), None)
+            bme = next(iter(set(bmv.link_edges) & bmes_set - {bme}), None)
             if not bme or bme in current_cycle: break
             current_cycle += [bme]
             bmv = bme_other_bmv(bme, bmv)
-        bmes -= set(current_cycle)
+            if not bmv: break
+        bmes_set -= set(current_cycle)
         cycles += [current_cycle]
 
     strips.sort(key=lambda strip:len(strip))

@@ -331,7 +331,7 @@ class RFOperator_Translate(RFOperator):
         self.mouse_orig = Vector((event.mouse_region_x, event.mouse_region_y))
         self.mouse_prev = Vector((event.mouse_region_x, event.mouse_region_y))
         self.mouse_center = Vector((context.window.width // 2, context.window.height // 2))
-        # self.RFCore.cursor_warp(context, self.mouse_center)  # NOTE: initial warping might not happen right away
+        # RFCore.cursor_warp(context, self.mouse_center)  # NOTE: initial warping might not happen right away
         self.delay_delta_update = True
         self.delta = Vector((0, 0))
         self.delta_slow = Vector((0, 0))
@@ -353,14 +353,14 @@ class RFOperator_Translate(RFOperator):
 
         if event.type in {'RIGHTMOUSE', 'ESC'}:
             self.cancel_reset(context, event)
-            # self.RFCore.cursor_warp(context, self.mouse_orig)
+            # RFCore.cursor_warp(context, self.mouse_orig)
             # print(f'CANCEL TRANSLATE')
             return {'CANCELLED'}
 
         if event.type == 'LEFTMOUSE':
             # HANDLE MERGE!!!
             self.automerge(context, event)
-            # self.RFCore.cursor_warp(context, self.mouse_orig)
+            # RFCore.cursor_warp(context, self.mouse_orig)
             bpy.ops.ed.undo_push(message='Transform')
             # print(f'COMMIT TRANSLATE')
             return {'FINISHED'}
@@ -433,7 +433,7 @@ class RFOperator_Translate(RFOperator):
 
     def translate(self, context, event):
         # self.delta += self.mouse - self.mouse_center
-        # self.RFCore.cursor_warp(context, self.mouse_center)
+        # RFCore.cursor_warp(context, self.mouse_center)
         # self.delta = self.mouse - self.mouse_orig
         if not self.slow:
             self.delta += self.mouse - self.mouse_prev

@@ -37,6 +37,7 @@ import time
 from typing import List
 from enum import Enum
 
+from ..rfglobals import RFGlobals
 from ..rftool_base import RFTool_Base
 from ..rfbrush_base import RFBrush_Base
 from ..common.bmesh import get_bmesh_emesh, NearestBMVert
@@ -248,8 +249,8 @@ class RFOperator_Relax(RFOperator):
         self.logic.finish(context)
 
     def draw_postpixel(self, context):
-        if not self.RFCore: return
-        if not self.RFCore.is_current_area(context): return
+        RFCore = RFGlobals.RFCore_None
+        if not RFCore or not RFCore.is_current_area(context): return
         self.logic.draw(context)
 
 

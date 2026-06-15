@@ -28,15 +28,17 @@ from ..config.theme import Theme
 from ..config.keymaps import get_user_keymap_item
 from ..addon_common.autosave.autosave import AutoSave
 
+assert __package__, 'Do not run this Python file directly'
+addon_name = __package__.rsplit('.', 1)[0]
+
 class RF_Prefs(bpy.types.AddonPreferences):
     # Grabs the full extension name regardless of which library it is in
     # Since this file is in a subfolder, it needs the last folder name removed
-    bl_idname = __package__.rsplit('.', 1)[0]
+    bl_idname = addon_name
 
     @staticmethod
     def get_prefs(context):
-        bl_idname = __package__.rsplit('.', 1)[0]
-        return context.preferences.addons[bl_idname].preferences
+        return context.preferences.addons[addon_name].preferences
 
     """ RF AutoSave """
     enable_autosave: bpy.props.BoolProperty(
@@ -121,7 +123,7 @@ class RF_Prefs(bpy.types.AddonPreferences):
             ('purple', "Purple", "Changes the color of components while using Retopoflow"),
         ),
         default='blue',
-        update=lambda self, context: Theme.set_theme(context, self.theme)
+        update=lambda self, context: Theme.set_theme(context, str(self.theme))
     )
     #endregion
 

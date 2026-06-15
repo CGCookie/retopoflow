@@ -21,10 +21,12 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy
 import bmesh
+from bpy.types import Context, Event
 from bmesh.types import BMVert
 from mathutils import Vector, Matrix
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 
+from ..rfglobals import RFGlobals
 from ..rfbrush_base import RFBrush_Base
 from ..common.bmesh import (
     get_bmesh_emesh,
@@ -271,7 +273,10 @@ def create_stroke_brush(
                     self.snap_bmf1 = self.nearest_bmf.bmf
 
 
-        def update(self, context, event):
+        def update(self, context : Context, event : Event):
+            RFCore = RFGlobals.RFCore_None
+            if not RFCore: return
+
             try:
                 if self.operator: self.operator.is_active()
             except ReferenceError as referr:
@@ -284,7 +289,7 @@ def create_stroke_brush(
                 self.hit = False
                 return
 
-            if not self.RFCore.is_current_area(context):
+            if not RFCore.is_current_area(context):
                 self.reset()
                 return
 
@@ -389,10 +394,12 @@ def create_stroke_brush(
                 if self.stroke_far and not self.snap_bmv0 and not self.snap_bmv1:
                     self.stroke_cycle = (self.stroke_original[0] - self.stroke_original[-1]).length < Drawing.scale(self.snap_distance)
 
+            mouse_inside : bool = False
             if self.operator.is_active() or RFOperator_StrokeBrush_Adjust.is_active():
                 # artist is actively stroking or adjusting brush properties, so always consider us inside if we're in the same area
                 active_op = RFOperator.active_operator()
-                mouse_inside = (context.area == active_op.working_area) and (context.window == active_op.working_window)
+                if active_op:
+                    mouse_inside = (context.area == active_op.working_area) and (context.window == active_op.working_window)
             else:
                 mouse_inside = (0 <= mouse[0] < context.area.width) and (0 <= mouse[1] < context.area.height)
 
@@ -989,7 +996,8 @@ def create_stroke_brush(
                     Drawing.draw2D_linestrip(context, cos + [cos[0]], self.snap_color, width=2)
 
         def draw_postpixel(self, context):
-            if not self.RFCore.is_current_area(context): return
+            RFCore = RFGlobals.RFCore_None
+            if not RFCore or not RFCore.is_current_area(context): return
             if not self.operator and not RFOperator_StrokeBrush_Adjust.is_active(): return
             if self.shift_held: return
             if not self.matrix_world: return
@@ -1055,7 +1063,8 @@ def create_stroke_brush(
             return s
 
         def draw_postview(self, context):
-            if not self.RFCore.is_current_area(context): return
+            RFCore = RFGlobals.RFCore_None
+            if not RFCore or not RFCore.is_current_area(context): return
             if context.area not in self.mouse_areas: return
             if not self.matrix_world: return
             if self.shift_held: return

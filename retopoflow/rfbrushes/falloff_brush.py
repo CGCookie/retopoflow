@@ -20,50 +20,79 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
+from bpy.types import Context, Event, Area, SpaceView3D, View3DOverlay
 from mathutils import Vector, Matrix
 
+from typing import Protocol
+from collections.abc import Sequence, Callable
+
 import math
+from ..rfglobals import RFGlobals
 from ..rfbrush_base import RFBrush_Base
-from ..common.drawing import (
-    Drawing,
-)
+from ..common.bpy_helper import bpy_ops_retopoflow
+from ..common.drawing import Drawing
 from ..common.operator import RFOperator, execute_operator
 from ..common.raycast import raycast_valid_sources, size2D_to_size, mouse_from_event
-from ..common.maths import lerp
 from ...addon_common.common.maths import Color, clamp
 from ...addon_common.common import gpustate
-from ...addon_common.common.maths import clamp, Direction, Vec, Point, Point2D, Vec2D
+from ...addon_common.common.maths import Direction, Vec, Point, Point2D, Vec2D
 from ..common.easing import CubicEaseIn
 
+class ConvertSetCallable(Protocol):
+    def __call__(self, distance : float, context : Context):
+        pass
 
-def create_falloff_brush(idname, label, **kwargs):
-    fn_disable = kwargs.get('fn_disable', None)
+class ConvertGetCallable(Protocol):
+    def __call__(self, context : Context) -> float:
+        return 0
+
+
+def create_falloff_brush(idname : str, label : str, **kwargs):
+    fn_disable : Callable[[Event], bool] | None = kwargs.get('fn_disable', None)
 
     class RFBrush_Falloff(RFBrush_Base):
         # brush settings
-        radius   = kwargs.get('radius',   100)
-        falloff  = kwargs.get('falloff',  1.00)
-        strength = kwargs.get('strength', 0.75)
+        radius   : float = kwargs.get('radius',   100)
+        falloff  : float = kwargs.get('falloff',  1.00)
+        strength : float = kwargs.get('strength', 0.75)
 
         # brush visualization settings
-        color           = kwargs.get('color',  Color.from_ints(0, 135, 255, 255))
-        below_alpha     = Color((1,1,1,0.25))  # multiplied against color when occluded
-        brush_min_alpha = 0.100
-        brush_max_alpha = 0.700
-        depth_fill      = 0.998 # see note on gl_FragDepth in circle_3D.glsl
-        depth_border    = 0.996 # see note on gl_FragDepth in circle_3D.glsl
+        color           : Color = kwargs.get('color', Color.from_ints(0, 135, 255, 255))
+        below_alpha     : Color = Color((1,1,1,0.25))  # multiplied against color when occluded
+        brush_min_alpha : float = 0.100
+        brush_max_alpha : float = 0.700
+        depth_fill      : float = 0.998 # see note on gl_FragDepth in circle_3D.glsl
+        depth_border    : float = 0.996 # see note on gl_FragDepth in circle_3D.glsl
 
         # hack to know which areas the mouse is in
-        mouse_areas = set()
+        mouse_areas : set[Area] = set()
 
-        operator = None
+        operator : RFOperator | None = None
+
+        mouse : tuple[int, int] | None # pyright: ignore[reportUninitializedInstanceVariable]
+        hit_ray : tuple[Vector,Vector] # pyright: ignore[reportUninitializedInstanceVariable]
+        hit : bool # pyright: ignore[reportUninitializedInstanceVariable]
+        hit_p : Vector | None # pyright: ignore[reportUninitializedInstanceVariable]
+        hit_n : Vector | None # pyright: ignore[reportUninitializedInstanceVariable]
+        hit_scale : float | None # pyright: ignore[reportUninitializedInstanceVariable]
+        hit_depth : float | None # pyright: ignore[reportUninitializedInstanceVariable]
+        hit_x : float | None # pyright: ignore[reportUninitializedInstanceVariable]
+        hit_y : float | None # pyright: ignore[reportUninitializedInstanceVariable]
+        hit_z : float | None # pyright: ignore[reportUninitializedInstanceVariable]
+        hit_rmat : Matrix | None # pyright: ignore[reportUninitializedInstanceVariable]
+        disabled : bool # pyright: ignore[reportUninitializedInstanceVariable]
+        offset : float # pyright: ignore[reportUninitializedInstanceVariable]
+        hit_scale_offset : float # pyright: ignore[reportUninitializedInstanceVariable]
+        prev_radius : float # pyright: ignore[reportUninitializedInstanceVariable]
+        center2D : Vector # pyright: ignore[reportUninitializedInstanceVariable]
 
         @classmethod
-        def set_operator(cls, operator):
+        def set_operator(cls, operator : RFOperator | None):
             cls.operator = operator
 
         @classmethod
-        def is_top_modal(cls, context):
+        def is_top_modal(cls, context : Context):
+            if not cls.operator: return False
             op_name = cls.operator.bl_label
             ops = context.window.modal_operators
             if not ops: return False
@@ -127,7 +156,7 @@ def create_falloff_brush(idname, label, **kwargs):
             if not self.hit_p: return 0.0
             return self.get_strength_dist((point - self.hit_p).length)
 
-        def update(self, context, event, *, force=False):
+        def update(self, context : Context, event : Event, *, force : bool = False) -> None:
             if RFOperator_FalloffBrush_Adjust.is_active():
                 self.disabled = False
             elif fn_disable:
@@ -140,14 +169,17 @@ def create_falloff_brush(idname, label, **kwargs):
 
             if not force:
                 if not RFBrush_Falloff.operator: return
+
                 if event.type != 'MOUSEMOVE': return
 
-            mouse = mouse_from_event(event)
+            if not RFBrush_Falloff.operator: return
 
+            mouse = mouse_from_event(event)
+            mouse_inside : bool = False
             if RFBrush_Falloff.operator.is_active() or RFOperator_FalloffBrush_Adjust.is_active():
-                active_op = RFOperator.active_operator()
-                # artist is actively brushing or adjusting brush properties, so always consider us inside if we're in the same area
-                mouse_inside = (context.area == active_op.working_area) and (context.window == active_op.working_window)
+                if active_op := RFOperator.active_operator():
+                    # artist is actively brushing or adjusting brush properties, so always consider us inside if we're in the same area
+                    mouse_inside = (context.area == active_op.working_area) and (context.window == active_op.working_window)
             else:
                 mouse_inside = (0 <= mouse[0] < context.area.width) and (0 <= mouse[1] < context.area.height)
 
@@ -166,7 +198,7 @@ def create_falloff_brush(idname, label, **kwargs):
             context.area.tag_redraw()
             if force: self._update(context)
 
-        def _update(self, context):
+        def _update(self, context : Context):
             if context.area not in self.mouse_areas: return
             self.hit = False
             if not self.mouse: return
@@ -175,14 +207,17 @@ def create_falloff_brush(idname, label, **kwargs):
             # print(f'  {hit=}')
             if not hit: return
             #scale = size2D_to_size_point(context, self.mouse, hit['co_world'])
-            self.offset = min(hit['distance'] * 0.75, 1.05 * context.space_data.overlay.retopology_offset)
-            scale = size2D_to_size(context, hit['distance'], pt=self.mouse)
-            scale_offset = size2D_to_size(context, hit['distance'] - self.offset, pt=self.mouse)
+            distance : float = hit['distance']
+            space : SpaceView3D = context.space_data
+            overlay : View3DOverlay = space.overlay
+            self.offset = min(distance * 0.75, 1.05 * overlay.retopology_offset)
+            scale = size2D_to_size(context, distance, pt=self.mouse)
+            scale_offset = size2D_to_size(context, distance - self.offset, pt=self.mouse)
             # print(f'  {scale=}')
             if scale is None or scale_offset is None: return
 
-            n = hit['no_local']
-            rmat = Matrix.Rotation(Direction.Z.angle(n), 4, Direction.Z.cross(n))
+            n : Vector = hit['no_local']
+            rmat = Matrix.Rotation(n.angle(Direction.Z), 4, n.cross(Direction.Z))
 
             self.hit = True
             self.hit_ray = hit['ray_world']
@@ -196,16 +231,16 @@ def create_falloff_brush(idname, label, **kwargs):
             self.hit_z = Vec(rmat @ Direction.Z)
             self.hit_rmat = rmat
 
-        def draw_postpixel(self, context):
+        def draw_postpixel(self, context : Context):
             if not RFBrush_Falloff.operator: return
             if context.area not in self.mouse_areas: return
             if not RFOperator_FalloffBrush_Adjust.is_active(): return
             if self.disabled: return
 
-            if RFBrush_Falloff.operator.is_active() or RFOperator_FalloffBrush_Adjust.is_active():
-                active_op = RFOperator.active_operator()
-            else:
-                active_op = None
+            if not RFBrush_Falloff.operator.is_active() and not RFOperator_FalloffBrush_Adjust.is_active():
+                return
+
+            active_op = RFOperator.active_operator()
             adjust = active_op.adjust if active_op is not None else ''
 
             center2D = self.center2D
@@ -256,13 +291,15 @@ def create_falloff_brush(idname, label, **kwargs):
             # Draw center dot (well, skipping it since Blender brushes does not draw this).
             # Drawing.draw2D_circle(context, center2D, 2, cm, width=1)
 
-        def draw_postview(self, context):
+        def draw_postview(self, context : Context):
+            RFCore = RFGlobals.RFCore_None
+            if not RFCore: return
             if context.area not in self.mouse_areas: return
             if RFOperator_FalloffBrush_Adjust.is_active(): return
-            if not self.RFCore or not (self.RFCore.is_top_modal(context) or self.is_top_modal(context)): return
+            if not RFCore or not (RFCore.is_top_modal(context) or self.is_top_modal(context)): return
             if self.disabled: return
             self._update(context)
-            if not self.hit or self.hit_n is None: return # Ensure we have a hit and a normal
+            if not self.hit or not self.hit_p or not self.hit_n: return # Ensure we have a hit and a normal
 
             # Calculate position and orientation
             p = self.hit_p - self.hit_ray[1].xyz * self.offset
@@ -286,7 +323,7 @@ def create_falloff_brush(idname, label, **kwargs):
             gpustate.blend('ALPHA')
             gpustate.depth_mask(True) # Keep depth mask enabled
 
-            viewport_size = (context.region.width, context.region.height)
+            viewport_size : tuple[float, float] = (context.region.width, context.region.height)
 
             # draw above
             gpustate.depth_test('LESS_EQUAL')
@@ -305,24 +342,24 @@ def create_falloff_brush(idname, label, **kwargs):
             # gpustate.depth_mask(False) # Optionally disable depth mask if needed after drawing
 
     class RFOperator_FalloffBrush_Adjust(RFOperator):
-        bl_idname      = f'retopoflow.{idname}'
-        bl_label       = label
-        bl_description = f'Adjust properties of {label}'
-        bl_space_type  = 'VIEW_3D'
-        bl_space_type  = 'TOOLS'
-        bl_options     = set()
+        bl_idname      : str = f'retopoflow.{idname}'
+        bl_label       : str = label
+        bl_description : str = f'Adjust properties of {label}'
+        bl_space_type  : str = 'VIEW_3D'
+        bl_region_type : str = 'TOOLS'
+        bl_options     : set[str] = set()
 
-        rf_keymaps = [
+        rf_keymaps : list[tuple[str, dict[str,str|int|bool], dict[str,str]]] = [
             # see hacks below
             (f'retopoflow.{idname}_radius',   {'type': 'F', 'value': 'PRESS', 'ctrl': 0, 'shift': 0}, {'km_context': 'init', 'km_label': 'Adjust Radius'}),
             (f'retopoflow.{idname}_falloff',  {'type': 'F', 'value': 'PRESS', 'ctrl': 1, 'shift': 0}, {'km_context': 'init', 'km_label': 'Adjust Falloff'}),
             (f'retopoflow.{idname}_strength', {'type': 'F', 'value': 'PRESS', 'ctrl': 0, 'shift': 1}, {'km_context': 'init', 'km_label': 'Adjust Strength'}),
         ]
-        rf_status = {
+        rf_status : dict[str, Sequence[str]] = {
             'adjust': ('LMB: Commit', 'RMB: Cancel')
         }
 
-        adjust: bpy.props.EnumProperty(
+        adjust: bpy.props.EnumProperty( # pyright: ignore[reportUninitializedInstanceVariable]
             name=f'{label} Property',
             description=f'Property of {label} to adjust',
             items=[
@@ -334,41 +371,42 @@ def create_falloff_brush(idname, label, **kwargs):
             default='NONE',
         )
 
+        _dist_to_var_fn : ConvertSetCallable # pyright: ignore[reportUninitializedInstanceVariable]
+        _var_to_dist_fn : ConvertGetCallable # pyright: ignore[reportUninitializedInstanceVariable]
+        prev_radius : float # pyright: ignore[reportUninitializedInstanceVariable]
+        _change_pre : float # pyright: ignore[reportUninitializedInstanceVariable]
 
         #################################################################################
         # these are hacks to launch falloff brush operator with certain set properties
 
         @staticmethod
         @execute_operator(f'{idname}_radius',   f'Adjust {label} Radius')
-        def adjust_radius(context):
-            op = getattr(bpy.ops.retopoflow, f'{idname}')
-            op('INVOKE_DEFAULT', adjust='RADIUS')
+        def adjust_radius(_context : Context):
+            bpy_ops_retopoflow(idname, 'INVOKE_DEFAULT', adjust='RADIUS')
 
         @staticmethod
         @execute_operator(f'{idname}_strength', f'Adjust {label} Strength')
-        def adjust_strength(context):
-            op = getattr(bpy.ops.retopoflow, f'{idname}')
-            op('INVOKE_DEFAULT', adjust='STRENGTH')
+        def adjust_strength(_context : Context):
+            bpy_ops_retopoflow(idname, 'INVOKE_DEFAULT', adjust='STRENGTH')
 
         @staticmethod
         @execute_operator(f'{idname}_falloff',  f'Adjust {label} Falloff')
-        def adjust_falloff(context):
-            op = getattr(bpy.ops.retopoflow, f'{idname}')
-            op('INVOKE_DEFAULT', adjust='FALLOFF')
+        def adjust_falloff(_context : Context):
+            bpy_ops_retopoflow(idname, 'INVOKE_DEFAULT', adjust='FALLOFF')
 
 
         #################################################################################
 
-        def get_vis_radius(self, context):
+        def get_vis_radius(self, context : Context) -> float:
             return context.region.height * 0.25 * 0.5
 
-        def dist_to_radius(self, d, context=None):
-            RFBrush_Falloff.radius = max(5, int(d))
+        def dist_to_radius(self, distance : float, context : Context):
+            RFBrush_Falloff.radius = max(5, int(distance))
 
-        def radius_to_dist(self, context=None):
+        def radius_to_dist(self, context : Context) -> float:
             return RFBrush_Falloff.radius
 
-        def dist_to_strength(self, d, context):
+        def dist_to_strength(self, distance : float, context : Context):
             # Use visualization radius instead of actual brush radius
             vis_radius = self.get_vis_radius(context)
             min_radius = 0.24 * vis_radius
@@ -378,10 +416,10 @@ def create_falloff_brush(idname, label, **kwargs):
             # - When d is near min_radius, strength should be 0.0
             # - When d is near max_radius, strength should be 1.0
             # - Ensure that at max_radius we get exactly 1.0
-            normalized_dist = clamp((d - min_radius) / (max_radius - min_radius), 0.0, 1.0)
+            normalized_dist = clamp((distance - min_radius) / (max_radius - min_radius), 0.0, 1.0)
             RFBrush_Falloff.strength = normalized_dist
 
-        def strength_to_dist(self, context):
+        def strength_to_dist(self, context : Context) -> float:
             # Use visualization radius instead of actual brush radius
             vis_radius = self.get_vis_radius(context)
             min_radius = 0.24 * vis_radius
@@ -390,19 +428,19 @@ def create_falloff_brush(idname, label, **kwargs):
             # strength 0.0 → min_radius, strength 1.0 → max_radius
             return min_radius + RFBrush_Falloff.strength * (max_radius - min_radius)
 
-        def dist_to_falloff(self, d, context):
+        def dist_to_falloff(self, distance : float, context : Context):
             # Use visualization radius instead of actual brush radius
             vis_radius = self.get_vis_radius(context)
 
             # Normalize distance as percentage of visualization radius (0.0 to 1.0)
-            norm_dist = clamp(d / vis_radius, 0.0, 1.0)
+            norm_dist = clamp(distance / vis_radius, 0.0, 1.0)
 
             # Map distance directly to falloff value (0.0 to 1.0)
             # - 0.0 distance = 0.0 falloff (no falloff)
             # - 1.0 distance = 1.0 falloff (maximum falloff)
             RFBrush_Falloff.falloff = norm_dist
 
-        def falloff_to_dist(self, context):
+        def falloff_to_dist(self, context : Context) -> float:
             # Use visualization radius instead of actual brush radius
             vis_radius = self.get_vis_radius(context)
 
@@ -414,7 +452,7 @@ def create_falloff_brush(idname, label, **kwargs):
             # - 1.0 falloff = 1.0 distance (maximum falloff)
             return falloff * vis_radius
 
-        def can_init(self, context, event):
+        def can_init(self, _context : Context, _event : Event) -> bool:
             return self.adjust != 'NONE'
 
         def init(self, context, event):
@@ -458,7 +496,7 @@ def create_falloff_brush(idname, label, **kwargs):
 
             context.area.tag_redraw()
 
-        def finish(self, context, cancel=False):
+        def finish(self, context : Context, cancel=False):
             if cancel:
                 self._dist_to_var_fn(self._change_pre, context)
             self.set_statusbar_override(None)

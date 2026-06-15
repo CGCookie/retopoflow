@@ -24,6 +24,7 @@ import bmesh
 from bpy.types import Area, Context, Event
 from mathutils import Vector, Matrix
 from bpy_extras.view3d_utils import location_3d_to_region_2d
+from ..rfglobals import RFGlobals
 from ..rftool_base import RFTool_Base
 from ..rfbrush_base import RFBrush_Base
 from ..common.bmesh import get_bmesh_emesh, nearest_bmv_world, nearest_bme_world, NearestBMVert
@@ -108,8 +109,8 @@ class RFBrush_Cut(RFBrush_Base):
         return True
 
     def update(self, context:Context, event:Event):
-        if not self.RFCore:
-            return
+        RFCore = RFGlobals.RFCore_None
+        if not RFCore: return
 
         try:
             if self.operator: self.operator.is_active()
@@ -121,7 +122,7 @@ class RFBrush_Cut(RFBrush_Base):
             self.reset()
             return
 
-        if not self.RFCore.is_current_area(context):
+        if not RFCore.is_current_area(context):
             self.reset()
             return
 
@@ -155,10 +156,8 @@ class RFBrush_Cut(RFBrush_Base):
                 context.area.tag_redraw()
 
     def draw_postpixel(self, context:Context):
-        if not self.RFCore:
-            return
-        if not self.RFCore.is_current_area(context):
-            return
+        RFCore = RFGlobals.RFCore_None
+        if not RFCore or not RFCore.is_current_area(context): return
         if not self.operator: return
         #if context.area not in self.mouse_areas: return
         if self.shift_held: return

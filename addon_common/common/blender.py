@@ -20,36 +20,34 @@ Created by Jonathan Denning, Jonathan Williamson
 '''
 
 import os
-import math
-import inspect
-from inspect import ismethod, isfunction, signature
 from collections import namedtuple
+from collections.abc import Iterator
 from contextlib import contextmanager
 
 import bpy
 import bpy.utils.previews
+from bpy.types import Screen, Area, Space, Context, Region
 
-from .decorators import blender_version_wrapper, only_in_blender_version, add_cache, ignore_exceptions
-from .functools import find_fns, self_wrapper
+from .decorators import add_cache, ignore_exceptions
 from .blender_cursors import Cursors
 from ..terminal import term_printer
 
 
 
-def iter_all_view3d_areas(*, screen=None):
+def iter_all_view3d_areas(*, screen:Screen|None=None) -> Iterator[Area]:
     if screen:
         yield from (a for a in screen.areas if a.type == 'VIEW_3D')
-        return
+    else:
+        yield from (
+            a
+            for wm in bpy.data.window_managers.values()
+            if wm
+            for win in wm.windows
+            for a in win.screen.areas
+            if a.type == 'VIEW_3D'
+        )
 
-    yield from (
-        a
-        for wm in bpy.data.window_managers.values()
-        for win in wm.windows
-        for a in win.screen.areas
-        if a.type == 'VIEW_3D'
-    )
-
-def iter_all_view3d_spaces():
+def iter_all_view3d_spaces() -> Iterator[Space]:
     yield from (
         s
         for a in iter_all_view3d_areas()
@@ -58,23 +56,30 @@ def iter_all_view3d_spaces():
     )
 
 
-def get_view3d_area(context=None):
+def get_view3d_area(context : Context | None = None) -> Area | None:
     # assuming: context.screen is correct, and a SINGLE VIEW_3D area!
     if not context: context = bpy.context
-    if context.area and context.area.type == 'VIEW_3D': return context.area
-    return next((a for a in context.screen.areas if a.type == 'VIEW_3D'), None)
+    area : Area | None = context.area
+    if area and area.type == 'VIEW_3D': return area
+    screen : Screen | None = context.screen
+    if not screen: return None
+    return next((area for area in screen.areas if area.type == 'VIEW_3D'), None)
 
-def get_view3d_region(context=None):
+def get_view3d_region(context : Context | None = None) -> Region | None:
     if not context: context = bpy.context
-    if context.region and context.region.type == 'WINDOW': return context.region
+    region : Region | None = context.region
+    if region and region.type == 'WINDOW': return region
     area = get_view3d_area(context=context)
-    return next((r for r in area.regions if r.type == 'WINDOW'),  None) if area else None
+    if not area: return None
+    return next((region for region in area.regions if region.type == 'WINDOW'), None)
 
-def get_view3d_space(context=None):
+def get_view3d_space(context : Context | None = None) -> Space | None:
     if not context: context = bpy.context
-    if context.space_data and context.space_data.type == 'VIEW_3D': return context.space_data
+    space : Space = context.space_data
+    if space and space.type == 'VIEW_3D': return space
     area = get_view3d_area(context=context)
-    return next((s for s in area.spaces  if s.type == 'VIEW_3D'), None) if area else None
+    if not area: return None
+    return next((space for space in area.spaces if space.type == 'VIEW_3D'), None)
 
 
 class StoreRestore:
@@ -933,17 +938,6 @@ class ModifierWrapper_Mirror:
         self.mod.show_viewport = True
         self.disable_all()
 
-    @blender_version_wrapper('<', '2.80')
-    def read(self):
-        self._reading = True
-        self._symmetry = set()
-        if self.mod.use_x: self._symmetry.add('x')
-        if self.mod.use_y: self._symmetry.add('y')
-        if self.mod.use_z: self._symmetry.add('z')
-        self._symmetry_threshold = self.mod.merge_threshold
-        self.show_viewport = self.mod.show_viewport
-        self._reading = False
-    @blender_version_wrapper('>=', '2.80')
     def read(self):
         self._reading = True
         self._symmetry = set()
@@ -954,15 +948,6 @@ class ModifierWrapper_Mirror:
         self.show_viewport = self.mod.show_viewport
         self._reading = False
 
-    @blender_version_wrapper('<', '2.80')
-    def write(self):
-        if self._reading: return
-        self.mod.use_x = self.x
-        self.mod.use_y = self.y
-        self.mod.use_z = self.z
-        self.mod.merge_threshold = self._symmetry_threshold
-        self.mod.show_viewport = self.show_viewport
-    @blender_version_wrapper('>=', '2.80')
     def write(self):
         if self._reading: return
         self.mod.use_axis[0] = self.x
@@ -1168,4 +1153,3 @@ def event_modifier_check(event, *, ctrl=None, shift=None, alt=None, oskey=None):
     if alt   is not None and event.alt   != alt:   return False
     if oskey is not None and event.oskey != oskey: return False
     return True
-

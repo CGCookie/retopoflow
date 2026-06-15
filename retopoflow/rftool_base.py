@@ -19,24 +19,40 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+from __future__ import annotations
+
 import bpy
 import bl_ui
+from bpy.types import Context
+from typing import Callable
+from collections.abc import Sequence
 from .preferences import RF_Prefs
+from .rfbrush_base import RFBrush_Base
+from .rfoverlay_base import RFOverlay_Base
+from ..addon_common.common.resetter import Resetter
 
 class RFTool_Base(bpy.types.WorkSpaceTool):
-    bl_space_type = 'VIEW_3D'
-    bl_context_mode = 'EDIT_MESH'
-    rf_brush = None
-    rf_overlay = None
+    bl_idname : str = 'unlabeled'
+    bl_space_type : str = 'VIEW_3D'
+    bl_context_mode : str = 'EDIT_MESH'
+    bl_keymap : Sequence[tuple[
+        str,
+        dict[str, str | bool | int],
+        dict[str, str | Callable[[Context], bool]] | None
+    ]] = []
+    rf_idname : str = 'unlabeled'
+    rf_brush : RFBrush_Base | None = None
+    rf_overlay : RFOverlay_Base | None = None
+    resetter : Resetter | None = None
 
-    _subclasses = []
+    _subclasses : list[type[RFTool_Base]] = []
     def __init_subclass__(cls, **kwargs):
         RFTool_Base._subclasses.append(cls)
         super().__init_subclass__(**kwargs)
         cls.rf_idname = cls.bl_idname
 
     @classmethod
-    def activate_tool(cls, context):
+    def activate_tool(cls, context : Context):
         bl_ui.space_toolsystem_common.activate_by_id(
             context,
             'VIEW_3D',
@@ -52,9 +68,9 @@ class RFTool_Base(bpy.types.WorkSpaceTool):
     def unregister(cls): pass
 
     @classmethod
-    def activate(cls, context): pass
+    def activate(cls, _context : Context): pass
     @classmethod
-    def deactivate(cls, context): pass
+    def deactivate(cls, _context : Context): pass
 
     @classmethod
     def depsgraph_update(cls): pass
@@ -62,7 +78,7 @@ class RFTool_Base(bpy.types.WorkSpaceTool):
     ###########################################################
 
     @staticmethod
-    def get_all_RFTools():
+    def get_all_RFTools() -> list[type[RFTool_Base]]:
         return RFTool_Base._subclasses
         # return RFTool_Base.__subclasses__()  # this only works if the subclass is still in scope!!!!!
 

@@ -332,6 +332,7 @@ class SourceAccel:
                         vert_world_pos[idx] = vw
                         vert_feature_count[idx] = 3  # satisfy the corner threshold
             finally:
+                print('accel.py')
                 bm.free()
 
         edge_accel = EdgeMarkAccel(segments) if segments else None

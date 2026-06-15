@@ -134,6 +134,7 @@ class RFMeshRender():
     def __del__(self):
         RFMeshRender.delete_count += 1
         # print('RFMeshRender.__del__', self.rfmesh, RFMeshRender.create_count, RFMeshRender.delete_count)
+        print('rfmesh_render.py')
         self.bmesh.free()
         if hasattr(self, 'buf_matrix_model'):         del self.buf_matrix_model
         if hasattr(self, 'buf_matrix_inverse'):       del self.buf_matrix_inverse

@@ -57,6 +57,7 @@ def get_selected(
         {selected[obj.name]['faces'].append(x.index) for x in bm.faces if x.select}
 
         if not is_bmesh:
+            print('selection.py')
             bm.free()
 
     return selected
@@ -127,4 +128,5 @@ def restore_selected(
                 bmesh.update_edit_mesh(obj.data)
             else:
                 bm.to_mesh(obj.data)
+            print('selection.py')
             bm.free()

@@ -24,8 +24,10 @@ from mathutils import Vector
 import bmesh
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_location_3d
 
+from ..rfoverlay_base import RFOverlay_Base
 from .overlays import overlay_names
 
+from ..rfglobals import RFGlobals
 from ..common.operator import RFOperator, RFOperator_KeymapContext
 from ..common.bmesh import get_bmesh_emesh, bme_midpoint, get_boundary_strips_cycles, bmfs_shared_bme, quad_bmf_opposite_bme
 from ..common.drawing import Drawing
@@ -81,7 +83,7 @@ def create_quadstrip_selection_overlay(opname, rftool_idname, idname, label, onl
 
     overlay_names.add(label)
 
-    class RFOperator_QuadStrip_Selection_Overlay(RFOperator_KeymapContext):
+    class RFOperator_QuadStrip_Selection_Overlay(RFOperator_KeymapContext, RFOverlay_Base):
         bl_idname = f'retopoflow.{idname}'
         bl_label = label
         bl_description = 'Overlay info about selected loops and strips'
@@ -113,7 +115,9 @@ def create_quadstrip_selection_overlay(opname, rftool_idname, idname, label, onl
             type(self).instance = None
 
         def update(self, context, event):
-            is_done = (self.RFCore.selected_RFTool_idname != rftool_idname)
+            RFCore = RFGlobals.RFCore_None
+            if not RFCore: return
+            is_done = (RFCore.selected_RFTool_idname != rftool_idname)
             if is_done: return {'CANCELLED'}
             if paused_overlay: return {'PASS_THROUGH'}
 
@@ -134,12 +138,14 @@ def create_quadstrip_selection_overlay(opname, rftool_idname, idname, label, onl
 
         def update_data(self):
             nonlocal paused_update
-            if self.depsgraph_version == self.RFCore.depsgraph_version and hasattr(self, 'curves'): return True
+            RFCore = RFGlobals.RFCore_None
+            if not RFCore: return
+            if self.depsgraph_version == RFCore.depsgraph_version and hasattr(self, 'curves'): return True
             if paused_update: return False
 
             # depsgraph changed, so recollect quad details
 
-            self.depsgraph_version = self.RFCore.depsgraph_version
+            self.depsgraph_version = RFCore.depsgraph_version
 
             # find selected quad strips
             bm, _ = get_bmesh_emesh(bpy.context, ensure_lookup_tables=True)
@@ -195,7 +201,9 @@ def create_quadstrip_selection_overlay(opname, rftool_idname, idname, label, onl
             return None
 
         def draw_postpixel_overlay(self):
-            is_done = (self.RFCore.selected_RFTool_idname != rftool_idname)
+            RFCore = RFGlobals.RFCore_None
+            if not RFCore: return
+            is_done = (RFCore.selected_RFTool_idname != rftool_idname)
             if is_done: return
             if paused_overlay: return
 

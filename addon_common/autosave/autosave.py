@@ -20,6 +20,7 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
+from bpy.types import Context
 from bpy.app.handlers import persistent
 
 import os
@@ -42,7 +43,7 @@ class AutoSave:
     exclude_modal_ops : set[str] = set()
 
     @staticmethod
-    def enabled_updater(_, v : bool): AutoSave.enabled = v
+    def enabled_updater(_ : Context, v : bool): AutoSave.enabled = v
 
     @staticmethod
     def is_enabled() -> bool:

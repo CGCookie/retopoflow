@@ -26,6 +26,7 @@ from bpy.props import IntProperty, BoolProperty, EnumProperty, FloatProperty
 from mathutils import Vector
 from mathutils.bvhtree import BVHTree
 
+from ..rfglobals import RFGlobals
 from ..common.operator import RFRegisterClass
 from ..common.interface import draw_expandable_enum
 from ..common.accel import SourceAccel
@@ -45,7 +46,6 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     rf_label = "Relax Selected Vertices"
-    RFCore = None
 
     # -------------------------------------------------------------------------
     # Algorithm settings
@@ -322,8 +322,9 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
             # layout.prop(self, 'debug_select', text='Select') # highlight for debugging promoted / demoted
 
     def draw(self, context):
-        from ..rfcore import RFCore
-        rf_is_running = RFCore.is_running
+        RFCore = RFGlobals.RFCore_None
+
+        rf_is_running = RFCore and RFCore.is_running
 
         layout = self.layout
         layout.use_property_split = True
@@ -366,8 +367,9 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
             prop_panel.prop(self, 'proportional_falloff',  text='Falloff')
 
     def execute(self, context):
-        from ..rfcore import RFCore
-        rf_is_running = RFCore.is_running
+        RFCore = RFGlobals.RFCore_None
+
+        rf_is_running = RFCore and RFCore.is_running
 
         sources = []
         if not rf_is_running:

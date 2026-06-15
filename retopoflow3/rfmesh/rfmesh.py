@@ -161,6 +161,7 @@ class RFMesh():
     def __del__(self):
         RFMesh.delete_count += 1
         # print('RFMesh.__del__', self, RFMesh.create_count, RFMesh.delete_count)
+        print('rfmesh.py')
         self.bme.free()
 
     ##########################################################
