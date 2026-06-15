@@ -48,6 +48,7 @@ RETAIN_STEP_DEG = 1.0   # degree increment steps for snapping to the existing sh
 LOFT_NORMAL_THRESHOLD = 0.34   # cos(~70°), reject rings more perpendicular than this
 LOOP_POLE_THRESHOLD = 5.0    # degree angle under which loops can pass through poles
 RING_AXIS_ALIGN = 0.5    # min dot product for a loop to count as a cross-section ring
+DRAW_DEBUG_RINGS = False  # draw dashed ring highlights during the modal
 
 
 def trace_loop(v_start, v_second):
@@ -878,9 +879,31 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
             prop_panel.prop(self, 'proportional_falloff',  text='Falloff')
 
     def header_modal_text(self):
-        deg = math.degrees(self.twist_angle)
-        rs  = 'ON' if self.retain_shape else 'OFF'
-        return f"Twist: {deg:+.1f}°   [S] Retain Shape: {rs}   |   LMB/Enter: Confirm   RMB/Esc: Cancel"
+        deg  = math.degrees(self.twist_angle)
+        rs   = 'ON' if self.retain_shape else 'OFF'
+        ts   = self._ts
+        prop = f'ON ({ts.proportional_distance:.2f}m)' if ts.use_proportional_edit else 'OFF'
+        return (f"Twist: {deg:+.1f}°   [R] Retain Shape: {rs}   [O] Proportional: {prop}"
+                f"   |   LMB/Enter: Confirm   RMB/Esc: Cancel")
+
+    def restore_initial_positions(self):
+        for cd in self._component_data:
+            for rd in cd['ring_groups']:
+                for v, co0 in rd['initial_coords'].items():
+                    v.co = co0.copy()
+            for v, co0 in cd['bfs_non_ring_coords'].items():
+                v.co = co0.copy()
+        self._bm.normal_update()
+
+    def rebuild_component_data(self, context):
+        self.restore_initial_positions()
+        ts = self._ts
+        falloff_distances = None
+        if ts.use_proportional_edit:
+            falloff_distances = get_falloff_verts(
+                self._sel_verts, self._mw, ts.proportional_distance, ts.proportional_edit_falloff)
+        self._component_data = self.get_component_data(
+            context, self._sel_verts, self._mw, falloff_distances=falloff_distances)
 
     def get_component_data(self, context, sel_verts, mw, falloff_distances=None):
         ''' Build per-component twist data. Returns a list of component dicts, each containing:
@@ -1240,18 +1263,17 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
         sel_verts = [v for v in bm.verts if v.select]
         if len(sel_verts) < 3:
             return {'CANCELLED'}
-        self._bm  = bm
-        self._em  = em
-        self._mw  = context.edit_object.matrix_world.copy()
-        self._mwi = self._mw.inverted()
-        # Seed the redo panel properties from the scene's current values
-        ts = context.tool_settings
-        self.use_proportional_edit = ts.use_proportional_edit
-        self.proportional_distance = ts.proportional_distance
-        self.proportional_falloff  = ts.proportional_edit_falloff
+        self._bm        = bm
+        self._em        = em
+        self._mw        = context.edit_object.matrix_world.copy()
+        self._mwi       = self._mw.inverted()
+        self._sel_verts = sel_verts
+        self._ts = context.tool_settings
+        self._sel_center_world = self._mw @ (sum((v.co for v in sel_verts), Vector()) / len(sel_verts))
+        ts = self._ts
         falloff_distances = None
-        if self.use_proportional_edit:
-            falloff_distances = get_falloff_verts(sel_verts, self._mw, self.proportional_distance)
+        if ts.use_proportional_edit:
+            falloff_distances = get_falloff_verts(sel_verts, self._mw, ts.proportional_distance, ts.proportional_edit_falloff)
         self._component_data = self.get_component_data(context, sel_verts, self._mw, falloff_distances=falloff_distances)
         if not self._component_data:
             return {'CANCELLED'}
@@ -1268,8 +1290,33 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
         if context.area:
             context.area.header_text_set(self.header_modal_text())
 
-    # ---- Highlight the loft's driver rings in the viewport (relax-style) ----
-    def _draw_highlights(self, context):
+    def draw_highlights(self, context):
+        if context.tool_settings.use_proportional_edit:
+            try:
+                from bpy_extras.view3d_utils import location_3d_to_region_2d
+                from ..common.drawing import Drawing
+                from ...addon_common.common.maths import Color
+                from ...addon_common.common import gpustate
+                center_2d = location_3d_to_region_2d(context.region, context.region_data, self._sel_center_world)
+                if center_2d is not None:
+                    view_matrix  = context.region_data.view_matrix
+                    right_vector = Vector(view_matrix[0][:3]).normalized()
+                    prop_dist = context.tool_settings.proportional_distance
+                    radius_2d = location_3d_to_region_2d(
+                        context.region, context.region_data,
+                        self._sel_center_world + right_vector * prop_dist / 2)
+                    if radius_2d is not None:
+                        radius = (radius_2d - center_2d).length
+                        grid  = context.preferences.themes[0].view_3d.grid
+                        color = Color((grid[0] - 20/255, grid[1] - 20/255, grid[2] - 20/255, 1.0))
+                        gpustate.blend('ALPHA')
+                        Drawing.draw2D_smooth_circle(context, center_2d, radius, color, width=1)
+                        gpustate.blend('NONE')
+            except Exception as e:
+                print(f"twist: proportional circle draw failed: {e}")
+
+        if not DRAW_DEBUG_RINGS:
+            return
         try:
             from ..common.drawing import Drawing
             from ..preferences import RF_Prefs
@@ -1299,7 +1346,7 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
 
     def _highlight_add(self, context):
         self._draw_handle = bpy.types.SpaceView3D.draw_handler_add(
-            self._draw_highlights, (context,), 'WINDOW', 'POST_PIXEL')
+            self.draw_highlights, (context,), 'WINDOW', 'POST_PIXEL')
         if context.area:
             context.area.tag_redraw()
 
@@ -1315,11 +1362,32 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
             self.twist_angle = math.radians(delta_px * TWIST_SENSITIVITY)
             self.apply(context)
             return {'RUNNING_MODAL'}
-        if event.type == 'S' and event.value == 'PRESS':
+        if event.type == 'R' and event.value == 'PRESS':
             self.retain_shape = not self.retain_shape
             self.apply(context)
             return {'RUNNING_MODAL'}
+        if event.type == 'O' and event.value == 'PRESS':
+            self._ts.use_proportional_edit = not self._ts.use_proportional_edit
+            self.rebuild_component_data(context)
+            self.apply(context)
+            if context.area:
+                context.area.header_text_set(self.header_modal_text())
+            return {'RUNNING_MODAL'}
+        if event.type in {'WHEELUPMOUSE', 'WHEELDOWNMOUSE'} and self._ts.use_proportional_edit:
+            if event.type == 'WHEELUPMOUSE':
+                self._ts.proportional_distance *= 0.90
+            else:
+                self._ts.proportional_distance /= 0.90
+            self.rebuild_component_data(context)
+            self.apply(context)
+            if context.area:
+                context.area.header_text_set(self.header_modal_text())
+            return {'RUNNING_MODAL'}
         if event.type in {'LEFTMOUSE', 'RET', 'NUMPAD_ENTER'} and event.value == 'PRESS':
+            ts = self._ts
+            self.use_proportional_edit = ts.use_proportional_edit
+            self.proportional_distance = ts.proportional_distance
+            self.proportional_falloff  = ts.proportional_edit_falloff
             self._highlight_remove()
             if context.area:
                 context.area.header_text_set(None)
