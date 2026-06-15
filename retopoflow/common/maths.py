@@ -169,6 +169,22 @@ def pt_z0(pt0, pt1):
     pt.z = 0
     return pt
 
+
+def get_co_on_arc(frac, order, cumul, total, initial_coords, mw):
+    ''' World space point at fractional perimeter position frac. Wraps at 1.0. '''
+    target = (frac % 1.0) * total
+    n      = len(order)
+    for i in range(n):
+        nxt     = (i + 1) % n
+        seg_end = cumul[nxt] if nxt != 0 else total
+        if target <= seg_end + 1e-12 or i == n - 1:
+            seg_len = seg_end - cumul[i]
+            t = max(0.0, min(1.0, (target - cumul[i]) / seg_len)) if seg_len > 1e-12 else 0.0
+            a = mw @ initial_coords[order[i]]
+            b = mw @ initial_coords[order[nxt]]
+            return a + t * (b - a)
+
+
 def proportional_edit(falloff_type, dist):
     # see calculatePropRatio() in blender/source/blender/editors/transform/transform_generics.cc
     match falloff_type:

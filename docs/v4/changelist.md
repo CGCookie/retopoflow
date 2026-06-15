@@ -6,11 +6,19 @@ This document contains details about what has changed in Retopoflow in version 4
 
 - Added low poly sharp edge and edge mark snapping to Tweak and Relax
 - Added standalone operator for Relax that can even be used outside of Retopoflow
-- Added twist control to Contours for rotating around the wrapped form
-    - Alt R is the hotkey
+    - Has all the same masking and snapping options as the brush version
+    - Includes unique options for retaining / reconstructing the desired shape
+    - Works great with proportional editing
+- Added standalone operator for twisting loops that also works outside of Retopoflow
+    - It automatically finds cross-sectional loops in the selection and twists each one independantly
+    - All vertices that are not on complete loops are properly interpolated
+    - Works great with proportional editing
+- Added Alt R hotkey to twist in Contours
+- Added Ctrl Scroll after extruding in Contours to adjust segment count
 - All Retopoflow tools now respect Blender's Alt+B clipping region
     - Useful for isolating areas while working
 - Tools statusbar now shows the result of Blender operations such as Merge by Distance
+- Fixed proportional editing circle size and location
 
 ### 4.1.8
 

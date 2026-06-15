@@ -305,7 +305,7 @@ class RFOperator(RFOperator_Base, RFOperator_KeymapContext, Operator):
         if not self.can_init(context, event): return {'CANCELLED'}
         type(self)._is_running = True
         RFOperator.active_operators.append(self)
-        _ = context.window_manager.modal_hander_add(self) # pyright: ignore[reportAny]
+        _ = context.window_manager.modal_handler_add(self) # pyright: ignore[reportAny]
         self.last_op = None
         self.working_area = context.area # pyright: ignore[reportAny]
         self.working_window = context.window # pyright: ignore[reportAny]

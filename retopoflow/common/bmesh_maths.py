@@ -20,6 +20,7 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
+import math
 from mathutils import Vector, Matrix
 from bmesh.types import BMVert, BMEdge, BMesh
 from bpy.types import Context, Region, RegionView3D
@@ -31,7 +32,8 @@ from .bmesh import (
 )
 from .raycast import raycast_valid_sources
 from .maths import point_to_bvec4
-from ...addon_common.common.maths import closest_point_segment, Point, Direction
+from ...addon_common.common.maths import closest_point_segment, Point, Direction, Plane
+from ...addon_common.ext.circle_fit import hyperLSQ
 from ...addon_common.common.utils import iter_pairs
 
 from enum import IntEnum, auto
@@ -343,3 +345,118 @@ def get_bmvert_attribute(bm:BMesh, bmv:BMVert, attribute:str, data_type:str, *, 
         return bmv[layer]  # pyright: ignore[reportAny]
     else:
         return None
+
+
+def fit_plane_of_verts(verts):
+    ''' Best-fit plane and center for a collection of BMVerts. '''
+    from ...addon_common.common.maths import Plane, Point
+    from ...addon_common.ext.circle_fit import hyperLSQ
+    points = [Point(v.co) for v in verts]
+    try:
+        plane  = Plane.fit_to_points(points)
+        normal = plane.n.copy()
+        try:
+            circle = hyperLSQ([list(plane.w2l_point(p).xy) for p in points])
+            center = Vector(plane.l2w_point(Point((circle[0], circle[1], 0))))
+        except Exception:
+            center = sum((v.co for v in verts), Vector()) / len(verts)
+    except Exception:
+        normal = None
+        center = sum((v.co for v in verts), Vector()) / len(verts)
+    return normal, center
+
+
+def loop_arc_params(verts, initial_coords, mw):
+    ''' Arc-length parameterisation of a closed vertex loop. Returns (order, cumul, total).
+    - order: vertices in traversal order (closed loop)
+    - cumul: cumul[i] = world-space perimeter distance before order[i]
+    - total: total world-space perimeter
+    Returns None when the selection is not a simple closed loop. '''
+    sel_set = set(verts)
+    edges   = {e for v in verts for e in v.link_edges}
+    adj     = {}
+    for e in edges:
+        v0, v1 = e.verts
+        if v0 not in sel_set or v1 not in sel_set:
+            continue
+        adj.setdefault(v0, []).append(v1)
+        adj.setdefault(v1, []).append(v0)
+
+    if any(len(adj.get(v, [])) != 2 for v in verts):
+        return None
+
+    start = verts[0]
+    order = [start]
+    prev, cur = None, start
+    for _ in range(len(verts) - 1):
+        a, b = adj[cur]
+        nxt  = b if (prev is not None and a == prev) else a
+        if nxt == start:
+            break
+        order.append(nxt)
+        prev, cur = cur, nxt
+
+    if len(order) != len(verts) or len(set(order)) != len(verts):
+        return None
+
+    cumul = []
+    dist  = 0.0
+    for i, v in enumerate(order):
+        cumul.append(dist)
+        nxt_v = order[(i + 1) % len(order)]
+        dist += (mw @ initial_coords[nxt_v] - mw @ initial_coords[v]).length
+    total = dist
+    return (order, cumul, total) if total > 1e-12 else None
+
+
+def get_bary_coords(co, v0, v1, v2, initial_coords):
+    ''' Barycentric coordinates and normal offset for `co` in triangle (v0, v1, v2).
+    Returns (w0, w1, w2, offset) where w0+w1+w2 ≈ 1 and offset is the signed
+    distance from the triangle plane (positive = same side as (B-A)x(C-A)).
+    Returns (1/3, 1/3, 1/3, 0.0) for degenerate (collinear) triangles. '''
+    A = initial_coords[v0]; B = initial_coords[v1]; C = initial_coords[v2]
+    n    = (B - A).cross(C - A)
+    n_sq = n.dot(n)
+    if n_sq < 1e-20:
+        return (1/3, 1/3, 1/3, 0.0)
+    n_unit = n / math.sqrt(n_sq)
+    offset = (co - A).dot(n_unit)
+    proj   = co - offset * n_unit
+    w0 = n.dot((C - B).cross(proj - B)) / n_sq
+    w1 = n.dot((A - C).cross(proj - C)) / n_sq
+    return (w0, w1, 1.0 - w0 - w1, offset)
+
+
+def get_bary_triangle(co, tris, initial_cos, inside_only=False):
+    ''' Find the best triangle in `tris` to embed local space point `co`.
+    Returns (v0, v1, v2, w0, w1, w2, offset) or None. '''
+    BARY_EPSILON = 0.05   # barycentric tolerance for "inside" triangle test
+    best_in  = None; best_in_d  = float('inf')
+    best_out = None; best_out_d = float('inf')
+    for tri in tris:
+        w0, w1, w2, offset = get_bary_coords(co, *tri, initial_cos)
+        if min(w0, w1, w2) >= - BARY_EPSILON:
+            d = abs(offset)
+            if d < best_in_d:
+                best_in   = (*tri, w0, w1, w2, offset)
+                best_in_d = d
+        else:
+            A = initial_cos[tri[0]]; B = initial_cos[tri[1]]; C = initial_cos[tri[2]]
+            d = (co - (A + B + C) / 3).length_squared
+            if d < best_out_d:
+                best_out = (*tri, w0, w1, w2, offset)
+                best_out_d = d
+    if best_in is not None:
+        return best_in
+    return None if inside_only else best_out
+
+
+def bary_reconstruct(v0, v1, v2, w0, w1, w2, offset):
+    ''' Reconstruct a position from barycentric weights and normal offset.
+    Uses v0.co / v1.co / v2.co directly so it picks up live / post-deform
+    positions without needing a separate position lookup. '''
+    A = v0.co; B = v1.co; C = v2.co
+    base  = w0 * A + w1 * B + w2 * C
+    n     = (B - A).cross(C - A)
+    n_len = n.length
+    return base + offset * (n / n_len) if n_len > 1e-12 else base
