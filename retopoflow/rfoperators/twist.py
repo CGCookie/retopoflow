@@ -73,69 +73,281 @@ def _gather_proportional_verts(sel_verts, mw, radius):
     return visited
 
 
-def _find_prop_rings(comp_prop, core_set):
+def _trace_loop(v_start, v_second):
+    '''Trace the edge loop starting with edge (v_start -> v_second) until it
+    returns to v_start.  Returns the ordered cycle [v_start, v_second, ...] or
+    None if it never closes (open chain, or _edge_loop_next stops at a sharp pole
+    / boundary).'''
+    loop = [v_start, v_second]
+    seen = {v_start, v_second}
+    prev, cur = v_start, v_second
+    for _ in range(4096):
+        nxt = _edge_loop_next(prev, cur)
+        if nxt is None:
+            return None
+        if nxt == v_start:
+            return loop
+        if nxt in seen:
+            return None
+        loop.append(nxt)
+        seen.add(nxt)
+        prev, cur = cur, nxt
+    return None
+
+
+def _find_core_rings(component_verts):
+    '''Detect the selection's cross-section rings by WALKING edge loops — never by
+    tracing the selection boundary.
+
+    A face selection's boundary detours around protrusions: with a loop of faces plus
+    a few extra faces stuck on top, the outline jumps UP a level where the extra faces
+    are, so using it as a ring twists wrongly.  Instead we fit the tube axis and walk
+    every cross-section edge loop (the loops running perpendicular to the axis), then
+    keep only the ones that close into a complete ring.  In the extra-faces case that
+    is three candidates — the band's bottom loop, the band's top loop, and the loop
+    along the top of the extra faces — of which only the first two close; the partial
+    top loop is dropped and its verts fall through to passengers, riding the rings
+    below.
+
+    The walk uses the regular quad continuation where it's unambiguous and, at a pole
+    (e.g. where the extra faces meet the band's top loop, which turns that corner into
+    a junction), continues along the most axis-PERPENDICULAR forward edge — the
+    cross-section direction.  That is what lets the band's top loop survive the corner:
+    a strict straight-ahead gate would either divert up the rail or, on a coarse ring
+    where the cross-section itself already turns >5° per vert, break the loop entirely.
+
+    Returns (rings, passengers, levels), matching _find_rings_in_component:
+      rings      – ordered vertex cycles, one per complete cross-section
+      passengers – selection verts not on any complete ring (interpolated, not driven)
+      levels     – per-ring metadata index (loft pairing is geometric, not level-based)
     '''
-    Group proportional-edit verts into ring tiers by edge-hop distance from
-    the core selection, then split each tier into edge-connected sub-rings.
+    comp_set = set(component_verts)
+    axis, _  = twist_fit_axis(component_verts)
+    if axis is None or axis.length < 1e-9:
+        return [], list(component_verts), []
+    axis = axis.normalized()
+
+    def perp_to_axis(v_from, v_to):
+        d = v_to.co - v_from.co
+        if d.length < 1e-12:
+            return -1.0
+        return 1.0 - abs(d.normalized().dot(axis))
+
+    def ring_edge(v):
+        # Neighbour across v's most cross-sectional edge (most perpendicular to the
+        # axis) — the direction that runs along a cross-section rather than the tube.
+        best, best_perp = None, -1.0
+        for e in v.link_edges:
+            o = e.other_vert(v)
+            if o not in comp_set:
+                continue
+            p = perp_to_axis(v, o)
+            if p > best_perp:
+                best_perp, best = p, o
+        return best
+
+    def step(prev, cur):
+        e_in = next((e for e in cur.link_edges if e.other_vert(cur) == prev), None)
+        if e_in is None:
+            return None
+        in_faces = set(e_in.link_faces)
+        clean = [e.other_vert(cur) for e in cur.link_edges
+                 if e.other_vert(cur) in comp_set and e.other_vert(cur) != prev
+                 and not any(f in in_faces for f in e.link_faces)]
+        if len(clean) == 1:
+            return clean[0]                  # regular quad vert: topological continuation
+        # Pole / junction: take the most cross-sectional forward edge (perpendicular to
+        # the axis), so the loop follows the cross-section and isn't diverted up a rail.
+        d_in = cur.co - prev.co
+        if d_in.length < 1e-12:
+            return None
+        d_in.normalize()
+        best, best_perp = None, -1.0
+        for e in cur.link_edges:
+            o = e.other_vert(cur)
+            if o == prev or o not in comp_set:
+                continue
+            d = o.co - cur.co
+            if d.length < 1e-12 or d.normalized().dot(d_in) <= 0.0:
+                continue                     # forward continuations only
+            p = perp_to_axis(cur, o)
+            if p > best_perp:
+                best_perp, best = p, o
+        return best
+
+    def trace(start, second):
+        loop, seen = [start, second], {start, second}
+        prev, cur  = start, second
+        for _ in range(len(comp_set) + 1):
+            nxt = step(prev, cur)
+            if nxt is None:
+                return None
+            if nxt == start:
+                return loop
+            if nxt in seen:
+                return None
+            loop.append(nxt); seen.add(nxt)
+            prev, cur = cur, nxt
+        return None
+
+    rings, levels, assigned = [], [], set()
+    for v in component_verts:
+        if v in assigned:
+            continue
+        o = ring_edge(v)
+        if o is None:
+            continue
+        loop = trace(v, o)
+        # Keep only complete rings (the trace closed) that don't overlap one already
+        # found.  A partial cross-section (e.g. the top of the extra faces) never
+        # closes, so it's skipped and its verts drop to passengers below.
+        if loop is None or len(loop) < 3 or any(w in assigned for w in loop):
+            continue
+        rings.append(loop)
+        levels.append(len(levels))
+        assigned.update(loop)
+    passengers = [v for v in component_verts if v not in assigned]
+    return rings, passengers, levels
+
+
+def _find_prop_rings(comp_prop, core_set):
+    '''Find cross-section rings in the falloff zone by EDGE-LOOP TRACING.
+
+    For each falloff vert (nearest the core first), the cross-section direction is
+    seeded from its toward-core neighbour, then the edge loop through it is traced
+    until it closes — a real continuous ring.  The trace follows clean 4-valence
+    continuations and passes through a pole ONLY when the next edge is a near-
+    straight continuation (< _POLE_STRAIGHT_DEG), so a ring is never bent at a pole
+    (a bent ring would twist incorrectly).  Each loop is built once; a traced loop
+    may include verts beyond the falloff radius (they ride at weight 0).
 
     Returns:
-        rings       – list of (ring_verts, avg_world_dist, hop_level)
-        unreachable – verts not reached by the hop BFS (edge case; normally empty)
+        rings       – list of (loop_verts_ordered, avg_world_dist, level)
+        unreachable – falloff verts not on any closed loop (passengers, e.g. poles
+                      at genuine corners); interpolated via the loft instead.
 
-    Hop-distance avoids the `sel_faces` dependency of _find_rings_in_component,
-    which breaks when only one prop tier exists (no faces are entirely inside
-    the prop region).
+    Replaces the old hop-distance bucketing, which was not loop detection at all —
+    near a pole it split one real cross-section across hop tiers into branchy, non-
+    cycle fragments, leaving gaps in the loft.
     '''
     prop_set = set(comp_prop.keys())
+    assigned = set()
+    rings    = []
 
-    # BFS hop count from prop verts that are directly adjacent to core
-    hop   = {}
-    queue = []
+    def _add_ring(loop):
+        in_r = [w for w in loop if w in comp_prop]
+        if not in_r:
+            return False
+        avg_d = sum(comp_prop[w] for w in in_r) / len(in_r)
+        rings.append((loop, avg_d, len(rings)))
+        assigned.update(loop)
+        return True
+
+    # N-gon faces first (e.g. a cylinder's end cap): the perimeter of an n-gon is a
+    # ready-made closed loop, but the edge-loop trace can't follow it — consecutive
+    # boundary edges share the n-gon face (so the "no shared face" rule excludes the
+    # continuation) and the perimeter curves past the pole-straight threshold.  Take
+    # the perimeter (face.verts) directly as a ring so the cap is lofted properly.
+    seen_faces = set()
     for v in prop_set:
-        if any(e.other_vert(v) in core_set for e in v.link_edges):
-            hop[v] = 1
-            queue.append(v)
-    qi = 0
-    while qi < len(queue):
-        v = queue[qi]; qi += 1
+        for f in v.link_faces:
+            if f in seen_faces or len(f.verts) <= 4:
+                continue
+            seen_faces.add(f)
+            loop = list(f.verts)
+            if not any(w in assigned for w in loop):
+                _add_ring(loop)
+
+    # Nearest-core verts first: their toward-core neighbour is least ambiguous, so
+    # each loop is discovered from its most reliable seed.
+    for v in sorted(prop_set, key=lambda w: comp_prop[w]):
+        if v in assigned:
+            continue
+        # Toward-core neighbour u: adjacent vert with the smallest distance (core
+        # verts count as 0).  Edge (u, v) is the local AXIAL direction.
+        u, u_d = None, None
         for e in v.link_edges:
             nb = e.other_vert(v)
-            if nb not in prop_set or nb in hop:
+            d  = 0.0 if nb in core_set else comp_prop.get(nb)
+            if d is None:
                 continue
-            hop[nb] = hop[v] + 1
-            queue.append(nb)
+            if u_d is None or d < u_d:
+                u_d, u = d, nb
+        if u is None:
+            continue
+        e_uv = next((e for e in v.link_edges if e.other_vert(v) == u), None)
+        if e_uv is None:
+            continue
+        # Ring (cross-section) neighbours of v: neighbours other than u whose edge
+        # shares a quad face with the axial edge (u, v) — i.e. perpendicular to the
+        # axial direction, running along the cross-section.
+        uv_faces = set(e_uv.link_faces)
+        ring_nbs = [e.other_vert(v) for e in v.link_edges
+                    if e.other_vert(v) != u
+                    and any(f in uv_faces and len(f.verts) == 4 for f in e.link_faces)]
+        # Trace the cross-section loop; accept the first that closes cleanly.
+        loop = None
+        for r in ring_nbs:
+            loop = _trace_loop(v, r)
+            if loop is not None:
+                break
+        if loop is None:
+            continue  # v isn't on a clean closed cross-section → passenger
+        if any(w in assigned for w in loop):
+            continue  # overlaps an already-built ring (e.g. an n-gon perimeter)
+        _add_ring(loop)
 
-    # Group by hop level
-    by_hop = {}
-    for v, h in hop.items():
-        by_hop.setdefault(h, []).append(v)
-
-    # Within each hop level, split into edge-connected sub-groups
-    rings = []
-    for h in sorted(by_hop.keys()):
-        group     = by_hop[h]
-        group_set = set(group)
-        visited   = set()
-        for start in group:
-            if start in visited:
-                continue
-            ring_verts = []
-            q = [start]
-            while q:
-                v = q.pop()
-                if v in visited:
-                    continue
-                visited.add(v)
-                ring_verts.append(v)
-                for e in v.link_edges:
-                    nb = e.other_vert(v)
-                    if nb in group_set and nb not in visited:
-                        q.append(nb)
-            avg_d = sum(comp_prop[v] for v in ring_verts) / len(ring_verts)
-            rings.append((ring_verts, avg_d, h))
-
-    unreachable = [v for v in prop_set if v not in hop]
+    unreachable = [v for v in prop_set if v not in assigned]
     return rings, unreachable
+
+
+def _edge_loop_next(prev, cur):
+    '''Edge-loop continuation through `cur` arriving from `prev`.
+
+    For a REGULAR quad vertex the continuation is the unique edge sharing NO face
+    with the incoming edge (prev, cur); the loop just follows the topology, which
+    correctly tracks a curving tube even past 5°.
+
+    At a POLE / junction that rule is ambiguous (several such edges) AND unreliable
+    (the geometrically-straight continuation often DOES share a face with the
+    incoming edge, so it would be wrongly excluded).  There we instead pick the
+    straightest edge among ALL of cur's edges, and only continue if it deviates
+    less than _POLE_STRAIGHT_DEG from straight ahead — a pole is often where loops
+    change direction, and bending a ring there would twist it wrongly.
+
+    Returns None at a boundary or when no pole continuation is straight enough.
+    '''
+    e_in = None
+    for e in cur.link_edges:
+        if e.other_vert(cur) == prev:
+            e_in = e
+            break
+    if e_in is None:
+        return None
+    in_faces = set(e_in.link_faces)
+    clean = [e.other_vert(cur) for e in cur.link_edges
+             if e.other_vert(cur) != prev
+             and not any(f in in_faces for f in e.link_faces)]
+    if len(clean) == 1:
+        return clean[0]   # regular vert: unique topological continuation
+    # Pole / junction / boundary: straightest edge among ALL of cur's edges, gated
+    # to a near-straight continuation so the ring is never bent at the pole.
+    d_in = cur.co - prev.co
+    if d_in.length < 1e-12:
+        return None
+    d_in = d_in.normalized()
+    best, best_dot = None, math.cos(math.radians(_POLE_STRAIGHT_DEG))
+    for e in cur.link_edges:
+        o = e.other_vert(cur)
+        if o == prev:
+            continue
+        d_out = o.co - cur.co
+        if d_out.length < 1e-12:
+            continue
+        dot = d_in.dot(d_out.normalized())
+        if dot > best_dot:
+            best_dot, best = dot, o
+    return best
 
 
 def _selected_faces(component_verts):
@@ -481,6 +693,12 @@ def _snap_to_nearest_segment(co, segments):
 
 _LOFT_NORMAL_THRESHOLD = 0.34   # cos(~70°) — reject rings more-perpendicular than this
 _BARY_EPS              = 0.05   # barycentric tolerance for "inside" triangle test
+_POLE_STRAIGHT_DEG     = 5.0    # ring tracing only passes through a pole if the
+                                # continuation deviates less than this (else the
+                                # ring would bend at the pole and twist wrong)
+_RING_AXIS_ALIGN       = 0.5    # min |dot(ring normal, rotation axis)| for a loop to
+                                # count as a cross-section ring (cos 60°) — rejects
+                                # loops facing sideways, e.g. an n-gon on the tube wall
 
 
 def _ring_centroid(rd, initial_cos):
@@ -489,68 +707,99 @@ def _ring_centroid(rd, initial_cos):
     return sum((initial_cos[v] for v in verts), Vector()) / len(verts)
 
 
-def _build_loft_sequence(active_rings, initial_cos):
-    '''Determine which pairs of active rings to loft together.
+def _order_rings_by_axis(all_rings):
+    '''Order + VALIDATE the COMPLETE rings by an outward walk along the rotation axis.
 
-    Groups rings by BFS level, then for each level finds the nearest ring at the
-    next available level (skipping levels with no active rings) and applies a
-    normal-alignment quality check.  Returns a list of (rd_a, rd_b) pairs.
+    Lofting must bridge rings that aren't edge-connected — that's the whole point
+    of the bary loft — so ordering is geometric, not topological.  The walk starts
+    at the core ring (the selection) and expands outward: from each ring it steps to
+    the nearest ring AHEAD along that ring's OWN rotation axis whose plane is locally
+    aligned with it (|dot(normals)| >= _RING_AXIS_ALIGN).  Checking alignment against
+    the PREVIOUS ring rather than a global axis is what makes a sharply curving tube
+    work — only the per-step tilt matters, never the accumulated one.  When no ring
+    lies ahead it walks the opposite direction from the start.
 
-    Handles:
-    - Gaps: BFS levels with only broken/incomplete rings are skipped; the loft
-      still bridges across them.
-    - Perpendicular rings: pairs whose normals are nearly perpendicular
-      (abs dot product < _LOFT_NORMAL_THRESHOLD) are rejected.
-    - Multiple rings at the same level: each finds its own nearest match at the
-      next level independently.
-    - Inverted BFS (e.g. cylinder with 5 rings at levels 0,1,2,1,0): produces
-      pairs that together tile the full surface.
+    Returns the ordered chain of VALID cross-section rings; rings the walk can't
+    reach (sideways loops like a wall n-gon, or off-axis junk) are omitted so the
+    caller can demote them to passengers.  Terminal rings land at the chain ends, so
+    end caps go on the ends — never mid-mesh.
     '''
-    by_level = {}
-    for rd in active_rings:
-        by_level.setdefault(rd['bfs_level'], []).append(rd)
+    rings = [rd for rd in all_rings if rd['loop_params'] is not None]
+    if len(rings) < 2:
+        return rings
 
-    sorted_levels = sorted(by_level.keys())
-    pairs = []
-    seen  = set()
+    def centroid(rd):
+        cos = rd['initial_cos']
+        return sum(cos.values(), Vector()) / len(cos)
+    cents = {id(rd): centroid(rd) for rd in rings}
 
-    for idx, lv in enumerate(sorted_levels):
-        # Find the next level that actually has active rings.
-        rings_next = []
-        for nl in sorted_levels[idx + 1:]:
-            if by_level[nl]:
-                rings_next = by_level[nl]
-                break
-        # When there is no higher level to pair with, fall back to pairing rings
-        # within the same BFS level.  This handles the common case where both
-        # boundary loops (Ring A and Ring B) are at level 0 with no complete
-        # intermediate rings between them — without this, no loft is built and
-        # all non-ring verts fall through to the IDW fallback.
-        if not rings_next:
-            rings_next = by_level[lv]
+    # Global axis fallback for rings whose own normal failed to fit (normals are
+    # already sign-aligned upstream, so summing them is meaningful).
+    gaxis = Vector((0.0, 0.0, 0.0))
+    for rd in rings:
+        if rd['normal'] is not None:
+            gaxis += rd['normal']
+    gaxis = gaxis.normalized() if gaxis.length > 1e-9 else Vector((0.0, 0.0, 1.0))
+    def axis_of(rd):
+        n = rd['normal']
+        return n.normalized() if (n is not None and n.length > 1e-9) else gaxis
 
-        for rd_a in by_level[lv]:
-            ctr_a = _ring_centroid(rd_a, initial_cos)
-            n_a   = rd_a['normal']
-            # Sort candidates by centroid distance, nearest first.
-            candidates = sorted(
-                rings_next,
-                key=lambda r: (_ring_centroid(r, initial_cos) - ctr_a).length_squared,
-            )
-            for rd_b in candidates:
-                if rd_b is rd_a:          # no self-pairing in same-level fallback
+    start = next((rd for rd in rings if not rd.get('is_prop')), rings[0])
+    used  = {id(start)}
+
+    def walk(sign):
+        chain, cur = [], start
+        while True:
+            c   = cents[id(cur)]
+            ax  = axis_of(cur)
+            n   = ax * sign
+            best, best_d = None, float('inf')
+            for rd in rings:
+                if id(rd) in used:
                     continue
-                n_b = rd_b['normal']
-                # Quality check: skip near-perpendicular rings.
-                if n_a is not None and n_b is not None:
-                    if abs(n_a.dot(n_b)) < _LOFT_NORMAL_THRESHOLD:
-                        continue
-                key = (id(rd_a), id(rd_b))
-                rev = (id(rd_b), id(rd_a))
-                if key not in seen and rev not in seen:
-                    pairs.append((rd_a, rd_b))
-                    seen.add(key)
-                break   # take the first accepted candidate
+                d_vec = cents[id(rd)] - c
+                if d_vec.dot(n) <= 1e-9:
+                    continue                  # not ahead along this ring's axis
+                if abs(axis_of(rd).dot(ax)) < _RING_AXIS_ALIGN:
+                    continue                  # not aligned with THIS ring (local tilt)
+                d = d_vec.length              # nearest aligned ring ahead, in 3D
+                if d < best_d:
+                    best_d, best = d, rd
+            if best is None:
+                break
+            chain.append(best)
+            used.add(id(best))
+            cur = best
+        return chain
+
+    fwd = walk(+1)
+    bwd = walk(-1)
+    return list(reversed(bwd)) + [start] + fwd
+
+
+def _build_loft_sequence(all_rings, initial_cos):
+    '''Pair complete rings consecutively along the spatial (axis) order.
+
+    Consecutive rings in the spatial chain are lofted together even when they are
+    NOT edge-connected — bridging gaps is the whole point of the bary loft.  Near-
+    perpendicular consecutive rings are bridged across (the previous ring stays the
+    anchor) so one misfit ring leaves a cap-filled gap instead of breaking the chain.
+    '''
+    ordered = _order_rings_by_axis(all_rings)
+    if len(ordered) < 2:
+        return []
+
+    pairs = []
+    prev  = ordered[0]
+    for rd in ordered[1:]:
+        n_a = prev['normal']
+        n_b = rd['normal']
+        if n_a is not None and n_b is not None and abs(n_a.dot(n_b)) < _LOFT_NORMAL_THRESHOLD:
+            # Near-perpendicular — skip rd as a partner but keep prev as anchor
+            # so the loft bridges across it instead of leaving a hole.
+            continue
+        pairs.append((prev, rd))
+        prev = rd
 
     return pairs
 
@@ -612,30 +861,37 @@ def _cap_ring(order):
     return [(order[0], order[i], order[i + 1]) for i in range(1, len(order) - 1)]
 
 
-def _build_loft_surface(active_rings, initial_cos):
-    '''Build the full set of loft + cap triangles for a component.
+def _build_loft_surface(all_rings, initial_cos):
+    '''Build the loft surface between complete rings, plus end caps.
 
-    Returns a flat list of (v0, v1, v2) BMVert triples whose positions in
-    initial_cos define the surface used for barycentric embedding.
+    Takes ALL ring groups (complete + broken); the broken ones only inform the
+    adjacency chain so the loft can bridge across pole rings.
+
+    Returns (bands, caps), each a list of (v0, v1, v2) BMVert triples:
+      bands – triangles BETWEEN two complete rings.  They twist cleanly (a band
+              quad just rotates), so verts riding them stay correct.
+      caps  – fan triangles closing a terminal ring.  Under retain-shape arc-slide
+              a cap SHEARS (its verts slide unequal amounts), so a vert riding it
+              gets thrown sideways.  Kept separate so prop verts can avoid them.
     '''
-    if len(active_rings) < 2:
-        return []
-    pairs = _build_loft_sequence(active_rings, initial_cos)
+    pairs = _build_loft_sequence(all_rings, initial_cos)
     if not pairs:
-        return []
+        return [], []
 
-    tris       = []
+    bands      = []
     pair_count = {}
     for rd_a, rd_b in pairs:
-        tris.extend(_loft_rings(rd_a, rd_b, initial_cos))
+        bands.extend(_loft_rings(rd_a, rd_b, initial_cos))
         pair_count[id(rd_a)] = pair_count.get(id(rd_a), 0) + 1
         pair_count[id(rd_b)] = pair_count.get(id(rd_b), 0) + 1
 
-    # Add end caps for terminal rings (appear in at most one pair).
-    for rd in active_rings:
-        if pair_count.get(id(rd), 0) <= 1:
-            tris.extend(_cap_ring(rd['loop_params'][0]))
-    return tris
+    # Cap terminal complete rings (those appearing in at most one pair) so geometry
+    # projecting past the end of the chain still has a triangle to embed in.
+    caps = []
+    for rd in all_rings:
+        if rd['loop_params'] is not None and pair_count.get(id(rd), 0) <= 1:
+            caps.extend(_cap_ring(rd['loop_params'][0]))
+    return bands, caps
 
 
 def _bary_embed(co, v0, v1, v2, initial_cos):
@@ -662,7 +918,7 @@ def _bary_embed(co, v0, v1, v2, initial_cos):
     return (w0, w1, 1.0 - w0 - w1, offset)
 
 
-def _find_bary_embedding(co, tris, initial_cos):
+def _find_bary_embedding(co, tris, initial_cos, inside_only=False):
     '''Find the best triangle in tris to embed local-space point co.
 
     Two-tier selection:
@@ -672,7 +928,12 @@ def _find_bary_embedding(co, tris, initial_cos):
       Tier 2 — fallback: if no inside triangle exists, pick the triangle
                whose centroid is nearest to co.
 
-    Returns (v0, v1, v2, w0, w1, w2, offset) or None if tris is empty.
+    inside_only – return None instead of the Tier-2 fallback.  Used for prop
+        verts: a Tier-2 (outside-all-triangles) hit means the vert is past the
+        loft's coverage, where reconstruction is unreliable; the caller routes it
+        to the rigid weighted IDW fallback instead.
+
+    Returns (v0, v1, v2, w0, w1, w2, offset) or None.
     '''
     best_in   = None;  best_in_d  = float('inf')
     best_out  = None;  best_out_d = float('inf')
@@ -689,7 +950,9 @@ def _find_bary_embedding(co, tris, initial_cos):
             if d < best_out_d:
                 best_out  = (*tri, w0, w1, w2, offset)
                 best_out_d = d
-    return best_in if best_in is not None else best_out
+    if best_in is not None:
+        return best_in
+    return None if inside_only else best_out
 
 
 def _bary_reconstruct(v0, v1, v2, w0, w1, w2, offset):
@@ -707,8 +970,16 @@ def _bary_reconstruct(v0, v1, v2, w0, w1, w2, offset):
 
 
 def twist_apply_blend_axis(ring_data_list, non_ring_initial_cos, sym_verts, sym_axes,
-                           mw, mwi, delta_degrees, retain_shape=False):
+                           mw, mwi, delta_degrees, retain_shape=False, vert_weights=None):
     '''Move non-ring vertices to follow the twist of the surrounding complete rings.
+
+    vert_weights – optional {vert: falloff_weight} map (default weight 1.0).  When
+        given, a vert's blend-axis rotation angle is set to weight × delta_degrees
+        (ABSOLUTE) rather than the blended ring angle.  This is for proportional-edit
+        falloff verts past the loft's coverage: their own falloff weight is the
+        correct fraction of the full twist, independent of whichever ring is nearest
+        (whose own angle is already reduced — scaling by it would double-count).
+        Rotating by an angle (not lerping position) keeps it correct at any twist.
 
     retain_shape=False  (default)
         Pure blend-axis rotation: the rotation axis for each non-ring vert is an
@@ -782,6 +1053,7 @@ def twist_apply_blend_axis(ring_data_list, non_ring_initial_cos, sym_verts, sym_
         if v in sym_verts:
             continue
         ws = mw @ co0
+        vw = vert_weights.get(v, 1.0) if vert_weights else 1.0
 
         placed = False
 
@@ -816,6 +1088,10 @@ def twist_apply_blend_axis(ring_data_list, non_ring_initial_cos, sym_verts, sym_
                 ws_displ += w * ((mw @ nb.co) - (mw @ nb_orig))
                 total_w  += w
             if total_w > 1e-12 and len(neighbor_rings) > 1:
+                # Follow the neighbour rings' actual displacement directly — that
+                # already encodes their falloff, so no extra weight scaling here
+                # (a vert genuinely between two complete rings embeds in a band, so
+                # prop verts almost never reach this path anyway).
                 v.co  = mwi @ (ws + ws_displ / total_w)
                 placed = True
             # len(neighbor_rings) == 0: no ring neighbours → blend-axis below.
@@ -858,7 +1134,15 @@ def twist_apply_blend_axis(ring_data_list, non_ring_initial_cos, sym_verts, sym_
                 continue
             ws_center_bl /= total_w
             ws_normal_bl /= total_w
-            eff_deg_bl   /= total_w
+            if vert_weights:
+                # Absolute: rotate by the vert's OWN falloff weight × the full
+                # twist.  Using the blended ring angle × weight would double-count
+                # falloff (the nearest prop ring's angle is ALREADY reduced),
+                # under-rotating beyond-coverage prop verts.  Empty/None weights
+                # (no proportional editing) keep the original blended-angle path.
+                eff_deg_bl = delta_degrees * vw
+            else:
+                eff_deg_bl /= total_w
             n_len = ws_normal_bl.length
             if n_len < 1e-12:
                 continue
@@ -877,7 +1161,7 @@ def twist_apply_blend_axis(ring_data_list, non_ring_initial_cos, sym_verts, sym_
         if mz: v.co.z = 0.0
 
 
-def twist_apply(bm, em, mw, mwi, initial_cos, sym_verts, sym_axes, normal, center, delta_degrees, snap_fn=None, loop_params=None, retain_segments=None, finalize=True):
+def twist_apply(bm, em, mw, mwi, initial_cos, sym_verts, sym_axes, normal, center, delta_degrees, snap_fn=None, loop_params=None, retain_segments=None, finalize=True, vert_weights=None):
     '''Rotate verts by delta_degrees around normal through center.
     snap_fn(world_pt) -> snapped world-pt or None; omit for free rotation.
 
@@ -889,7 +1173,14 @@ def twist_apply(bm, em, mw, mwi, initial_cos, sym_verts, sym_axes, normal, cente
 
     retain_segments – fallback for non-loop topologies.  Rotation is applied in
         RETAIN_STEP_DEG increments, snapping each vert to the nearest original
-        segment after each step.'''
+        segment after each step.
+
+    vert_weights – optional {vert: weight} map for proportional falloff.  Each
+        vert advances/rotates by delta_degrees × its weight (default 1.0), so a
+        ring may twist by varying amounts around its loop — e.g. a cross-section
+        completed past the falloff radius keeps its out-of-radius verts (weight 0)
+        fixed while its in-radius verts slide.  Sliding along the loop is per-vert
+        retain-shape; weight 0 leaves a vert exactly at its original position.'''
     if not normal:
         return
     mx, my, mz = sym_axes
@@ -902,7 +1193,8 @@ def twist_apply(bm, em, mw, mwi, initial_cos, sym_verts, sym_axes, normal, cente
         for v in initial_cos:
             if v in sym_verts:
                 continue
-            ws   = _arc_position(orig_fracs[v] + frac_advance, order, cumul, total, initial_cos, mw)
+            w    = vert_weights.get(v, 1.0) if vert_weights else 1.0
+            ws   = _arc_position(orig_fracs[v] + frac_advance * w, order, cumul, total, initial_cos, mw)
             v.co = mwi @ ws
             if snap_fn is not None:
                 snapped = snap_fn(mw @ v.co)
@@ -940,7 +1232,17 @@ def twist_apply(bm, em, mw, mwi, initial_cos, sym_verts, sym_axes, normal, cente
         for v, co0 in initial_cos.items():
             if v in sym_verts:
                 continue
-            v.co = xform @ co0
+            if vert_weights:
+                # Per-vert angle for proportional falloff (weight 0 → no move).
+                w = vert_weights.get(v, 1.0)
+                xform_v = (
+                    Matrix.Translation(center)
+                    @ Matrix.Rotation(math.radians(delta_degrees * w), 4, normal)
+                    @ Matrix.Translation(-center)
+                )
+                v.co = xform_v @ co0
+            else:
+                v.co = xform @ co0
             if snap_fn is not None:
                 snapped = snap_fn(mw @ v.co)
                 if snapped is not None:
@@ -992,10 +1294,17 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
     proportional_falloff: bpy.props.EnumProperty(
         name='Falloff',
         description='Curve shape used to reduce the twist angle with distance',
+        # Full set supported by proportional_edit() in common/maths.py — matches
+        # Blender's own proportional-edit falloff options.
         items=[
-            ('SMOOTH',  'Smooth',   'Smooth falloff (3t²−2t³)'),
-            ('LINEAR',  'Linear',   'Linear falloff'),
-            ('SPHERE',  'Sphere',   'Spherical falloff (√(2t−t²))'),
+            ('SMOOTH',         'Smooth',         'Smooth falloff'),
+            ('SPHERE',         'Sphere',         'Spherical falloff'),
+            ('ROOT',           'Root',           'Root falloff'),
+            ('INVERSE_SQUARE', 'Inverse Square', 'Inverse-square falloff'),
+            ('SHARP',          'Sharp',          'Sharp falloff'),
+            ('LINEAR',         'Linear',         'Linear falloff'),
+            ('CONSTANT',       'Constant',       'Constant — no falloff'),
+            ('RANDOM',         'Random',         'Random falloff'),
         ],
         default='SMOOTH',
     )
@@ -1039,7 +1348,12 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
                 continue
             sym_verts, sym_axes = twist_detect_symmetry(context, component_verts)
 
-            ring_groups_verts, bfs_non_ring, ring_levels = _find_rings_in_component(component_verts)
+            # Walk the cross-section edge loops to find the guide rings.  Fall back to
+            # the boundary-BFS detection only when that finds none (e.g. an open patch
+            # with no closed cross-section) so those selections still get drivers.
+            ring_groups_verts, bfs_non_ring, ring_levels = _find_core_rings(component_verts)
+            if not ring_groups_verts:
+                ring_groups_verts, bfs_non_ring, ring_levels = _find_rings_in_component(component_verts)
 
             ring_groups = []
             ref_normal  = None   # first successfully-fitted normal; all others align to it
@@ -1145,12 +1459,12 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
                         prop_non_ring_weights[v] = proportional_edit(prop_falloff, dist_in)
                     bfs_non_ring.extend(prop_unreachable)
 
-                    # Offset prop ring bfs_levels above all core ring levels so
-                    # _build_loft_sequence never groups core and prop rings into
-                    # the same level bucket (core inner rings and prop rings both
-                    # start at level 1, causing wrong adjacency pairings in the loft).
-                    max_core_level = max((rd['bfs_level'] for rd in ring_groups), default=0)
-
+                    # Each prop_rings entry is a real, complete cross-section loop
+                    # (traced via edge loops and deduped in _find_prop_rings), so we
+                    # build one ring driver per entry directly — no completion, no
+                    # dedup, no pole special-casing.  A pole that the loop passes
+                    # straight through is an ordinary member and arc-slides with the
+                    # ring like any other vert.
                     for ring_verts, avg_d, hop_lv in prop_rings:
                         if len(ring_verts) < 3:
                             for v in ring_verts:
@@ -1167,20 +1481,28 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
                                 ref_normal = normal.copy()
                             elif normal.dot(ref_normal) < 0:
                                 normal = -normal
+                        # NOTE: cross-section validity (is this loop's plane aligned
+                        # with the rotation axis?) is decided LATER by the outward
+                        # axis walk, which checks each ring against its NEIGHBOUR's
+                        # axis — see _order_rings_by_axis + the demotion below.  A
+                        # global normal check here would wrongly reject the far rings
+                        # of a sharply curved tube.
                         lp = _traverse_loop_params(ring_verts, initial_cos, mw)
-                        # Poles have > 2 edges leaving this ring group, so arc-
-                        # sliding them around the ring's fitted axis produces the
-                        # wrong motion.  Force them to IDW/bary instead.
+                        # pole_ring: does the loop pass through a pole (a member with
+                        # >2 edges leaving the ring)?  Diagnostic only — such a vert is
+                        # a near-straight continuation (the tracer enforces < 5°), so it
+                        # arc-slides correctly as a normal member.
+                        pole_ring = False
                         if lp is not None:
                             ring_set = set(ring_verts)
-                            if any(
+                            pole_ring = any(
                                 sum(1 for e in v.link_edges
                                     if e.other_vert(v) not in ring_set) > 2
                                 for v in ring_verts
-                            ):
-                                lp = None
+                            )
                         segs = _build_retain_segments(ring_verts, initial_cos, mw) if lp is None else None
-                        # Winding fix — same as core rings
+                        # Winding fix — make the traversal wind consistently with the
+                        # reference normal so all rings twist the same direction.
                         check_normal = normal if normal is not None else ref_normal
                         if lp is not None and check_normal is not None:
                             order, cumul, total = lp
@@ -1200,6 +1522,18 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
                         norm_d  = avg_d / prop_radius if prop_radius > 1e-12 else 0.0
                         dist_in = max(1.0 - norm_d, 0.0)
                         weight  = proportional_edit(prop_falloff, dist_in)
+                        # Per-vert falloff weight: each vert twists by its OWN strength.
+                        # Traced verts beyond the radius are absent from comp_prop →
+                        # weight 0, so the ring is a complete loft cross-section but only
+                        # its in-radius arc actually moves.
+                        vert_weights = {}
+                        for v in ring_verts:
+                            d = comp_prop.get(v)
+                            if d is None:
+                                vert_weights[v] = 0.0
+                            else:
+                                di = max(1.0 - d / prop_radius, 0.0)
+                                vert_weights[v] = proportional_edit(prop_falloff, di)
                         ring_groups.append({
                             'initial_cos':     initial_cos,
                             'sym_verts':       ring_sym,
@@ -1208,17 +1542,41 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
                             'center':          center,
                             'loop_params':     lp,
                             'retain_segments': segs,
-                            'bfs_level':       max_core_level + hop_lv,
+                            # bfs_level retained as metadata; loft pairing is now
+                            # geometric (see _build_loft_sequence), not level-based.
+                            'bfs_level':       hop_lv,
                             'weight':          weight,
                             'is_prop':         True,
+                            'pole_ring':       pole_ring,
+                            'vert_weights':    vert_weights,
                         })
-                        # Broken prop rings need per-vert weights so _run_apply
-                        # can lerp between original and bary/IDW positions.
                         if lp is None:
+                            # Defensive: a traced loop should always be a clean cycle,
+                            # but if loop_params somehow fails, its verts ride the loft.
                             for v in ring_verts:
-                                prop_non_ring_weights[v] = weight
+                                prop_non_ring_weights[v] = vert_weights[v]
 
             if ring_groups:
+                # Validate + order the rings with the outward axis walk (local, per-
+                # neighbour alignment — robust on curved tubes).  Prop rings the walk
+                # can't reach (sideways loops like a wall n-gon) are NOT cross-sections:
+                # demote them to passengers so they ride the loft instead of twisting
+                # around a wrong axis.  Core rings are the trusted selection and are
+                # never demoted.
+                ring_chain = _order_rings_by_axis(ring_groups)
+                chain_ids  = {id(rd) for rd in ring_chain}
+                kept = []
+                for rd in ring_groups:
+                    if (rd.get('is_prop') and rd['loop_params'] is not None
+                            and id(rd) not in chain_ids):
+                        for v, w in rd.get('vert_weights', {}).items():
+                            if w > 0.0:            # in-radius vert → passenger
+                                prop_non_ring_weights[v] = w
+                                bfs_non_ring.append(v)
+                    else:
+                        kept.append(rd)
+                ring_groups = kept
+
                 # Build barycentric loft surface and embed all non-ring verts.
                 #
                 # active_rings_lp: rings that form complete closed loops (have
@@ -1249,93 +1607,94 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
                         prop_non_ring_cos[v] = co
                     else:
                         core_non_ring_cos[v] = co
-                non_ring_initial_cos = {**core_non_ring_cos, **prop_non_ring_cos}
-
-                # prop_bary_lerp_embeddings: {vert: (v0,v1,v2,w0,w1,w2,offset,lerp_weight)}
-                # Prop non-ring verts that couldn't embed in the prop-only loft fall
-                # back to the full loft + an explicit lerp by the vert's falloff weight.
-                # Using bary (not IDW) here preserves retain-shape behaviour because
-                # _bary_reconstruct reads v.co from ring verts already arc-slid in Pass 1.
-                prop_bary_lerp_embeddings = {}
-
-                # Build full_loft: a proper cylinder/surface when >=2 complete rings
-                # exist, or a single end-cap when only 1 exists.  The cap is used as a
-                # last-resort embedding surface for prop non-ring verts so that the
-                # falloff works even when the topology has no complete prop rings
-                # (e.g. a pole-heavy mesh where every hop tier is broken).
+                # Build the loft ONCE from every complete ring (core + prop): proper
+                # bands when >=2 complete rings exist, or a single end-cap when only
+                # 1 does so a lone selected loop still drives its falloff verts.
+                # bands and caps are kept separate (see _build_loft_surface): bands
+                # twist cleanly, caps shear under arc-slide.
                 if len(active_rings_lp) >= 2:
-                    full_loft = _build_loft_surface(active_rings_lp, all_ring_initial_cos)
+                    # Pass ALL ring groups so the adjacency chain can bridge across
+                    # broken/pole rings; _build_loft_surface lofts only the complete ones.
+                    bands, caps = _build_loft_surface(ring_groups, all_ring_initial_cos)
                 elif len(active_rings_lp) == 1:
-                    full_loft = _cap_ring(active_rings_lp[0]['loop_params'][0])
+                    bands, caps = [], _cap_ring(active_rings_lp[0]['loop_params'][0])
                 else:
-                    full_loft = []
+                    bands, caps = [], []
+                full_loft = bands + caps
 
-                # Core non-ring verts must only be embedded in all-core-ring
-                # triangles.  Filter the full loft so prop-ring verts can't
-                # reduce a core pole's displacement.  Requires >=2 complete rings
-                # to produce a loft surface (a single-ring cap has no "between" zone).
-                if core_non_ring_cos and len(active_rings_lp) >= 2:
-                    core_ring_vert_set = set()
-                    for rd in ring_groups:
-                        if not rd.get('is_prop'):
-                            core_ring_vert_set.update(rd['initial_cos'].keys())
-                    core_loft = [(v0, v1, v2) for v0, v1, v2 in full_loft
-                                 if v0 in core_ring_vert_set
-                                 and v1 in core_ring_vert_set
-                                 and v2 in core_ring_vert_set]
-                    for v, co0 in core_non_ring_cos.items():
-                        result = _find_bary_embedding(co0, core_loft, all_ring_initial_cos)
-                        if result is not None:
-                            bary_embeddings[v] = result
-                        else:
-                            bary_fallback_cos[v] = co0
+                # Classify each loft triangle by whether it touches a prop ring.
+                core_ring_vert_set = set()
+                for rd in ring_groups:
+                    if not rd.get('is_prop'):
+                        core_ring_vert_set.update(rd['initial_cos'].keys())
+                # Pure-core triangles (bands + caps): full-strength surface for core poles.
+                core_loft = [t for t in full_loft
+                             if all(v in core_ring_vert_set for v in t)]
+                # Prop-touching BAND triangles only (caps excluded): bands twist
+                # cleanly; caps shear under arc-slide, so verts past the last band use
+                # the nearest-ring fallback below instead of riding a shearing cap.
+                prop_loft = [t for t in bands
+                             if any(v not in core_ring_vert_set for v in t)]
 
-                # Prop non-ring verts must never be embedded in core-ring triangles.
-                # Build a prop-only loft so the tier-2 nearest-centroid fallback in
-                # _find_bary_embedding can't assign a falloff-boundary vert to a
-                # core ring triangle (which would reconstruct at full-strength twist).
-                # Verts that fail the prop-only loft fall back to the full loft + an
-                # explicit lerp by the vert's own falloff weight.  This path works
-                # even when active_rings_lp has only 1 ring (full_loft is a cap).
-                if prop_non_ring_cos and full_loft:
-                    prop_rings_lp = [rd for rd in ring_groups
-                                     if rd.get('is_prop') and rd['loop_params'] is not None]
-                    if len(prop_rings_lp) >= 2:
-                        prop_loft = _build_loft_surface(prop_rings_lp, all_ring_initial_cos)
-                    elif len(prop_rings_lp) == 1:
-                        prop_loft = _cap_ring(prop_rings_lp[0]['loop_params'][0])
+                # Core non-ring verts (poles inside the selection) stay at full
+                # twist: embed only in pure-core triangles (bands + caps).
+                for v, co0 in core_non_ring_cos.items():
+                    result = _find_bary_embedding(co0, core_loft, all_ring_initial_cos)
+                    if result is not None:
+                        bary_embeddings[v] = result
                     else:
-                        prop_loft = []
-                    for v, co0 in prop_non_ring_cos.items():
-                        result = _find_bary_embedding(co0, prop_loft, all_ring_initial_cos)
-                        if result is not None:
-                            bary_embeddings[v] = result
-                        else:
-                            # Can't embed in prop-only loft (vert is in the core/prop
-                            # transition zone or prop loft is empty).  Fall back to
-                            # the full loft + lerp so bary reconstruction uses the
-                            # arc-slid ring vert positions (retain-shape correct) and
-                            # the lerp applies the vert's own falloff weight.
-                            result2 = _find_bary_embedding(co0, full_loft, all_ring_initial_cos)
-                            w = prop_non_ring_weights.get(v, 0.0)
-                            if result2 is not None:
-                                prop_bary_lerp_embeddings[v] = (*result2, w)
-                            else:
-                                bary_fallback_cos[v] = co0
+                        bary_fallback_cos[v] = co0
+
+                # Driver verts (every chain-ring vert) with rest position + falloff
+                # weight, for the "beyond the loft" fallback below.
+                driver_data = []
+                for rd in active_rings_lp:
+                    vw = rd.get('vert_weights')
+                    for dv, drest in rd['initial_cos'].items():
+                        driver_data.append((dv, drest, vw.get(dv, 1.0) if vw else 1.0))
+
+                # Prop non-ring verts ride prop BAND triangles (inside only).  Bary
+                # reconstruction reads the rings' LIVE positions, so the reduced motion
+                # comes from the surrounding rings' real rotation and retain-shape is
+                # preserved.  A vert PAST the end of the loft (no band contains it —
+                # e.g. just outside an n-gon cap) instead copies the nearest ring vert's
+                # displacement, dampened by the ratio of its own falloff to that ring
+                # vert's, so it tapers off cleanly rather than riding a shearing cap.
+                beyond_loft = {}
+                for v, co0 in prop_non_ring_cos.items():
+                    result = _find_bary_embedding(co0, prop_loft, all_ring_initial_cos,
+                                                  inside_only=True)
+                    if result is not None:
+                        bary_embeddings[v] = result
+                        continue
+                    best, best_d2 = None, float('inf')
+                    for dv, drest, dw in driver_data:
+                        d2 = (co0 - drest).length_squared
+                        if d2 < best_d2:
+                            best_d2, best = d2, (dv, drest, dw)
+                    if best is not None and best[2] > 1e-6:
+                        dv, drest, dw = best
+                        bw   = prop_non_ring_weights.get(v, 0.0)
+                        beyond_loft[v] = (dv, drest.copy(), co0.copy(), min(bw / dw, 1.0))
+                    else:
+                        bary_fallback_cos[v] = co0
 
                 bfs_non_ring_set = set(bfs_non_ring)
                 bfs_sym = {v for v in sym_verts       if v in bfs_non_ring_set}
                 bfs_sym.update(v for v in prop_sym_verts if v in bfs_non_ring_set)
                 components.append({
-                    'ring_groups':               ring_groups,
-                    'bfs_non_ring_cos':          {v: v.co.copy() for v in bfs_non_ring},
-                    'bfs_non_ring_sym':          bfs_sym,
-                    'sym_axes':                  sym_axes,
-                    'bary_embeddings':           bary_embeddings,
-                    'bary_fallback_cos':         bary_fallback_cos,
-                    'prop_bary_lerp_embeddings': prop_bary_lerp_embeddings,
-                    'non_ring_initial_cos':      non_ring_initial_cos,
-                    'prop_non_ring_weights':     prop_non_ring_weights,
+                    'ring_groups':           ring_groups,
+                    'bfs_non_ring_cos':      {v: v.co.copy() for v in bfs_non_ring},
+                    'bfs_non_ring_sym':      bfs_sym,
+                    'sym_axes':              sym_axes,
+                    'bary_embeddings':       bary_embeddings,
+                    'bary_fallback_cos':     bary_fallback_cos,
+                    # Verts past the end of the loft: {vert: (ring_vert, ring_rest,
+                    # vert_rest, damp)} — copy ring_vert's displacement × damp.
+                    'beyond_loft':           beyond_loft,
+                    # Per-vert falloff weights for prop non-ring verts — used to
+                    # classify passengers and to scale the IDW fallback motion.
+                    'prop_non_ring_weights': prop_non_ring_weights,
                 })
         return components
 
@@ -1380,26 +1739,35 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
                     broken_rings.append(rd)
                 else:
                     # Complete closed loop — arc-length or pure rotation.
-                    lp      = rd['loop_params'] if self.retain_shape else None
-                    deg_ring = deg * rd.get('weight', 1.0)
-                    twist_apply(bm, em, mw, mwi,
-                                rd['initial_cos'], rd['sym_verts'], rd['sym_axes'],
-                                rd['normal'], rd['center'], deg_ring,
-                                loop_params=lp, retain_segments=None,
-                                finalize=False)
+                    lp  = rd['loop_params'] if self.retain_shape else None
+                    rvw = rd.get('vert_weights')
+                    if rvw is not None:
+                        # Per-vert falloff: pass the FULL angle and let each vert
+                        # scale by its own weight (uniform ring weight folded in).
+                        twist_apply(bm, em, mw, mwi,
+                                    rd['initial_cos'], rd['sym_verts'], rd['sym_axes'],
+                                    rd['normal'], rd['center'], deg,
+                                    loop_params=lp, retain_segments=None,
+                                    finalize=False, vert_weights=rvw)
+                    else:
+                        deg_ring = deg * rd.get('weight', 1.0)
+                        twist_apply(bm, em, mw, mwi,
+                                    rd['initial_cos'], rd['sym_verts'], rd['sym_axes'],
+                                    rd['normal'], rd['center'], deg_ring,
+                                    loop_params=lp, retain_segments=None,
+                                    finalize=False)
                     active_rings.append(rd)
 
             # Pass 2: broken rings + BFS-unreachable verts.
             if active_rings:
-                # Complete rings exist.  The approach differs by retain_shape:
-                #
-                # Bary path — used for both retain_shape modes.
-                # With the T-junction fix in _find_rings_in_component, the
-                # outer boundary rings are now detected correctly even when
-                # n-gons interrupt them, so their arc-length distribution is
-                # no longer skewed by merged partial-loop branches.
-                bary_embeddings   = cd.get('bary_embeddings', {})
-                bary_fallback_cos = cd.get('bary_fallback_cos', {})
+                # Complete rings exist.  Bary path is used for both retain_shape modes:
+                # non-ring verts are reconstructed from the deformed loft surface the
+                # rings drive.  The rings come from _find_core_rings (cross-section edge
+                # loops), so a protrusion's partial loop is already a passenger here, not
+                # a skewed driver.
+                bary_embeddings     = cd.get('bary_embeddings', {})
+                bary_fallback_cos   = cd.get('bary_fallback_cos', {})
+                beyond_loft         = cd.get('beyond_loft', {})
                 mx, my, mz = cd['sym_axes']
                 sym_all = set(cd['bfs_non_ring_sym'])
                 for rd in broken_rings:
@@ -1411,28 +1779,25 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
                         continue
                     v.co = _bary_reconstruct(v0, v1, v2, w0, w1, w2, offset)
 
-                # IDW fallback for core non-ring verts with no loft coverage.
+                # Verts past the end of the loft: copy the nearest ring vert's
+                # displacement (rest → now), dampened by the stored falloff ratio.
+                for bv, (dv, drest, bv_rest, damp) in beyond_loft.items():
+                    if bv in sym_all:
+                        continue
+                    bv.co = bv_rest + (dv.co - drest) * damp
+
+                # IDW fallback for non-ring verts with no loft coverage.  Core
+                # poles follow the nearest (full-strength) core rings; prop verts
+                # follow the nearest (reduced) prop rings — twist_apply_blend_axis
+                # measures each ring's effective angle from how its verts actually
+                # moved in Pass 1, so the falloff is already baked into the motion.
                 if bary_fallback_cos:
                     fallback_sym = {v for v in sym_all if v in bary_fallback_cos}
                     twist_apply_blend_axis(active_rings, bary_fallback_cos,
                                            fallback_sym, cd['sym_axes'],
                                            mw, mwi, deg,
-                                           retain_shape=self.retain_shape)
-
-                # Prop non-ring verts that fell back from the prop-only loft to the
-                # full loft.  Reconstruct from the full-loft bary embedding (which
-                # reads arc-slid ring vert positions → retain-shape correct), then
-                # lerp by the stored falloff weight so verts near the falloff boundary
-                # don't inherit full-strength movement from core ring verts.
-                prop_bary_lerp_embeddings = cd.get('prop_bary_lerp_embeddings', {})
-                if prop_bary_lerp_embeddings:
-                    ni_cos = cd.get('non_ring_initial_cos', {})
-                    for v, (v0, v1, v2, w0, w1, w2, offset, lerp_w) in prop_bary_lerp_embeddings.items():
-                        if v in sym_all:
-                            continue
-                        co0 = ni_cos.get(v)
-                        bary_co = _bary_reconstruct(v0, v1, v2, w0, w1, w2, offset)
-                        v.co = co0 + lerp_w * (bary_co - co0) if co0 is not None else bary_co
+                                           retain_shape=self.retain_shape,
+                                           vert_weights=cd.get('prop_non_ring_weights'))
 
                 # Symmetry clamp for all non-ring sym verts.
                 for v in sym_all:
@@ -1485,12 +1850,9 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
         ts = context.tool_settings
         self.use_proportional_edit  = ts.use_proportional_edit
         self.proportional_distance  = ts.proportional_distance
-        supported_falloffs = {'SMOOTH', 'LINEAR', 'SPHERE'}
-        self.proportional_falloff   = (
-            ts.proportional_edit_falloff
-            if ts.proportional_edit_falloff in supported_falloffs
-            else 'SMOOTH'
-        )
+        # proportional_edit() in common/maths.py covers every Blender falloff, so
+        # take the scene's setting directly (no restricted subset).
+        self.proportional_falloff   = ts.proportional_edit_falloff
         prop_distances = None
         if self.use_proportional_edit:
             prop_distances = _gather_proportional_verts(sel_verts, self._mw, self.proportional_distance)
@@ -1499,6 +1861,7 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
             return {'CANCELLED'}
         self._initial_mouse_x = event.mouse_x
         self.twist_angle = 0.0
+        self._highlight_add(context)
         if context.area:
             context.area.header_text_set(self._header_text())
         context.window_manager.modal_handler_add(self)
@@ -1514,6 +1877,47 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
         if context.area:
             context.area.header_text_set(self._header_text())
 
+    # ---- Highlight the loft's driver rings in the viewport (relax-style) ----
+    def _draw_highlights(self, context):
+        try:
+            from ..common.drawing import Drawing
+            from ..preferences import RF_Prefs
+            hl    = RF_Prefs.get_prefs(context).highlight_color
+            theme = context.preferences.themes[0].view_3d
+            edge  = getattr(theme, 'wire_edit', None) or getattr(theme, 'wire', None) \
+                    or (0.5, 0.5, 0.5)
+            for cd in self._component_data:
+                rings = [rd for rd in cd['ring_groups'] if rd['loop_params'] is not None]
+                if len(rings) < 2:
+                    continue   # one ring / no loft → nothing meaningful to show
+                for rd in rings:
+                    if rd.get('is_prop'):
+                        # Falloff ring: fade from the selection's highlight colour
+                        # (strong falloff) toward the theme edge colour (weak), so it
+                        # visually fades out toward the edge of the falloff zone.
+                        w = max(0.0, min(1.0, rd.get('weight', 1.0)))
+                        color = (edge[0] + (hl[0] - edge[0]) * w,
+                                 edge[1] + (hl[1] - edge[1]) * w,
+                                 edge[2] + (hl[2] - edge[2]) * w)
+                    else:
+                        color = (hl[0], hl[1], hl[2])   # inside the selection
+                    Drawing.draw_loop_highlight(context, set(rd['initial_cos'].keys()),
+                                                self._mw, color, skip_verts=frozenset())
+        except Exception as e:
+            print(f"twist: ring highlight draw failed: {e}")
+
+    def _highlight_add(self, context):
+        self._draw_handle = bpy.types.SpaceView3D.draw_handler_add(
+            self._draw_highlights, (context,), 'WINDOW', 'POST_PIXEL')
+        if context.area:
+            context.area.tag_redraw()
+
+    def _highlight_remove(self):
+        h = getattr(self, '_draw_handle', None)
+        if h is not None:
+            bpy.types.SpaceView3D.draw_handler_remove(h, 'WINDOW')
+            self._draw_handle = None
+
     def modal(self, context, event):
         if event.type == 'MOUSEMOVE':
             delta_px = event.mouse_x - self._initial_mouse_x
@@ -1525,6 +1929,7 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
             self._apply(context)
             return {'RUNNING_MODAL'}
         if event.type in {'LEFTMOUSE', 'RET', 'NUMPAD_ENTER'} and event.value == 'PRESS':
+            self._highlight_remove()
             if context.area:
                 context.area.header_text_set(None)
             return {'FINISHED'}
@@ -1538,6 +1943,7 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
                     v.co = co0.copy()
             self._bm.normal_update()
             bmesh.update_edit_mesh(self._em, loop_triangles=False)
+            self._highlight_remove()
             if context.area:
                 context.area.header_text_set(None)
             return {'CANCELLED'}

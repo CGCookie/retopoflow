@@ -240,6 +240,14 @@ def bmf_compute_normal(bmf:BMFace) -> Vector:
         an = an + v0.cross(v1).normalized()
     return an.normalized()
 
+def bmv_compute_normal(bmv):
+    ''' computes normal based on faces. Used when bmv.normal is stale '''
+    n = Vector((0.0, 0.0, 0.0))
+    for f in bmv.link_faces:
+        n += f.normal
+    ln = n.length
+    return n / ln if ln > 1e-8 else Vector(bmv.normal)
+
 def bmf_is_flipped(bmf:BMFace) -> bool:
     fn = bmf_compute_normal(bmf)
     return any(v.normal.dot(fn) <= 0 for v in bmf.verts)
