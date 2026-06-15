@@ -29,7 +29,8 @@ from mathutils.bvhtree import BVHTree
 from ..common.operator import RFRegisterClass
 from ..common.interface import draw_expandable_enum
 from ..common.accel import SourceAccel
-from ..common.maths import point_to_bvec3, proportional_edit
+from ..common.bmesh import get_falloff_verts
+from ..common.maths import point_to_bvec3
 from ..common.raycast import nearest_point_valid_sources
 from ..common.sources import draw_hard_surface_snapping
 from ..rftool_relax.relax_logic import Relax_Logic, RelaxOptions
@@ -422,9 +423,9 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
         # restricted to unselected verts so selected verts always get full strength.
         vert_strength: dict = { bmv: self.strength for bmv in verts }
         if self.use_proportional_edit and self.proportional_distance > 0:
-            prop_verts = self._collect_proportional_verts(
-                logic, verts, self.proportional_distance, self.proportional_falloff, self.strength
-            )
+            mw = context.edit_object.matrix_world
+            prop_weights = get_falloff_verts(verts, mw, self.proportional_distance, self.proportional_falloff)
+            prop_verts = {v: w * self.strength for v, w in prop_weights.items() if v not in verts}
             vert_strength.update(prop_verts)
             verts = verts | set(prop_verts.keys())
 
@@ -528,47 +529,6 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
             for obj in collection.objects
             if cls._is_snap_candidate(context, obj)
         ]
-
-    @staticmethod
-    def _collect_proportional_verts(logic, seed_verts, distance, falloff, base_strength) -> dict:
-        '''Flood-fill connected edges from seed_verts up to distance (geodesic along edges).
-        Returns a dict of {bmv: scaled_strength} for verts outside the seed set.'''
-        import heapq
-
-        def falloff_strength(t):
-            '''t = 0 at seed, t = 1 at the radius boundary. Returns a [0,1] weight.'''
-            t = max(0.0, min(1.0, t))
-            return proportional_edit(falloff, 1.0 - t)
-
-        # Dijkstra-style flood fill along edges
-        dist_map: dict = {}   # bmv -> shortest geodesic distance from any seed vert
-        heap = []
-        for bmv in seed_verts:
-            dist_map[bmv] = 0.0
-            heapq.heappush(heap, (0.0, id(bmv), bmv))
-
-        while heap:
-            d, _, bmv = heapq.heappop(heap)
-            if d > dist_map.get(bmv, float('inf')):
-                continue
-            for bme in bmv.link_edges:
-                nb = bme.other_vert(bmv)
-                if nb.hide:
-                    continue
-                nd = d + (nb.co - bmv.co).length
-                if nd < dist_map.get(nb, float('inf')) and nd <= distance:
-                    dist_map[nb] = nd
-                    heapq.heappush(heap, (nd, id(nb), nb))
-
-        result = {}
-        for bmv, d in dist_map.items():
-            if bmv in seed_verts:
-                continue
-            t = d / distance
-            w = falloff_strength(t)
-            if w > 1e-6:
-                result[bmv] = w * base_strength
-        return result
 
     @staticmethod
     def _build_island_bvh(logic, seed_verts, rings: int = 3) -> 'BVHTree | None':

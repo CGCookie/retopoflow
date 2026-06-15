@@ -54,7 +54,8 @@ from ...addon_common.common.debug import debugger
 from ...addon_common.common.maths import Plane, Point
 from ...addon_common.common.resetter import Resetter
 
-from ..rfoperators.twist import twist_detect_symmetry, twist_fit_axis, twist_apply, TWIST_SENSITIVITY
+from ..rfoperators.twist import twist_detect_symmetry, twist_apply, TWIST_SENSITIVITY
+from ..common.bmesh_maths import fit_plane_of_verts
 from ..rfoperators.quickswitch import RFOperator_Relax_QuickSwitch, RFOperator_Tweak_QuickSwitch
 from ..rfoperators.transform import RFOperator_Translate, sync_projection_from_blender
 from ..rfoperators.maximize_watcher import RFOperator_MaximizeWatcher
@@ -449,7 +450,7 @@ class RFOperator_Contours_Twist(RFRegisterClass, bpy.types.Operator):
         self._mwi         = self._mw.inverted()
         self._initial_cos = {v: v.co.copy() for v in sel_verts}
         self._sym_verts, self._sym_axes = twist_detect_symmetry(context, sel_verts)
-        self._normal, self._center      = twist_fit_axis(sel_verts)
+        self._normal, self._center      = fit_plane_of_verts(sel_verts)
         self._initial_mouse_x = event.mouse_x
         context.window_manager.modal_handler_add(self)
         return {'RUNNING_MODAL'}

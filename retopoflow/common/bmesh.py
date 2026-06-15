@@ -21,12 +21,13 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy
 import bmesh
+import heapq
 from bpy.types import Mesh, Context, MirrorModifier
 from bmesh.types import BMVert, BMEdge, BMFace, BMesh
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 from mathutils.bvhtree import BVHTree
 from mathutils import Vector, Matrix
-from math import inf, isnan
+from math import inf, isnan, cos, radians
 from typing import Callable, Iterator, Sequence
 
 from ...addon_common.common.decorators import add_cache
@@ -38,6 +39,7 @@ from .maths import (
     distance_point_bmedge,
     distance2d_point_bmedge,
     closest_point_linesegment,
+    proportional_edit,
     Point,
     xform_point, xform_vector, xform_direction, xform_normal,
 )
@@ -464,9 +466,9 @@ def get_bmv_loop_pairs(bmv: BMVert) -> tuple[tuple[BMVert, BMVert], ...] | None:
     return tuple(pairs) if len(pairs) == 2 else None
 
 
-def get_bmv_next_loop_vert(prev, cur):
-    if any(e.is_boundary for e in cur.link_edges):
-        # Continue along the boundary only if we started on it
+def get_bmv_next_loop_vert(prev, cur, walk_boundaries=True, pole_angle_threshold=0):
+    ''' The next vert in an edge loop arriving at `cur` from `prev`. '''
+    if walk_boundaries and any(e.is_boundary for e in cur.link_edges):
         prev_edge = next((e for e in cur.link_edges if e.other_vert(cur) is prev), None)
         if prev_edge is None or not prev_edge.is_boundary:
             return None
@@ -474,14 +476,39 @@ def get_bmv_next_loop_vert(prev, cur):
             if e is not prev_edge and e.is_boundary:
                 return e.other_vert(cur)
         return None
-    # Regular interior vert: step straight via the opposing loop pair.
-    lps = get_bmv_loop_pairs(cur)
-    if not lps:
-        return None
-    for (p, n) in lps:
-        if p is prev: return n
-        if n is prev: return p
-    return None
+
+    e_in = next((e for e in cur.link_edges if e.other_vert(cur) == prev), None)
+    if e_in is None: return None
+    in_faces = set(e_in.link_faces)
+    clean = [e.other_vert(cur) for e in cur.link_edges
+             if e.other_vert(cur) != prev
+             and not any(f in in_faces for f in e.link_faces)]
+    if len(clean) == 1:
+        return clean[0]
+
+    if pole_angle_threshold <= 0: return None
+    d_in = cur.co - prev.co
+    if d_in.length < 1e-12: return None
+
+    # Project directions onto the tangent plane at cur so the straightness
+    # check works correctly on curved surfaces.
+    n = cur.normal
+    d_in_t = d_in - d_in.dot(n) * n
+    if d_in_t.length < 1e-12:
+        d_in_t = d_in  # incoming edge nearly parallel to normal so fall back to 3D
+    d_in_t = d_in_t.normalized()
+    best, best_dot = None, cos(radians(pole_angle_threshold))
+    for e in cur.link_edges:
+        o = e.other_vert(cur)
+        if o == prev: continue
+        d_out = o.co - cur.co
+        if d_out.length < 1e-12: continue
+        d_out_t = d_out - d_out.dot(n) * n
+        if d_out_t.length < 1e-12: continue
+        dot = d_in_t.dot(d_out_t.normalized())
+        if dot > best_dot:
+            best_dot, best = dot, o
+    return best
 
 
 def nearest_bmv_world(context, bm, matrix, matrix_inv, co_world, *, distance=1.84467e19, distance2d=10):
@@ -763,3 +790,68 @@ def is_bmvert_corner(bmv : BMVert) -> bool:
 
 def is_bmvert_on_ngon(bmv : BMVert) -> bool:
     return any(len(bmf.edges) > 4 for bmf in bmv.link_faces)
+
+
+def get_vert_connected(verts):
+    ''' Split a vertex collection into connected islands via shared edges.
+    Returns a list of vertex lists, one per island. '''
+    sel_set = set(verts)
+    edges   = {e for v in verts for e in v.link_edges}
+    adj     = {}
+    for e in edges:
+        v0, v1 = e.verts
+        if v0 not in sel_set or v1 not in sel_set:
+            continue
+        adj.setdefault(v0, []).append(v1)
+        adj.setdefault(v1, []).append(v0)
+
+    visited = set()
+    components = []
+    for start in verts:
+        if start in visited: continue
+        visited.add(start)
+        component = [start]
+        queue = list(adj.get(start, []))
+        qi = 0
+        while qi < len(queue):
+            nb = queue[qi]; qi += 1
+            if nb in visited: continue
+            visited.add(nb)
+            component.append(nb)
+            queue.extend(adj.get(nb, []))
+        components.append(component)
+    return components
+
+
+def get_falloff_verts(verts, mw, radius, falloff_type='SMOOTH', skip_hidden=True):
+    ''' Dijkstra BFS from verts. Returns {vert: falloff_weight} map, excluding verts beyond radius. '''
+    visited = {}
+    queue   = [(0.0, v.index, v) for v in verts]
+    while queue:
+        d, _, v = heapq.heappop(queue)
+        if v in visited:
+            continue
+        visited[v] = d
+        for e in v.link_edges:
+            nb = e.other_vert(v)
+            if skip_hidden and nb.hide:
+                continue
+            d_new = d + (mw @ v.co - mw @ nb.co).length
+            if d_new <= radius and nb not in visited:
+                heapq.heappush(queue, (d_new, nb.index, nb))
+    return {v: proportional_edit(falloff_type, 1.0 - d / radius) for v, d in visited.items()}
+
+
+def get_faces_of_verts(verts):
+    ''' Return the set of faces whose verts are all in `verts`. '''
+    vert_set   = set(verts)
+    seen_faces = set()
+    result     = set()
+    for v in verts:
+        for f in v.link_faces:
+            if f in seen_faces:
+                continue
+            seen_faces.add(f)
+            if all(fv in vert_set for fv in f.verts):
+                result.add(f)
+    return result
