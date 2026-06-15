@@ -821,21 +821,18 @@ class Relax_Logic:
                 force -= normal * force.dot(normal)
                 add_force(bmv, force, co, 1, 40)
 
-        def walk_loop_to_selection_boundary(origin, first_step, max_depth=200):
+        def walk_loop_to_selection_boundary(bmv, first_step, max_depth=200):
             ''' Walk the loop from origin through first_step to the first
-            UNSELECTED vert in that direction.
-
-            Returns (depth, first_unselected_vert):
+            unselected vert in that direction. Returns (depth, first_unselected_vert):
               depth=1, first_step  — first_step is already outside verts
               depth=k, vert        — vert is k hops away and unselected
-            Returns None for poles, mesh boundaries, or closed loops that never
-            exit the selection. '''
+            Returns None for poles, mesh boundaries, or closed loops that never exit the selection. '''
             if first_step not in verts:
-                # first_step is unselected — it is the immediate anchor
+                # first_step is unselected, it is the immediate anchor
                 return 1, first_step
-            prev, cur = origin, first_step
+            prev, cur = bmv, first_step
             depth = 1
-            seen = {origin}
+            seen = {bmv}
             while True:
                 seen.add(cur)
                 nxt = get_bmv_next_loop_vert(prev, cur)
@@ -1186,13 +1183,7 @@ class Relax_Logic:
             self.loop_guide_verts = (guide_edge.verts[0], guide_edge.verts[1])
 
         def seed_all_guide_loops():
-            ''' Standalone mode: elect one guide loop per connected cluster of retopo edges near a source feature.
-            Retopo edges near the same source feature are typically contiguous in the mesh — each connected
-            component in the guide-edge subgraph corresponds to one distinct source feature, so one loop is
-            elected per component. On a cube with three loops of sharp edges, this produces three elected loops.
-            Guide edges are only formed between verts whose source tangents are parallel; this prevents a retopo
-            edge that crosses from one source loop to another (e.g. near a cube corner) from bridging the two
-            clusters into one and collapsing multiple source loops into a single elected loop. '''
+            ''' Elect one guide loop per connected cluster of retopo edges near a source feature. '''
 
             # Compute the source-edge tangent for every vert that is near a source feature.
             # Two verts are on the same source loop when their tangents are parallel (|dot| > threshold).
@@ -1211,13 +1202,13 @@ class Relax_Logic:
             if not guide_edges:
                 return
 
-            # Build vert → guide edges adjacency for connectivity BFS
+            # Build vert to guide edges adjacency for connectivity BFS
             vert_to_guide = {}
             for bme in guide_edges:
                 for v in bme.verts:
                     vert_to_guide.setdefault(v, []).append(bme)
 
-            # Find connected components in the guide-edge subgraph
+            # Find connected components in the guide edge subgraph
             visited = set()
             components = []
             for seed in guide_edges:
@@ -1263,7 +1254,7 @@ class Relax_Logic:
             self.loop_guide_verts = None
 
         def update_source_context():
-            ''' Recompute which verts lie near/on the source edge and re-derive the promoted/demoted guide loop.
+            ''' Recompute which verts lie near/on the source edge and re-derive the promoted/demoted guide loops.
             This is position-dependent but only needs to run once per step and not once per RK4 sub-evaluation '''
             if self.source_edge_accel:
                 self.verts_near_source_edge = collect_verts_near_source_edge()
@@ -1275,9 +1266,9 @@ class Relax_Logic:
                 self.demoted_verts.clear()
                 self.loop_guide_verts = None
             elif is_brush_call:
-                # Brush: keep the elected loop's seed edge until it leaves the brush region, but re-derive
+                # Keep the elected loop's seed edge until it leaves the brush region, but re-derive
                 # promoted/demoted from it each step so a vert that snaps to a source corner mid-stroke is
-                # recognised as a corner now (loop terminates there), not only if it started on the corner.
+                # recognised as a corner for the rest of the stroke.
                 if self.loop_guide_verts is not None:
                     gv0, gv1 = self.loop_guide_verts
                     seed_bme = next((e for e in gv0.link_edges if e.other_vert(gv0) is gv1), None)
@@ -1294,7 +1285,7 @@ class Relax_Logic:
                 if self.verts_near_source_edge and not self.promoted_loop_verts:
                     seed_guide_loop()
             else:
-                # Standalone: recompute every step — one elected loop per distinct source feature cluster.
+                # Not a brush so recompute every step: one elected loop per distinct source feature cluster.
                 self.promoted_loop_verts.clear()
                 self.demoted_verts.clear()
                 if self.verts_near_source_edge:
@@ -1348,9 +1339,8 @@ class Relax_Logic:
                         # t = 0 at anchor_a, t = 1 at anchor_b
                         # span = depth_a + depth_b (hops across the full selection width)
                         t = depth_a / (depth_a + depth_b)
-                        # Snapshot position and normal now (before any Laplacian
-                        # step moves the anchor vert) so compute_loop_arc_target
-                        # always reconstructs the sphere from the correct geometry.
+                        # Capture position and normal so compute_loop_arc_target
+                        # always reconstructs from the correct geometry.
                         axes.append((Vector(anchor_a.co), bmv_compute_normal(anchor_a),
                                      t,
                                      Vector(anchor_b.co), bmv_compute_normal(anchor_b)))
@@ -1802,10 +1792,7 @@ class Relax_Logic:
                 for bmv, ideal in step_targets.items():
                     bmv.co = ideal   # full snap, refines P_cur for next pass
 
-            # Refresh face/vert normals so the viewport shading is correct
-            # after the convergence moves (bmesh.update_edit_mesh is called
-            # below but that alone doesn't recalc custom normals mid-frame).
-            self.bm.normal_update()
+            self.bm.normal_update() # Refresh normals so the viewport shading is correct
 
             # Apply strength-scaled fraction of the total correction
             for bmv in interp_verts:
