@@ -29,7 +29,7 @@ from mathutils.bvhtree import BVHTree
 from ..common.operator import RFRegisterClass
 from ..common.interface import draw_expandable_enum
 from ..common.accel import SourceAccel
-from ..common.maths import point_to_bvec3
+from ..common.maths import point_to_bvec3, proportional_edit
 from ..common.raycast import nearest_point_valid_sources
 from ..common.sources import draw_hard_surface_snapping
 from ..rftool_relax.relax_logic import Relax_Logic, RelaxOptions
@@ -51,54 +51,74 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
     # -------------------------------------------------------------------------
     iterations: IntProperty(
         name='Iterations',
-        description='Number of relax integration steps to apply',
-        min=1, max=100, default=50,
+        description='Number of times to run the relax simulation. Higher is smoother and slower',
+        min=1, max=100, default=25,
     )
     strength: FloatProperty(
         name='Strength',
-        description='How far vertices move per iteration — equivalent to brush strength',
+        description='How far vertices move per iteration',
         subtype='FACTOR',
         min=0.01, max=1.0, default=1,
     )
     smooth_vertices: BoolProperty(
         name='Smooth Vertices',
-        description='Average vertex locations (Laplacian smooth)',
+        description='Average vertex locations using Laplacian smoothing',
         default=True,
     )
     straighten_edges: BoolProperty(
         name='Straighten Edges',
-        description='Move each vertex toward making its connected edges straighter',
+        description='Move each vertex toward making its connected edges straighter, using loop information when possible',
         default=False,
     )
     average_edge_lengths: BoolProperty(
         name='Average Edge Lengths',
-        description='Squash / stretch each edge toward the average edge length',
+        description='Squash or stretch each edge toward the average edge length. Can cause skewing when used by itself',
         default=False,
     )
     equalize_faces: BoolProperty(
         name='Equalize Faces',
-        description='Even out face size and spread (slower)',
+        description='Push faces towards ideal geometric shapes and average their sizes',
         default=False,
     )
-    interpolate_loops: BoolProperty(
-        name='Interpolate Loops',
-        description=(
-            'Push vertices toward positions that linearly interpolate between '
-            'the unaffected boundary verts at each end of their loop axes. '
-            'Distributes vertices evenly along the surrounding loops without '
-            'straightening them — similar to Blender\'s Grid Fill (Simple Blending off)'
-        ),
+    shaping: EnumProperty(
+        name='Shaping',
+        description='Post-processing applied after each relax step to control overall shape',
+        items=[
+            ('NONE', 'None', 'No additional shaping'),
+            ('PRESERVE_VOLUME', 'Preserve Volume', 'Scales relaxed vertices so the mesh stays the same size'),
+            ('INTERPOLATE_LOOPS', 'Interpolate Loop Curvature',
+                "Uses the loop edges just outside the selection to create the loop's curvature. "
+                "Can be used to reconstruct a quad patch on a sphere, for example"),
+            ('SLIDE_EDGES', 'Slide Edges', 'Restrict vertex movement to be along their connected edges'),
+        ],
+        default='PRESERVE_VOLUME',
+    )
+    use_proportional_edit: BoolProperty(
+        name='Proportional Editing',
+        description='Relax nearby connected vertices with a falloff for the strength',
         default=False,
     )
-    preserve_volume: BoolProperty(
-        name='Preserve Volume',
-        description=(
-            'Scale the relaxed vertices so the mesh stays the same size as before. '
-            'Uses the standard cube-root-of-volume-ratio method: computes the mesh '
-            'volume before and after relaxation and scales by (V_before/V_after)^(1/3). '
-            'Works on both closed and open meshes'
-        ),
-        default=True,
+    proportional_distance: FloatProperty(
+        name='Distance',
+        description='Radius within which connected vertices are included',
+        subtype='DISTANCE',
+        min=0.001,
+        default=1.0,
+    )
+    proportional_falloff: EnumProperty(
+        name='Falloff',
+        description='Shape of the strength curve from center to edge of the proportional radius',
+        items=[
+            ('SMOOTH',         'Smooth',         'Smooth falloff (3t² - 2t³)',                'SMOOTHCURVE',   0),
+            ('SPHERE',         'Sphere',         'Spherical falloff (√(1 - t²))',            'SPHERECURVE',   1),
+            ('ROOT',           'Root',           'Root falloff (√(1 - t))',                  'ROOTCURVE',     2),
+            ('INVERSE_SQUARE', 'Inverse Square', 'Inverse-square falloff (1/(1+t))',          'INVERSESQUARECURVE', 3),
+            ('SHARP',          'Sharp',          'Sharp falloff (t²)',                        'SHARPCURVE',    4),
+            ('LINEAR',         'Linear',         'Linear falloff (1 - t)',                    'LINCURVE',      5),
+            ('CONSTANT',       'Constant',       'No falloff — all verts get full strength',  'NOCURVE',       6),
+            ('RANDOM',         'Random',         'Random falloff',                            'RNDCURVE',      7),
+        ],
+        default='SMOOTH',
     )
     snap_to: EnumProperty(
         name='Snap To',
@@ -264,6 +284,13 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
     def poll(cls, context):
         return context.mode == 'EDIT_MESH'
 
+    def invoke(self, context, event):
+        ts = context.tool_settings
+        self.use_proportional_edit  = ts.use_proportional_edit
+        self.proportional_distance  = ts.proportional_size
+        self.proportional_falloff   = ts.proportional_edit_falloff
+        return self.execute(context)
+
     def draw_warning(self, layout):
         row = layout.split(factor=0.4)
         row.alert = True
@@ -302,8 +329,7 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
         layout.use_property_decorate = False
         layout.prop(self, 'strength', slider=True)
         layout.prop(self, 'iterations', slider=True)
-        layout.row(heading='Preserve').prop(self, 'preserve_volume', text='Volume')
-        layout.row(heading="Interpolate").prop(self, 'interpolate_loops', text='Loops')
+        layout.prop(self, 'shaping', text='Shaping')
         layout.separator()
         layout.row(heading="Smooth").prop(self, 'smooth_vertices', text='Vertices')
         layout.row(heading="Average").prop(self, 'average_edge_lengths', text='Edges')
@@ -327,6 +353,16 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
         snap_header.label(text='Snapping')
         if snap_panel:
             self.draw_snapping_props(context, snap_panel, show_snap_to=not rf_is_running)
+
+        prop_header, prop_panel = layout.panel('relax_selected_proportional', default_closed=True)
+        prop_header.use_property_split=False
+        prop_header.prop(self, 'use_proportional_edit', text='Proportional Editing')
+        if prop_panel:
+            prop_panel.use_property_split = True
+            prop_panel.use_property_decorate = False
+            prop_panel.enabled = self.use_proportional_edit
+            prop_panel.prop(self, 'proportional_distance', text='Distance')
+            prop_panel.prop(self, 'proportional_falloff',  text='Falloff')
 
     def execute(self, context):
         from ..rfcore import RFCore
@@ -352,7 +388,8 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
             algorithm_straighten_edges=self.straighten_edges,
             algorithm_average_edge_lengths=self.average_edge_lengths,
             algorithm_equalize_faces=self.equalize_faces,
-            algorithm_interpolate_loops=self.interpolate_loops,
+            algorithm_interpolate_loops=self.shaping == 'INTERPOLATE_LOOPS',
+            algorithm_slide_edges=self.shaping == 'SLIDE_EDGES',
             source_edge_angle=self.source_edge_angle if self.source_edge_angle_enabled else math.pi,
             source_edge_seams=self.source_edge_seams,
             source_edge_creases=self.source_edge_creases,
@@ -381,28 +418,41 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
             self.report({'WARNING'}, 'Relax: no vertices remain after applying mask settings')
             return {'CANCELLED'}
 
+        # Build proportional vert set: flood-fill along connected edges within the radius,
+        # restricted to unselected verts so selected verts always get full strength.
+        vert_strength: dict = { bmv: self.strength for bmv in verts }
+        if self.use_proportional_edit and self.proportional_distance > 0:
+            prop_verts = self._collect_proportional_verts(
+                logic, verts, self.proportional_distance, self.proportional_falloff, self.strength
+            )
+            vert_strength.update(prop_verts)
+            verts = verts | set(prop_verts.keys())
+
         # Build island BVH now that logic and verts are available
         snap_bvh = None
         if not rf_is_running and self.snap_to == 'ORIGINAL_MESH':
             snap_bvh = self._build_island_bvh(logic, verts)
 
         # Capture volume before relaxation, cube root of volume ratio algorithm
-        vol_before = abs(logic.bm.calc_volume()) if self.preserve_volume else 0.0
+        preserve_volume = self.shaping == 'PRESERVE_VOLUME'
+        vol_before = abs(logic.bm.calc_volume()) if preserve_volume else 0.0
 
         # Use vert_strength and not pressure to keeps every algo within its stability bounds
-        vert_strength = { bmv: self.strength for bmv in verts }
         snap_unforced = bool(logic.sources) if rf_is_running else (self.snap_to != 'NONE')
         logic.relax_verts(context, verts, vert_strength, iterations=self.iterations, snap_bvh=snap_bvh, snap_unforced_verts=snap_unforced)
 
         # Volume preservation
-        if self.preserve_volume and vol_before > 1e-6:
+        if preserve_volume and vol_before > 1e-6:
             vol_after = abs(logic.bm.calc_volume())
             if vol_after > 1e-6:
                 scale = (vol_before / vol_after) ** (1.0 / 3.0)
                 if abs(scale - 1.0) > 1e-6:  # skip no-op
                     centroid = sum((bmv.co for bmv in verts), Vector()) / len(verts)
+                    strength_max = max(self.strength, 1e-8)
                     for bmv in verts:
-                        bmv.co = centroid + (bmv.co - centroid) * scale
+                        co_scaled = centroid + (bmv.co - centroid) * scale
+                        w = vert_strength.get(bmv, 0.0) / strength_max
+                        bmv.co = bmv.co.lerp(co_scaled, w)
                     if logic.sources or snap_bvh:
                         # Re-snap to surface so the scaled positions land back on the mesh
                         M  = logic.matrix_world
@@ -478,6 +528,47 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
             for obj in collection.objects
             if cls._is_snap_candidate(context, obj)
         ]
+
+    @staticmethod
+    def _collect_proportional_verts(logic, seed_verts, distance, falloff, base_strength) -> dict:
+        '''Flood-fill connected edges from seed_verts up to distance (geodesic along edges).
+        Returns a dict of {bmv: scaled_strength} for verts outside the seed set.'''
+        import heapq
+
+        def falloff_strength(t):
+            '''t = 0 at seed, t = 1 at the radius boundary. Returns a [0,1] weight.'''
+            t = max(0.0, min(1.0, t))
+            return proportional_edit(falloff, 1.0 - t)
+
+        # Dijkstra-style flood fill along edges
+        dist_map: dict = {}   # bmv -> shortest geodesic distance from any seed vert
+        heap = []
+        for bmv in seed_verts:
+            dist_map[bmv] = 0.0
+            heapq.heappush(heap, (0.0, id(bmv), bmv))
+
+        while heap:
+            d, _, bmv = heapq.heappop(heap)
+            if d > dist_map.get(bmv, float('inf')):
+                continue
+            for bme in bmv.link_edges:
+                nb = bme.other_vert(bmv)
+                if nb.hide:
+                    continue
+                nd = d + (nb.co - bmv.co).length
+                if nd < dist_map.get(nb, float('inf')) and nd <= distance:
+                    dist_map[nb] = nd
+                    heapq.heappush(heap, (nd, id(nb), nb))
+
+        result = {}
+        for bmv, d in dist_map.items():
+            if bmv in seed_verts:
+                continue
+            t = d / distance
+            w = falloff_strength(t)
+            if w > 1e-6:
+                result[bmv] = w * base_strength
+        return result
 
     @staticmethod
     def _build_island_bvh(logic, seed_verts, rings: int = 3) -> 'BVHTree | None':

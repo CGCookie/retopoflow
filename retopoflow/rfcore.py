@@ -58,7 +58,7 @@ RFTools = { rft.bl_idname: rft for rft in RFTool_Base.get_all_RFTools() }
 
 from .rfpanels import (
     general_panel, help_panel, menu_mesh, mesh_cleanup_panel, masking_panel, mirror_panel,
-    relax_algorithm_panel, tweaking_panel, tweak_snapping_panel, rfpanel_snapping, tools_pie,  # MUST IMPORT THIS _AFTER_ THE RFTOOLS ABOVE TO MAINTAIN ORDER!
+    relax_algorithm_panel, tweaking_panel, tweak_snapping_panel, rfpanel_snapping, tools_pie, rfmenu_context,  # MUST IMPORT THIS _AFTER_ THE RFTOOLS ABOVE TO MAINTAIN ORDER!
 
 )
 
@@ -152,7 +152,8 @@ class RFCore:
 
         bpy.types.VIEW3D_MT_mesh_add.append(RFCore.draw_menu_items)
         bpy.types.VIEW3D_MT_edit_mesh_vertices.append(menu_mesh.draw_vertex_menu_items)
-        bpy.types.VIEW3D_MT_edit_mesh_context_menu.append(menu_mesh.draw_vertex_menu_items)
+        bpy.types.VIEW3D_MT_edit_mesh_edges.append(menu_mesh.draw_edge_menu_items)
+        rfmenu_context.register()
         bpy.app.handlers.load_post.append(RFCore.handle_load_post)
 
         # track when RF modifies the mesh vs built-in Blender operator
@@ -208,7 +209,8 @@ class RFCore:
 
         bpy.types.VIEW3D_MT_mesh_add.remove(RFCore.draw_menu_items)
         bpy.types.VIEW3D_MT_edit_mesh_vertices.remove(menu_mesh.draw_vertex_menu_items)
-        bpy.types.VIEW3D_MT_edit_mesh_context_menu.remove(menu_mesh.draw_vertex_menu_items)
+        bpy.types.VIEW3D_MT_edit_mesh_edges.remove(menu_mesh.draw_edge_menu_items)
+        rfmenu_context.unregister()
         bpy.app.handlers.load_post.remove(RFCore.handle_load_post)
 
         AutoSave.unregister()

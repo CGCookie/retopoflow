@@ -19,13 +19,31 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+import bpy
+from bpy.types import Menu
 
-def draw_vertex_menu_items(self, context):
+
+class RF_MT_ContextMenu(Menu):
+    bl_idname = 'RF_MT_ContextMenu'
+    bl_label = 'Retopoflow'
+
+    def draw(self, context):
+        layout = self.layout
+        layout.operator("retopoflow.relax_selected", text="Relax Vertices")
+        layout.operator_context = 'INVOKE_REGION_WIN'
+        layout.operator("retopoflow.twist_loop", text="Twist Loops")
+
+
+def draw_context_menu_items(self, context):
+    self.layout.menu(RF_MT_ContextMenu.bl_idname)
     self.layout.separator()
-    self.layout.operator("retopoflow.relax_selected")
 
 
-def draw_edge_menu_items(self, context):
-    self.layout.separator()
-    self.layout.operator_context = 'INVOKE_REGION_WIN'
-    self.layout.operator("retopoflow.twist_loop")
+def register():
+    bpy.utils.register_class(RF_MT_ContextMenu)
+    bpy.types.VIEW3D_MT_edit_mesh_context_menu.prepend(draw_context_menu_items)
+
+
+def unregister():
+    bpy.types.VIEW3D_MT_edit_mesh_context_menu.remove(draw_context_menu_items)
+    bpy.utils.unregister_class(RF_MT_ContextMenu)
