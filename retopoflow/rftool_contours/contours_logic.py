@@ -40,7 +40,8 @@ from ..common.bmesh import (
 from ..common.maths import (
     bvec_to_point, point_to_bvec3,
     pt_x0, pt_y0, pt_z0,
-    lerp, get_closest_axis, snap_plane_to_direction
+    lerp, get_closest_axis, snap_plane_to_direction,
+    closest_point_linesegment,
 )
 from ..common.raycast import raycast_ray_valid_sources, nearest_point_valid_sources, nearest_normal_valid_sources
 from ...addon_common.common import bmesh_ops as bmops
@@ -59,6 +60,7 @@ class Contours_Logic:
     hit : dict[str, ...]
     hits : list[dict[str, ...]]
     plane : Plane
+    plane_original : Plane
     circle_hit : tuple[float, ...]
     cut_orientation : str
     initial : bool
@@ -69,6 +71,7 @@ class Contours_Logic:
     last_fast_depth : int | None
     sample_points : int
     last_sample_points : int | None
+    last_cut_orientation : str | None
 
     action : str
     show_span_count : bool
@@ -95,8 +98,14 @@ class Contours_Logic:
         self.hit = hit
         self.hits = hits
         self.cut_orientation = cut_orientation
+        self.last_cut_orientation = None
+        self.plane_original = plane
         self.plane = snap_plane_to_direction(plane, hit, cut_orientation)
         self.circle_hit = hyperLSQ([list(self.plane.w2l_point(pt).xy) for pt in circle_points if pt])
+        if not math.isfinite(self.circle_hit[0]) or not math.isfinite(self.circle_hit[1]):
+            # fall back to the stroke hit projected onto the cut plane
+            hit_local = self.plane.w2l_point(hit['co_world'])
+            self.circle_hit = (hit_local.x, hit_local.y, 0.0, 0.0)
         self.process_source_method = process_source_method
         self.last_process_source_method = None
         self.fast_depth = fast_depth
@@ -150,12 +159,14 @@ class Contours_Logic:
 
     def process_source(self, context:Context) -> bool:
         # process source only once, unless settings have changed
-        if not self.initial and self.last_process_source_method == self.process_source_method and self.last_fast_depth == self.fast_depth and self.last_sample_points == self.sample_points:
+        if not self.initial and self.last_process_source_method == self.process_source_method and self.last_fast_depth == self.fast_depth and self.last_sample_points == self.sample_points and self.last_cut_orientation == self.cut_orientation:
             # print(f'skipping re-processing source')
             return True
         self.last_process_source_method = self.process_source_method
         self.last_fast_depth = self.fast_depth
         self.last_sample_points = self.sample_points
+        self.last_cut_orientation = self.cut_orientation
+        self.plane = snap_plane_to_direction(self.plane_original, self.hit, self.cut_orientation)
 
         match self.process_source_method:
             case 'fast':
@@ -420,37 +431,55 @@ class Contours_Logic:
                 if my and abs(bmv.co.y) < threshold: sym_verts.add(bmv)
                 if mz and abs(bmv.co.z) < threshold: sym_verts.add(bmv)
 
+        # Arithmetic centroid is more stable than hyperLSQ circle center for non-circular cross-sections
+        center_new = Vector((0.0, 0.0, 0.0))
+        for bmv in nbmvs:
+            center_new += Vector(bmv.co)
+        center_new /= len(nbmvs)
+        center_src = Vector((0.0, 0.0, 0.0))
+        for pt in self.points:
+            center_src += Vector(pt)
+        center_src /= len(self.points)
+
         # compute xforms to roughly move new geometry to match cut
         # instead of scaling based on circle radii, scale X and Y independently based on SVD if fit?
         # the two axes of two planes might not align....  although they _should_ if we're bridging
-        T0 = Matrix.Translation(-nplane_fit.l2w_point(Point((ncircle_fit[0], ncircle_fit[1], 0))))
-        S  = Matrix.Scale(circle_fit[2] / ncircle_fit[2], 4)
+        T0 = Matrix.Translation(-center_new)
+        S  = Matrix.Scale(circle_fit[2] / ncircle_fit[2], 4) if ncircle_fit[2] > 1e-6 else Matrix.Scale(1.0, 4)
         R  = Matrix.Rotation(-plane_fit.n.angle(nplane_fit.n), 4, plane_fit.n.cross(nplane_fit.n))
         RT = Matrix.Rotation(self.twist, 4, plane_fit.n)
-        T1 = Matrix.Translation(plane_fit.l2w_point(Point((circle_fit[0], circle_fit[1], 0))))
+        T1 = Matrix.Translation(center_src)
         xform = T1 @ RT @ R @ S @ T0
 
-        # raycast to nearest surface with fallback to snapping
+        # Snap each vertex to the nearest point on the cross-section path.
+        # nearest_point_valid_sources can snap to the wrong face when a vertex lands near a face boundary
+        pts = self.points
+        n_pts = len(pts)
+        n_segs = n_pts if self.cyclic else n_pts - 1
         for bmv in nbmvs:
-            # First, transform point.
             bmv.co = xform @ bmv.co
 
             npt_local = bvec_to_point(bmv.co)
             npt_world = point_to_bvec3(self.matrix_world @ npt_local)
 
-            # Get closest point on source-mesh surface.
-            npt_world_snapped = nearest_point_valid_sources(context, npt_world, world=True, respect_clip_planes=True)
+            best_pt = None
+            best_dist2 = float('inf')
+            for i in range(n_segs):
+                p0 = Vector(pts[i])
+                p1 = Vector(pts[(i + 1) % n_pts])
+                closest = closest_point_linesegment(npt_world, p0, p1)
+                if closest is not None:
+                    d2 = (npt_world - closest).length_squared
+                    if d2 < best_dist2:
+                        best_dist2 = d2
+                        best_pt = closest
 
-            if npt_world_snapped:
-                npt_world_new = npt_world_snapped
+            if best_pt is not None:
+                bmv.co = self.matrix_world_inv @ best_pt
             else:
-                # Fallback.
-                npt_world_new = npt_world
-
-            if npt_world_new is not None:
-                bmv.co = self.matrix_world_inv @ npt_world_new
-            else:
-                bmv.co = npt_local
+                npt_world_snapped = nearest_point_valid_sources(context, npt_world, world=True, respect_clip_planes=True)
+                npt_world_new = npt_world_snapped if npt_world_snapped else npt_world
+                bmv.co = self.matrix_world_inv @ npt_world_new if npt_world_new is not None else npt_local
 
         # re-pin any verts that were on a symmetry plane so twist can't move them off
         for bmv in sym_verts:
@@ -625,7 +654,6 @@ class Contours_Logic:
     def process_source_fast(self, context:Context) -> bool:
         plane_cut = self.plane
         hit_obj = self.hit['object']
-        M = hit_obj.matrix_world
 
         center_plane = Vector((self.circle_hit[0], self.circle_hit[1], 0, 1))
 
@@ -635,13 +663,18 @@ class Contours_Logic:
         # Falls back to the shallower result if the mesh has fewer surfaces than requested.
         if self.fast_depth >= 2:
             hit_world = self.hit['co_world']
-            inward_dir = -Vector(self.hit['no_world'])
-            n_inward = 2 * (self.fast_depth - 1) + 1
-            inward_hits = self._raycast_hits(context, hit_world, inward_dir, n_inward)
-            if inward_hits:
-                midpoint = (hit_world + inward_hits[-1]) / 2
-                midpoint_local = plane_cut.w2l_point(midpoint)
-                center_plane = Vector((midpoint_local.x, midpoint_local.y, 0, 1))
+            no_world = Vector(self.hit['no_world']).normalized()
+            plane_n = Vector(plane_cut.n).normalized()
+            # Project no_world onto the cut plane so the cast stays within the cross-section.
+            inward = no_world - no_world.dot(plane_n) * plane_n
+            inward.negate()
+            if inward.length > 1e-6:
+                n_inward = 2 * (self.fast_depth - 1) + 1
+                inward_hits = self._raycast_hits(context, hit_world, inward.normalized(), n_inward)
+                if inward_hits:
+                    midpoint = (hit_world + inward_hits[-1]) / 2
+                    midpoint_local = plane_cut.w2l_point(midpoint)
+                    center_plane = Vector((midpoint_local.x, midpoint_local.y, 0, 1))
 
         nsamples = self.sample_points
         dirs_plane = [
@@ -664,7 +697,7 @@ class Contours_Logic:
             # Falls back to a shallower hit if the mesh has fewer surfaces than requested.
             points_world = []
             for dir_world in dirs_world:
-                hits = self._raycast_hits(context, center_world, dir_world, self.fast_depth)
+                hits = self._raycast_hits(context, center_world, dir_world, 2 * (self.fast_depth - 1))
                 points_world.append(hits[-1] if hits else None)
 
         points = [ self.matrix_world_inv @ pt_world for pt_world in points_world if pt_world ]
@@ -687,6 +720,12 @@ class Contours_Logic:
         plane_fit = Plane.fit_to_points(points)
         circle_fit = hyperLSQ([list(plane_fit.w2l_point(pt).xy) for pt in points])
         path_length = sum((pt0 - pt1).length for (pt0, pt1) in iter_pairs(points, cyclic))
+
+        if circle_fit[3] > circle_fit[2]:
+            print(
+                f'CONTOURS FAST: poor circle fit (sigma={circle_fit[3]:.4f} > ' +
+                f'radius={circle_fit[2]:.4f}) — {len(points)} pts, depth={self.fast_depth}'
+            )
 
         self.points = points                            # points where cut crosses source (target space)
         self.cyclic = cyclic                            # is cut cyclic (loop) or a strip?
@@ -740,6 +779,7 @@ class Contours_Logic:
         ####################################################################################################
         # handle cutting across mirror planes
 
+        points = [self.matrix_world_inv @ pt for pt in points]
         points, mirror_clipped_loop = self.handle_mirrors(context, points)
         if mirror_clipped_loop: cyclic = False
 
@@ -750,8 +790,6 @@ class Contours_Logic:
 
         ####################################################################################################
         # compute useful statistics about points
-
-        points = [self.matrix_world_inv @ pt for pt in points]
         plane_fit = Plane.fit_to_points(points)
         circle_fit = hyperLSQ([list(plane_fit.w2l_point(pt).xy) for pt in points])
         path_length = sum((pt0 - pt1).length for (pt0, pt1) in iter_pairs(points, cyclic))
@@ -983,34 +1021,44 @@ class Contours_Logic:
             return not my or (1 if co.y > 0 else -1) == sy
         def correct_z(co:Vector) -> bool:
             return not mz or (1 if co.z > 0 else -1) == sz
-        def correct_xyz(co:Vector) -> bool:
-            return correct_x(co) and correct_y(co) and correct_z(co)
 
-        if mx and any(not correct_x(pt) for pt in points) and any(correct_x(pt) for pt in points):
-            l = len(points)
-            idx = next((i for i in range(l) if not correct_x(points[i]) and correct_x(points[(i+1)%l])), 0)
-            points = points[idx:] + points[:idx]
-            idx = next((i for i in range(1, l) if correct_x(points[i-1]) and not correct_x(points[i])), 0)
-            points = points[:idx+1]
-            points = [pt_x0(points[0], points[1])] + points[1:-2] + [pt_x0(points[-2], points[-1])]
-            mirror_clipped_loop = True
+        def clip_loop(pts, correct_fn, boundary_fn):
+            l = len(pts)
+            idx = next((i for i in range(l) if not correct_fn(pts[i]) and correct_fn(pts[(i+1)%l])), 0)
+            pts = pts[idx:] + pts[:idx]
+            cut = next((i for i in range(1, l) if correct_fn(pts[i-1]) and not correct_fn(pts[i])), None)
+            if cut is None:
+                if len(pts) < 2: return pts
+                return [boundary_fn(pts[0], pts[1])] + pts[1:-1] + [boundary_fn(pts[-1], pts[0])]
+            pts = pts[:cut+1]
+            if len(pts) < 2: return pts
+            return [boundary_fn(pts[0], pts[1])] + pts[1:-2] + [boundary_fn(pts[-2], pts[-1])]
 
-        if my and any(not correct_y(pt) for pt in points) and any(correct_y(pt) > 0 for pt in points):
-            l = len(points)
-            idx = next((i for i in range(l) if not correct_y(points[i]) and correct_y(points[(i+1)%l])), 0)
-            points = points[idx:] + points[:idx]
-            idx = next((i for i in range(1, l) if correct_y(points[i-1]) and not correct_y(points[i])), 0)
-            points = points[:idx+1]
-            points = [pt_y0(points[0], points[1])] + points[1:-2] + [pt_y0(points[-2], points[-1])]
-            mirror_clipped_loop = True
+        def clip_path(pts, correct_fn, boundary_fn):
+            result = []
+            for i, cur in enumerate(pts):
+                if i == 0:
+                    if correct_fn(cur): result.append(cur)
+                else:
+                    prev, prev_ok, cur_ok = pts[i-1], correct_fn(pts[i-1]), correct_fn(cur)
+                    if not prev_ok and cur_ok:
+                        result.append(boundary_fn(prev, cur))
+                        result.append(cur)
+                    elif prev_ok and not cur_ok:
+                        result.append(boundary_fn(prev, cur))
+                    elif cur_ok:
+                        result.append(cur)
+            return result
 
-        if mz and any(not correct_z(pt) for pt in points) and any(correct_z(pt) for pt in points):
-            l = len(points)
-            idx = next((i for i in range(l) if not correct_z(points[i]) and correct_z(points[(i+1)%l])), 0)
-            points = points[idx:] + points[:idx]
-            idx = next((i for i in range(1, l) if correct_z(points[i-1]) and not correct_z(points[i])), 0)
-            points = points[:idx+1]
-            points = [pt_z0(points[0], points[1])] + points[1:-2] + [pt_z0(points[-2], points[-1])]
+        for active, correct_fn, boundary_fn in [
+            (mx, correct_x, pt_x0),
+            (my, correct_y, pt_y0),
+            (mz, correct_z, pt_z0),
+        ]:
+            if not active: continue
+            if not any(not correct_fn(p) for p in points): continue
+            if not any(correct_fn(p) for p in points): continue
+            points = (clip_path if mirror_clipped_loop else clip_loop)(points, correct_fn, boundary_fn)
             mirror_clipped_loop = True
 
         return (points, mirror_clipped_loop)

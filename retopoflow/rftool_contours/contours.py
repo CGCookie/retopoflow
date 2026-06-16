@@ -96,9 +96,9 @@ class RFOperator_Contours_Insert_Properties:
         name='Process Source Method',
         description="Source processing method",
         items=[
-            ('walk', 'Walk', 'Process source accurately by walking the source mesh (slow but accurate)'),
-            ('skip', 'Skip', 'Process source approximately by skipping about the source mesh'),
-            ('fast', 'Fast', 'Process source approximately (fast but inaccurate)'),
+            ('walk', 'Walk', 'Process source by walking every face along the source mesh. Slow but very accurate'),
+            ('skip', 'Skip', 'Process source by making many small jumps along the source mesh and snapping back to it. Works better on denser meshes'),
+            ('fast', 'Fast', 'Process source by raycasing into the mesh to find its volume center and then raycast in a circle to find the surface. Very fast but less accurate'),
         ],
         default='walk',
     )
@@ -123,14 +123,14 @@ class RFOperator_Contours_Insert_Properties:
         min=0.10,
         max=1.00,
     )
-    cut_orientation: bpy.props.EnumProperty(               # pyright: ignore [reportUninitializedInstanceVariable]
+    cut_orientation: bpy.props.EnumProperty(                  # pyright: ignore [reportUninitializedInstanceVariable]
         name='Cut Orientation',
-        description='How the cut plane is aligned before processing',
+        description='How the cut plane normal is aligned. Controls which axis the loop encircles',
         items=[
-            ('world',  'World',  'Align the cut to the closest world axis', 'ORIENTATION_GLOBAL', 0),
-            ('local',  'Local',  'Align the cut to the closest local axis of the source object', 'ORIENTATION_LOCAL', 1),
-            ('normal', 'Normal', 'Align the cut to the face normal under the stroke', 'ORIENTATION_LOCAL', 2),
-            ('stroke', 'View', 'Align the cut to the direction of the stroke on screen', 'ORIENTATION_VIEW', 3),
+            ('world',  'World',  'Align to the closest world axis', 'ORIENTATION_GLOBAL', 0),
+            ('local',  'Local',  'Align to the closest local axis of the source object', 'ORIENTATION_LOCAL', 1),
+            ('normal', 'Normal', 'Align to the face normal under the stroke', 'ORIENTATION_LOCAL', 2),
+            ('stroke', 'View',   'Align to the stroke direction on screen', 'ORIENTATION_VIEW', 3),
         ],
         default='stroke',
     )
@@ -198,6 +198,7 @@ class RFOperator_Contours_Insert(
             twist=logic.twist,
             is_cycle=logic.cyclic,
             loop_count=logic.loop_count,
+            cut_orientation=logic.cut_orientation,
         )
 
     def draw(self, context):
@@ -219,9 +220,10 @@ class RFOperator_Contours_Insert(
             layout.prop(self, 'loop_count', text='Loops')
         if logic.show_twist:
             layout.prop(self, 'twist', text='Twist')
+        layout.prop(self, 'cut_orientation', text='Orientation')
         layout.row(heading='Cyclic').prop(self, 'is_cycle', text='')
 
-        layout.prop(self, 'process_source_method', text='Method')
+        layout.prop(self, 'process_source_method', text='Method', expand=True)
         if self.process_source_method == 'fast':
             layout.prop(self, 'fast_depth', text='Depth')
             layout.prop(self, 'sample_points', text='Samples')
@@ -236,6 +238,7 @@ class RFOperator_Contours_Insert(
         logic.twist                 = self.twist
         logic.cyclic                = self.is_cycle
         logic.loop_count            = self.loop_count
+        logic.cut_orientation       = self.cut_orientation
 
         try:
             logic.update(context)
@@ -495,11 +498,7 @@ class RFTool_Contours(RFTool_Base):
             layout.label(text='Insert:')
             layout.prop(props_contours, 'span_count')
             layout.prop(props_contours, 'cut_orientation', text='')
-            layout.prop(props_contours, 'process_source_method', text=f'')
-            if props_contours.process_source_method == 'fast':
-                layout.prop(props_contours, 'fast_depth', text=f'Depth')
-                layout.prop(props_contours, 'sample_width', text=f'Width')
-                layout.prop(props_contours, 'sample_points', text=f'Samples')
+            layout.popover('RF_PT_ContoursMethod', text=props_contours.process_source_method.capitalize())
             draw_line_separator(layout)
             row = layout.row(align=True)
             row.prop(props_contours, 'select_loops', text='Loops', toggle=True)
@@ -518,12 +517,12 @@ class RFTool_Contours(RFTool_Base):
             header.label(text="Insert")
             if panel:
                 panel.prop(props_contours, 'span_count')
-                panel.prop(props_contours, 'cut_orientation', text='Direction')
-                panel.prop(props_contours, 'process_source_method', text=f'Method')
+                panel.prop(props_contours, 'cut_orientation', text='Orientation')
+                panel.prop(props_contours, 'process_source_method', text='Method', expand=True)
                 if props_contours.process_source_method == 'fast':
-                    panel.prop(props_contours, 'fast_depth', text=f'Depth')
-                    panel.prop(props_contours, 'sample_width', text=f'Width')
-                    panel.prop(props_contours, 'sample_points', text=f'Samples')
+                    panel.prop(props_contours, 'fast_depth', text='Depth')
+                    panel.prop(props_contours, 'sample_width', text='Width')
+                    panel.prop(props_contours, 'sample_points', text='Samples')
             draw_tweaking_panel(context, layout)
             draw_snapping_panel(context, layout, idname='contours_snapping_panel')
             draw_cleanup_panel(context, layout)

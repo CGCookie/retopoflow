@@ -223,10 +223,47 @@ def get_closest_axis(normal: Vector, axes: list[Vector]) -> Vector:
                 best_dot, best = d, candidate
     return best
 
+def snap_plane_x_to_direction(plane: Plane, hit: dict, orientation: str, context) -> Plane:
+    ''' Return a new plane with the same normal but with its local X axis snapped to `orientation`. '''
+    if orientation == 'stroke': return plane
+
+    origin  = plane.o
+    normal  = Vector(plane.n)
+    view_dir = view_forward_direction(context)
+
+    # Recover approximate stroke direction (in-plane, perpendicular to view).
+    stroke_dir = view_dir.cross(normal)
+    if stroke_dir.length < 0.01:
+        return plane  # view nearly parallel to normal, can't recover stroke direction
+    stroke_dir.normalize()
+
+    if orientation == 'world':
+        axes = [Vector((1, 0, 0)), Vector((0, 1, 0)), Vector((0, 0, 1))]
+    elif orientation == 'local':
+        M3 = hit['object'].matrix_world.to_3x3()
+        axes = [M3.col[i].normalized() for i in range(3)]
+    else:
+        return plane
+
+    best_x, best_dot = stroke_dir, -2.0
+    for ax in axes:
+        for candidate in (ax, -ax):
+            # Project candidate onto the cut plane (remove normal component).
+            proj = candidate - candidate.dot(normal) * normal
+            if proj.length < 0.01:
+                continue  # axis is parallel to normal, useless as an in-plane direction
+            proj.normalize()
+            d = stroke_dir.dot(proj)
+            if d > best_dot:
+                best_dot = d
+                best_x = proj
+
+    return Plane(origin, n=normal, x=best_x)
+
+
 def snap_plane_to_direction(plane: Plane, hit: dict, orientation: str) -> Plane:
     '''Return a new plane with the same origin but with its normal aligned per `orientation`.'''
-    if orientation == 'stroke':
-        return plane
+    if orientation == 'stroke': return plane
 
     origin = plane.o
     stroke_normal = Vector(plane.n)
