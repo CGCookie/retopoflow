@@ -713,6 +713,21 @@ class Contours_Logic:
 
         points_world = [pt for pt in points_world if pt is not None]
 
+        # Normalize winding so rings bridged from opposite sides of the mesh don't twist
+        if len(points_world) > 2:
+            plane_n = Vector(plane_cut.l2w_direction(Vector((0, 0, 1))))
+            comps = [abs(plane_n.x), abs(plane_n.y), abs(plane_n.z)]
+            dom = comps.index(max(comps))
+            want_ccw = (plane_n.x, plane_n.y, plane_n.z)[dom] > 0
+            pts_local = [plane_cut.w2l_point(Vector(p)) for p in points_world]
+            n_ring = len(pts_local)
+            signed_area = sum(
+                pts_local[i].x * pts_local[(i+1) % n_ring].y - pts_local[(i+1) % n_ring].x * pts_local[i].y
+                for i in range(n_ring)
+            ) / 2
+            if (signed_area > 0) != want_ccw:
+                points_world = [points_world[0]] + list(reversed(points_world[1:]))
+
         if self.refine_steps > 0 and len(points_world) >= 3:
             plane_normal_world = Vector(plane_cut.l2w_direction(Vector((0, 0, 1))))
             pts_w = [Vector(p) for p in points_world]
