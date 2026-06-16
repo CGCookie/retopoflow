@@ -71,6 +71,10 @@ class Contours_Logic:
     last_fast_depth : int | None
     sample_points : int
     last_sample_points : int | None
+    refine_steps : int
+    last_refine_steps : int | None
+    skip_step_size : float
+    last_skip_step_size : float | None
     last_cut_orientation : str | None
 
     action : str
@@ -94,7 +98,7 @@ class Contours_Logic:
     path_length : float | None
     mirror_clipped_loop : bool | None
 
-    def __init__(self, context:Context, hit:dict[str,...], plane:Plane, circle_points:list[Vector], span_count:int, process_source_method:str, hits:list[dict[str, ...]], cut_orientation:str='stroke', fast_depth:int=1, sample_points:int=100):
+    def __init__(self, context:Context, hit:dict[str,...], plane:Plane, circle_points:list[Vector], span_count:int, process_source_method:str, hits:list[dict[str, ...]], cut_orientation:str='stroke', fast_depth:int=1, sample_points:int=100, refine_steps:int=3, skip_step_size:float=0.5):
         self.hit = hit
         self.hits = hits
         self.cut_orientation = cut_orientation
@@ -112,6 +116,10 @@ class Contours_Logic:
         self.last_fast_depth = None
         self.sample_points = sample_points
         self.last_sample_points = None
+        self.refine_steps = refine_steps
+        self.last_refine_steps = None
+        self.skip_step_size = skip_step_size
+        self.last_skip_step_size = None
 
         self.action = ''
         self.initial = True
@@ -159,12 +167,14 @@ class Contours_Logic:
 
     def process_source(self, context:Context) -> bool:
         # process source only once, unless settings have changed
-        if not self.initial and self.last_process_source_method == self.process_source_method and self.last_fast_depth == self.fast_depth and self.last_sample_points == self.sample_points and self.last_cut_orientation == self.cut_orientation:
+        if not self.initial and self.last_process_source_method == self.process_source_method and self.last_fast_depth == self.fast_depth and self.last_sample_points == self.sample_points and self.last_refine_steps == self.refine_steps and self.last_skip_step_size == self.skip_step_size and self.last_cut_orientation == self.cut_orientation:
             # print(f'skipping re-processing source')
             return True
         self.last_process_source_method = self.process_source_method
         self.last_fast_depth = self.fast_depth
         self.last_sample_points = self.sample_points
+        self.last_refine_steps = self.refine_steps
+        self.last_skip_step_size = self.skip_step_size
         self.last_cut_orientation = self.cut_orientation
         self.plane = snap_plane_to_direction(self.plane_original, self.hit, self.cut_orientation)
 
@@ -701,6 +711,47 @@ class Contours_Logic:
                 hits = self._raycast_hits(context, center_world, dir_world, 2 * (self.fast_depth - 1))
                 points_world.append(hits[-1] if hits else None)
 
+        points_world = [pt for pt in points_world if pt is not None]
+
+        if self.refine_steps > 0 and len(points_world) >= 3:
+            plane_normal_world = Vector(plane_cut.l2w_direction(Vector((0, 0, 1))))
+            pts_w = [Vector(p) for p in points_world]
+            for _ in range(self.refine_steps):
+                n_w = len(pts_w)
+                lengths = [(pts_w[(i+1) % n_w] - pts_w[i]).length for i in range(n_w)]
+                threshold = sorted(lengths)[int(0.75 * n_w)]
+                new_pts_w = []
+                for i in range(n_w):
+                    p0 = pts_w[i]
+                    p1 = pts_w[(i+1) % n_w]
+                    new_pts_w.append(p0)
+                    if lengths[i] < threshold:
+                        continue
+                    m = (p0 + p1) / 2
+                    # Surface check before raycasting
+                    m_snapped = nearest_point_valid_sources(context, m, world=True, respect_clip_planes=True)
+                    if m_snapped is not None and (Vector(m_snapped) - m).length < lengths[i] * 0.05:
+                        new_pts_w.append(m)
+                        continue
+                    # Refinement, raycast ± along the 2D segment normal
+                    seg = p1 - p0
+                    inplane_n = plane_normal_world.cross(seg)
+                    if inplane_n.length_squared < 1e-12:
+                        new_pts_w.append(m)
+                        continue
+                    inplane_n.normalize()
+                    nudge = max(1e-4, seg.length * 1e-3)
+                    hit_a = raycast_ray_valid_sources(context, (m + inplane_n * nudge,  inplane_n),  world=True, respect_clip_planes=True)
+                    hit_b = raycast_ray_valid_sources(context, (m - inplane_n * nudge, -inplane_n), world=True, respect_clip_planes=True)
+                    candidates = []
+                    for h in (hit_a, hit_b):
+                        if h is None: continue
+                        lp = plane_cut.w2l_point(h); lp.z = 0
+                        candidates.append(Vector(plane_cut.l2w_point(lp)))
+                    new_pts_w.append(min(candidates, key=lambda h: (h - m).length_squared) if candidates else m)
+                pts_w = new_pts_w
+            points_world = pts_w
+
         points = [ self.matrix_world_inv @ pt_world for pt_world in points_world if pt_world ]
         cyclic = True
         mirror_clipped_loop = False
@@ -742,7 +793,7 @@ class Contours_Logic:
 
         pt = self.hit['co_world']
         pt0, pt1 = self.hits[0]['co_world'], self.hits[-1]['co_world']
-        dist = 0.5 * ((pt - pt0).length + (pt - pt1).length) / 2
+        dist = ((pt - pt0).length + (pt - pt1).length) / 4 * self.skip_step_size
 
         init_step = pt1 - pt # pt1 = hits[-1] is the farthest positive hit
         if init_step.length_squared < 1e-12:

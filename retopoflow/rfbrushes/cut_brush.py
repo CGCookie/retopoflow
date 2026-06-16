@@ -187,3 +187,8 @@ class RFBrush_Cut(RFBrush_Base):
             if self.operator.process_source_method == 'fast':
                 draw.vertex(self.operator.v_to_point(-1, self.mousedown, self.mouse))
                 draw.vertex(self.operator.v_to_point(+1, self.mousedown, self.mouse))
+            elif self.operator.process_source_method == 'skip':
+                s = self.operator.skip_step_size
+                stroke = self.mouse - self.mousedown
+                draw.vertex(self.mousedown + stroke * (0.5 - 0.125 * s))
+                draw.vertex(self.mousedown + stroke * (0.5 + 0.125 * s))

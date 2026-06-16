@@ -23,13 +23,18 @@ import bpy
 
 
 def draw_contours_method_options(context, layout, props):
-    layout.use_property_split = True
+    layout.use_property_split = False
     layout.use_property_decorate = False
-    layout.column().prop(props, 'process_source_method', text='Method', expand=True)
+    layout.row().prop(props, 'process_source_method', text='Method', expand=True)
     if props.process_source_method == 'fast':
-        layout.prop(props, 'fast_depth',    text='Depth')
+        layout.use_property_split = True
+        layout.separator()
         layout.prop(props, 'sample_width',  text='Width')
+        layout.prop(props, 'fast_depth',    text='Depth')
         layout.prop(props, 'sample_points', text='Samples')
+        layout.prop(props, 'refine_steps',  text='Iterations')
+    elif props.process_source_method == 'skip':
+        layout.prop(props, 'skip_step_size', text='Step Size')
 
 
 def draw_contours_method_panel(context, layout, props):

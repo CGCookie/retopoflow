@@ -96,16 +96,13 @@ class RFOperator_Contours_Insert_Properties:
         name='Process Source Method',
         description="Source processing method",
         items=[
-            ('walk', 'Walk',
-                'Process source by walking every face along the source mesh. ' +
-                '\nSlow but very accurate.'
-            ),
-            ('skip', 'Skip',
-                'Process source by making many small jumps along the source mesh and snapping back to it. ' +
-                '\nWorks better on denser meshes.'
-            ),
+            ('walk', 'Walk', 'Walk every face along the source mesh. Slow but very accurate.'),
+            # ('skip', 'Skip',
+            #     'Process source by making many small jumps along the source mesh and snapping back to it. ' +
+            #     '\nWorks best on dense meshes of low complexity.'
+            # ),
             ('fast', 'Fast',
-                'Process source by raycasing into the mesh to find its volume center and then raycast in a circle to find the surface. ' +
+                'Raycast into the mesh to find its volume center, raycast in a circle to find the surface, and refine that result with more raycasts. ' +
                 '\nVery fast but less accurate.'
             ),
         ],
@@ -113,24 +110,38 @@ class RFOperator_Contours_Insert_Properties:
     )
     fast_depth: bpy.props.IntProperty(                   # pyright: ignore [reportUninitializedInstanceVariable]
         name='Depth',
-        description='Number of surfaces to pass through when raycasting. For example, a regular cylinder needs 1 while a solidified cylinder needs 2.)',
+        description='Number of surfaces to pass through when raycasting. For example, a regular cylinder needs 1 while a solidified cylinder needs 2.',
         default=1,
         min=1,
         max=5,
     )
+    refine_steps: bpy.props.IntProperty(                 # pyright: ignore [reportUninitializedInstanceVariable]
+        name='Iterations',
+        description="Number of adaptive subdivision passes and raycasts to refine the successful samples. Used to improve areas the volume center can't see.",
+        default=5,
+        min=0,
+        max=10,
+    )
     sample_points: bpy.props.IntProperty(                # pyright: ignore [reportUninitializedInstanceVariable]
         name='Samples',
-        description='The both the number of rays to fire at the mesh to find the center and the number to fire from that center to find the surface',
-        default=100,
+        description='The both the number of rays to fire through the mesh to find the center and the number to fire from that center to find the surface',
+        default=50,
         min=10,
-        max=1000,
+        max=250,
     )
     sample_width: bpy.props.FloatProperty(               # pyright: ignore [reportUninitializedInstanceVariable]
         name='Sample Width',
-        description='How far from the center hitpoint to search for the volume center before raycasting from there to the surface in all directions',
+        description='The width of the array of samples along the stroke that search for the volume center.',
         default=0.75,
         min=0.10,
         max=1.00,
+    )
+    skip_step_size: bpy.props.FloatProperty(             # pyright: ignore [reportUninitializedInstanceVariable]
+        name='Step Size',
+        description='Multiplier for how far each step travels along the cross-section. Smaller values trace detailed surfaces more accurately but require more steps',
+        default=0.5,
+        min=0.1,
+        max=1.0,
     )
     cut_orientation: bpy.props.EnumProperty(                  # pyright: ignore [reportUninitializedInstanceVariable]
         name='Cut Orientation',
@@ -180,7 +191,7 @@ class RFOperator_Contours_Insert(
     contours_data = None
 
     @staticmethod
-    def insert(context, hit, plane, circle_points, span_count, process_source_method, hits, cut_orientation, fast_depth=1, sample_points=100):
+    def insert(context, hit, plane, circle_points, span_count, process_source_method, hits, cut_orientation, fast_depth=1, sample_points=100, refine_steps=3, skip_step_size=1.0):
         RFOperator_Contours_Insert.logic = Contours_Logic(
             context,
             hit,
@@ -192,6 +203,8 @@ class RFOperator_Contours_Insert(
             cut_orientation,
             fast_depth,
             sample_points,
+            refine_steps,
+            skip_step_size,
         )
         RFOperator_Contours_Insert.reinsert(context)
 
@@ -204,6 +217,8 @@ class RFOperator_Contours_Insert(
             process_source_method=logic.process_source_method,
             fast_depth=logic.fast_depth,
             sample_points=logic.sample_points,
+            refine_steps=logic.refine_steps,
+            skip_step_size=logic.skip_step_size,
             twist=logic.twist,
             is_cycle=logic.cyclic,
             loop_count=logic.loop_count,
@@ -232,10 +247,13 @@ class RFOperator_Contours_Insert(
         layout.prop(self, 'cut_orientation', text='Orientation')
         layout.row(heading='Cyclic').prop(self, 'is_cycle', text='')
 
-        layout.prop(self, 'process_source_method', text='Method', expand=True)
+        layout.row().prop(self, 'process_source_method', text='Method', expand=True)
         if self.process_source_method == 'fast':
             layout.prop(self, 'fast_depth', text='Depth')
             layout.prop(self, 'sample_points', text='Samples')
+            layout.prop(self, 'refine_steps', text='Iterations')
+        elif self.process_source_method == 'skip':
+            layout.prop(self, 'skip_step_size', text='Step Size')
 
     def execute(self, context):
         logic = RFOperator_Contours_Insert.logic
@@ -244,6 +262,8 @@ class RFOperator_Contours_Insert(
         logic.process_source_method = self.process_source_method
         logic.fast_depth            = self.fast_depth
         logic.sample_points         = self.sample_points
+        logic.refine_steps          = self.refine_steps
+        logic.skip_step_size        = self.skip_step_size
         logic.twist                 = self.twist
         logic.cyclic                = self.is_cycle
         logic.loop_count            = self.loop_count
@@ -263,6 +283,8 @@ class RFOperator_Contours_Insert(
         self.process_source_method = logic.process_source_method
         self.fast_depth            = logic.fast_depth
         self.sample_points         = logic.sample_points
+        self.refine_steps          = logic.refine_steps
+        self.skip_step_size        = logic.skip_step_size
         self.twist                 = logic.twist
         self.is_cycle              = logic.cyclic
         self.loop_count            = logic.loop_count
@@ -410,7 +432,7 @@ class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
         ))
         circle_points = [pt for pt in points if pt]
 
-        RFOperator_Contours_Insert.insert(context, hit, plane, circle_points, self.span_count, self.process_source_method, hits, self.cut_orientation, self.fast_depth, self.sample_points)
+        RFOperator_Contours_Insert.insert(context, hit, plane, circle_points, self.span_count, self.process_source_method, hits, self.cut_orientation, self.fast_depth, self.sample_points, self.refine_steps, self.skip_step_size)
 
     def update(self, context, event):
         RFCore = RFGlobals.RFCore_None
@@ -530,11 +552,14 @@ class RFTool_Contours(RFTool_Base):
             if panel:
                 panel.prop(props_contours, 'span_count')
                 panel.prop(props_contours, 'cut_orientation', text='Orientation')
-                panel.prop(props_contours, 'process_source_method', text='Method', expand=True)
+                panel.row().prop(props_contours, 'process_source_method', text='Method', expand=True)
                 if props_contours.process_source_method == 'fast':
-                    panel.prop(props_contours, 'fast_depth', text='Depth')
                     panel.prop(props_contours, 'sample_width', text='Width')
+                    panel.prop(props_contours, 'fast_depth', text='Depth')
                     panel.prop(props_contours, 'sample_points', text='Samples')
+                    panel.prop(props_contours, 'refine_steps', text='Iterations')
+                elif props_contours.process_source_method == 'skip':
+                    panel.prop(props_contours, 'skip_step_size', text='Step Size')
             draw_tweaking_panel(context, layout)
             draw_snapping_panel(context, layout, idname='contours_snapping_panel')
             draw_cleanup_panel(context, layout)
