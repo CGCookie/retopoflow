@@ -96,9 +96,18 @@ class RFOperator_Contours_Insert_Properties:
         name='Process Source Method',
         description="Source processing method",
         items=[
-            ('walk', 'Walk', 'Process source by walking every face along the source mesh. Slow but very accurate'),
-            ('skip', 'Skip', 'Process source by making many small jumps along the source mesh and snapping back to it. Works better on denser meshes'),
-            ('fast', 'Fast', 'Process source by raycasing into the mesh to find its volume center and then raycast in a circle to find the surface. Very fast but less accurate'),
+            ('walk', 'Walk',
+                'Process source by walking every face along the source mesh. ' +
+                '\nSlow but very accurate.'
+            ),
+            ('skip', 'Skip',
+                'Process source by making many small jumps along the source mesh and snapping back to it. ' +
+                '\nWorks better on denser meshes.'
+            ),
+            ('fast', 'Fast',
+                'Process source by raycasing into the mesh to find its volume center and then raycast in a circle to find the surface. ' +
+                '\nVery fast but less accurate.'
+            ),
         ],
         default='walk',
     )

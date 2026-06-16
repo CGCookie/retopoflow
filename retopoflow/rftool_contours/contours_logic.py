@@ -459,24 +459,25 @@ class Contours_Logic:
         for bmv in nbmvs:
             bmv.co = xform @ bmv.co
 
+            # self.points is in the retopo object's local space, so compare in local space directly.
             npt_local = bvec_to_point(bmv.co)
-            npt_world = point_to_bvec3(self.matrix_world @ npt_local)
 
             best_pt = None
             best_dist2 = float('inf')
             for i in range(n_segs):
                 p0 = Vector(pts[i])
                 p1 = Vector(pts[(i + 1) % n_pts])
-                closest = closest_point_linesegment(npt_world, p0, p1)
+                closest = closest_point_linesegment(npt_local, p0, p1)
                 if closest is not None:
-                    d2 = (npt_world - closest).length_squared
+                    d2 = (npt_local - closest).length_squared
                     if d2 < best_dist2:
                         best_dist2 = d2
                         best_pt = closest
 
             if best_pt is not None:
-                bmv.co = self.matrix_world_inv @ best_pt
+                bmv.co = best_pt
             else:
+                npt_world = point_to_bvec3(self.matrix_world @ npt_local)
                 npt_world_snapped = nearest_point_valid_sources(context, npt_world, world=True, respect_clip_planes=True)
                 npt_world_new = npt_world_snapped if npt_world_snapped else npt_world
                 bmv.co = self.matrix_world_inv @ npt_world_new if npt_world_new is not None else npt_local
@@ -742,7 +743,12 @@ class Contours_Logic:
         pt = self.hit['co_world']
         pt0, pt1 = self.hits[0]['co_world'], self.hits[-1]['co_world']
         dist = 0.5 * ((pt - pt0).length + (pt - pt1).length) / 2
-        direction = (pt0 - pt).normalized()
+
+        init_step = pt1 - pt # pt1 = hits[-1] is the farthest positive hit
+        if init_step.length_squared < 1e-12:
+            print('CONTOURS SKIP: degenerate initial direction')
+            return False
+        direction = init_step.normalized()
         pt_start = pt
         dist_pre = 0
 
@@ -761,16 +767,23 @@ class Contours_Logic:
             dist_next = (pt_next - pt_start).length
             if dist_next < dist_pre:
                 has_shrunk = True
-            elif has_shrunk and dist_next < dist * 4:
-                print(f'WRAPPED AFTER {i}!')
-                break
+            elif has_shrunk:
+                if dist_next > dist * 4:
+                    has_shrunk = False  # false alarm, still far from start, keep walking
+                else:
+                    print(f'WRAPPED AFTER {i}!')
+                    break
+            step = pt_next - pt
+            if step.length_squared < 1e-12:
+                print(f'CONTOURS SKIP: stalled at step {i}')
+                return False
             points += [pt_next]
-            direction = (pt_next - pt).normalized()
+            direction = step.normalized()
             # print(f'{pt=} {pt_next=} {direction=}')
             pt = pt_next
             dist_pre = dist_next
         else:
-            print('gah')
+            print('CONTOURS SKIP: did not wrap after 10000 steps. Gah!')
             return False
 
         cyclic = True
