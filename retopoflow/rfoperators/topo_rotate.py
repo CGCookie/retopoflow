@@ -40,7 +40,7 @@ from ..common.drawing import (
     CC_2D_LINES,
 )
 from ..common.maths import Point
-from ..common.operator import RFOperator
+from ..common.operator import RFOperator, RFKeyMaps
 from ..common.raycast import nearest_point_valid_sources, vec_right
 
 from ...addon_common.common import bmesh_ops as bmops
@@ -135,7 +135,7 @@ class RFOperator_TopoRotate(RFOperator):
     bl_region_type = 'TOOLS'
     bl_options = { 'REGISTER', 'UNDO' }
 
-    rf_keymaps = [
+    rf_keymaps : RFKeyMaps = [
         (bl_idname, {'type': 'R', 'value': 'PRESS', 'alt': True}, None),
     ]
     rf_status = ['LMB: Commit', 'MMB: (nothing)', 'RMD: Cancel']

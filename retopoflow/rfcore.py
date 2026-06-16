@@ -21,13 +21,14 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy
 import bl_ui
+from bl_ui import space_toolsystem_common
 import bmesh
 from bpy.types import Context, Menu, Event, Depsgraph, Scene, Area, Region, Space, SpaceView3D, RegionView3D, Screen
 
 import time
 import traceback
 from typing import Any
-from collections.abc import Sequence
+from collections.abc import Sequence, Callable
 
 from . import rfglobals
 
@@ -44,6 +45,7 @@ from .common.interface import show_message
 from .common import icons as icons_module
 from ..addon_common.common.drawing import free_shaders_and_batches
 from ..addon_common.common.ui_draw import free_ui_draw_shaders_and_batches
+from ..addon_common.common.functools import wrap_function
 
 from .rftool_base  import RFTool_Base
 from .rfbrush_base import RFBrush_Base
@@ -114,7 +116,7 @@ class RFCore:
     _original_bmesh_update_edit_mesh = None   # used to know when to pause statusbar drawing to let Blender info be displayed
 
     _is_registered        = False   # True if RF is registered with Blender
-    _unwrap_activate_tool = None    # fn to unwrap space_toolsystem_common.activate_by_id
+    _unwrap_activate_tool : Callable[[], None] | None = None    # fn to unwrap space_toolsystem_common.activate_by_id
     _handle_draw_cursor   = None    # handle to callback for WindowManager's draw cursor
     _handle_preview       = None    # handle to callback for PRE_VIEW draw handler
     _handle_postview      = None    # handle to callback for POST_VIEW draw handler
@@ -122,7 +124,7 @@ class RFCore:
 
     @staticmethod
     def register():
-        print(f'RFCore.register')
+        print('RFCore.register')
         if RFCore._is_registered:
             # print(f'  ALREADY REGISTERED!!')
             return
@@ -155,9 +157,10 @@ class RFCore:
         AutoSave.exclude_modal_operators(overlay_names)
 
         # wrap tool change function so we know when the artist switches tool
-        from bl_ui import space_toolsystem_common
-        from ..addon_common.common.functools import wrap_function
-        RFCore._unwrap_activate_tool = wrap_function(space_toolsystem_common.activate_by_id, fn_pre=RFCore.tool_changed)
+        setattr(RFCore, '_unwrap_activate_tool', wrap_function(
+            space_toolsystem_common.activate_by_id,
+            fn_pre=RFCore.tool_changed,
+        ))
 
         bpy.types.VIEW3D_MT_mesh_add.append(RFCore.draw_menu_items)
         bpy.types.VIEW3D_MT_edit_mesh_vertices.append(menu_mesh.draw_vertex_menu_items)
@@ -194,9 +197,10 @@ class RFCore:
             RFCore._original_bmesh_update_edit_mesh = None
 
         # unwrap tool change function, also before the early-return so activate_by_id is always removed
-        if RFCore._unwrap_activate_tool is not None:
-            RFCore._unwrap_activate_tool()
-            RFCore._unwrap_activate_tool = None
+        fn_unwrap : Callable[[], None] | None = getattr(RFCore, '_unwrap_activate_tool')
+        if fn_unwrap:
+            fn_unwrap()
+            setattr(RFCore, '_unwrap_activate_tool', None)
 
         if not bpy.context.workspace:
             # no workspace?  blender might be closing, which unregisters add-ons (DON'T KNOW WHY)
@@ -272,7 +276,8 @@ class RFCore:
                             yield {'window':win, 'screen':screen, 'area':area, 'region':rgn, 'space':space}
 
     @staticmethod
-    def switch_to_tool(bl_idname : str):
+    def switch_to_tool(bl_idname : str | None):
+        if not bl_idname: return
         for wm in bpy.data.window_managers:
             for win in wm.windows:
                 screen = win.screen

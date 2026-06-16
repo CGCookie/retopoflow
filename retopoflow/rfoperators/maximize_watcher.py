@@ -19,19 +19,20 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-from ..common.operator import RFOperator
+from bpy.types import Context, Event
+from ..common.operator import RFOperator, RFKeyMaps
 from ...addon_common.common.useractions import blenderop_to_kmis
 from ..common.interface import show_message
 
 class RFOperator_MaximizeWatcher(RFOperator):
-    bl_idname = 'retopoflow.maximizewatcher'
-    bl_label = 'Retopoflow: Maximize Watcher'
-    bl_description = 'Watches for Maximize Area when Retopoflow tool is selected'
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'TOOLS'
-    bl_options = {'INTERNAL'}
+    bl_idname      : str = 'retopoflow.maximizewatcher'
+    bl_label       : str = 'Retopoflow: Maximize Watcher'
+    bl_description : str = 'Watches for Maximize Area when Retopoflow tool is selected'
+    bl_space_type  : str = 'VIEW_3D'
+    bl_region_type : str = 'TOOLS'
+    bl_options : set[str] = {'INTERNAL'}
 
-    rf_keymaps = [
+    rf_keymaps : RFKeyMaps = [
         ('retopoflow.maximizewatcher', {
             'type':  kmi.type,
             'value': kmi.value,
@@ -43,15 +44,17 @@ class RFOperator_MaximizeWatcher(RFOperator):
         for kmi in blenderop_to_kmis('Screen | screen.screen_full_area')
     ]
 
-    def init(self, context, event):
-        print(f'ATTEMPTING TO FULLSCREEN')
+    def init(self, _context : Context, _event : Event):
+        print('ATTEMPTING TO FULLSCREEN')
         show_message(
-            message="Maximizing an area with a Retopoflow tool selected can cause Blender to crash on some machines.\n" \
-                    "While we work on a fix, we have temporarily disabled the Maximize Area operator to prevent loss of work.\n" \
-                    "For now, please switch to another tool (like Move) first, maximize the area, then switch back to Retopoflow.", 
+            message='\n'.join([
+                "Maximizing an area with a Retopoflow tool selected can cause Blender to crash on some machines.",
+                "While we work on a fix, we have temporarily disabled the Maximize Area operator to prevent loss of work.",
+                "For now, please switch to another tool (like Move) first, maximize the area, then switch back to Retopoflow.",
+            ]),
             title="Retopoflow", 
             icon="ERROR"
         )
 
-    def update(self, context, event):
+    def update(self, _context : Context, _event : Event) -> set[str]:
         return {'FINISHED'}

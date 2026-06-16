@@ -41,7 +41,6 @@ from ..common.drawing import (
 from ..common.icons import get_path_to_blender_icon
 from ..common.maths import view_forward_direction, lerp
 from ..common.operator import (
-    invoke_operator, execute_operator,
     RFOperator, RFRegisterClass,
     chain_rf_keymaps, wrap_property,
 )

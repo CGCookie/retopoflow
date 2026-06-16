@@ -21,6 +21,7 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bmesh
 import bpy
+from bpy.types import Context
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_location_3d
 from mathutils import Vector
 
@@ -33,7 +34,7 @@ from ..common.bmesh import (
     NearestBMVert, NearestBMEdge, NearestBMFace,
 )
 from ..common.bmesh_maths import is_bmvert_hidden
-from ..common.operator import execute_operator, RFOperator
+from ..common.operator import execute_operator, RFOperator, RFKeyMaps
 from ..common.raycast import (
     raycast_valid_sources,
     raycast_point_valid_sources,
@@ -109,7 +110,7 @@ class RFOperator_Translate(RFOperator):
     bl_region_type = "TOOLS"
     bl_options = set()
 
-    rf_keymaps = [
+    rf_keymaps : RFKeyMaps = [
         (f'{bl_idname}_grab', {'type': 'G', 'value': 'PRESS'}, None),
         (bl_idname, {'type': 'LEFTMOUSE', 'value': 'CLICK_DRAG'}, None),
     ]
@@ -166,7 +167,7 @@ class RFOperator_Translate(RFOperator):
 
     @staticmethod
     @execute_operator(f'{bl_idname}_grab', f'{bl_label} Grab')
-    def grab_selected(context):
+    def grab_selected(_context : Context):
         idname = RFOperator_Translate.bl_idname.split('.')[1]
         op = getattr(bpy.ops.retopoflow, f'{idname}')
         op('INVOKE_DEFAULT', used_keyboard=True)

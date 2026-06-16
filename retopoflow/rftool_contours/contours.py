@@ -36,8 +36,8 @@ from ..common.drawing import Drawing
 from ..common.icons import get_path_to_blender_icon
 from ..common.maths import view_forward_direction
 from ..common.operator import (
-    invoke_operator, execute_operator,
-    RFOperator, RFRegisterClass, RFOperator_Execute,
+    execute_operator,
+    RFOperator, RFRegisterClass, RFOperator_Execute, RFKeyMaps, BLKeyMaps,
     chain_rf_keymaps, wrap_property, poll_retopoflow,
 )
 from ..common.raycast import (
@@ -77,7 +77,7 @@ class RFOperator_Contours_Insert_Keymaps:
     # used to collect redo shortcuts, which is filled in by redo_ fns below...
     # note: cannot use RFOperator_Contours_Insert.rf_keymaps, because RFOperator_Contours_Insert
     #       is not yet created!
-    rf_keymaps = []
+    rf_keymaps : RFKeyMaps = []
 
 class RFOperator_Contours_Insert_Properties:
     '''
@@ -324,7 +324,7 @@ class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
 
     loop_select_op = 'mesh.select_edge_loop_multi' if bpy.app.version >= (5, 1, 0) else 'mesh.loop_multi_select'
 
-    rf_keymaps = [
+    rf_keymaps : RFKeyMaps = [
         (bl_idname, {'type': 'LEFT_CTRL',  'value': 'PRESS'}, None),
         (bl_idname, {'type': 'RIGHT_CTRL', 'value': 'PRESS'}, None),
 
@@ -450,7 +450,7 @@ class RFOperator_Contours_Twist(RFRegisterClass, bpy.types.Operator):
     bl_description = 'Rotate selected loop about its plane (Alt R)'
     bl_options    = {'UNDO', 'INTERNAL'}
 
-    rf_keymaps = []
+    rf_keymaps : RFKeyMaps = []
 
     @classmethod
     def poll(cls, context):
@@ -461,8 +461,11 @@ class RFOperator_Contours_Twist(RFRegisterClass, bpy.types.Operator):
 
 
 RFOperator_Contours_Twist.rf_keymaps = [
-    ('retopoflow.contours_twist', {'type': 'R', 'value': 'PRESS', 'alt': True},
-     {'km_context': ('init', 'ready'), 'km_label': 'Adjust Twist'}),
+    (
+        'retopoflow.contours_twist',
+        {'type': 'R', 'value': 'PRESS', 'alt': True},
+        {'km_context': ('init', 'ready'), 'km_label': 'Adjust Twist'}
+    ),
 ]
 
 
@@ -479,7 +482,7 @@ class RFTool_Contours(RFTool_Base):
 
     props = None  # needed to reset properties
 
-    bl_keymap = chain_rf_keymaps(
+    bl_keymap : BLKeyMaps = chain_rf_keymaps(
         RFOperator_Contours,
         RFOperator_Contours_Insert,
         RFOperator_Contours_Twist,

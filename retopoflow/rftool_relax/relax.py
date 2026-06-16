@@ -52,7 +52,7 @@ from ..common.drawing import (
     CC_3D_TRIANGLES,
 )
 from ..common.icons import get_path_to_blender_icon
-from ..common.operator import RFOperator, wrap_property, chain_rf_keymaps, execute_operator, poll_retopoflow
+from ..common.operator import RFOperator, wrap_property, chain_rf_keymaps, execute_operator, poll_retopoflow, RFKeyMaps, BLKeyMaps
 from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, size2D_to_size, vec_forward, mouse_from_event
 from ..common.maths import view_forward_direction, lerp
 from ...addon_common.common import bmesh_ops as bmops
@@ -101,7 +101,7 @@ class RFOperator_Relax(RFOperator):
     bl_region_type = "TOOLS"
     bl_options = {'UNDO', 'INTERNAL'}
 
-    rf_keymaps = [
+    rf_keymaps : RFKeyMaps = [
         (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS'}, {'km_context': 'init', 'km_label': 'Relax'}),
     ]
     rf_status = ['LMB: Relax']
@@ -271,7 +271,7 @@ class RFTool_Relax(RFTool_Base):
 
     props = None  # needed to reset properties
 
-    bl_keymap = chain_rf_keymaps(
+    bl_keymap : BLKeyMaps = chain_rf_keymaps(
         RFOperator_Relax,
         RFOperator_MaximizeWatcher,
         RFOperator_RelaxBrush_Adjust,

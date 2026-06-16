@@ -23,23 +23,20 @@ from __future__ import annotations
 
 import bpy
 import bl_ui
-from bpy.types import Context
-from typing import Callable
+from bpy.types import Context, WorkSpaceTool
+from typing import Callable, ClassVar
 from collections.abc import Sequence
 from .preferences import RF_Prefs
+from .common.operator import RFKeyMaps, BLKeyMaps
 from .rfbrush_base import RFBrush_Base
 from .rfoverlay_base import RFOverlay_Base
 from ..addon_common.common.resetter import Resetter
 
-class RFTool_Base(bpy.types.WorkSpaceTool):
+class RFTool_Base(WorkSpaceTool):
     bl_idname : str = 'unlabeled'
     bl_space_type : str = 'VIEW_3D'
     bl_context_mode : str = 'EDIT_MESH'
-    bl_keymap : Sequence[tuple[
-        str,
-        dict[str, str | bool | int],
-        dict[str, str | Callable[[Context], bool]] | None
-    ]] = []
+    bl_keymap : BLKeyMaps = ()
     rf_idname : str = 'unlabeled'
     rf_brush : RFBrush_Base | None = None
     rf_overlay : RFOverlay_Base | None = None

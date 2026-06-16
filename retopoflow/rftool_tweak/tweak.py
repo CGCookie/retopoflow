@@ -51,7 +51,7 @@ from ..common.drawing import (
     CC_3D_TRIANGLES,
 )
 from ..common.icons import get_path_to_blender_icon
-from ..common.operator import RFOperator, wrap_property, chain_rf_keymaps, execute_operator, poll_retopoflow
+from ..common.operator import RFOperator, wrap_property, chain_rf_keymaps, execute_operator, poll_retopoflow, RFKeyMaps, BLKeyMaps
 from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, size2D_to_size, vec_forward, mouse_from_event
 from ..common.maths import view_forward_direction, lerp
 from ...addon_common.common import bmesh_ops as bmops
@@ -100,7 +100,7 @@ class RFOperator_Tweak(RFOperator):
     bl_region_type = "TOOLS"
     bl_options = {'UNDO', 'INTERNAL'}
 
-    rf_keymaps = [
+    rf_keymaps : RFKeyMaps = [
         (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS'},                              {'km_context': 'init', 'km_label': 'Tweak'}),
         (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS', 'ctrl': True},                {'km_context': 'init', 'km_label': 'Tweak (Invert Pinch/Magnify)'}),  # blocks Blender's Ctrl+LMB Select Shortest Path
         (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS', 'alt': True},                 {'km_context': 'init', 'km_label': 'Tweak (Toggle Loops)'}),           # blocks Blender's Alt+LMB Move Camera
@@ -296,7 +296,7 @@ class RFTool_Tweak(RFTool_Base):
 
     props = None  # needed to reset properties
 
-    bl_keymap = chain_rf_keymaps(
+    bl_keymap : BLKeyMaps = chain_rf_keymaps(
         RFOperator_Tweak,
         RFOperator_MaximizeWatcher,
         RFOperator_TweakBrush_Adjust,

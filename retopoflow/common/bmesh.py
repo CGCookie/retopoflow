@@ -473,23 +473,27 @@ def get_bmv_loop_pairs(bmv: BMVert) -> tuple[tuple[BMVert, BMVert], ...] | None:
     return tuple(pairs) if len(pairs) == 2 else None
 
 
-def get_bmv_next_loop_vert(prev, cur, walk_boundaries=True, pole_angle_threshold=0):
+def get_bmv_next_loop_vert(prev : BMVert, cur : BMVert, walk_boundaries:bool=True, pole_angle_threshold:float=0) -> BMVert|None:
     ''' The next vert in an edge loop arriving at `cur` from `prev`. '''
-    if walk_boundaries and any(e.is_boundary for e in cur.link_edges):
-        prev_edge = next((e for e in cur.link_edges if e.other_vert(cur) is prev), None)
+    bme : BMEdge
+
+    if walk_boundaries and any(bme.is_boundary for bme in cur.link_edges):
+        prev_edge = next((bme for bme in cur.link_edges if bme.other_vert(cur) is prev), None)
         if prev_edge is None or not prev_edge.is_boundary:
             return None
-        for e in cur.link_edges:
-            if e is not prev_edge and e.is_boundary:
-                return e.other_vert(cur)
+        for bme in cur.link_edges:
+            if bme is not prev_edge and bme.is_boundary:
+                return bme.other_vert(cur)
         return None
 
-    e_in = next((e for e in cur.link_edges if e.other_vert(cur) == prev), None)
-    if e_in is None: return None
-    in_faces = set(e_in.link_faces)
-    clean = [e.other_vert(cur) for e in cur.link_edges
-             if e.other_vert(cur) != prev
-             and not any(f in in_faces for f in e.link_faces)]
+    bme_in : BMEdge | None = next((bme for bme in cur.link_edges if e.other_vert(cur) == prev), None)
+    if bme_in is None: return None
+    in_faces : set[BMFace] = set(bme_in.link_faces)
+    clean : list[BMVert|None] = [
+        bme.other_vert(cur) for bme in cur.link_edges
+        if bme.other_vert(cur) != prev
+        and not any(bmf in in_faces for bmf in bme.link_faces)
+    ]
     if len(clean) == 1:
         return clean[0]
 
@@ -505,9 +509,9 @@ def get_bmv_next_loop_vert(prev, cur, walk_boundaries=True, pole_angle_threshold
         d_in_t = d_in  # incoming edge nearly parallel to normal so fall back to 3D
     d_in_t = d_in_t.normalized()
     best, best_dot = None, cos(radians(pole_angle_threshold))
-    for e in cur.link_edges:
-        o = e.other_vert(cur)
-        if o == prev: continue
+    for bme in cur.link_edges:
+        o = bme.other_vert(cur)
+        if not o or o == prev: continue
         d_out = o.co - cur.co
         if d_out.length < 1e-12: continue
         d_out_t = d_out - d_out.dot(n) * n

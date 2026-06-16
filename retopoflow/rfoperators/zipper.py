@@ -47,7 +47,7 @@ from ..common.drawing import (
     CC_2D_LINES,
     CC_2D_LINE_STRIP,
 )
-from ..common.operator import RFOperator
+from ..common.operator import RFOperator, RFKeyMaps
 from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, mouse_from_event
 
 from ...addon_common.common import bmesh_ops as bmops
@@ -463,7 +463,7 @@ class RFOperator_Zipper(RFOperator):
     bl_region_type = "TOOLS"
     bl_options = {'INTERNAL'}
 
-    rf_keymaps = [
+    rf_keymaps : RFKeyMaps = [
         (bl_idname, {'type': 'Z', 'value': 'PRESS', 'ctrl': True, 'alt': True}, {'km_context': 'init', 'km_label': ' Start Zipper'}),
     ]
     rf_status = {

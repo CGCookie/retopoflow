@@ -40,7 +40,7 @@ from ..common.bmesh_maths import (
     loop_arc_params,
 )
 from ..common.maths import closest_point_linesegment, get_co_on_arc
-from ..common.operator import RFRegisterClass
+from ..common.operator import RFRegisterClass, RFKeyMaps
 
 
 TWIST_SENSITIVITY = 0.05   # degrees per pixel of horizontal mouse movement
@@ -815,7 +815,7 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
     bl_region_type = 'WINDOW'
     bl_options     = {'REGISTER', 'UNDO'}
 
-    rf_keymaps = []
+    rf_keymaps : RFKeyMaps = []
 
     twist_angle: bpy.props.FloatProperty(
         name='Twist',
