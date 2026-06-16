@@ -35,9 +35,9 @@ def draw_line_separator(layout):
 
 def draw_section_indent(context, layout):
     if context.region.type != 'TOOL_HEADER':
-        if context.region.width > 450:
-            layout.label(icon='BLANK1')
         if context.region.width > 600:
+            layout.label(icon='BLANK1')
+        if context.region.width > 1000:
             layout.label(icon='BLANK1')
 
 

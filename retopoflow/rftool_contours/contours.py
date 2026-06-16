@@ -58,6 +58,7 @@ from ..rfoperators.quickswitch import RFOperator_Relax_QuickSwitch, RFOperator_T
 from ..rfoperators.transform import RFOperator_Translate, sync_projection_from_blender
 from ..rfoperators.maximize_watcher import RFOperator_MaximizeWatcher
 
+from ..rfpanels.rfpanel_countours_method import draw_contours_method_options
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
 from ..rfpanels.tweaking_panel import draw_tweaking_panel
 from ..rfpanels.rfpanel_snapping import draw_snapping_panel
@@ -88,9 +89,9 @@ class RFOperator_Contours_Insert_Properties:
     span_count: bpy.props.IntProperty(                  # pyright: ignore [reportUninitializedInstanceVariable]
         name='Span Count',
         description='Number of vertices to create in a new cut',
-        default=8,
+        default=16,
         min=3,
-        max=100,
+        max=500,
     )
     process_source_method: bpy.props.EnumProperty(      # pyright: ignore [reportUninitializedInstanceVariable]
         name='Process Source Method',
@@ -105,6 +106,10 @@ class RFOperator_Contours_Insert_Properties:
                 'Raycast into the mesh to find its volume center, raycast in a circle to find the surface, and refine that result with more raycasts. ' +
                 '\nVery fast but less accurate.'
             ),
+            ('sdf', 'SDF',
+                'Build a coarse occupancy grid on the cut plane, trace its boundary, then snap and refine. ' +
+                '\nRobust on concave forms and independent of source density. Enable Ignore Normals for flipped or inconsistent normals.'
+            ),
         ],
         default='walk',
     )
@@ -118,7 +123,7 @@ class RFOperator_Contours_Insert_Properties:
     refine_steps: bpy.props.IntProperty(                 # pyright: ignore [reportUninitializedInstanceVariable]
         name='Iterations',
         description="Number of adaptive subdivision passes and raycasts to refine the successful samples. Used to improve areas the volume center can't see.",
-        default=5,
+        default=3,
         min=0,
         max=10,
     )
@@ -132,7 +137,7 @@ class RFOperator_Contours_Insert_Properties:
     sample_width: bpy.props.FloatProperty(               # pyright: ignore [reportUninitializedInstanceVariable]
         name='Sample Width',
         description='The width of the array of samples along the stroke that search for the volume center.',
-        default=0.75,
+        default=0.25,
         min=0.10,
         max=1.00,
     )
@@ -142,6 +147,33 @@ class RFOperator_Contours_Insert_Properties:
         default=0.5,
         min=0.1,
         max=1.0,
+    )
+    sdf_resolution: bpy.props.IntProperty(               # pyright: ignore [reportUninitializedInstanceVariable]
+        name='Resolution',
+        description='Number of grid cells along the longest axis of the cross-section. Higher resolves finer detail at more cost',
+        default=50,
+        min=10,
+        max=100,
+    )
+    sdf_pixel_refine_steps: bpy.props.IntProperty(       # pyright: ignore [reportUninitializedInstanceVariable]
+        name='Pixel Refine',
+        description='Adaptive 3x3 subdivision passes over boundary cells. Raise to separate thin necks or objects that are close but not touching. Off by default',
+        default=1,
+        min=0,
+        max=3,
+    )
+    sdf_ignore_normals: bpy.props.BoolProperty(          # pyright: ignore [reportUninitializedInstanceVariable]
+        name='Ignore Normals',
+        description='Classify cells by distance band instead of surface-normal sign. More robust to flipped or inconsistent normals and to other nearby objects',
+        default=True,
+    )
+    sdf_extent_scale: bpy.props.FloatProperty(           # pyright: ignore [reportUninitializedInstanceVariable]
+        name='Grid Scale',
+        description='Scale factor applied to the measured cross-section extent before building the grid. Raise if the cross-section is clipped at the grid border',
+        default=2,
+        min=0.5,
+        max=5.0,
+        step=10,
     )
     cut_orientation: bpy.props.EnumProperty(                  # pyright: ignore [reportUninitializedInstanceVariable]
         name='Cut Orientation',
@@ -191,7 +223,7 @@ class RFOperator_Contours_Insert(
     contours_data = None
 
     @staticmethod
-    def insert(context, hit, plane, circle_points, span_count, process_source_method, hits, cut_orientation, fast_depth=1, sample_points=100, refine_steps=3, skip_step_size=1.0):
+    def insert(context, hit, plane, circle_points, span_count, process_source_method, hits, cut_orientation, fast_depth=1, sample_points=100, refine_steps=3, skip_step_size=1.0, sdf_resolution=20, sdf_pixel_refine_steps=0, sdf_ignore_normals=False, sdf_extent_scale=1.5):
         RFOperator_Contours_Insert.logic = Contours_Logic(
             context,
             hit,
@@ -205,6 +237,10 @@ class RFOperator_Contours_Insert(
             sample_points,
             refine_steps,
             skip_step_size,
+            sdf_resolution,
+            sdf_pixel_refine_steps,
+            sdf_ignore_normals,
+            sdf_extent_scale,
         )
         RFOperator_Contours_Insert.reinsert(context)
 
@@ -219,6 +255,10 @@ class RFOperator_Contours_Insert(
             sample_points=logic.sample_points,
             refine_steps=logic.refine_steps,
             skip_step_size=logic.skip_step_size,
+            sdf_resolution=logic.sdf_resolution,
+            sdf_pixel_refine_steps=logic.sdf_pixel_refine_steps,
+            sdf_ignore_normals=logic.sdf_ignore_normals,
+            sdf_extent_scale=logic.sdf_extent_scale,
             twist=logic.twist,
             is_cycle=logic.cyclic,
             loop_count=logic.loop_count,
@@ -247,13 +287,8 @@ class RFOperator_Contours_Insert(
         layout.prop(self, 'cut_orientation', text='Orientation')
         layout.row(heading='Cyclic').prop(self, 'is_cycle', text='')
 
-        layout.row().prop(self, 'process_source_method', text='Method', expand=True)
-        if self.process_source_method == 'fast':
-            layout.prop(self, 'fast_depth', text='Depth')
-            layout.prop(self, 'sample_points', text='Samples')
-            layout.prop(self, 'refine_steps', text='Iterations')
-        elif self.process_source_method == 'skip':
-            layout.prop(self, 'skip_step_size', text='Step Size')
+        layout.separator()
+        draw_contours_method_options(context, layout, self)
 
     def execute(self, context):
         logic = RFOperator_Contours_Insert.logic
@@ -264,6 +299,10 @@ class RFOperator_Contours_Insert(
         logic.sample_points         = self.sample_points
         logic.refine_steps          = self.refine_steps
         logic.skip_step_size        = self.skip_step_size
+        logic.sdf_resolution        = self.sdf_resolution
+        logic.sdf_pixel_refine_steps = self.sdf_pixel_refine_steps
+        logic.sdf_ignore_normals    = self.sdf_ignore_normals
+        logic.sdf_extent_scale      = self.sdf_extent_scale
         logic.twist                 = self.twist
         logic.cyclic                = self.is_cycle
         logic.loop_count            = self.loop_count
@@ -285,6 +324,10 @@ class RFOperator_Contours_Insert(
         self.sample_points         = logic.sample_points
         self.refine_steps          = logic.refine_steps
         self.skip_step_size        = logic.skip_step_size
+        self.sdf_resolution        = logic.sdf_resolution
+        self.sdf_pixel_refine_steps = logic.sdf_pixel_refine_steps
+        self.sdf_ignore_normals    = logic.sdf_ignore_normals
+        self.sdf_extent_scale      = logic.sdf_extent_scale
         self.twist                 = logic.twist
         self.is_cycle              = logic.cyclic
         self.loop_count            = logic.loop_count
@@ -432,7 +475,7 @@ class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
         ))
         circle_points = [pt for pt in points if pt]
 
-        RFOperator_Contours_Insert.insert(context, hit, plane, circle_points, self.span_count, self.process_source_method, hits, self.cut_orientation, self.fast_depth, self.sample_points, self.refine_steps, self.skip_step_size)
+        RFOperator_Contours_Insert.insert(context, hit, plane, circle_points, self.span_count, self.process_source_method, hits, self.cut_orientation, self.fast_depth, self.sample_points, self.refine_steps, self.skip_step_size, self.sdf_resolution, self.sdf_pixel_refine_steps, self.sdf_ignore_normals, self.sdf_extent_scale)
 
     def update(self, context, event):
         RFCore = RFGlobals.RFCore_None
@@ -532,7 +575,8 @@ class RFTool_Contours(RFTool_Base):
             layout.label(text='Insert:')
             layout.prop(props_contours, 'span_count')
             layout.prop(props_contours, 'cut_orientation', text='')
-            layout.popover('RF_PT_ContoursMethod', text=props_contours.process_source_method.capitalize())
+            method_name = props_contours.bl_rna.properties['process_source_method'].enum_items[props_contours.process_source_method].name
+            layout.popover('RF_PT_ContoursMethod', text=method_name)
             draw_line_separator(layout)
             row = layout.row(align=True)
             row.prop(props_contours, 'select_loops', text='Loops', toggle=True)
@@ -552,14 +596,25 @@ class RFTool_Contours(RFTool_Base):
             if panel:
                 panel.prop(props_contours, 'span_count')
                 panel.prop(props_contours, 'cut_orientation', text='Orientation')
+                panel.separator()
+                draw_contours_method_options(context, panel, props_contours)
+                '''
                 panel.row().prop(props_contours, 'process_source_method', text='Method', expand=True)
                 if props_contours.process_source_method == 'fast':
                     panel.prop(props_contours, 'sample_width', text='Width')
                     panel.prop(props_contours, 'fast_depth', text='Depth')
                     panel.prop(props_contours, 'sample_points', text='Samples')
                     panel.prop(props_contours, 'refine_steps', text='Iterations')
+                elif props_contours.process_source_method == 'sdf':
+                    panel.prop(props_contours, 'fast_depth', text='Depth')
+                    panel.prop(props_contours, 'sdf_resolution', text='Resolution')
+                    panel.prop(props_contours, 'sdf_extent_scale', text='Grid Scale')
+                    panel.prop(props_contours, 'sdf_pixel_refine_steps', text='Pixel Refine')
+                    panel.prop(props_contours, 'refine_steps', text='Iterations')
+                    panel.prop(props_contours, 'sdf_ignore_normals', text='Ignore Normals')
                 elif props_contours.process_source_method == 'skip':
                     panel.prop(props_contours, 'skip_step_size', text='Step Size')
+                '''
             draw_tweaking_panel(context, layout)
             draw_snapping_panel(context, layout, idname='contours_snapping_panel')
             draw_cleanup_panel(context, layout)

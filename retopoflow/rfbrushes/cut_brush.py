@@ -184,7 +184,7 @@ class RFBrush_Cut(RFBrush_Base):
             draw.point_size(8)
             draw.color(RFBrush_Cut.hit_circle_color if self.hit else RFBrush_Cut.miss_circle_color)
             draw.vertex(pm)
-            if self.operator.process_source_method == 'fast':
+            if self.operator.process_source_method in ['fast', 'sdf']:
                 draw.vertex(self.operator.v_to_point(-1, self.mousedown, self.mouse))
                 draw.vertex(self.operator.v_to_point(+1, self.mousedown, self.mouse))
             elif self.operator.process_source_method == 'skip':

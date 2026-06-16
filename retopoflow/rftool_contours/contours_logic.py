@@ -43,13 +43,16 @@ from ..common.maths import (
     lerp, get_closest_axis, snap_plane_to_direction,
     closest_point_linesegment,
 )
-from ..common.raycast import raycast_ray_valid_sources, nearest_point_valid_sources, nearest_normal_valid_sources
+from ..common.raycast import raycast_ray_valid_sources, nearest_point_valid_sources, nearest_normal_valid_sources, nearest_point_normal_valid_sources
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.debug import debugger
 from ...addon_common.common.maths import Point, Plane
 from ...addon_common.common.utils import iter_pairs
 from ...addon_common.ext.circle_fit import hyperLSQ
 
+
+CREATE_DEBUG_OBJECTS = False
+PRINT_DEBUG_TIMINGS = False
 
 class Contours_Logic:
     matrix_world : Matrix | None
@@ -75,6 +78,14 @@ class Contours_Logic:
     last_refine_steps : int | None
     skip_step_size : float
     last_skip_step_size : float | None
+    sdf_resolution : int
+    last_sdf_resolution : int | None
+    sdf_pixel_refine_steps : int
+    last_sdf_pixel_refine_steps : int | None
+    sdf_ignore_normals : bool
+    last_sdf_ignore_normals : bool | None
+    sdf_extent_scale : float
+    last_sdf_extent_scale : float | None
     last_cut_orientation : str | None
 
     action : str
@@ -98,7 +109,7 @@ class Contours_Logic:
     path_length : float | None
     mirror_clipped_loop : bool | None
 
-    def __init__(self, context:Context, hit:dict[str,...], plane:Plane, circle_points:list[Vector], span_count:int, process_source_method:str, hits:list[dict[str, ...]], cut_orientation:str='stroke', fast_depth:int=1, sample_points:int=100, refine_steps:int=3, skip_step_size:float=0.5):
+    def __init__(self, context:Context, hit:dict[str,...], plane:Plane, circle_points:list[Vector], span_count:int, process_source_method:str, hits:list[dict[str, ...]], cut_orientation:str='stroke', fast_depth:int=1, sample_points:int=100, refine_steps:int=3, skip_step_size:float=0.5, sdf_resolution:int=20, sdf_pixel_refine_steps:int=0, sdf_ignore_normals:bool=False, sdf_extent_scale:float=1.5):
         self.hit = hit
         self.hits = hits
         self.cut_orientation = cut_orientation
@@ -120,6 +131,14 @@ class Contours_Logic:
         self.last_refine_steps = None
         self.skip_step_size = skip_step_size
         self.last_skip_step_size = None
+        self.sdf_resolution = sdf_resolution
+        self.last_sdf_resolution = None
+        self.sdf_pixel_refine_steps = sdf_pixel_refine_steps
+        self.last_sdf_pixel_refine_steps = None
+        self.sdf_ignore_normals = sdf_ignore_normals
+        self.last_sdf_ignore_normals = None
+        self.sdf_extent_scale = sdf_extent_scale
+        self.last_sdf_extent_scale = None
 
         self.action = ''
         self.initial = True
@@ -167,7 +186,7 @@ class Contours_Logic:
 
     def process_source(self, context:Context) -> bool:
         # process source only once, unless settings have changed
-        if not self.initial and self.last_process_source_method == self.process_source_method and self.last_fast_depth == self.fast_depth and self.last_sample_points == self.sample_points and self.last_refine_steps == self.refine_steps and self.last_skip_step_size == self.skip_step_size and self.last_cut_orientation == self.cut_orientation:
+        if not self.initial and self.last_process_source_method == self.process_source_method and self.last_fast_depth == self.fast_depth and self.last_sample_points == self.sample_points and self.last_refine_steps == self.refine_steps and self.last_skip_step_size == self.skip_step_size and self.last_sdf_resolution == self.sdf_resolution and self.last_sdf_pixel_refine_steps == self.sdf_pixel_refine_steps and self.last_sdf_ignore_normals == self.sdf_ignore_normals and self.last_sdf_extent_scale == self.sdf_extent_scale and self.last_cut_orientation == self.cut_orientation:
             # print(f'skipping re-processing source')
             return True
         self.last_process_source_method = self.process_source_method
@@ -175,6 +194,10 @@ class Contours_Logic:
         self.last_sample_points = self.sample_points
         self.last_refine_steps = self.refine_steps
         self.last_skip_step_size = self.skip_step_size
+        self.last_sdf_resolution = self.sdf_resolution
+        self.last_sdf_pixel_refine_steps = self.sdf_pixel_refine_steps
+        self.last_sdf_ignore_normals = self.sdf_ignore_normals
+        self.last_sdf_extent_scale = self.sdf_extent_scale
         self.last_cut_orientation = self.cut_orientation
         self.plane = snap_plane_to_direction(self.plane_original, self.hit, self.cut_orientation)
 
@@ -185,6 +208,8 @@ class Contours_Logic:
                 return self.process_source_skip(context)
             case 'walk':
                 return self.process_source_walk(context)
+            case 'sdf':
+                return self.process_source_sdf(context)
             case _:
                 assert False, f'Unhandled source processing method "{self.process_source_method}"'
 
@@ -662,6 +687,47 @@ class Contours_Logic:
             pt = hit
         return hits
 
+    def _refine_loop_world(self, context:Context, points_world:list, plane_normal_world:Vector, steps:int) -> list:
+        '''Adaptively subdivide the longest 25% of a world-space loop's segments and snap each
+           new midpoint onto the source surface within the cut plane. Shared by Fast and SDF.'''
+        plane_cut = self.plane
+        pts_w = [Vector(p) for p in points_world]
+        for _ in range(steps):
+            n_w = len(pts_w)
+            lengths = [(pts_w[(i+1) % n_w] - pts_w[i]).length for i in range(n_w)]
+            threshold = sorted(lengths)[int(0.75 * n_w)]
+            new_pts_w = []
+            for i in range(n_w):
+                p0 = pts_w[i]
+                p1 = pts_w[(i+1) % n_w]
+                new_pts_w.append(p0)
+                if lengths[i] < threshold:
+                    continue
+                m = (p0 + p1) / 2
+                # Surface check before raycasting
+                m_snapped = nearest_point_valid_sources(context, m, world=True, respect_clip_planes=True)
+                if m_snapped is not None and (Vector(m_snapped) - m).length < lengths[i] * 0.05:
+                    new_pts_w.append(m)
+                    continue
+                # Refinement, raycast ± along the 2D segment normal
+                seg = p1 - p0
+                inplane_n = plane_normal_world.cross(seg)
+                if inplane_n.length_squared < 1e-12:
+                    new_pts_w.append(m)
+                    continue
+                inplane_n.normalize()
+                nudge = max(1e-4, seg.length * 1e-3)
+                hit_a = raycast_ray_valid_sources(context, (m + inplane_n * nudge,  inplane_n),  world=True, respect_clip_planes=True)
+                hit_b = raycast_ray_valid_sources(context, (m - inplane_n * nudge, -inplane_n), world=True, respect_clip_planes=True)
+                candidates = []
+                for h in (hit_a, hit_b):
+                    if h is None: continue
+                    lp = plane_cut.w2l_point(h); lp.z = 0
+                    candidates.append(Vector(plane_cut.l2w_point(lp)))
+                new_pts_w.append(min(candidates, key=lambda h: (h - m).length_squared) if candidates else m)
+            pts_w = new_pts_w
+        return pts_w
+
     def process_source_fast(self, context:Context) -> bool:
         plane_cut = self.plane
         hit_obj = self.hit['object']
@@ -730,42 +796,7 @@ class Contours_Logic:
 
         if self.refine_steps > 0 and len(points_world) >= 3:
             plane_normal_world = Vector(plane_cut.l2w_direction(Vector((0, 0, 1))))
-            pts_w = [Vector(p) for p in points_world]
-            for _ in range(self.refine_steps):
-                n_w = len(pts_w)
-                lengths = [(pts_w[(i+1) % n_w] - pts_w[i]).length for i in range(n_w)]
-                threshold = sorted(lengths)[int(0.75 * n_w)]
-                new_pts_w = []
-                for i in range(n_w):
-                    p0 = pts_w[i]
-                    p1 = pts_w[(i+1) % n_w]
-                    new_pts_w.append(p0)
-                    if lengths[i] < threshold:
-                        continue
-                    m = (p0 + p1) / 2
-                    # Surface check before raycasting
-                    m_snapped = nearest_point_valid_sources(context, m, world=True, respect_clip_planes=True)
-                    if m_snapped is not None and (Vector(m_snapped) - m).length < lengths[i] * 0.05:
-                        new_pts_w.append(m)
-                        continue
-                    # Refinement, raycast ± along the 2D segment normal
-                    seg = p1 - p0
-                    inplane_n = plane_normal_world.cross(seg)
-                    if inplane_n.length_squared < 1e-12:
-                        new_pts_w.append(m)
-                        continue
-                    inplane_n.normalize()
-                    nudge = max(1e-4, seg.length * 1e-3)
-                    hit_a = raycast_ray_valid_sources(context, (m + inplane_n * nudge,  inplane_n),  world=True, respect_clip_planes=True)
-                    hit_b = raycast_ray_valid_sources(context, (m - inplane_n * nudge, -inplane_n), world=True, respect_clip_planes=True)
-                    candidates = []
-                    for h in (hit_a, hit_b):
-                        if h is None: continue
-                        lp = plane_cut.w2l_point(h); lp.z = 0
-                        candidates.append(Vector(plane_cut.l2w_point(lp)))
-                    new_pts_w.append(min(candidates, key=lambda h: (h - m).length_squared) if candidates else m)
-                pts_w = new_pts_w
-            points_world = pts_w
+            points_world = self._refine_loop_world(context, points_world, plane_normal_world, self.refine_steps)
 
         points = [ self.matrix_world_inv @ pt_world for pt_world in points_world if pt_world ]
         cyclic = True
@@ -800,6 +831,369 @@ class Contours_Logic:
         self.circle_fit = circle_fit                    # circle that fits points (plane_fit space)
         self.path_length = path_length                  # length of path of points (target space)
         self.mirror_clipped_loop = mirror_clipped_loop  # did cyclic loop cross mirror plane?
+
+        return True
+
+    def process_source_sdf(self, context:Context) -> bool:
+        '''Build a coarse occupancy grid on the cut plane, trace the boundary of the struck form, then snap and smooth that loop.'''
+        plane_cut = self.plane
+
+        # ---- 1. center + depth estimate (same approach as Fast) ----
+        center_plane = Vector((self.circle_hit[0], self.circle_hit[1], 0, 1))
+        if self.fast_depth >= 2:
+            hit_world = self.hit['co_world']
+            no_world = Vector(self.hit['no_world']).normalized()
+            plane_n = Vector(plane_cut.n).normalized()
+            inward = no_world - no_world.dot(plane_n) * plane_n
+            inward.negate()
+            if inward.length > 1e-6:
+                n_inward = 2 * (self.fast_depth - 1) + 1
+                inward_hits = self._raycast_hits(context, hit_world, inward.normalized(), n_inward)
+                if inward_hits:
+                    midpoint = (hit_world + inward_hits[-1]) / 2
+                    midpoint_local = plane_cut.w2l_point(midpoint)
+                    center_plane = Vector((midpoint_local.x, midpoint_local.y, 0, 1))
+        center_world = plane_cut.l2w_point(center_plane)
+
+        # ---- 2. measure extent -> padded rectangular bbox in plane-local 2D ----
+        EXTENT_SAMPLES = 24
+        hit_local = plane_cut.w2l_point(Vector(self.hit['co_world']))
+        xs = [center_plane.x, hit_local.x]
+        ys = [center_plane.y, hit_local.y]
+        for d in range(EXTENT_SAMPLES):
+            dp = Vector((math.cos(2*math.pi*d/EXTENT_SAMPLES), math.sin(2*math.pi*d/EXTENT_SAMPLES), 0, 0))
+            dw = plane_cut.l2w_direction(dp)
+            rh = raycast_ray_valid_sources(context, (center_world, dw), world=True, respect_clip_planes=True)
+            if rh is None: continue
+            lp = plane_cut.w2l_point(rh)
+            xs.append(lp.x); ys.append(lp.y)
+        xmin, xmax = min(xs), max(xs)
+        ymin, ymax = min(ys), max(ys)
+        w, h = xmax - xmin, ymax - ymin
+        if w < 1e-6 or h < 1e-6:
+            print('CONTOURS SDF: degenerate extent, falling back to Fast')
+            return self.process_source_fast(context)
+        # scale the bbox so the cross-section is not clipped by the grid border
+        _cx, _cy = (xmin + xmax) / 2, (ymin + ymax) / 2
+        _scale = max(0.5, float(self.sdf_extent_scale))
+        xmin, xmax = _cx - w * _scale / 2, _cx + w * _scale / 2
+        ymin, ymax = _cy - h * _scale / 2, _cy + h * _scale / 2
+        w, h = xmax - xmin, ymax - ymin
+
+        # ---- 3. grid dimensions: resolution on the long axis, short axis by aspect ratio ----
+        res = max(8, int(self.sdf_resolution))
+        if w >= h:
+            res_x, res_y = res, max(3, round(res * h / w))
+        else:
+            res_y, res_x = res, max(3, round(res * w / h))
+        eff = 3 ** max(0, int(self.sdf_pixel_refine_steps))
+        # keep the fine grid sane even when pixel refinement and resolution are both cranked
+        max_fine = 400
+        while eff > 1 and (res_x * eff > max_fine or res_y * eff > max_fine):
+            eff //= 3
+            print(f'CONTOURS SDF: pixel refinement capped (fine grid would exceed {max_fine} cells/axis)')
+        RX, RY = res_x * eff, res_y * eff
+        fcw, fch = w / RX, h / RY                                # fine cell size
+        base_radius = 0.5 * math.hypot(w / res_x, h / res_y)     # coarse cell half-diagonal
+
+        # ---- 4. classify cells: `near` (within radius of surface) and `inside` (signed) ----
+        # A single closest-point query per cell yields both: the band test drives Ignore Normals
+        # mode, the sign drives the default mode. cell_radius >= half-diagonal => a surface passing
+        # through a cell always registers, so a coarse grid cannot skip over it.
+        near   = [[False] * RY for _ in range(RX)]
+        inside = [[False] * RY for _ in range(RX)]
+
+        def classify_one(fi, fj, radius):
+            c = plane_cut.l2w_point(Vector((xmin + (fi + 0.5) * fcw, ymin + (fj + 0.5) * fch, 0)))
+            q = nearest_point_normal_valid_sources(context, c, world=True, respect_clip_planes=True)
+            if q is None: return (False, False, c)
+            co, no = q
+            is_near = (Vector(co) - Vector(c)).length < radius
+            is_inside = (Vector(c) - Vector(co)).dot(Vector(no)) < 0.0
+            return (is_near, is_inside, c)
+
+        # A coarse cell = one block of `size` fine cells/axis. Query its center; if the surface is
+        # within it and we can still refine, descend into 3x3 sub-blocks; otherwise fill uniformly.
+        # Only near (boundary-band) blocks ever subdivide, so cost ~ boundary length x 3^steps.
+        # Returns the top-level is_near so callers can record which coarse blocks were refined.
+        def fill_block(fi0, fj0, size, radius):
+            is_near, is_inside, _ = classify_one(fi0 + size // 2, fj0 + size // 2, radius)
+            if is_near and size >= 3:
+                sub = size // 3
+                for di in range(3):
+                    for dj in range(3):
+                        fill_block(fi0 + di * sub, fj0 + dj * sub, sub, radius / 3.0)
+            else:
+                for i in range(fi0, fi0 + size):
+                    for j in range(fj0, fj0 + size):
+                        near[i][j] = is_near
+                        inside[i][j] = is_inside
+            return is_near
+
+        coarse_was_near = [[False] * res_y for _ in range(res_x)]
+        for bi in range(res_x):
+            for bj in range(res_y):
+                coarse_was_near[bi][bj] = fill_block(bi * eff, bj * eff, eff, base_radius)
+
+        # ---- 5. solid region via exterior flood-fill from the grid border ----
+        # empty = far (band mode) or outside (signed mode); solid = everything the exterior can't reach.
+        # This fills the band into a solid region whose OUTER edge is the cross-section, and fills any
+        # enclosed hollow -- so we trace one clean loop, not the band's inner+outer offsets.
+        if self.sdf_ignore_normals:
+            is_empty = lambda i, j: not near[i][j]
+        else:
+            is_empty = lambda i, j: not inside[i][j]
+
+        exterior = [[False] * RY for _ in range(RX)]
+        stack = []
+        for i in range(RX):
+            for j in (0, RY - 1):
+                if is_empty(i, j) and not exterior[i][j]:
+                    exterior[i][j] = True; stack.append((i, j))
+        for j in range(RY):
+            for i in (0, RX - 1):
+                if is_empty(i, j) and not exterior[i][j]:
+                    exterior[i][j] = True; stack.append((i, j))
+        while stack:
+            i, j = stack.pop()
+            for di, dj in ((1,0),(-1,0),(0,1),(0,-1)):
+                ni, nj = i + di, j + dj
+                if 0 <= ni < RX and 0 <= nj < RY and not exterior[ni][nj] and is_empty(ni, nj):
+                    exterior[ni][nj] = True; stack.append((ni, nj))
+        solid = [[not exterior[i][j] for j in range(RY)] for i in range(RX)]
+
+        # ---- 6. isolate the solid component containing the stroke hit (ignores other objects) ----
+        hi = min(RX - 1, max(0, int((hit_local.x - xmin) / fcw)))
+        hj = min(RY - 1, max(0, int((hit_local.y - ymin) / fch)))
+        if not solid[hi][hj]:
+            best, bestd = None, None
+            for i in range(RX):
+                for j in range(RY):
+                    if solid[i][j]:
+                        dd = (i - hi) ** 2 + (j - hj) ** 2
+                        if bestd is None or dd < bestd:
+                            bestd, best = dd, (i, j)
+            if best is None:
+                print('CONTOURS SDF: no solid cells found, falling back to Fast')
+                return self.process_source_fast(context)
+            hi, hj = best
+
+        blob = [[False] * RY for _ in range(RX)]
+        stack = [(hi, hj)]; blob[hi][hj] = True
+        touches_border = False
+        while stack:
+            i, j = stack.pop()
+            if i == 0 or j == 0 or i == RX - 1 or j == RY - 1:
+                touches_border = True
+            for di, dj in ((1,0),(-1,0),(0,1),(0,-1)):
+                ni, nj = i + di, j + dj
+                if 0 <= ni < RX and 0 <= nj < RY and not blob[ni][nj] and solid[ni][nj]:
+                    blob[ni][nj] = True; stack.append((ni, nj))
+
+        # ---- 7. trace the blob's outer boundary as an ordered loop of lattice corners ----
+        def blob_at(i, j):
+            return 0 <= i < RX and 0 <= j < RY and blob[i][j]
+        def boundary_dirs(cx, cy):
+            sw, se = blob_at(cx-1, cy-1), blob_at(cx, cy-1)
+            nw, ne = blob_at(cx-1, cy),   blob_at(cx, cy)
+            ds = []
+            if nw != ne: ds.append((0, 1))    # N
+            if sw != se: ds.append((0, -1))   # S
+            if se != ne: ds.append((1, 0))    # E
+            if sw != nw: ds.append((-1, 0))   # W
+            return ds
+        right_turn = {(0,1):(1,0), (1,0):(0,-1), (0,-1):(-1,0), (-1,0):(0,1)}
+
+        start_cell = next(((i, j) for i in range(RX) for j in range(RY) if blob[i][j]), None)
+        if start_cell is None:
+            print('CONTOURS SDF: empty blob, falling back to Fast')
+            return self.process_source_fast(context)
+        start = start_cell  # leftmost-lowest blob cell -> its lower-left corner is on the boundary
+        bdirs = boundary_dirs(*start)
+        if not bdirs:
+            print('CONTOURS SDF: degenerate boundary, falling back to Fast')
+            return self.process_source_fast(context)
+        cur_dir = (0, 1) if (0, 1) in bdirs else bdirs[0]
+        corners = []
+        P = start
+        max_steps = 4 * (RX + 1) * (RY + 1) + 16
+        for _ in range(max_steps):
+            corners.append(P)
+            P = (P[0] + cur_dir[0], P[1] + cur_dir[1])
+            if P == start:
+                break
+            bdirs = boundary_dirs(*P)
+            rev = (-cur_dir[0], -cur_dir[1])
+            cands = [d for d in bdirs if d != rev]
+            if not cands:
+                break
+            if len(cands) == 1:
+                cur_dir = cands[0]
+            else:
+                rt = right_turn[cur_dir]            # saddle: consistent turn keeps one side
+                cur_dir = rt if rt in cands else cands[0]
+
+        # ---- DEBUG: remove stale debug objects now so they are absent during the snap step.
+        # The replacement objects are created after snap+dedup so they cannot be picked up as
+        # valid snap sources by nearest_point_valid_sources.
+        if CREATE_DEBUG_OBJECTS:
+            for _name in ('SDF_Debug_Grid', 'SDF_Debug_Path'):
+                _old = bpy.data.objects.get(_name)
+                if _old:
+                    bpy.data.meshes.remove(_old.data, do_unlink=True)
+            _raw_corners = list(corners)  # save full staircase before downsample for debug path
+
+        # Downsample the staircase to avoid hundreds of zig-zag steps: adjacent fine-grid
+        # corners that are very close together can snap to non-adjacent surface locations on
+        # concave shapes, producing crossing / out-of-order loops.  Roughly one sample per
+        # coarse cell perimeter is more than enough for _refine_loop_world to converge.
+        target_count = max(16, 4 * (res_x + res_y))
+        if len(corners) > target_count:
+            step = len(corners) / target_count
+            corners = [corners[int(round(k * step)) % len(corners)] for k in range(target_count)]
+
+        points_world = [
+            plane_cut.l2w_point(Vector((xmin + cx * fcw, ymin + cy * fch, 0)))
+            for (cx, cy) in corners
+        ]
+        if len(points_world) < 3:
+            print('CONTOURS SDF: boundary too short, falling back to Fast')
+            return self.process_source_fast(context)
+
+        # ---- 8. snap each boundary point: nearest surface point, reprojected onto the cut plane ----
+        # Staircase corners are already within one cell-width of the surface.  Nearest-point gives
+        # the correct surface location regardless of edge angle; reprojecting (lp.z = 0) keeps the
+        # loop planar.  _refine_loop_world handles precise positioning in the next step.
+        plane_normal_world = Vector(plane_cut.l2w_direction(Vector((0, 0, 1))))
+        snapped = []
+        for pw in points_world:
+            p = Vector(pw)
+            npt = nearest_point_valid_sources(context, p, world=True, respect_clip_planes=True)
+            if npt is not None:
+                lp = plane_cut.w2l_point(npt); lp.z = 0
+                snapped.append(Vector(plane_cut.l2w_point(lp)))
+            else:
+                snapped.append(p)
+        points_world = snapped
+
+        # drop coincident neighbors (the staircase + snapping can collapse points together)
+        deduped = []
+        for p in points_world:
+            if not deduped or (Vector(p) - Vector(deduped[-1])).length > 1e-6:
+                deduped.append(p)
+        if len(deduped) >= 2 and (Vector(deduped[0]) - Vector(deduped[-1])).length <= 1e-6:
+            deduped.pop()
+        points_world = deduped
+        if len(points_world) < 3:
+            print('CONTOURS SDF: too few points after snapping, falling back to Fast')
+            return self.process_source_fast(context)
+
+        if CREATE_DEBUG_OBJECTS:
+            # ---- DEBUG: emit grid + raw traced path as mesh objects for inspection ----
+            # Created here (after snap+dedup) so they are absent when nearest_point_valid_sources
+            # runs above and cannot be mistaken for valid snap sources.
+            # Grid mesh: adaptive quads — coarse_was_near blocks emit eff×eff fine quads so you can
+            # see which blocks were individually queried; uniform blocks emit one large quad.
+            # Selected face = solid (the blob region driving the boundary trace).
+            _gm = bpy.data.meshes.new('SDF_Debug_Grid')
+            _bm = bmesh.new()
+            for _bj in range(res_y):
+                for _bi in range(res_x):
+                    _fi0, _fj0 = _bi * eff, _bj * eff
+                    if coarse_was_near[_bi][_bj]:
+                        for _dj in range(eff):
+                            for _di in range(eff):
+                                _fi, _fj = _fi0 + _di, _fj0 + _dj
+                                _v0 = _bm.verts.new(plane_cut.l2w_point(Vector((xmin + _fi       * fcw, ymin + _fj       * fch, 0))))
+                                _v1 = _bm.verts.new(plane_cut.l2w_point(Vector((xmin + (_fi + 1) * fcw, ymin + _fj       * fch, 0))))
+                                _v2 = _bm.verts.new(plane_cut.l2w_point(Vector((xmin + (_fi + 1) * fcw, ymin + (_fj + 1) * fch, 0))))
+                                _v3 = _bm.verts.new(plane_cut.l2w_point(Vector((xmin + _fi       * fcw, ymin + (_fj + 1) * fch, 0))))
+                                _bm.faces.new([_v0, _v1, _v2, _v3]).select = solid[_fi][_fj]
+                    else:
+                        _v0 = _bm.verts.new(plane_cut.l2w_point(Vector((xmin + _fi0         * fcw, ymin + _fj0         * fch, 0))))
+                        _v1 = _bm.verts.new(plane_cut.l2w_point(Vector((xmin + (_fi0 + eff) * fcw, ymin + _fj0         * fch, 0))))
+                        _v2 = _bm.verts.new(plane_cut.l2w_point(Vector((xmin + (_fi0 + eff) * fcw, ymin + (_fj0 + eff) * fch, 0))))
+                        _v3 = _bm.verts.new(plane_cut.l2w_point(Vector((xmin + _fi0         * fcw, ymin + (_fj0 + eff) * fch, 0))))
+                        _bm.faces.new([_v0, _v1, _v2, _v3]).select = solid[_fi0 + eff // 2][_fj0 + eff // 2]
+            _bm.to_mesh(_gm)
+            _bm.free()
+            _go = bpy.data.objects.new('SDF_Debug_Grid', _gm)
+            _go.hide_select = True
+            bpy.context.scene.collection.objects.link(_go)
+
+            # Raw traced path mesh: full pre-downsample staircase corners, edges connecting them.
+            _raw_pts = [
+                plane_cut.l2w_point(Vector((xmin + cx * fcw, ymin + cy * fch, 0)))
+                for (cx, cy) in _raw_corners
+            ]
+            _pm = bpy.data.meshes.new('SDF_Debug_Path')
+            _bm2 = bmesh.new()
+            _pverts = [_bm2.verts.new(_p) for _p in _raw_pts]
+            _bm2.verts.ensure_lookup_table()
+            for _k in range(len(_pverts)):
+                _bm2.edges.new([_pverts[_k], _pverts[(_k + 1) % len(_pverts)]])
+            _bm2.to_mesh(_pm)
+            _bm2.free()
+            _po = bpy.data.objects.new('SDF_Debug_Path', _pm)
+            _po.hide_select = True
+            bpy.context.scene.collection.objects.link(_po)
+            # ---- END DEBUG ----
+
+        # normalize winding so rings bridged from opposite sides of the mesh don't twist (as in Fast)
+        plane_n = plane_normal_world
+        comps = [abs(plane_n.x), abs(plane_n.y), abs(plane_n.z)]
+        dom = comps.index(max(comps))
+        want_ccw = (plane_n.x, plane_n.y, plane_n.z)[dom] > 0
+        pts_local = [plane_cut.w2l_point(Vector(p)) for p in points_world]
+        n_ring = len(pts_local)
+        signed_area = sum(
+            pts_local[i].x * pts_local[(i+1) % n_ring].y - pts_local[(i+1) % n_ring].x * pts_local[i].y
+            for i in range(n_ring)
+        ) / 2
+        if (signed_area > 0) != want_ccw:
+            points_world = [points_world[0]] + list(reversed(points_world[1:]))
+
+        # ---- 9. smooth (shared with Fast) + finalize (mirror Fast's tail) ----
+        if self.refine_steps > 0 and len(points_world) >= 3:
+            points_world = self._refine_loop_world(context, points_world, plane_normal_world, self.refine_steps)
+
+        # DIAGNOSTIC: compare world-space points with expected hit position
+        _hit_w = Vector(self.hit['co_world'])
+        _hit_l = Vector(self.hit['co_local'])
+        _mw    = self.matrix_world
+        _pw0   = Vector(points_world[0]) if points_world else None
+        _pl0   = (_mw.inverted_safe() @ _pw0) if _pw0 else None
+        def _fv(v): return f'({v.x:.3f}, {v.y:.3f}, {v.z:.3f})' if v else 'None'
+        print(f'CONTOURS SDF DIAG: hit_world={_fv(_hit_w)}  hit_local={_fv(_hit_l)}')
+        print(f'CONTOURS SDF DIAG: matrix_world[3]={_fv(Vector(_mw.col[3].xyz))}')
+        print(f'CONTOURS SDF DIAG: pts_world[0]={_fv(_pw0)}  -> local={_fv(_pl0)}')
+
+        points = [ self.matrix_world_inv @ pt_world for pt_world in points_world if pt_world ]
+        cyclic = not touches_border
+
+        points, mirror_clipped_loop = self.handle_mirrors(context, points)
+        if mirror_clipped_loop: cyclic = False
+
+        if len(points) < 3:
+            print('CONTOURS SDF: too few points found to fit plane')
+            return False
+
+        plane_fit = Plane.fit_to_points(points)
+        circle_fit = hyperLSQ([list(plane_fit.w2l_point(pt).xy) for pt in points])
+        path_length = sum((pt0 - pt1).length for (pt0, pt1) in iter_pairs(points, cyclic))
+
+        if circle_fit[3] > circle_fit[2]:
+            print(
+                f'CONTOURS SDF: poor circle fit (sigma={circle_fit[3]:.4f} > radius={circle_fit[2]:.4f}) — ' +
+                f'{len(points)} pts, grid={res_x}x{res_y}, ignore_normals={self.sdf_ignore_normals}'
+            )
+
+        self.points = points
+        self.cyclic = cyclic
+        self.plane_fit = plane_fit
+        self.circle_fit = circle_fit
+        self.path_length = path_length
+        self.mirror_clipped_loop = mirror_clipped_loop
 
         return True
 

@@ -504,6 +504,36 @@ def nearest_normal_valid_sources(context, point_world, *, world=True):
     Mt = M.transposed()
     return xform_direction(Mt, best_no_world)
 
+def nearest_point_normal_valid_sources(context, point_world, *, world=True, respect_clip_planes=False):
+    ''' Closest point and its normal on any valid source, from a single closest_point_on_mesh query per source.
+    Returns (co, no) or None. '''
+    best_co_world = None
+    best_no_world = None
+    best_dist = float('inf')
+    for obj in iter_all_valid_sources(context):
+        M = obj.matrix_world
+        Mi = M.inverted_safe()
+        Mit = Mi.transposed()
+        point_local = point_to_bvec3(xform_point(Mi, point_world))
+        result, co, normal, idx = obj.closest_point_on_mesh(point_local)
+        if not result: continue
+        co_world = xform_point(M, co)
+        if respect_clip_planes and not is_point_in_clip_region(context, co_world):
+            continue
+        dist = distance_between_locations(point_world, co_world)
+        if dist >= best_dist: continue
+        best_co_world = co_world
+        best_no_world = xform_normal(Mit, normal)
+        best_dist = dist
+    if best_co_world is None: return None
+
+    if world:
+        return (best_co_world, best_no_world)
+    M = context.edit_object.matrix_world
+    Mi = M.inverted_safe()
+    Mt = M.transposed()
+    return (point_to_bvec3(xform_point(Mi, best_co_world)), xform_direction(Mt, best_no_world))
+
 
 class MatrixInfo:
     M   : Matrix
@@ -603,39 +633,3 @@ class FindNearest:
                 self.normal_world   = no_world
                 self.point_local    = self.matinfo.w2l_point(co_world)
                 self.normal_local   = self.matinfo.w2l_normal(no_world)
-
-
-
-def nearest_point_normal_valid_sources(context, point_world, *, world=True):
-    point_world = Vector((*point_world, 1.0))
-    best_hit = None
-    best_no_world = None
-    best_dist = float('inf')
-
-    for obj in iter_all_valid_sources(context):
-        M = obj.matrix_world
-        Mi = M.inverted_safe()
-        Mit = Mi.transposed()
-        point_local = Mi @ point_world
-        result, co, normal, idx = obj.closest_point_on_mesh(point_local.xyz)
-        if not result: continue
-        co_world = M @ Vector((*co, 1.0))
-        no_world = xform_normal(Mit, normal)
-        dist = distance_between_locations(point_world, co_world)
-        # print(f'  HIT {obj.name} {co_world} {dist}')
-        if dist >= best_dist: continue
-        best_hit = co_world
-        best_no_world = no_world
-        best_dist = dist
-
-    if not best_hit: return (None, None)
-
-    hit = Vector((*point_to_bvec3(best_hit), 1.0))
-    if world:
-        return (point_to_bvec3(hit), best_no_world)
-
-    M = context.edit_object.matrix_world
-    Mt = M.transposed()
-    Mi = M.inverted_safe()
-    hit = Mi @ hit
-    return (point_to_bvec3(hit), xform_direction(Mt, best_no_world))
