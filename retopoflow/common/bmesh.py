@@ -486,7 +486,7 @@ def get_bmv_next_loop_vert(prev : BMVert, cur : BMVert, walk_boundaries:bool=Tru
                 return bme.other_vert(cur)
         return None
 
-    bme_in : BMEdge | None = next((bme for bme in cur.link_edges if e.other_vert(cur) == prev), None)
+    bme_in : BMEdge | None = next((bme for bme in cur.link_edges if bme.other_vert(cur) == prev), None)
     if bme_in is None: return None
     in_faces : set[BMFace] = set(bme_in.link_faces)
     clean : list[BMVert|None] = [
