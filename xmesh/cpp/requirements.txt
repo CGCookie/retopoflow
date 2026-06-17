@@ -1,0 +1,5 @@
+nanobind
+scikit-build-core
+cmake
+ninja
+meson-python

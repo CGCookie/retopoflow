@@ -749,12 +749,18 @@ class RFCore:
         if context.mode != 'EDIT_MESH': return
         # print(f'handle_postview {len(area.spaces)}')
 
+        global TEST_XMESH
         if TEST_XMESH:
             import gpu
-            from ..xmesh.test import batch, shader
-            gpu.state.depth_test_set('LESS_EQUAL')
-            gpu.state.depth_mask_set(True)
-            batch.draw(shader)
+            try:
+                from ..xmesh import test
+                gpu.state.depth_test_set('LESS_EQUAL')
+                gpu.state.depth_mask_set(True)
+                test.batch.draw(test.shader)
+            except Exception as e:
+                print('DISABLING TEST_XMESH!')
+                print(f'  Exception: {e}')
+                TEST_XMESH = False
 
         if not RFCore.is_controlling: return
         if not RFCore.is_running: return

@@ -1,0 +1,4 @@
+# temporarily ignore committing modules and stubs
+*.so
+*.pyd
+*.pyi

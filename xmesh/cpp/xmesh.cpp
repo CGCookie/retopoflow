@@ -34,7 +34,6 @@ using FloatArray3 = std::array<float, 3>;
 
 
 
-
 // struct Matrix4f { float data[4][4] {}; };
 
 struct Blender_MPoly {
@@ -496,12 +495,13 @@ struct Low {
     Float3 n;
 };
 
-//int add(int a, int b = 1) { return a + b; }
+int add(int a, int b = 1) { return a + b; }
 
 NB_MODULE(xmesh, m) {
     m.doc() = "xmesh, a wrapper for blender mesh, emesh, bmesh";
 
-    //m.def("add", &add, "a"_a, "b"_a=1, "This function adds two numbers and increments if only one is provided.");
+    // m.def("add", &add, "a"_a, "b"_a=1, "This function adds two numbers and increments if only one is provided.");
+
     m.def("inspect", [](uintptr_t ptr, size_t bytes){
         unsigned char *p = (unsigned char*)ptr;
         printf("inspecting %p\n", p);

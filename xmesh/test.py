@@ -9,9 +9,9 @@ import time
 import numpy as np
 
 from ..xmesh.build import build_module
-build_module()
-
+build_module(system='meson')  # alt: system='cmake'
 from . import xmesh
+
 
 
 timings : list[tuple[str, float]] = []
