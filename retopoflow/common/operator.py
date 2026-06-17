@@ -223,7 +223,7 @@ class RFAssetShelf(bpy.types.AssetShelf):
     @classmethod
     def unregister(cls): pass
     @classmethod
-    def can_start(cls, _context : Context): return True
+    def can_start(cls, _context : Context) -> bool: return True
 
 
 class RFOperator_Execute(RFOperator_Base, RFOperator_KeymapContext, bpy.types.Operator):

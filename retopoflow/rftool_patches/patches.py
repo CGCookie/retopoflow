@@ -33,6 +33,8 @@ from bpy.types import Context, Operator
 
 from ..rfglobals import RFGlobals
 from ..rfbrushes.stroke_brush import create_stroke_brush
+from ..rfoperators.topo_rotate import RFOperator_TopoRotate
+from ..rftool_base import RFTool_Base
 from ..preferences import RF_Prefs
 
 from ...addon_common.common import gpustate
@@ -42,6 +44,7 @@ from ...addon_common.common.colors import Color4
 from ...addon_common.common.decorators import add_cache
 from ...addon_common.common.debug import debugger
 from ...addon_common.common.maths import Frame, Point, Normal
+from ...addon_common.common.resetter import Resetter
 from ...addon_common.common.utils import iter_pairs
 from ...addon_common.common.useractions import Actions
 
@@ -52,13 +55,17 @@ from ..common.drawing import (
     CC_2D_LINES,
     CC_2D_TRIANGLES,
 )
+from ..common.icons import get_path_to_blender_icon
 from ..common.operator import (
     execute_operator,
     RFOperator,
     RFOperator_Execute,
     RFRegisterClass,
     RFKeyMaps,
+    RFAssetShelf,
     wrap_property,
+    chain_rf_keymaps,
+    poll_retopoflow,
 )
 from ..common.maths import (
     direction_to_bvec4,
@@ -81,6 +88,13 @@ from ..common.raycast import (
 
 from .patches_logic import Patches_Logic, Patches_Template
 
+from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
+from ..rfpanels.tweaking_panel import draw_tweaking_panel
+from ..rfpanels.rfpanel_snapping import draw_snapping_panel
+from ..rfpanels.mirror_panel import draw_mirror_panel, draw_mirror_popover
+from ..rfpanels.general_panel import draw_general_panel
+from ..rfpanels.help_panel import draw_help_panel
+from ..common.interface import draw_line_separator
 
 
 
@@ -625,7 +639,7 @@ class RFOperator_Patches_Insert(RFOperator):
 
 
 
-    def draw_postpixel(self, context):
+    def draw_postpixel(self, context : Context):
         if not self.orientation_data: return
 
         ####################################
@@ -658,7 +672,6 @@ def activate_template(self : Operator, context : Context):
         self.asset_library_type,
     )
 
-'''
 class RFAssetShelf_Patches(RFAssetShelf):
     bl_idname = 'VIEW3D_AST_Retopoflow_Patches' #'retopoflow.patches'
     bl_category = 'Patches Templates'
@@ -682,7 +695,7 @@ class RFAssetShelf_Patches(RFAssetShelf):
         return asset.metadata.description.startswith('Retopoflow Patches Template')
 
     @classmethod
-    def can_start(cls, context):
+    def can_start(cls, context : Context) -> bool:
         RFCore = RFGlobals.RFCore_None
         if not RFCore: return False
         return RFCore.selected_RFTool_idname == RFTool_Patches.bl_idname
@@ -705,6 +718,7 @@ class RFTool_Patches(RFTool_Base):
 
     rf_brush = RFBrush_Patches()
 
+    @staticmethod
     def draw_settings(context, layout, tool):
         props_patches = tool.operator_properties(RFOperator_Patches_Insert.bl_idname)
         RFTool_Patches.props = props_patches
@@ -758,12 +772,12 @@ class RFTool_Patches(RFTool_Base):
     @classmethod
     def deactivate(cls, context):
         cls.resetter.reset()
-'''
-'''
+
 @execute_operator('switch_to_patches', 'RetopoFlow: Switch to Patches', fn_poll=poll_retopoflow)
 def switch_rftool(context):
     RFTool_Patches.activate_tool(context)
-'''
+
+
 
 ################################################################################################################################
 ################################################################################################################################

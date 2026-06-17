@@ -19,17 +19,19 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+from __future__ import annotations
 import os
-from typing import Self
-from math import sqrt
+from collections.abc import Callable, Sequence
 
 import bpy
 from mathutils.bvhtree import BVHTree
-from mathutils import Vector
-from bmesh.types import BMVert, BMEdge, BMFace
+from mathutils import Vector, Matrix
+from bmesh.types import BMesh, BMVert, BMEdge, BMFace
 from bpy_extras.view3d_utils import location_3d_to_region_2d
+from bpy.types import Mesh, Context, Object
 
 from ...addon_common.common import bmesh_ops as bmops
+from ...addon_common.common.bmesh_ops import BMLayer
 from ...addon_common.common.decorators import add_cache
 from ...addon_common.common.colors import Color4
 from ...addon_common.common.utils import iter_pairs
@@ -44,24 +46,46 @@ from ..common.drawing import (
 
 
 class Patches_Template:
-    _cache : dict[str, Self] = {}
-    _active : Self | None = None
+    _cache : dict[str, Patches_Template] = {}
+    _active : Patches_Template | None = None
 
-    def __init__(self, data):
-        if type(data) is bpy.types.Mesh:
+    height : float
+    is_flat : bool
+    radius : float
+    snap_vs : list[int]
+    vcs : list[bool]
+    vps : list[Vector]
+    vns : list[Vector]
+    snapped_vps : list[Vector]
+    snapped_vns : list[Vector]
+    vc : int
+    ec : int
+    fc : int
+    es : list[tuple[int, ...]]
+    fs : list[tuple[int, ...]]
+
+    def __init__(self, data : Mesh | dict[str, list[Sequence[Vector]] | list[Sequence[int]]]):
+        self.vc = 0
+        self.ec = 0
+        self.fc = 0
+        self.snapped_vps = []
+        self.snapped_vns = []
+        self.vns = []
+        self.fs = []
+        if isinstance(data, Mesh):
             self._from_mesh(data)
         else:
             self._from_data(data)
         self._process()
 
-    def _from_data(self, data):
+    def _from_data(self, data : dict[str, list[Sequence[Vector]] | list[Sequence[int]]]):
         self.vc, self.ec, self.fc = len(data['vertices']), len(data['edges']), len(data['polygons'])
-        self.vps = [ Vector(co) for (co,no) in data['vertices'] ]
-        self.vns = [ Vector(no) for (co,no) in data['vertices'] ]
-        self.es  = [ tuple(e)   for e in data['edges']    ]
+        self.vps = [ Vector(co) for (co,_no) in data['vertices'] ]
+        self.vns = [ Vector(no) for (_co,no) in data['vertices'] ]
+        self.es  = [ tuple(e)   for e in data['edges'] ]
         self.fs  = [ tuple(f)   for f in data['polygons'] ]
 
-    def _from_mesh(self, mesh):
+    def _from_mesh(self, mesh : Mesh):
         self.vc, self.ec, self.fc = len(mesh.vertices), len(mesh.edges), len(mesh.polygons)
         self.vps = [ Vector(v.co)      for v in mesh.vertices ]
         self.vns = [ Vector(v.normal)  for v in mesh.vertices ]
@@ -121,7 +145,11 @@ class Patches_Template:
 
         self._update(None, None)
 
-    def _update(self, fn_transform_vertex, fn_snap_vertices):
+    def _update(
+        self,
+        fn_transform_vertex : Callable[[Vector, Vector], tuple[Vector, Vector]] | None,
+        fn_snap_vertices : Callable[[list[tuple[Vector, Vector]], list[int]], None] | None,
+    ):
         if fn_transform_vertex is None:
             self.snapped_vps = self.vps
             self.snapped_vns = self.vns
@@ -135,22 +163,25 @@ class Patches_Template:
         # zip with existing geometry
         # snap to nearest surface
 
-        self.snapped_vps = [ pt for (pt, no) in ptnos ]
-        self.snapped_vns = [ no for (pt, no) in ptnos ]
+        self.snapped_vps = [ pt for (pt, _no) in ptnos ]
+        self.snapped_vns = [ no for (_pt, no) in ptnos ]
 
     @staticmethod
-    def update_active(fn_transform_vertex, fn_snap_vertices):
+    def update_active(
+        fn_transform_vertex: Callable[[Vector, Vector], tuple[Vector, Vector]] | None,
+        fn_snap_vertices : Callable[[list[tuple[Vector, Vector]], list[int]], None] | None,
+    ):
         active = Patches_Template._active
         if not active: return
         active._update(fn_transform_vertex, fn_snap_vertices)
 
     @staticmethod
-    def get_active_height():
+    def get_active_height() -> float:
         active = Patches_Template._active
         return active.height if active else 0.0
 
     @staticmethod
-    def get_active_radius():
+    def get_active_radius() -> float:
         active = Patches_Template._active
         return active.radius if active else 0.0
 
@@ -160,7 +191,7 @@ class Patches_Template:
         return active.is_flat if active else False
 
     @staticmethod
-    def activate(context, asset_identifier, library_identifier, library_type):
+    def activate(context : Context, asset_identifier : str, library_identifier : str, library_type : str):
         print(f'Activate asset: "{asset_identifier}" from libary: "{library_identifier}" ({library_type})')
         template_id = f'{library_type} {library_identifier} {asset_identifier}'
         cache = Patches_Template._cache
@@ -219,7 +250,7 @@ class Patches_Template:
         Patches_Template._active = cache[template_id]
 
     @staticmethod
-    def draw_active(context, highlight):
+    def draw_active(context : Context, highlight : Color4):
         active = Patches_Template._active
         if active is None: return
         pts = [
@@ -294,6 +325,21 @@ class Patches_Context:
     holding onto old, stale, or potentially bad context data that
     could cause Blender to leak memory or even crash.
     """
+    bm : BMesh
+    em : Mesh
+    M : Matrix
+    Mi : Matrix
+    edit_scale : float
+    layer_labels : BMLayer
+    sel_bmverts : set[BMVert]
+    sel_bmedges : set[BMEdge]
+    sel_bmfaces : set[BMFace]
+    side_bmedges : set[BMEdge]
+    side_bmverts : set[BMVert]
+    bvh : BVHTree
+    cycle : bool
+    sides : list[list[BMVert]]
+
     def __init__(self, context, *, full_init=False):
         self.bm, self.em = get_bmesh_emesh(context, ensure_lookup_tables=True)
 
@@ -304,7 +350,8 @@ class Patches_Context:
             self.bm.faces.ensure_lookup_table()
 
         # TRANSFORMATIONS
-        self.M = context.edit_object.matrix_world
+        eo : Object = context.edit_object
+        self.M = eo.matrix_world # pyright: ignore[reportConstantRedefinition]
         self.Mi = self.M.inverted_safe()
         self.edit_scale = max(self.M.to_scale())            # TODO: needed?
 
@@ -338,6 +385,9 @@ class Patches_Context:
 
     def analyze(self):
         # look at selected geo to determine what state we are in
+        self.corners = set()
+        self.cycle = False
+        self.sides = []
 
         if not self.sel_bmverts: return     # nothing selected, so nothing to do
         if not self.sel_bmedges: return     # only verts selected, so nothing to do.  TODO: pole editing??
@@ -348,11 +398,17 @@ class Patches_Context:
             return
 
         # only edges selected, so we're creating new faces
-        self.corners = { bmv for bmv in self.side_bmverts if len([bme for bme in bmv.link_edges if bme in self.sel_bmedges]) }
+        self.corners : set[BMVert] = {
+            bmv
+            for bmv in self.side_bmverts
+            if len([bme for bme in bmv.link_edges if bme in self.sel_bmedges])
+        }
         self.cycle = (len(self.corners) == 0)
-        scan = self.corners or { next(iter(self.sel_bmverts)) }
         self.sides = []
-        touched = set()
+        first_sel_bmvert = next(iter(self.sel_bmverts), None)
+        if not first_sel_bmvert: return
+        scan : set[BMVert] = self.corners or { first_sel_bmvert }
+        touched : set[BMVert] = set()
         for current in scan:
             if current in touched: continue
             self.sides.append([])
@@ -360,9 +416,11 @@ class Patches_Context:
                 self.sides[-1].append(current)
                 touched.add(current)
                 for bme in current.link_edges:
-                    if bme not in self.sel_bmedges: continue
+                    if bme not in self.sel_bmedges:
+                        continue
                     other = bme_other_bmv(bme, current)
-                    if other in touched: continue
+                    if not other or other in touched:
+                        continue
                     current = other
                     break
                 else:
@@ -371,11 +429,12 @@ class Patches_Context:
 
 
 class Patches_Logic:
-    rotate:int
-    mirror:bool
-    error:bool
+    ctx : Patches_Context
+    rotate : int
+    mirror : bool
+    error  : bool
 
-    def __init__(self, context):
+    def __init__(self, context : Context):
         self.ctx = Patches_Context(context, full_init=True)
         self.rotate = 0
         self.mirror = False
@@ -384,5 +443,5 @@ class Patches_Logic:
     def clear_context(self):
         del self.ctx
 
-    def create(self, context):
+    def create(self, _context : Context):
         pass
