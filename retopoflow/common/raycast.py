@@ -442,6 +442,18 @@ def raycast_ray_valid_sources(context:Context, ray_world:tuple[Vector,Vector], *
         hit = Mi @ hit
     return point_to_bvec3(hit)
 
+def raycast_multiple_hits(context:Context, origin:Vector, direction:Vector, n:int) -> list[Vector]:
+    '''Cast a ray up to n times, nudging past each hit to collect subsequent intersections.'''
+    hits = []
+    pt = origin
+    for _ in range(n):
+        ray = (pt + direction * max(1e-4, pt.length * 1e-5), direction) # Scaled to improve result for huge or tiny objects
+        hit = raycast_ray_valid_sources(context, ray, world=True, respect_clip_planes=True)
+        if hit is None: break
+        hits.append(hit)
+        pt = hit
+    return hits
+
 def nearest_point_valid_sources(context:Context, point_world:Vector, *, world:bool=True, sources=None, respect_clip_planes:bool=False) -> Vector|None:
     point_world = Vector((*point_world, 1.0))
     best_hit = None
