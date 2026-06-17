@@ -84,6 +84,10 @@ from ..addon_common.autosave.autosave import AutoSave
 
 
 
+TEST_XMESH : bool = False
+
+
+
 '''
 TODO:
 - does not handle multiple spaces correctly
@@ -745,11 +749,12 @@ class RFCore:
         if context.mode != 'EDIT_MESH': return
         # print(f'handle_postview {len(area.spaces)}')
 
-        # import gpu
-        # from .common.nearestcpp.test import batch, shader
-        # gpu.state.depth_test_set('LESS_EQUAL')
-        # gpu.state.depth_mask_set(True)
-        # batch.draw(shader)
+        if TEST_XMESH:
+            import gpu
+            from ..xmesh.test import batch, shader
+            gpu.state.depth_test_set('LESS_EQUAL')
+            gpu.state.depth_mask_set(True)
+            batch.draw(shader)
 
         if not RFCore.is_controlling: return
         if not RFCore.is_running: return

@@ -1,0 +1,8 @@
+[project]
+name = "xmesh"
+dynamic = ["version"]
+
+[build-system]
+requires = ["meson-python"]
+
+build-backend = 'mesonpy'
