@@ -13,8 +13,13 @@ This document contains details about what has changed in Retopoflow in version 4
     - It automatically finds cross-sectional loops in the selection and twists each one independantly
     - All vertices that are not on complete loops are properly interpolated
     - Works great with proportional editing
+- Added new source processing method, SDF, to Contours
+    - It is faster than Walk but slower than Fast
+    - It is less accurate than Walk but more accurate than Fast
+    - It can handle flipped normals, split edges, and overhangs just fine
 - Added Alt R hotkey to twist in Contours
 - Added Ctrl Scroll after extruding in Contours to adjust segment count
+- Increased max span count in Contours from 100 to 500
 - All Retopoflow tools now respect Blender's Alt+B clipping region
     - Useful for isolating areas while working
 - Tools statusbar now shows the result of Blender operations such as Merge by Distance
