@@ -23,7 +23,6 @@ from __future__ import annotations
 from typing import Self, ClassVar, Protocol, Any, cast, ParamSpec, TypeVar
 from collections.abc import Sequence, Callable
 from inspect import signature
-import inspect
 
 import bpy
 from bpy.types import Context, Event, Area, Window, Operator, KeyMapItem, WindowManager, Timer, SpaceView3D, bpy_struct, Property
@@ -508,9 +507,8 @@ class RF_AssetShelfOperator:
 
 
 def idname_to_retopoflow_bl_idname(idname : str) -> str:
-    idname = idname.lower()
-    idname = idname.lstrip('retopoflow.')
-    idname = idname.replace(' ', '_')
+    idname = idname.lower().removeprefix('retopoflow.')
+    # idname = idname.replace(' ', '_')
     return f'retopoflow.{idname}'
 
 # Blender 4.2 uses Python 3.11, so we cannot use modern (Python 3.12+) generic types with square brackets
@@ -613,7 +611,7 @@ def invoke_operator(
     label : str,
     **kwargs : Any # pyright: ignore[reportExplicitAny, reportAny]
 ) -> Callable[[Callable[Param, RetType]], Callable[Param, RetType]]:
-    idname = name.lower().lstrip('retpoflow.')
+    idname = name.lower().removeprefix('retpoflow.')
     def get(fn : Callable[Param, RetType]) -> Callable[Param,RetType]:
         _op = create_operator(
             name,
@@ -632,7 +630,7 @@ def execute_operator(
     label : str,
     **kwargs : Any # pyright: ignore[reportExplicitAny, reportAny]
 ) -> Callable[[Callable[Param, RetType]], Callable[Param, RetType]]:
-    idname = name.lower().lstrip('retopoflow.')
+    idname = name.lower().removeprefix('retopoflow.')
     def get(fn : Callable[Param, RetType]) -> Callable[Param, RetType]:
         _op = create_operator(
             name,
@@ -651,7 +649,7 @@ def modal_operator(
     label : str,
     **kwargs : Any # pyright: ignore[reportExplicitAny, reportAny]
 ) -> Callable[[Callable[Param,RetType]], Callable[Param,RetType]]:
-    idname = name.lower().lstrip('retopoflow.')
+    idname = name.lower().removeprefix('retopoflow.')
     def fn_execute(self : Operator, context : Context) -> set[str]:
         wm : WindowManager = context.window_manager # pyright: ignore[reportAny]
         _ = wm.modal_handler_add(self)

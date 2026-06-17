@@ -1103,7 +1103,6 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
             RFCore._update_statusbar(context)
 
         if RFCore.is_controlling:
-            # RFCore.handle_update(context, event)
             try:
                 RFCore.handle_update(context, event)
             except ReferenceError as referr:
