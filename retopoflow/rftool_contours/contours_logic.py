@@ -56,7 +56,7 @@ from ...addon_common.ext.circle_fit import hyperLSQ
 
 
 CREATE_DEBUG_OBJECTS = False
-PRINT_DEBUG_TIMINGS = True
+PRINT_DEBUG_TIMINGS = False
 
 class Contours_Logic:
     matrix_world : Matrix | None
@@ -894,8 +894,9 @@ class Contours_Logic:
         hit_local = plane_cut.w2l_point(Vector(self.hit['co_world']))
         xs = [center_plane.x, hit_local.x]
         ys = [center_plane.y, hit_local.y]
-        for d in range(nsamples):
-            dp = Vector((math.cos(2*math.pi*d/nsamples), math.sin(2*math.pi*d/nsamples), 0, 0))
+        angles = (2 * math.pi * np.arange(nsamples, dtype=np.float64)) / nsamples
+        for c, s in zip(np.cos(angles), np.sin(angles)):
+            dp = Vector((float(c), float(s), 0, 0))
             dw = plane_cut.l2w_direction(dp)
             rh = raycast_ray_valid_sources(context, (center_world, dw), world=True, respect_clip_planes=True)
             if rh is None: continue
@@ -927,8 +928,8 @@ class Contours_Logic:
         base_radius = 0.5 * math.hypot(width / res_x, height / res_y) # coarse cell half-diagonal
 
         # Find cells near the surface
-        near       = [[False] * RY for _ in range(RX)]
-        block_size = [[fine_count]   * RY for _ in range(RX)] # effective block size per fine cell (for debug)
+        near       = np.zeros((RX, RY), dtype=bool)
+        block_size = np.full((RX, RY), fine_count, dtype=np.int16) # effective block size per fine cell (for debug)
 
         def classify_cell(fi, fj, radius):
             cx = xmin + (fi + 0.5) * fcw
@@ -941,10 +942,8 @@ class Contours_Logic:
             return math.hypot(npt_local.x - cx, npt_local.y - cy) < radius
 
         def fill_block_uniform(fi0, fj0, sz, n_val):
-            for fi in range(fi0, fi0 + sz):
-                for fj in range(fj0, fj0 + sz):
-                    near[fi][fj]       = n_val
-                    block_size[fi][fj] = sz
+            near[fi0:fi0 + sz, fj0:fj0 + sz] = n_val
+            block_size[fi0:fi0 + sz, fj0:fj0 + sz] = sz
 
         # Large initial cells first
         for bi in range(res_x):
@@ -960,14 +959,16 @@ class Contours_Logic:
             if cur_size < 3: break
             sub_size   = cur_size // 3
             sub_radius = cur_radius / 3.0
-            n_bx, n_by = RX // cur_size, RY // cur_size
-            to_refine = []
-            for bi in range(n_bx):
-                for bj in range(n_by):
-                    fi_c, fj_c = bi * cur_size + cur_size // 2, bj * cur_size + cur_size // 2
-                    if block_size[fi_c][fj_c] != cur_size: continue  # coarser / already finalized far block
-                    if near[fi_c][fj_c]:
-                        to_refine.append((bi * cur_size, bj * cur_size))
+            center_off = cur_size // 2
+            fi_centers = np.arange(center_off, RX, cur_size, dtype=np.int32)
+            fj_centers = np.arange(center_off, RY, cur_size, dtype=np.int32)
+            center_block_size = block_size[np.ix_(fi_centers, fj_centers)]
+            center_near = near[np.ix_(fi_centers, fj_centers)]
+            bi_idx, bj_idx = np.nonzero((center_block_size == cur_size) & center_near)
+            to_refine = [
+                (int(fi_centers[i] - center_off), int(fj_centers[j] - center_off))
+                for i, j in zip(bi_idx, bj_idx)
+            ]
             if subdiv_level > 1 and total_cell_queries + len(to_refine) * 9 > max_cell_queries:
                 print(f'CONTOURS SDF: pixel refinement capped (would exceed {max_cell_queries} cell queries)')
                 break
@@ -982,59 +983,92 @@ class Contours_Logic:
 
         if PRINT_DEBUG_TIMINGS: timers.append((f'grid classify ({RX}x{RY} cells, {res_x}x{res_y} coarse, fine_count={fine_count})', time.perf_counter()))
         # Create solid outlines to trace
-        is_empty = lambda i, j: not near[i][j]
-        exterior = [[False] * RY for _ in range(RX)]
+        exterior = np.zeros((RX, RY), dtype=bool)
+        empty = ~near
         stack = []
-        for i in range(RX):
-            for j in (0, RY - 1):
-                if is_empty(i, j) and not exterior[i][j]:
-                    exterior[i][j] = True; stack.append((i, j))
-        for j in range(RY):
-            for i in (0, RX - 1):
-                if is_empty(i, j) and not exterior[i][j]:
-                    exterior[i][j] = True; stack.append((i, j))
+        for i in np.flatnonzero(empty[:, 0]):
+            i = int(i)
+            if not exterior[i, 0]:
+                exterior[i, 0] = True
+                stack.append((i, 0))
+        for i in np.flatnonzero(empty[:, RY - 1]):
+            i = int(i)
+            if not exterior[i, RY - 1]:
+                exterior[i, RY - 1] = True
+                stack.append((i, RY - 1))
+        for j in np.flatnonzero(empty[0, :]):
+            j = int(j)
+            if not exterior[0, j]:
+                exterior[0, j] = True
+                stack.append((0, j))
+        for j in np.flatnonzero(empty[RX - 1, :]):
+            j = int(j)
+            if not exterior[RX - 1, j]:
+                exterior[RX - 1, j] = True
+                stack.append((RX - 1, j))
         while stack:
             i, j = stack.pop()
-            for di, dj in ((1,0),(-1,0),(0,1),(0,-1)):
-                ni, nj = i + di, j + dj
-                if 0 <= ni < RX and 0 <= nj < RY and not exterior[ni][nj] and is_empty(ni, nj):
-                    exterior[ni][nj] = True; stack.append((ni, nj))
-        solid = [[not exterior[i][j] for j in range(RY)] for i in range(RX)]
+            ni = i + 1
+            if ni < RX and not exterior[ni, j] and empty[ni, j]:
+                exterior[ni, j] = True
+                stack.append((ni, j))
+            ni = i - 1
+            if ni >= 0 and not exterior[ni, j] and empty[ni, j]:
+                exterior[ni, j] = True
+                stack.append((ni, j))
+            nj = j + 1
+            if nj < RY and not exterior[i, nj] and empty[i, nj]:
+                exterior[i, nj] = True
+                stack.append((i, nj))
+            nj = j - 1
+            if nj >= 0 and not exterior[i, nj] and empty[i, nj]:
+                exterior[i, nj] = True
+                stack.append((i, nj))
+        solid = ~exterior
 
         # Isolate shape containing the original surface hit
-        hi = min(RX - 1, max(0, int((hit_local.x - xmin) / fcw)))
-        hj = min(RY - 1, max(0, int((hit_local.y - ymin) / fch)))
-        if not solid[hi][hj]:
-            best, bestd = None, None
-            for i in range(RX):
-                for j in range(RY):
-                    if solid[i][j]:
-                        dd = (i - hi) ** 2 + (j - hj) ** 2
-                        if bestd is None or dd < bestd:
-                            bestd, best = dd, (i, j)
-            if best is None:
+        hi = int(np.clip((hit_local.x - xmin) / fcw, 0, RX - 1))
+        hj = int(np.clip((hit_local.y - ymin) / fch, 0, RY - 1))
+        if not solid[hi, hj]:
+            idx = np.argwhere(solid)
+            if idx.size == 0:
                 print('CONTOURS SDF: no hit cells found, falling back to Fast')
                 return self.process_source_fast(context)
-            hi, hj = best
+            d2 = (idx[:, 0] - hi) ** 2 + (idx[:, 1] - hj) ** 2
+            hi, hj = (int(v) for v in idx[np.argmin(d2)])
 
-        blob = [[False] * RY for _ in range(RX)]
-        stack = [(hi, hj)]; blob[hi][hj] = True
+        blob = np.zeros((RX, RY), dtype=bool)
+        stack = [(hi, hj)]; blob[hi, hj] = True
         touches_border = False
         while stack:
             i, j = stack.pop()
             if i == 0 or j == 0 or i == RX - 1 or j == RY - 1:
                 touches_border = True
-            for di, dj in ((1,0),(-1,0),(0,1),(0,-1)):
-                ni, nj = i + di, j + dj
-                if 0 <= ni < RX and 0 <= nj < RY and not blob[ni][nj] and solid[ni][nj]:
-                    blob[ni][nj] = True; stack.append((ni, nj))
+            ni = i + 1
+            if ni < RX and not blob[ni, j] and solid[ni, j]:
+                blob[ni, j] = True
+                stack.append((ni, j))
+            ni = i - 1
+            if ni >= 0 and not blob[ni, j] and solid[ni, j]:
+                blob[ni, j] = True
+                stack.append((ni, j))
+            nj = j + 1
+            if nj < RY and not blob[i, nj] and solid[i, nj]:
+                blob[i, nj] = True
+                stack.append((i, nj))
+            nj = j - 1
+            if nj >= 0 and not blob[i, nj] and solid[i, nj]:
+                blob[i, nj] = True
+                stack.append((i, nj))
 
         # Trace the outer boundary as an ordered loop of lattice corners
-        def blob_at(i, j):
-            return 0 <= i < RX and 0 <= j < RY and blob[i][j]
+        blob_pad = np.pad(blob, ((1, 1), (1, 1)), mode='constant', constant_values=False)
+
         def boundary_dirs(cx, cy):
-            sw, se = blob_at(cx-1, cy-1), blob_at(cx, cy-1)
-            nw, ne = blob_at(cx-1, cy),   blob_at(cx, cy)
+            # Use a padded blob mask so corner adjacency lookups never need bounds checks.
+            px, py = cx + 1, cy + 1
+            sw, se = bool(blob_pad[px - 1, py - 1]), bool(blob_pad[px, py - 1])
+            nw, ne = bool(blob_pad[px - 1, py]),     bool(blob_pad[px, py])
             ds = []
             if nw != ne: ds.append((0, 1))    # N
             if sw != se: ds.append((0, -1))   # S
@@ -1043,11 +1077,11 @@ class Contours_Logic:
             return ds
         right_turn = {(0,1):(1,0), (1,0):(0,-1), (0,-1):(-1,0), (-1,0):(0,1)}
 
-        start_cell = next(((i, j) for i in range(RX) for j in range(RY) if blob[i][j]), None)
-        if start_cell is None:
+        start_flat = np.flatnonzero(blob)
+        if start_flat.size == 0:
             print('CONTOURS SDF: empty blob, falling back to Fast')
             return self.process_source_fast(context)
-        start = start_cell  # leftmost-lowest blob cell -> its lower-left corner is on the boundary
+        start = tuple(int(v) for v in np.unravel_index(start_flat[0], blob.shape))  # leftmost-lowest blob cell -> its lower-left corner is on the boundary
         bdirs = boundary_dirs(*start)
         if not bdirs:
             print('CONTOURS SDF: degenerate boundary, falling back to Fast')
@@ -1101,7 +1135,8 @@ class Contours_Logic:
         target_count = max(16, 4 * (res_x + res_y))
         if len(corners) > target_count:
             step = len(corners) / target_count
-            corners = [corners[int(round(k * step)) % len(corners)] for k in range(target_count)]
+            idx = np.rint(np.arange(target_count, dtype=np.float64) * step).astype(np.int32) % len(corners)
+            corners = [corners[int(i)] for i in idx]
 
         points_world = [
             plane_cut.l2w_point(Vector((xmin + cx * fcw, ymin + cy * fch, 0)))
@@ -1120,11 +1155,12 @@ class Contours_Logic:
         # drop coincident neighbors as the staircase + snapping can collapse points together
         ts = context.scene.tool_settings
         merge_dist = ts.double_threshold if ts.use_mesh_automerge else 1e-6
+        merge_dist_sq = merge_dist * merge_dist
         deduped = []
         for p in points_world:
-            if not deduped or (Vector(p) - Vector(deduped[-1])).length > merge_dist:
+            if not deduped or (p - deduped[-1]).length_squared > merge_dist_sq:
                 deduped.append(p)
-        if len(deduped) >= 2 and (Vector(deduped[0]) - Vector(deduped[-1])).length <= merge_dist:
+        if len(deduped) >= 2 and (deduped[0] - deduped[-1]).length_squared <= merge_dist_sq:
             deduped.pop()
         points_world = deduped
         if len(points_world) < 3:
@@ -1147,11 +1183,11 @@ class Contours_Logic:
 
             _gm = bpy.data.meshes.new('SDF_Debug_Grid')
             _bm = bmesh.new()
-            _emitted = [[False] * RY for _ in range(RX)]
+            _emitted = np.zeros((RX, RY), dtype=bool)
             for _fi in range(RX):
                 for _fj in range(RY):
-                    if _emitted[_fi][_fj]: continue
-                    _sz = block_size[_fi][_fj]
+                    if _emitted[_fi, _fj]: continue
+                    _sz = int(block_size[_fi, _fj])
                     # clamp so blocks that reach the grid edge don't go OOB
                     _sz_x = min(_sz, RX - _fi)
                     _sz_y = min(_sz, RY - _fj)
@@ -1159,10 +1195,10 @@ class Contours_Logic:
                     _v1 = _bm.verts.new(plane_cut.l2w_point(Vector((xmin + (_fi + _sz_x) * fcw, ymin + _fj           * fch, 0))))
                     _v2 = _bm.verts.new(plane_cut.l2w_point(Vector((xmin + (_fi + _sz_x) * fcw, ymin + (_fj + _sz_y) * fch, 0))))
                     _v3 = _bm.verts.new(plane_cut.l2w_point(Vector((xmin + _fi           * fcw, ymin + (_fj + _sz_y) * fch, 0))))
-                    _bm.faces.new([_v0, _v1, _v2, _v3]).select = solid[_fi + _sz_x // 2][_fj + _sz_y // 2]
+                    _bm.faces.new([_v0, _v1, _v2, _v3]).select = bool(solid[_fi + _sz_x // 2, _fj + _sz_y // 2])
                     for _dfi in range(_sz_x):
                         for _dfj in range(_sz_y):
-                            _emitted[_fi + _dfi][_fj + _dfj] = True
+                            _emitted[_fi + _dfi, _fj + _dfj] = True
             _bm.to_mesh(_gm)
             _bm.free()
             _update_debug_object('SDF_Debug_Grid', _gm)
