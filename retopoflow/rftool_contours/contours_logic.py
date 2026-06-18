@@ -362,8 +362,8 @@ def sample_curvature(points: list, cyclic: bool, vertex_count: int, path_length:
     # evenly between surrounding pinned anchors regardless of curvature_bias.
     # Raise toward 0.3 to free moderately-curved verts; lower toward 0.01 to free
     # only near-perfectly-flat verts.
-    FLAT_THRESHOLD = 0.1
-    pin_threshold = map_range(curvature_bias, 0.25, 1, 1, FLAT_THRESHOLD)
+    FLAT_THRESHOLD = 0.01 # map_range(curvature_bias, 0, 1, 0.25, 0.05)
+    pin_threshold = map_range(curvature_bias, 0, 1, 0.5, FLAT_THRESHOLD)
     is_pinned = [s >= pin_threshold for s in rdp_norm_scores]
     if not cyclic:
         is_pinned[0] = True   # path endpoints are always anchors on open strips
@@ -413,6 +413,40 @@ def sample_curvature(points: list, cyclic: bool, vertex_count: int, path_length:
             n_free = len(free_in_gap)
             for j, k in enumerate(free_in_gap):
                 final_fracs[k] = fa + gap * (j + 1) / (n_free + 1)
+
+    # --- Lerp with pure even spacing for bias in [0, 0.5] ---
+    # bias=0.0 → pure even;  bias=0.5 → current result;  bias>0.5 → current result unchanged.
+    smooth_range = 0
+    if curvature_bias < smooth_range:
+        t = curvature_bias / smooth_range
+        if cyclic:
+            even_fracs = [k / N for k in range(N)]
+        else:
+            even_fracs = [k / (N - 1) for k in range(N)] if N > 1 else [0.0]
+
+        if cyclic:
+            # Align even_fracs rotation to final_fracs so lerp pairs the right verts.
+            best_rot, best_cost = 0, float('inf')
+            for rot in range(N):
+                cost = sum(
+                    min(abs(final_fracs[k] - even_fracs[(k + rot) % N]),
+                        1.0 - abs(final_fracs[k] - even_fracs[(k + rot) % N])) ** 2
+                    for k in range(N)
+                )
+                if cost < best_cost:
+                    best_cost, best_rot = cost, rot
+            even_fracs = even_fracs[best_rot:] + even_fracs[:best_rot]
+
+        blended = []
+        for e, f in zip(even_fracs, final_fracs):
+            if cyclic:
+                d = f - e
+                if d >  0.5: d -= 1.0
+                elif d < -0.5: d += 1.0
+                blended.append((e + d * t) % 1.0)
+            else:
+                blended.append(e + (f - e) * t)
+        final_fracs = blended
 
     return fracs_to_positions(points, final_fracs, cyclic)
 
