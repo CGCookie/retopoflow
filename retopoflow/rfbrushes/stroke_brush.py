@@ -80,7 +80,7 @@ def create_stroke_brush(
     snap : tuple[bool, bool, bool] = (True, False, False),
     radius : float = 50,
     draw_leftright : bool = False,
-):
+) -> tuple[type[RFBrush_Base], type[RFOperator]]:
     snap_verts, snap_edges, snap_faces = snap
     snap_any = snap_verts or snap_edges or snap_faces
     if snap_edges:

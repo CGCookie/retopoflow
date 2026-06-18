@@ -1,6 +1,8 @@
 {
-  "reportInvalidTypeForm": "none",
-  "reportMissingImports": "none",
-  "reportUnknownMemberType": false,
-  "reportUnknownArgumentType": false,
+    "venvPath": ".",
+    "venv": ".venv",
+    "reportInvalidTypeForm": "none",
+    "reportMissingImports": "none",
+    "reportUnknownMemberType": false,
+    "reportUnknownArgumentType": false,
 }

@@ -19,13 +19,14 @@ Created by Jonathan Denning, Jonathan Williamson
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+from __future__ import annotations
 import re
 import time
 import inspect
 from copy import deepcopy
 
 import bpy
-from bpy.types import Event, KeyMapItem
+from bpy.types import Event, KeyMapItem, Context
 
 from .blender import get_view3d_area, get_view3d_space, get_view3d_region
 from .debug import dprint
@@ -332,7 +333,7 @@ def kmi_to_action(kmi, *, event_type=None, click=False, double_click=False, drag
 
 class Actions:
     @staticmethod
-    def get_instance(context):
+    def get_instance(context : Context) -> Actions:
         if not hasattr(Actions, '_instance'):
             Actions._create = True
             Actions._instance = Actions(context)
