@@ -30,7 +30,7 @@ import math
 from typing import Callable
 from collections.abc import Sequence
 
-from ..common.accel import EdgeMarkAccel, SourceAccel, Accel
+from ..common.accel import EdgeMarkAccel, SourceAccel, Accel, SourceCache
 from ..common.drawing import Drawing, CC_2D_POINTS
 from ...addon_common.common.colors import Color4
 from ..common.bmesh import get_bmesh_emesh, is_bmvert_boundary, is_bmvert_corner, bmv_co_isnan, get_bmv_avg_edge_len, get_bmv_next_loop_vert
@@ -38,12 +38,11 @@ from ..common.bmesh_maths import (
     is_bmvert_on_edgemark, is_bmedge_edgemark, BMMarking,
     is_bmvert_pinned, is_bmvert_creased,
 )
-from ..common.maths import point_to_bvec3, direction_to_bvec3
+from ..common.maths import point_to_bvec3, direction_to_bvec3, local_to_world
 from ..common.raycast import (
     raycast_valid_sources, nearest_point_valid_sources,
     mouse_from_event, iter_all_valid_sources, make_hidden_tester,
 )
-from ..common.sources import to_world
 
 from ...addon_common.common.maths import sign_threshold
 from ..rftool_relax.relax_logic import Relax_Logic
@@ -177,7 +176,7 @@ class Tweak_Logic:
         # For hard surface snapping, detect the source features once per stroke, cached in SourceAccel
         self.scale_avg = sum(self.matrix_world.to_scale()) / 3
         snapping = context.scene.retopoflow.snapping
-        self.source_edge_accel = SourceAccel.build_from_tool(context, snapping, self.sources)
+        self.source_edge_accel = SourceCache.get(context)
         self.source_sharp_proximity = getattr(snapping, 'source_edge_proximity', 0.25)
         self.stickiness = getattr(snapping, 'source_edge_stickiness', 0.5) if self.source_edge_accel else 0.0
         self.loops_strength = getattr(snapping, 'source_edge_guide_loops', 0.5) if self.source_edge_accel else 0.0
@@ -605,7 +604,7 @@ class Tweak_Logic:
         ''' If bmv sits within `world_threshold` (world-space units) of a source corner,
         return (corner_co_world, corner_idx, distance); else None. '''
         if not self.source_edge_accel: return None
-        cr = self.source_edge_accel.find_corner(to_world(bmv.co, self.matrix_world))
+        cr = self.source_edge_accel.find_corner(local_to_world(bmv.co, self.matrix_world))
         if cr and cr[2] < world_threshold:
             return cr
         return None
@@ -615,7 +614,7 @@ class Tweak_Logic:
         Used to spare verts that legitimately ride a source edge from guide-loop demotion. '''
         if not self.source_edge_accel or not v.link_edges:
             return False
-        v_world = to_world(v.co, self.matrix_world)
+        v_world = local_to_world(v.co, self.matrix_world)
         closest = self.source_edge_accel.closest_point(v_world)
         if not closest:
             return False
@@ -631,7 +630,7 @@ class Tweak_Logic:
         Mi = self.matrix_world_inv
         for bmv, *_ in self.verts:
             if not bmv.link_edges: continue
-            bmv_world = to_world(bmv.co, self.matrix_world)
+            bmv_world = local_to_world(bmv.co, self.matrix_world)
             closest_v = self.source_edge_accel.closest_point(bmv_world)
             if not closest_v: continue
             diff = Mi @ Vector(closest_v) - bmv.co
@@ -800,7 +799,7 @@ class Tweak_Logic:
         # Fast path: verts snapped this stroke are the most likely occupants.
         for v in self.snapped_verts:
             if v is incoming_bmv: continue
-            if (to_world(v.co, self.matrix_world) - corner_w).length <= radius:
+            if (local_to_world(v.co, self.matrix_world) - corner_w).length <= radius:
                 return v
 
         # Fallback: Accel covers verts snapped in previous strokes.
@@ -811,7 +810,7 @@ class Tweak_Logic:
             best_v, best_dist = None, float('inf')
             for v in candidates:
                 if v is incoming_bmv: continue
-                d = (to_world(v.co, self.matrix_world) - corner_w).length
+                d = (local_to_world(v.co, self.matrix_world) - corner_w).length
                 if d < best_dist:
                     best_dist = d
                     best_v = v
@@ -833,7 +832,7 @@ class Tweak_Logic:
         # Determine kick direction via a screen-space bump + raycast
         kick_dir_world: Vector | None = None
 
-        incoming_world = to_world(incoming_bmv.co, M)
+        incoming_world = local_to_world(incoming_bmv.co, M)
         corner_2d  = location_3d_to_region_2d(context.region, context.region_data, corner_w)
         incoming_2d = location_3d_to_region_2d(context.region, context.region_data, incoming_world)
 
@@ -885,7 +884,7 @@ class Tweak_Logic:
 
         for bmv in list(self.snapped_verts):
             if not bmv.is_valid: continue
-            bmv_world = to_world(bmv.co, M)
+            bmv_world = local_to_world(bmv.co, M)
             snap_r = self.stroke_snap_radius
             crowd_threshold = snap_r * 0.5
             push_dist = snap_r * 1.5  # world-space distance to push off the edge
@@ -893,7 +892,7 @@ class Tweak_Logic:
             for bme in bmv.link_edges:
                 nb = bme.other_vert(bmv)
                 if nb in grabbed: continue
-                nb_world = to_world(nb.co, M)
+                nb_world = local_to_world(nb.co, M)
 
                 # Is neighbor sitting on the source edge?
                 closest_point = accel.closest_point(nb_world)
@@ -958,7 +957,7 @@ class Tweak_Logic:
             return new_co
 
         M, Mi = self.matrix_world, self.matrix_world_inv
-        new_co_world = to_world(new_co, M)
+        new_co_world = local_to_world(new_co, M)
 
         is_promoted = bool(self.promoted_loop_verts) and bmv in self.promoted_loop_verts
         is_demoted  = bool(self.demoted_verts)       and bmv in self.demoted_verts
@@ -993,7 +992,7 @@ class Tweak_Logic:
         # Tracking the cumulative unconstrained drift lets the vert release when the brush has moved far enough away.
         if is_snapped:
             if bmv not in self.snap_target_world:
-                self.snap_target_world[bmv] = to_world(Vector(bmv.co), M)
+                self.snap_target_world[bmv] = local_to_world(Vector(bmv.co), M)
             else:
                 drift_local = Vector(new_co) - Vector(bmv.co)
                 self.snap_target_world[bmv] = self.snap_target_world[bmv] + M.to_3x3() @ drift_local
@@ -1058,7 +1057,7 @@ class Tweak_Logic:
             if to_edge.length <= effective_radius:
                 if is_snapped:
                     # Slide along the edge only for the screen-space parallel brush movement
-                    bmv_world = to_world(bmv.co, M)
+                    bmv_world = local_to_world(bmv.co, M)
                     tangent_result = accel.closest_point_with_tangent(bmv_world)
                     if tangent_result is not None and context is not None and disp_2d is not None:
                         _, tangent = tangent_result

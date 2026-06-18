@@ -33,6 +33,9 @@ from collections.abc import Sequence
 
 from ...addon_common.common.maths import clamp, Point, Vector, Normal, Plane
 
+def local_to_world(matrix_world: Matrix, co: Vector) -> Vector:
+    return point_to_bvec3((matrix_world @ Vector((*co, 1.0))).xyz)
+
 def view_forward_direction(context:Context) -> Vector:
     r3d = context.region_data
     mat = r3d.view_matrix

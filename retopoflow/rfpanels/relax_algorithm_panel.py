@@ -22,7 +22,6 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy
 from ..common.interface import draw_section_header
-from ..common.sources import draw_hard_surface_snapping
 
 
 def draw_relax_algo_options(context, layout, props=None):
@@ -44,12 +43,6 @@ def draw_relax_algo_options(context, layout, props=None):
     if props.algorithm_method == 'STEPS':
         layout.prop(props, 'algorithm_iterations', text="Iterations")
     layout.separator()
-
-    header, panel = layout.panel(idname='relax_panel_source_edges', default_closed=False)
-    header.label(text='Hard Surface Snapping')
-    if panel:
-        snapping = context.scene.retopoflow.snapping
-        draw_hard_surface_snapping(panel, snapping, guide_loops=True)
 
     header, panel = layout.panel(idname='relax_panel_algo_limits', default_closed=True)
     header.label(text='Limit Distance')

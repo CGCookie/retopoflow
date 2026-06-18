@@ -33,7 +33,7 @@ from ..common.accel import SourceAccel
 from ..common.bmesh import get_falloff_verts
 from ..common.maths import point_to_bvec3
 from ..common.raycast import nearest_point_valid_sources
-from ..common.sources import draw_hard_surface_snapping
+from ..rfpanels.rfpanel_snapping import draw_hard_surface_snapping
 from ..rftool_relax.relax_logic import Relax_Logic, RelaxOptions
 
 
@@ -318,7 +318,7 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
                 if not self._build_sources_selectable(context):
                     self.draw_warning(layout)
         if not show_snap_to or self.snap_to not in ('NONE', 'ORIGINAL_MESH'):
-            draw_hard_surface_snapping(layout, self, guide_loops=True)
+            draw_hard_surface_snapping(layout, context, self, guide_loops=True)
             # layout.prop(self, 'debug_select', text='Select') # highlight for debugging promoted / demoted
 
     def draw(self, context):

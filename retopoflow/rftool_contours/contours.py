@@ -31,6 +31,7 @@ from ..rfbrushes.cut_brush import RFBrush_Cut
 from ..rfoverlays.loopstrip_selection_overlay import create_loopstrip_selection_overlay
 
 from ..rftool_base import RFTool_Base
+from ..common.accel import SourceAccel
 from ..common.bmesh import get_bmesh_emesh
 from ..common.drawing import Drawing
 from ..common.icons import get_path_to_blender_icon
@@ -115,6 +116,7 @@ class RFOperator_Contours_Insert_Properties:
             ),
         ],
         default='walk',
+        update=lambda self, context: SourceAccel.warmup(context, 3) if self.process_source_method == 'walk' else None,
     )
     cut_orientation: bpy.props.EnumProperty(                  # pyright: ignore [reportUninitializedInstanceVariable]
         name='Cut Orientation',
@@ -636,6 +638,18 @@ class RFTool_Contours(RFTool_Base):
             cls.resetter['context.tool_settings.snap_elements_individual'] = {snap_elem}
         if prefs.setup_selection_mode:
             cls.resetter['context.tool_settings.mesh_select_mode'] = [False, True, False]
+
+        # Kick SourceMeshCache warmup when Walk is the active method, so the arrays are
+        # ready before the user's first stroke rather than building on-demand mid-stroke.
+        # Delayed by a few frames so the tool-switch UI finishes rendering first.
+        try:
+            tool   = context.workspace.tools.from_space_view3d_mode('EDIT_MESH')
+            props  = tool.operator_properties('retopoflow.contours') if tool else None
+            method = getattr(props, 'process_source_method', 'walk') if props else 'walk'
+        except Exception:
+            method = 'walk'
+        if method == 'walk':
+            SourceAccel.warmup(context, 3)
 
     @classmethod
     def deactivate(cls, context):

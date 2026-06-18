@@ -41,6 +41,7 @@ from .common.bmesh import get_object_bmesh, get_bmesh_emesh, clear_object_bmesh
 from .common.bpy_helper import bpy_ops_retopoflow
 from .common.operator import RFOperator_Base, RFOperator, RFOperator_Execute, RFRegisterClass, RFAssetShelf
 from .common.raycast import prep_raycast_valid_sources, iter_all_valid_sources
+from .common.accel import SourceCache
 from .common.interface import show_message
 from .common import icons as icons_module
 from ..addon_common.common.drawing import free_shaders_and_batches
@@ -67,7 +68,7 @@ RFTools : dict[str, type[RFTool_Base]] = { rft.bl_idname: rft for rft in RFTool_
 
 from .rfpanels import (
     general_panel, help_panel, menu_mesh, mesh_cleanup_panel, masking_panel, mirror_panel,
-    relax_algorithm_panel, tweaking_panel, tweak_snapping_panel, rfpanel_snapping, tools_pie, rfmenu_context,
+    relax_algorithm_panel, tweaking_panel, rfpanel_snapping, tools_pie, rfmenu_context,
     rfpanel_countours_method,  # MUST IMPORT THIS _AFTER_ THE RFTOOLS ABOVE TO MAINTAIN ORDER!
 
 )
@@ -76,7 +77,7 @@ from . import preferences
 from .rfprops import rfprops_scene, rfprops_object
 
 # Operator files need to be imported here in order to be registered, even if they are not used in this file
-from .rfoperators import mesh_cleanup, mirror, pinning, reset_tool_settings, launch_browser, relax_selected, twist
+from .rfoperators import mesh_cleanup, mirror, pinning, reset_tool_settings, launch_browser, relax_selected, twist, rebuild_sources
 from .rfoperators.apply_retopo_settings import RFOperator_ApplyRetopoSettings, RFOperator_RestoreRetopoSettings
 from .rfoperators.newtarget import RFCore_NewTarget_Cursor, RFCore_NewTarget_Active
 
@@ -150,7 +151,6 @@ class RFCore:
         mirror_panel.register()
         pinning.register()
         relax_algorithm_panel.register()
-        tweak_snapping_panel.register()
         rfpanel_snapping.register()
         rfpanel_countours_method.register()
         launch_browser.register()
@@ -244,7 +244,6 @@ class RFCore:
         help_panel.unregister()
         mirror_panel.unregister()
         relax_algorithm_panel.unregister()
-        tweak_snapping_panel.unregister()
         rfpanel_snapping.unregister()
         rfpanel_countours_method.unregister()
         tools_pie.unregister()
@@ -257,6 +256,8 @@ class RFCore:
 
         free_shaders_and_batches()
         free_ui_draw_shaders_and_batches()
+
+        SourceCache.clear() # An addon reload should start clean
 
     @staticmethod
     def draw_menu_items(menu : Menu, context : Context):
@@ -334,6 +335,8 @@ class RFCore:
         # get the statusbar text from the active/selected RFTool.
         if tool_idname := RFCore.selected_RFTool_idname:
             if StatusbarYield.is_active():
+                if SourceCache.building:
+                    StatusbarYield.cancel() # While source cache builds, force RF status bar back so progress is visible.
                 return  # Currently showing native status bar for external op report: don't re-register yet
             RFCore.km_context = 'init'
             RFCore.km_status_override = None
@@ -348,6 +351,24 @@ class RFCore:
             RFCore.km_context = None
             RFCore.km_status_override = None
             context.workspace.status_text_set(None)
+
+    @staticmethod
+    def refresh_statusbar():
+        ''' Re-apply the RF status bar callback to force a redraw without disturbing the current keymap context.
+        Used to animate the source cache build progress. It does not reset km_context. '''
+        tool_idname = RFCore.selected_RFTool_idname
+        if not tool_idname: return
+        if StatusbarYield.is_active():
+            if not SourceCache.building:
+                return
+            # Source-cache progress should stay visible even if yield is active.
+            StatusbarYield.cancel()
+        try:
+            bpy.context.workspace.status_text_set(
+                lambda statusbar, context: draw_rftool_statusbar(statusbar, context, tool=RFTools[tool_idname])
+            )
+        except Exception:
+            pass
 
     @staticmethod
     def tool_changed(context, space_type, idname, **kwargs):
@@ -508,6 +529,19 @@ class RFCore:
             alter_user_keymaps(context)
 
         pinning.setup_pinning(context)
+
+        # Entering RetopoFlow is an auto source cache rebuild trigger.
+        # Kicked proactively so a heavy source builds in the background and is ready by the first stroke.
+        if SourceCache.auto_rebuild_enabled(context) and SourceCache.detection_enabled(context):
+            # Delay a few frames so the user sees the RF UI switch before heavy background work starts.
+            def _kick_source_cache_rebuild_after_enter():
+                if not RFCore.is_running:
+                    return None
+                if not SourceCache.auto_rebuild_enabled(bpy.context) or not SourceCache.detection_enabled(bpy.context):
+                    return None
+                SourceCache.request_rebuild(bpy.context)
+                return None
+            bpy.app.timers.register(_kick_source_cache_rebuild_after_enter, first_interval=1.0 / 12.0)
 
         try:
             bpy_ops_retopoflow('core')
@@ -837,6 +871,9 @@ class RFCore:
             return
 
         RFCore.depsgraph_version += 1
+
+        SourceCache.note_depsgraph_update(bpy.context, depsgraph) # Auto source cache rebuild trigger
+
         # print(f"{bpy.data.window_managers[0].windows[0].screen.show_fullscreen=}")
         # print(f'handle_depsgraph_update({scene}, {depsgraph})')
         # for up in depsgraph.updates:
@@ -850,7 +887,7 @@ class RFCore:
             _elapsed       = time.monotonic() - RFCore._last_rf_mesh_update_time
             _has_geom      = any(u.is_updated_geometry for u in depsgraph.updates)
             # print(f'RF depsgraph: {_yield_active=} elapsed={_elapsed:.3f} {_has_geom=}')
-            if not _yield_active and _elapsed > 0.2 and _has_geom:
+            if not SourceCache.building and not _yield_active and _elapsed > 0.2 and _has_geom:
                 StatusbarYield.begin(3.0)
         except Exception as e:
             print(f'RF: external op detection error: {e}')

@@ -107,6 +107,11 @@ def get_object_bmesh(obj):
 
 def clear_object_bmesh():
     get_object_bmesh.cache.clear() # pyright: ignore[reportFunctionMemberAccess]
+    try:
+        from .accel import SourceMeshCache
+        SourceMeshCache.clear()
+    except Exception:
+        pass
 
 def clean_select_layers(bm):
     if 'rf_vert_select_after_move' in bm.verts.layers.int:

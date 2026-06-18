@@ -33,7 +33,7 @@ from typing import Callable
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 
-from ..common.accel import EdgeMarkAccel, SourceAccel, Accel
+from ..common.accel import EdgeMarkAccel, SourceAccel, Accel, SourceCache
 from ..common.bmesh import (
     get_bmesh_emesh, is_bmedge_boundary, is_bmvert_boundary, is_bmvert_corner, is_bmvert_on_ngon, bme_midpoint, bmf_midpoint,
     bmv_co_isnan, bmv_compute_normal,
@@ -48,7 +48,7 @@ from ..common.bmesh_maths import (
 )
 from ..common.maths import (
     view_forward_direction, view_right_direction, view_up_direction,
-    xform_direction,
+    xform_direction, local_to_world,
     point_to_bvec3,
 )
 from ..common.raycast import (
@@ -63,7 +63,6 @@ from ..common.drawing import (
     CC_2D_LINES,
     CC_2D_POINTS,
 )
-from ..common.sources import to_world as source_to_world
 
 from ...addon_common.terminal import term_printer
 from ...addon_common.common.maths import Point, sign_threshold, clamp_int, clamp
@@ -386,7 +385,7 @@ class Relax_Logic:
             self.sources.append((obj, M_obj, Mi_obj, Mi_obj.to_3x3()))
 
         snapping = context.scene.retopoflow.snapping
-        self.source_edge_accel = SourceAccel.build_from_tool(context, snapping, self.sources)
+        self.source_edge_accel = SourceCache.get(context)
         self.source_sharp_proximity = getattr(snapping, 'source_edge_proximity', 0.25)
         self.stickiness = getattr(snapping, 'source_edge_stickiness', 0.5) if self.source_edge_accel else 0.0
 
@@ -597,9 +596,6 @@ class Relax_Logic:
                 elif sign < 0:
                     self.draw_vectors_negative.append((wrt, f.xyz * mult * vert_strength[bmv]))
 
-        def to_world(co):
-            return source_to_world(co, M)
-
         def edge_constrained_neighbors(bmv):
             return [
                 other for bme in bmv.link_edges
@@ -623,7 +619,7 @@ class Relax_Logic:
 
         def source_corner_of_vert(bmv, margin):
             if not self.source_edge_accel: return
-            cr = self.source_edge_accel.find_corner(to_world(bmv.co))
+            cr = self.source_edge_accel.find_corner(local_to_world(bmv.co))
             if cr and cr[2] < get_bmv_avg_edge_len(bmv) * self.scale_avg * margin:
                 return cr
 
@@ -1036,7 +1032,7 @@ class Relax_Logic:
 
             for bmv in verts:
                 if bmv in self.promoted_loop_verts:
-                    bmv_world = to_world(bmv.co)
+                    bmv_world = local_to_world(bmv.co)
                     # Prefer an unoccupied corner within range.
                     target_local = None
                     if cr := source_corner_of_vert(bmv, self.source_sharp_proximity * corner_prox):
@@ -1072,7 +1068,7 @@ class Relax_Logic:
             if not self.source_edge_accel:
                 return result
             for bmv in chk_verts:
-                bmv_world = to_world(bmv.co)
+                bmv_world = local_to_world(bmv.co)
                 if closest_v := self.source_edge_accel.closest_point(bmv_world):
                     if bmv.link_edges:
                         diff   = Mi @ Vector(closest_v) - bmv.co
@@ -1092,7 +1088,7 @@ class Relax_Logic:
             # Lets guide-loop demotion spare verts that legitimately ride a source edge.
             if not self.source_edge_accel or not v.link_edges:
                 return False
-            if closest_v := self.source_edge_accel.closest_point(to_world(v.co)):
+            if closest_v := self.source_edge_accel.closest_point(local_to_world(v.co)):
                 return (Mi @ Vector(closest_v) - v.co).length <= get_bmv_avg_edge_len(v) * self.source_sharp_proximity
             return False
 
@@ -1189,7 +1185,7 @@ class Relax_Logic:
             # Two verts are on the same source loop when their tangents are parallel (|dot| > threshold).
             vert_tangent = {}
             for bmv in self.verts_near_source_edge:
-                result = self.source_edge_accel.closest_point_with_tangent(to_world(bmv.co))
+                result = self.source_edge_accel.closest_point_with_tangent(local_to_world(bmv.co))
                 if result:
                     vert_tangent[bmv] = result[1]
 

@@ -23,7 +23,9 @@ import math, time
 from math import inf, isnan
 from typing import Iterator
 
+import bpy
 import bmesh
+import numpy as np
 from bpy.types import Context
 from mathutils import Vector, Matrix
 from mathutils.bvhtree import BVHTree
@@ -36,6 +38,7 @@ from .bmesh import edges_to_triangles, is_bmedge_boundary, bme_cos
 from .bmesh_maths import is_bmedge_edgemark, BMMarking
 from .maths import point_to_bvec3
 from .raycast import iter_all_valid_sources
+from ..rfglobals import RFGlobals
 
 class Accel:
     BINS_COUNT : int = 10
@@ -219,9 +222,10 @@ class EdgeMarkAccel:
         )
 
 
+USE_VECTORIZED_SOURCE_BUILD = True
 class SourceAccel:
-    cache_key: tuple | None = None
-    cache_val: 'SourceAccel | None' = None
+    '''Builder for source feature detection data. Caching/lifetime is owned by SourceCache (below)
+    so a single cache can be shared across tools and persisted across RF enter/exit. Don't add a cache here. '''
     edge_accel : 'EdgeMarkAccel | None'
     corner_kd  : 'KDTree | None'
 
@@ -266,34 +270,157 @@ class SourceAccel:
         include_seams: bool = False,
         include_creases: bool = False,
     ) -> 'SourceAccel':
+        ''' Synchronous build over all sources. SourceCache drives an incremental version of this,
+        chunked over timer ticks, for heavy sources. This is the one-shot version for operators. '''
         if not (include_sharps or include_seams or include_creases or sharp_threshold < math.pi):
             return cls(None, None)
         if not sources:
             sources = list(iter_all_valid_sources(context))
-        cache_key = (
-            frozenset(obj.name for obj in sources),
-            sharp_threshold,
-            include_sharps,
-            include_seams,
-            include_creases,
-        )
-        if cls.cache_key == cache_key and cls.cache_val is not None:
-            return cls.cache_val
 
         cos_threshold = math.cos(sharp_threshold)
+        depsgraph = context.evaluated_depsgraph_get()
+        segments: list[tuple[Vector, Vector]] = []
+        corner_pts: list[Vector] = []
+        for obj in sources:
+            segs, corners = cls.extract_object_features(
+                obj, depsgraph, cos_threshold, sharp_threshold,
+                include_sharps, include_seams, include_creases,
+            )
+            segments.extend(segs)
+            corner_pts.extend(corners)
+        return cls.finalize(segments, corner_pts)
+
+    @classmethod
+    def extract_object_features(
+        cls, obj, depsgraph, cos_threshold: float, sharp_threshold: float,
+        include_sharps: bool, include_seams: bool, include_creases: bool,
+    ) -> 'tuple[list, list]':
+        ''' Detect features on one source object. Returns (segments, corner_positions) in world space.
+        Vectorized (numpy) by default, falling back to the bmesh scan if the fast path fails. '''
+        M = obj.matrix_world
+        if USE_VECTORIZED_SOURCE_BUILD:
+            try:
+                return cls.extract_object_vectorized(
+                    obj, depsgraph, M, cos_threshold, sharp_threshold, include_sharps, include_seams, include_creases
+                )
+            except Exception as e:
+                print(f'SourceAccel: vectorized extract failed on {obj.name!r} ({e}); using bmesh fallback')
+        return cls.extract_object_bmesh(
+            obj, depsgraph, M, cos_threshold, sharp_threshold, include_sharps, include_seams, include_creases
+        )
+
+    @staticmethod
+    def extract_object_bmesh(obj, depsgraph, M, cos_threshold, sharp_threshold, include_sharps, include_seams, include_creases):
+        ''' Reference per-object detection using bmesh. '''
         segments: list[tuple[Vector, Vector]] = []
         vert_feature_count: dict[int, int] = {}
         vert_world_pos: dict[int, Vector] = {}
-        depsgraph = context.evaluated_depsgraph_get()
+        bm = bmesh.new()
+        try:
+            bm.from_object(obj.evaluated_get(depsgraph), depsgraph)
+            bm.verts.ensure_lookup_table()
+            bm.edges.ensure_lookup_table()
+            for bme in bm.edges:
+                is_feature = include_sharps and is_bmedge_edgemark(bm, bme, BMMarking.sharp)
+                if not is_feature and include_seams:
+                    is_feature = is_bmedge_edgemark(bm, bme, BMMarking.seam)
+                if not is_feature and include_creases:
+                    is_feature = is_bmedge_edgemark(bm, bme, BMMarking.crease)
+                if not is_feature and len(bme.link_faces) == 2:
+                    n0 = bme.link_faces[0].normal
+                    n1 = bme.link_faces[1].normal
+                    if n0.length > 0 and n1.length > 0:
+                        is_feature = n0.normalized().dot(n1.normalized()) < cos_threshold
+                if is_feature:
+                    v0, v1 = bme.verts
+                    v0w = point_to_bvec3((M @ Vector((*v0.co, 1.0))).xyz)
+                    v1w = point_to_bvec3((M @ Vector((*v1.co, 1.0))).xyz)
+                    segments.append((v0w, v1w))
+                    for v, vw in ((v0, v0w), (v1, v1w)):
+                        idx = v.index
+                        vert_feature_count[idx] = vert_feature_count.get(idx, 0) + 1
+                        vert_world_pos[idx] = vw
 
-        for obj in sources:
-            M = obj.matrix_world
-            bm = bmesh.new()
+            # 5+ edge poles whose total face-angle curvature exceeds
+            # sharp_threshold are treated as corners. This catches cone tips.
+            for bmv in bm.verts:
+                if len(bmv.link_edges) < 5:
+                    continue
+                idx = bmv.index
+                if vert_feature_count.get(idx, 0) >= 3:
+                    continue  # already registered as a corner via feature edges
+                total_curvature = sum(
+                    bme.calc_face_angle(0.0)
+                    for bme in bmv.link_edges
+                    if len(bme.link_faces) == 2
+                )
+                if total_curvature > sharp_threshold:
+                    vw = point_to_bvec3((M @ Vector((*bmv.co, 1.0))).xyz)
+                    vert_world_pos[idx] = vw
+                    vert_feature_count[idx] = 3  # satisfy the corner threshold
+        finally:
+            bm.free()
+
+        corner_pts = [pos for k, pos in vert_world_pos.items() if vert_feature_count[k] >= 3]
+        return segments, corner_pts
+
+    @staticmethod
+    def extract_object_features_incremental(obj, depsgraph, M, cos_threshold, sharp_threshold, include_sharps,
+                                            include_seams, include_creases, edge_batch_size: int = 8192, vert_batch_size: int = 4096):
+        ''' Incremental extractor for one source object.
+        Yields (progress_0_to_1, segments_or_none, corners_or_none) so callers can animate
+        progress and keep the UI responsive while very dense meshes are processed. '''
+        if USE_VECTORIZED_SOURCE_BUILD:
             try:
-                bm.from_object(obj.evaluated_get(depsgraph), depsgraph)
-                bm.verts.ensure_lookup_table()
-                bm.edges.ensure_lookup_table()
-                for bme in bm.edges:
+                yield from SourceAccel.extract_object_vectorized_incremental(
+                    obj, depsgraph, M, cos_threshold, sharp_threshold,
+                    include_sharps, include_seams, include_creases,
+                    batch_size=edge_batch_size,
+                )
+                return
+            except Exception as e:
+                print(f'SourceAccel: vectorized incremental extract failed on {obj.name!r} ({e}); using bmesh fallback')
+
+        yield from SourceAccel.extract_object_bmesh_incremental(
+            obj, depsgraph, M, cos_threshold, sharp_threshold,
+            include_sharps, include_seams, include_creases,
+            edge_batch_size=edge_batch_size,
+            vert_batch_size=vert_batch_size,
+        )
+
+    @staticmethod
+    def extract_object_bmesh_incremental(
+        obj,
+        depsgraph,
+        M,
+        cos_threshold,
+        sharp_threshold,
+        include_sharps,
+        include_seams,
+        include_creases,
+        *,
+        edge_batch_size: int,
+        vert_batch_size: int,
+    ):
+        ''' Incremental bmesh fallback extractor for one source object. '''
+        segments: list[tuple[Vector, Vector]] = []
+        vert_feature_count: dict[int, int] = {}
+        vert_world_pos: dict[int, Vector] = {}
+
+        bm = bmesh.new()
+        try:
+            bm.from_object(obj.evaluated_get(depsgraph), depsgraph)
+            bm.verts.ensure_lookup_table()
+            bm.edges.ensure_lookup_table()
+
+            n_edges = len(bm.edges)
+            n_verts = len(bm.verts)
+            total_work = max(1, n_edges + n_verts)
+            processed = 0
+
+            for edge_start in range(0, n_edges, edge_batch_size):
+                edge_end = min(edge_start + edge_batch_size, n_edges)
+                for bme in bm.edges[edge_start:edge_end]:
                     is_feature = include_sharps and is_bmedge_edgemark(bm, bme, BMMarking.sharp)
                     if not is_feature and include_seams:
                         is_feature = is_bmedge_edgemark(bm, bme, BMMarking.seam)
@@ -314,9 +441,12 @@ class SourceAccel:
                             vert_feature_count[idx] = vert_feature_count.get(idx, 0) + 1
                             vert_world_pos[idx] = vw
 
-                # 5+ edge poles whose total face-angle curvature exceeds
-                # sharp_threshold are treated as corners. This catches cone tips.
-                for bmv in bm.verts:
+                processed += edge_end - edge_start
+                yield processed / total_work, None, None
+
+            for vert_start in range(0, n_verts, vert_batch_size):
+                vert_end = min(vert_start + vert_batch_size, n_verts)
+                for bmv in bm.verts[vert_start:vert_end]:
                     if len(bmv.link_edges) < 5:
                         continue
                     idx = bmv.index
@@ -331,30 +461,260 @@ class SourceAccel:
                         vw = point_to_bvec3((M @ Vector((*bmv.co, 1.0))).xyz)
                         vert_world_pos[idx] = vw
                         vert_feature_count[idx] = 3  # satisfy the corner threshold
-            finally:
-                print('accel.py')
-                bm.free()
 
-        edge_accel = EdgeMarkAccel(segments) if segments else None
+                processed += vert_end - vert_start
+                yield processed / total_work, None, None
+        finally:
+            bm.free()
 
         corner_pts = [pos for k, pos in vert_world_pos.items() if vert_feature_count[k] >= 3]
+        yield 1.0, segments, corner_pts
+
+    @staticmethod
+    def extract_object_vectorized_incremental(obj, depsgraph, M, cos_threshold, sharp_threshold, include_sharps,
+                                                include_seams, include_creases, batch_size: int = 8192):
+        ''' Incremental numpy/blender mesh extractor for one source object. '''
+        yield 0.0, None, None # Yield at the start so the progress bar renders before work begins.
+
+        needs_evaluated_mesh = bool(obj.modifiers) # Skip evaluated_get() and to_mesh() when obj has no modifiers
+        if needs_evaluated_mesh:
+            obj_eval   = obj.evaluated_get(depsgraph)
+            mesh       = obj_eval.to_mesh()
+            clear_mesh = obj_eval.to_mesh_clear
+        else:
+            mesh       = obj.data
+            clear_mesh = lambda: None   # nothing to clear
+
+        try:
+            n_verts = len(mesh.vertices)
+            n_edges = len(mesh.edges)
+            n_polys = len(mesh.polygons)
+            n_loops = len(mesh.loops)
+            if n_verts == 0 or n_edges == 0:
+                yield 1.0, [], []
+                return
+
+            batch_size = max(256, int(batch_size))
+            total_work = max(1, n_edges + n_verts)
+            edge_progress_end = n_edges / total_work
+            setup_cap   = min(0.25, edge_progress_end * 0.5) # Setup steps share the first 25% of progress
+            setup_steps = 4
+            setup_step  = 0
+
+            def _yield_setup():
+                nonlocal setup_step
+                setup_step += 1
+                return setup_cap * (setup_step / setup_steps)
+
+            # vertex coords (local) -> world (affine: world = co @ R^T + t)
+            co = np.empty(n_verts * 3, dtype=np.float64)
+            mesh.vertices.foreach_get('co', co)
+            yield _yield_setup(), None, None
+            co = co.reshape(n_verts, 3)
+            Mnp  = np.array(M, dtype=np.float64)
+            world = co @ Mnp[:3, :3].T + Mnp[:3, 3]
+
+            # edge -> vertex indices
+            edge_verts = np.empty(n_edges * 2, dtype=np.int64)
+            mesh.edges.foreach_get('vertices', edge_verts)
+            yield _yield_setup(), None, None
+            edge_verts = edge_verts.reshape(n_edges, 2)
+
+            # feature mask from edge marks
+            feat = np.zeros(n_edges, dtype=bool)
+            if include_sharps:
+                sharp = np.empty(n_edges, dtype=bool)
+                mesh.edges.foreach_get('use_edge_sharp', sharp)
+                feat |= sharp
+            if include_seams:
+                seam = np.empty(n_edges, dtype=bool)
+                mesh.edges.foreach_get('use_seam', seam)
+                feat |= seam
+            if include_creases:
+                attr = mesh.attributes.get('crease_edge')
+                if attr is not None:
+                    crease = np.empty(n_edges, dtype=np.float64)
+                    attr.data.foreach_get('value', crease)
+                    feat |= (crease > 0.0)
+            yield _yield_setup(), None, None
+
+            edge_angle = np.zeros(n_edges, dtype=np.float64)
+            if needs_evaluated_mesh and n_loops and n_polys:
+                loop_edge = np.empty(n_loops, dtype=np.int64)
+                mesh.loops.foreach_get('edge_index', loop_edge)
+                loop_total = np.empty(n_polys, dtype=np.int64)
+                mesh.polygons.foreach_get('loop_total', loop_total)
+                loop_poly = np.repeat(np.arange(n_polys, dtype=np.int64), loop_total)
+                pn = np.empty(n_polys * 3, dtype=np.float64)
+                mesh.polygons.foreach_get('normal', pn)
+                pn = pn.reshape(n_polys, 3)
+                yield _yield_setup(), None, None
+
+                counts = np.bincount(loop_edge, minlength=n_edges)
+                order  = np.argsort(loop_edge, kind='stable')
+                sorted_polys = loop_poly[order]
+                offsets = np.zeros(n_edges, dtype=np.int64)
+                if n_edges > 1:
+                    np.cumsum(counts[:-1], out=offsets[1:])
+                manifold = np.nonzero(counts == 2)[0]
+
+                if manifold.size:
+                    mcount = manifold.size
+                    for mstart in range(0, mcount, batch_size):
+                        mend = min(mstart + batch_size, mcount)
+                        me   = manifold[mstart:mend]
+                        f0, f1 = sorted_polys[offsets[me]], sorted_polys[offsets[me] + 1]
+                        n0, n1 = pn[f0], pn[f1]
+                        n0len  = np.einsum('ij,ij->i', n0, n0)
+                        n1len  = np.einsum('ij,ij->i', n1, n1)
+                        valid  = (n0len > 1e-12) & (n1len > 1e-12)
+                        if np.any(valid):
+                            me_valid = me[valid]
+                            dots = np.clip(np.einsum('ij,ij->i', n0[valid], n1[valid]), -1.0, 1.0)
+                            edge_angle[me_valid] = np.arccos(dots)
+                            feat[me_valid] |= (dots < cos_threshold)
+                        yield setup_cap + (edge_progress_end - setup_cap) * (mend / mcount), None, None
+
+            if setup_step < setup_steps:
+                yield edge_progress_end, None, None
+
+            # segments from feature edges (converted in batches)
+            fe = np.nonzero(feat)[0]
+            segments: list[tuple[Vector, Vector]] = []
+            for start in range(0, fe.size, batch_size):
+                end = min(start + batch_size, fe.size)
+                idx = fe[start:end]
+                segments.extend((Vector(a), Vector(b)) for a, b in world[edge_verts[idx]])
+
+            # corners are verts touched by >=3 feature edges or high-curvature 5+ poles
+            vfc = np.bincount(edge_verts[fe].ravel(), minlength=n_verts) if fe.size else np.zeros(n_verts, dtype=np.int64)
+            vert_edge_count = np.bincount(edge_verts.ravel(), minlength=n_verts)
+            vert_curv = np.zeros(n_verts, dtype=np.float64)
+            np.add.at(vert_curv, edge_verts.ravel(), np.repeat(edge_angle, 2))
+
+            corner_pts: list[Vector] = []
+            for vert_start in range(0, n_verts, batch_size):
+                vert_end = min(vert_start + batch_size, n_verts)
+                local_vfc = vfc[vert_start:vert_end]
+                local_edge_count = vert_edge_count[vert_start:vert_end]
+                local_curv = vert_curv[vert_start:vert_end]
+                local_corner = (local_vfc >= 3) | ((local_edge_count >= 5) & (local_vfc < 3) & (local_curv > sharp_threshold))
+                local_idx = np.nonzero(local_corner)[0]
+                if local_idx.size:
+                    corner_pts.extend(Vector(p) for p in world[local_idx + vert_start])
+                yield (n_edges + vert_end) / total_work, None, None
+        finally:
+            clear_mesh()
+
+        yield 1.0, segments, corner_pts
+
+    @staticmethod
+    def extract_object_vectorized(obj, depsgraph, M, cos_threshold, sharp_threshold, include_sharps, include_seams, include_creases):
+        obj_eval = obj.evaluated_get(depsgraph)
+        mesh = obj_eval.to_mesh()
+        try:
+            n_verts = len(mesh.vertices)
+            n_edges = len(mesh.edges)
+            n_polys = len(mesh.polygons)
+            n_loops = len(mesh.loops)
+            if n_verts == 0 or n_edges == 0:
+                return [], []
+
+            # vertex coords (local) -> world (affine: world = co @ R^T + t)
+            co = np.empty(n_verts * 3, dtype=np.float64)
+            mesh.vertices.foreach_get('co', co)
+            co = co.reshape(n_verts, 3)
+            Mnp = np.array(M, dtype=np.float64)  # 4x4, rows are matrix rows
+            world = co @ Mnp[:3, :3].T + Mnp[:3, 3]
+
+            # edge -> vertex indices
+            edge_verts = np.empty(n_edges * 2, dtype=np.int64)
+            mesh.edges.foreach_get('vertices', edge_verts)
+            edge_verts = edge_verts.reshape(n_edges, 2)
+
+            # feature mask from edge marks
+            feat = np.zeros(n_edges, dtype=bool)
+            if include_sharps:
+                sharp = np.empty(n_edges, dtype=bool)
+                mesh.edges.foreach_get('use_edge_sharp', sharp)
+                feat |= sharp
+            if include_seams:
+                seam = np.empty(n_edges, dtype=bool)
+                mesh.edges.foreach_get('use_seam', seam)
+                feat |= seam
+            if include_creases:
+                attr = mesh.attributes.get('crease_edge')
+                if attr is not None:
+                    crease = np.empty(n_edges, dtype=np.float64)
+                    attr.data.foreach_get('value', crease)
+                    feat |= (crease > 0.0)
+
+            # edge -> the (up to 2) adjacent faces, reconstructed from loops, for the dihedral angle between face normals.
+            edge_angle = np.zeros(n_edges, dtype=np.float64) # stays 0 for boundary or non-manifold edges
+            if n_loops and n_polys:
+                loop_edge = np.empty(n_loops, dtype=np.int64)
+                mesh.loops.foreach_get('edge_index', loop_edge)
+                loop_total = np.empty(n_polys, dtype=np.int64)
+                mesh.polygons.foreach_get('loop_total', loop_total)
+                loop_poly = np.repeat(np.arange(n_polys, dtype=np.int64), loop_total)
+                pn = np.empty(n_polys * 3, dtype=np.float64)
+                mesh.polygons.foreach_get('normal', pn) # polygon normals are unit length
+                pn = pn.reshape(n_polys, 3)
+
+                counts = np.bincount(loop_edge, minlength=n_edges)
+                order = np.argsort(loop_edge, kind='stable')  # loop indices grouped by edge
+                sorted_polys = loop_poly[order]
+                offsets = np.zeros(n_edges, dtype=np.int64)  # start of each edge's run
+                if n_edges > 1:
+                    np.cumsum(counts[:-1], out=offsets[1:])
+                manifold = np.nonzero(counts == 2)[0]
+                if manifold.size:
+                    f0 = sorted_polys[offsets[manifold]]
+                    f1 = sorted_polys[offsets[manifold] + 1]
+                    n0, n1 = pn[f0], pn[f1]
+                    n0len = np.einsum('ij,ij->i', n0, n0)
+                    n1len = np.einsum('ij,ij->i', n1, n1)
+                    valid = (n0len > 1e-12) & (n1len > 1e-12)   # skip zero normals
+                    dots = np.clip(np.einsum('ij,ij->i', n0, n1), -1.0, 1.0)
+                    me = manifold[valid]
+                    edge_angle[me] = np.arccos(dots[valid])
+                    if sharp_threshold < math.pi:
+                        feat[me] |= (dots[valid] < cos_threshold)
+
+            # segments are world coords of each feature edge's two verts
+            fe = np.nonzero(feat)[0]
+            segments = [(Vector(a), Vector(b)) for a, b in world[edge_verts[fe]]] if fe.size else []
+
+            # corners are verts touched by >=3 feature edges or high-curvature 5+ poles
+            vfc = np.bincount(edge_verts[fe].ravel(), minlength=n_verts) if fe.size else np.zeros(n_verts, dtype=np.int64)
+            corner_mask = vfc >= 3
+            vert_edge_count = np.bincount(edge_verts.ravel(), minlength=n_verts)
+            vert_curv = np.zeros(n_verts, dtype=np.float64)
+            np.add.at(vert_curv, edge_verts.ravel(), np.repeat(edge_angle, 2))
+            pole_mask = (vert_edge_count >= 5) & (~corner_mask) & (vert_curv > sharp_threshold)
+            corner_idx = np.nonzero(corner_mask | pole_mask)[0]
+            corner_pts = [Vector(p) for p in world[corner_idx]]
+            return segments, corner_pts
+        finally:
+            obj_eval.to_mesh_clear()
+
+    @staticmethod
+    def finalize(segments: list, corner_pts: list) -> 'SourceAccel':
+        ''' Assemble the feature-edge BVH + corner KDTree from accumulated per-object results. '''
+        edge_accel = EdgeMarkAccel(segments) if segments else None
         corner_kd: KDTree | None = None
         if corner_pts:
             corner_kd = KDTree(len(corner_pts))
             for i, pos in enumerate(corner_pts):
                 corner_kd.insert(pos, i)
             corner_kd.balance()
-
-        instance = cls(edge_accel, corner_kd)
-        cls.cache_key = cache_key
-        cls.cache_val = instance
-        return instance
+        return SourceAccel(edge_accel, corner_kd)
 
     @classmethod
     def build_from_tool(cls, context: Context, tool, sources: list) -> 'SourceAccel | None':
-        ''' Build from a tool's `source_edge_*` operator properties.  Returns None when
-        feature snapping is disabled or no feature type is selected.  `sources` is the
-        precomputed [(obj, M, Mi, Mi_3x3), ...] list built in the tool's __init__. '''
+        ''' Build from a tool's `source_edge_*` operator properties.
+        Returns None when feature snapping is disabled or no feature type is selected.
+        `sources` is the precomputed [(obj, M, Mi, Mi_3x3), ...] list built in the tool's __init__. '''
         source_angle   = getattr(tool, 'source_edge_angle', math.pi)
         if not getattr(tool, 'source_edge_angle_enabled', True):
             source_angle = math.pi
@@ -366,3 +726,571 @@ class SourceAccel:
         return cls.build(
             context, [src[0] for src in sources], source_angle, source_sharps, source_seams, source_creases,
         )
+
+    @staticmethod
+    def warmup(context, frames: int = 3):
+        ''' Register a timer that warms up all source caches after `frames`.
+        Triggers SourceCache rebuild and schedules SourceMeshCache background builds as needed.
+        Safe to call from update callbacks and activate hooks. '''
+        import bpy
+        delay = frames / 60.0
+        def _kick():
+            try:
+                ctx = bpy.context
+                SourceMeshCache.request_warmup(ctx)
+                if SourceCache.dirty and SourceCache.auto_rebuild_enabled(ctx):
+                    SourceCache.request_rebuild(ctx)
+            except Exception:
+                pass
+            return None
+        bpy.app.timers.register(_kick, first_interval=delay)
+
+
+DEBUG_SOURCE_CACHE = False  # flip on to trace every dirty/rebuild. mark_dirty fires per slider tick
+
+EMPTY_ACCEL = SourceAccel(None, None)  # shared falsy accel served while a first build is pending
+
+
+class SourceMeshData:
+    ''' Flat numpy arrays for one evaluated source object, used by the Contours Walk method.
+    All geometry is stored in world space so no per-stroke matrix math is needed. '''
+    __slots__ = (
+        'world', 'edge_verts',
+        'loop_edge', 'loop_face', 'face_start', 'face_total',
+        'sorted_faces', 'edge_face_offsets', 'edge_face_counts', 'boundary',
+        'vert_sorted_faces', 'vert_face_offsets', 'vert_face_counts',
+        'n_verts', 'n_edges', 'n_faces',
+    )
+
+    def __init__( self, world, edge_verts, loop_edge, loop_face, face_start, face_total, sorted_faces,
+                 edge_face_offsets, edge_face_counts, boundary, vert_sorted_faces, vert_face_offsets, vert_face_counts):
+        self.world             = world
+        self.edge_verts        = edge_verts
+        self.loop_edge         = loop_edge
+        self.loop_face         = loop_face
+        self.face_start        = face_start
+        self.face_total        = face_total
+        self.sorted_faces      = sorted_faces
+        self.edge_face_offsets = edge_face_offsets
+        self.edge_face_counts  = edge_face_counts
+        self.boundary          = boundary
+        self.vert_sorted_faces = vert_sorted_faces
+        self.vert_face_offsets = vert_face_offsets
+        self.vert_face_counts  = vert_face_counts
+        self.n_verts           = len(world)
+        self.n_edges           = len(edge_verts)
+        self.n_faces           = len(face_start)
+
+
+class SourceMeshCache:
+    ''' Per-object flat-mesh cache for Contours Walk.
+    Stores the evaluated mesh topology as numpy arrays so Walk can compute all plane
+    intersections vectorially once per stroke and navigate adjacency via integer arrays.
+    Key: (obj_name, mesh_name) → SourceMeshData
+    Invalidated by depsgraph geometry update and clear() on RF unregister. '''
+    _cache: 'dict[tuple[str,str], SourceMeshData]' = {}
+    _warmup_queue: list = []  # bpy.types.Object refs pending background build
+
+    @classmethod
+    def get(cls, obj, depsgraph) -> 'SourceMeshData | None':
+        mesh_name = getattr(obj.data, 'name', None)
+        key       = (obj.name, mesh_name)
+        cached    = cls._cache.get(key)
+        if cached is not None:
+            return cached
+        data = cls._build(obj, depsgraph)
+        if data is not None:
+            cls._cache[key] = data
+        return data
+
+    @classmethod
+    def _build(cls, obj, depsgraph) -> 'SourceMeshData | None':
+        needs_eval = bool(obj.modifiers)
+        if needs_eval:
+            obj_eval = obj.evaluated_get(depsgraph)
+            mesh = obj_eval.to_mesh()
+            clear_mesh = obj_eval.to_mesh_clear
+        else:
+            mesh = obj.data
+            clear_mesh = lambda: None
+        try:
+            n_v = len(mesh.vertices)
+            n_e = len(mesh.edges)
+            n_f = len(mesh.polygons)
+            n_l = len(mesh.loops)
+            if n_v == 0 or n_e == 0 or n_f == 0:
+                return None
+
+            # Vertex positions → world space
+            co = np.empty(n_v * 3, dtype=np.float64)
+            mesh.vertices.foreach_get('co', co)
+            co = co.reshape(n_v, 3)
+            M  = np.array(obj.matrix_world, dtype=np.float64)
+            world = co @ M[:3, :3].T + M[:3, 3]
+
+            # Edge → vertex indices
+            ev = np.empty(n_e * 2, dtype=np.int32)
+            mesh.edges.foreach_get('vertices', ev)
+            edge_verts = ev.reshape(n_e, 2)
+
+            # Face loop start + total
+            face_start = np.empty(n_f, dtype=np.int32)
+            face_total = np.empty(n_f, dtype=np.int32)
+            mesh.polygons.foreach_get('loop_start', face_start)
+            mesh.polygons.foreach_get('loop_total',  face_total)
+
+            # Loop → edge + vert + face
+            loop_edge = np.empty(n_l, dtype=np.int32)
+            loop_vert = np.empty(n_l, dtype=np.int32)
+            mesh.loops.foreach_get('edge_index',   loop_edge)
+            mesh.loops.foreach_get('vertex_index', loop_vert)
+            loop_face = np.repeat(np.arange(n_f, dtype=np.int32), face_total)
+
+            # Edge → adjacent faces
+            edge_face_counts = np.bincount(loop_edge, minlength=n_e).astype(np.int64)
+            e_order          = np.argsort(loop_edge, kind='stable')
+            sorted_faces     = loop_face[e_order]
+            edge_face_offsets = np.zeros(n_e, dtype=np.int64)
+            if n_e > 1:
+                np.cumsum(edge_face_counts[:-1], out=edge_face_offsets[1:])
+            boundary = (edge_face_counts == 1)
+
+            # Vertex → adjacent faces (O(1) lookup per vert during BFS)
+            vert_face_counts = np.bincount(loop_vert, minlength=n_v).astype(np.int64)
+            v_order          = np.argsort(loop_vert, kind='stable')
+            vert_sorted_faces = loop_face[v_order]
+            vert_face_offsets = np.zeros(n_v, dtype=np.int64)
+            if n_v > 1:
+                np.cumsum(vert_face_counts[:-1], out=vert_face_offsets[1:])
+
+            return SourceMeshData(
+                world, edge_verts,
+                loop_edge, loop_face, face_start, face_total,
+                sorted_faces, edge_face_offsets, edge_face_counts, boundary,
+                vert_sorted_faces, vert_face_offsets, vert_face_counts,
+            )
+        except Exception as e:
+            print(f'SourceMeshCache: build failed for {obj.name!r}: {e}')
+            return None
+        finally:
+            clear_mesh()
+
+    @classmethod
+    def evict(cls, obj_name: str):
+        cls._cache = {k: v for k, v in cls._cache.items() if k[0] != obj_name}
+        # Also remove from warmup queue in case it was pending.
+        cls._warmup_queue = [o for o in cls._warmup_queue if getattr(o, 'name', None) != obj_name]
+
+    @classmethod
+    def cached_object_names(cls) -> list:
+        ''' Sorted list of unique object names in the Walk flat-mesh cache. '''
+        return sorted({k[0] for k in cls._cache})
+
+    @classmethod
+    def request_warmup(cls, context):
+        ''' Schedule incremental background builds for all valid source objects not yet in the cache.
+        Safe to call speculatively. Builds one object per timer tick so the UI stays responsive. '''
+        try:
+            sources = list(iter_all_valid_sources(context))
+        except Exception:
+            return
+        pending = [
+            obj for obj in sources
+            if (obj.name, getattr(obj.data, 'name', None)) not in cls._cache
+        ]
+        if not pending:
+            return
+        existing = {getattr(o, 'name', None) for o in cls._warmup_queue}
+        cls._warmup_queue.extend(o for o in pending if o.name not in existing)
+        if not bpy.app.timers.is_registered(_source_mesh_cache_warmup_timer):
+            bpy.app.timers.register(_source_mesh_cache_warmup_timer, first_interval=0.05)
+
+    @classmethod
+    def _warmup_step(cls) -> 'float | None':
+        while cls._warmup_queue:
+            obj = cls._warmup_queue.pop(0)
+            try:
+                name = obj.name   # raises ReferenceError if object was deleted
+            except ReferenceError:
+                continue
+            mesh_name = getattr(obj.data, 'name', None)
+            key = (name, mesh_name)
+            if key in cls._cache:
+                continue   # already built (e.g. by a synchronous get() during a stroke)
+            try:
+                depsgraph = bpy.context.evaluated_depsgraph_get()
+                data = cls._build(obj, depsgraph)
+                if data:
+                    cls._cache[key] = data
+                    print(f'SourceMeshCache: warmed {name!r}')
+            except Exception as e:
+                print(f'SourceMeshCache: warmup failed for {name!r}: {e}')
+            # Yield back to Blender for at least one frame between sources.
+            return 0.05 if cls._warmup_queue else None
+        return None
+
+    @classmethod
+    def clear(cls):
+        cls._cache.clear()
+        cls._warmup_queue.clear()
+
+
+
+def _source_mesh_cache_warmup_timer():
+    ''' Timer entry point for SourceMeshCache background warmup. Stable identity so
+    bpy.app.timers.is_registered() works correctly across calls. '''
+    return SourceMeshCache._warmup_step()
+
+
+def _source_cache_timer():
+    ''' Module level timer entry point. Kept as a plain function so it can
+    be reliably registered/unregistered with bpy.app.timers. '''
+    return SourceCache._step()
+
+
+class SourceCache:
+    ''' The single, tool-agnostic cache of source feature-detection data. Survives tool switches and RF enter/exit.
+    Rebuilds run incrementally on a timer so the UI stays interactive. The previous result is served until the new one is ready. '''
+    accel : 'SourceAccel | None' = None       # last built feature data, empty SourceAccel when no features
+    dirty : bool = True                       # a trigger fired or never built so rebuild on next get()
+    source_datablock_names : frozenset = frozenset()  # object + mesh names tracked for source-edit detection
+
+    # incremental build state
+    building : bool = False
+    progress : float = 0.0
+    _gen = None                                # active build generator, or None
+    _cancel : bool = False
+    _dirty_token : int = 0                     # bumped on every mark_dirty
+    _build_token : int = 0                     # _dirty_token captured when the in-flight build started
+    _build_settings : tuple = ()
+    _build_sources : list = []
+    _pending_accel : 'SourceAccel | None' = None
+    _pending_names : frozenset = frozenset()
+    _tick_interval: float = 1.0 / 120.0        # small delay so heavy rebuilds spread over visible frames
+    _committed_detection_settings : 'tuple | None' = None  # (angle, sharps, seams, creases) of last successful build
+    # Per-object, per-type cache.  Key: (type_key, obj_name, mesh_name).  Value: (segments, corners).
+    # Adding a new source only requires scanning that object; existing entries are reused unchanged.
+    _obj_type_cache : dict = {}
+    _pending_obj_data : dict = {}  # staged during in-flight build and committed to _obj_type_cache on success
+
+    @staticmethod
+    def auto_rebuild_enabled(context: Context) -> bool:
+        try:
+            return bool(context.scene.retopoflow.snapping.source_feature_auto_rebuild)
+        except AttributeError:
+            return True
+
+    @staticmethod
+    def detection_enabled(context: Context) -> bool:
+        ''' True when any source feature-detection type is on in the scene snapping settings.
+        Lets callers skip kicking a build that would detect nothing. '''
+        try: s = context.scene.retopoflow.snapping
+        except AttributeError: return False
+        angle = s.source_edge_angle if s.source_edge_angle_enabled else math.pi
+        return bool(s.source_edge_sharps or s.source_edge_seams or s.source_edge_creases or angle < math.pi)
+
+    @classmethod
+    def mark_dirty(cls, reason: str = ''):
+        ''' Record that the cache is stale. get() decides whether to act on it and the manual rebuild op bypasses that gate. '''
+        cls.dirty = True
+        cls._dirty_token += 1
+        if DEBUG_SOURCE_CACHE:
+            print(f'SourceCache: marked dirty ({reason})')
+
+    @classmethod
+    def mark_dirty_geometry_changed(cls, reason: str = '', *, obj_name: str = ''):
+        ''' Source geometry or the source object set changed.
+        If `obj_name` is given, only that object's entries are evicted from the per-object cache and all other objects' cached data remains.
+        If `obj_name` is empty, no cache is cleared. New objects have no entry and will be scanned.
+        Removed objects stale entries are pruned when the next build commits. '''
+        if obj_name:
+            cls._obj_type_cache = {k: v for k, v in cls._obj_type_cache.items()
+                                   if k[1] != obj_name and k[2] != obj_name}
+        cls.mark_dirty(reason)
+
+    @classmethod
+    def _requires_rebuild_for_settings(cls, desired: tuple) -> bool:
+        ''' True if desired setting needs data not present in the cache. '''
+        if cls.accel is None or cls._committed_detection_settings is None:
+            return True
+        c_angle, c_sharps, c_seams, c_creases = cls._committed_detection_settings
+        d_angle, d_sharps, d_seams, d_creases = desired
+        if d_sharps  and not c_sharps:   return True   # newly enabled feature type
+        if d_seams   and not c_seams:    return True
+        if d_creases and not c_creases:  return True
+        if d_angle < c_angle - 1e-6:     return True   # smaller threshold = more edges needed
+        return False
+
+    @classmethod
+    def mark_dirty_if_settings_changed(cls, context: Context):
+        ''' Alias kept for any remaining call-sites; delegates to mark_dirty_settings_changed. '''
+        cls.mark_dirty_settings_changed(context)
+
+    @classmethod
+    def mark_dirty_settings_changed(cls, context: Context):
+        ''' Called when a feature detection setting changes. Removes only the per-type cache entries that would need fresh data,
+        then marks dirty if any rebuild is required. Disabling a type or tightening the threshold leaves the cache intact. '''
+        try:
+            s       = context.scene.retopoflow.snapping
+            angle   = s.source_edge_angle if s.source_edge_angle_enabled else math.pi
+            desired = (angle, bool(s.source_edge_sharps), bool(s.source_edge_seams), bool(s.source_edge_creases))
+        except Exception:
+            cls.mark_dirty('detection settings changed (fallback)')
+            return
+        if cls._committed_detection_settings is None or cls.accel is None:
+            cls.mark_dirty('no committed cache')
+            if cls.auto_rebuild_enabled(context):
+                cls.request_rebuild(context)
+            return
+        c_angle, c_sharps, c_seams, c_creases = cls._committed_detection_settings
+        d_angle, d_sharps, d_seams, d_creases = desired
+        needs_rebuild = False
+        if d_sharps  and not c_sharps:
+            cls._obj_type_cache = {k: v for k, v in cls._obj_type_cache.items() if k[0] != 'sharps'}
+            needs_rebuild = True
+        if d_seams   and not c_seams:
+            cls._obj_type_cache = {k: v for k, v in cls._obj_type_cache.items() if k[0] != 'seams'}
+            needs_rebuild = True
+        if d_creases and not c_creases:
+            cls._obj_type_cache = {k: v for k, v in cls._obj_type_cache.items() if k[0] != 'creases'}
+            needs_rebuild = True
+        if d_angle < c_angle - 1e-6:    # more permissive angle — need extra edges
+            old_angle_key = ('angle', round(c_angle, 9))
+            cls._obj_type_cache = {k: v for k, v in cls._obj_type_cache.items() if k[0] != old_angle_key}
+            needs_rebuild = True
+        if needs_rebuild:
+            cls.mark_dirty('detection settings require new data')
+            if cls.auto_rebuild_enabled(context):
+                cls.request_rebuild(context)
+        elif DEBUG_SOURCE_CACHE:
+            print('SourceCache: Settings changed but per-type cache covers all needs. No rebuild')
+
+    @classmethod
+    def get(cls, context: Context) -> 'SourceAccel':
+        ''' Return the shared feature accel, kicking off a (non-blocking) rebuild if needed.
+        Always returns a SourceAccel, the previous one while a rebuild is in flight, or an
+        empty one until the first build finishes, so callers can decide whether feature snapping is active. '''
+        if not cls.building and (cls.accel is None or (cls.dirty and cls.auto_rebuild_enabled(context))):
+            cls.request_rebuild(context)
+        return cls.accel if cls.accel is not None else EMPTY_ACCEL
+
+    @classmethod
+    def request_rebuild(cls, context: Context, *, restart: bool = False, manual: bool = False):
+        ''' Start an incremental rebuild on a timer. No-op if one is already running unless `restart=True`.
+        Inputs are snapshotted here on the main thread and the timer steps over them across frames.
+        `manual=True` marks the build as user-initiated so unused entries can be pruned. '''
+        if cls.building and not restart: return
+        snapping = context.scene.retopoflow.snapping
+        angle = snapping.source_edge_angle if snapping.source_edge_angle_enabled else math.pi
+        cls._build_settings = (
+            angle,
+            bool(snapping.source_edge_sharps),
+            bool(snapping.source_edge_seams),
+            bool(snapping.source_edge_creases),
+            12 ** int(getattr(snapping, 'source_feature_batch_power', 3)),
+        )
+        cls._manual_rebuild = manual
+        cls._build_sources = list(iter_all_valid_sources(context))
+        cls._build_token = cls._dirty_token
+        cls._cancel = False
+        cls._gen = cls._build_steps()
+        cls.building = True
+        cls.progress = 0.0
+        if not bpy.app.timers.is_registered(_source_cache_timer):
+            bpy.app.timers.register(_source_cache_timer)
+
+    @classmethod
+    def _build_steps(cls):
+        ''' Generator that builds feature data for each (type, object) pair not already in _obj_type_cache.
+        Per-object cached results are reused directly. Adding a new source only scans that object.
+        Touching existing sources' geometry only evicts those entries. '''
+        angle, inc_sharps, inc_seams, inc_creases, batch_size = cls._build_settings
+        sources = cls._build_sources
+        names = frozenset(
+            name
+            for obj in sources
+            for name in (obj.name, getattr(obj.data, 'name', None))
+            if name
+        )
+        cls._pending_obj_data = {}
+        if not (inc_sharps or inc_seams or inc_creases or angle < math.pi) or not sources:
+            cls._pending_accel = SourceAccel(None, None)
+            cls._pending_names = names
+            yield 1.0
+            return
+
+        angle_key = ('angle', round(angle, 9)) if angle < math.pi else None
+        active_types = []  # (type_key, do_sharps, do_seams, do_creases, type_angle)
+        if inc_sharps:  active_types.append(('sharps',  True,  False, False, math.pi))
+        if inc_seams:   active_types.append(('seams',   False, True,  False, math.pi))
+        if inc_creases: active_types.append(('creases', False, False, True,  math.pi))
+        if angle_key:   active_types.append((angle_key, False, False, False, angle))
+
+        all_segments: list = []
+        all_corners : list = []
+        n  = len(sources)
+        nt = max(1, len(active_types))
+        for ti, (type_key, do_sharps, do_seams, do_creases, type_angle) in enumerate(active_types):
+            type_cos = math.cos(type_angle) if type_angle < math.pi else -2.0
+            for i, obj in enumerate(sources):
+                mesh_name  = getattr(obj.data, 'name', None)
+                cache_key  = (type_key, obj.name, mesh_name)
+                cached     = cls._obj_type_cache.get(cache_key)
+                if cached is not None:
+                    all_segments.extend(cached[0])
+                    all_corners.extend(cached[1])
+                    if DEBUG_SOURCE_CACHE:
+                        print(f'SourceCache: reusing {cache_key!r}')
+                    yield (ti * n + i + 1.0) / (nt * n + 1)
+                    continue
+                # Not cached — scan this object for this feature type.
+                obj_segs: list = []
+                obj_crns: list = []
+                depsgraph = bpy.context.evaluated_depsgraph_get()
+                try:
+                    M = obj.matrix_world
+                    for obj_progress, segs, corners in SourceAccel.extract_object_features_incremental(
+                        obj, depsgraph, M, type_cos, type_angle,
+                        do_sharps, do_seams, do_creases,
+                        edge_batch_size=batch_size,
+                        vert_batch_size=batch_size,
+                    ):
+                        if segs is not None:
+                            obj_segs.extend(segs)
+                            obj_crns.extend(corners)
+                        yield (ti * n + i + obj_progress) / (nt * n + 1)
+                except Exception as e:
+                    print(f'SourceCache: skipping source {getattr(obj, "name", "?")!r} ({e})')
+                all_segments.extend(obj_segs)
+                all_corners.extend(obj_crns)
+                cls._pending_obj_data[cache_key] = (obj_segs, obj_crns)
+
+        cls._pending_accel = SourceAccel.finalize(all_segments, all_corners)
+        cls._pending_names = names
+        yield 1.0
+
+    @classmethod
+    def _step(cls):
+        ''' Advance one chunk, then yield to Blender. Returns the delay until the next tick, or None to stop and unregister the timer. '''
+        if cls._gen is None or cls._cancel:
+            cls._finish(commit=False)
+            return None
+        try:
+            cls.progress = next(cls._gen)
+        except StopIteration:
+            cls._finish(commit=True)
+            return None
+        except Exception as e:
+            print(f'SourceCache: build error ({e})')
+            cls._finish(commit=False)
+            return None
+        cls._tag_redraw()
+        return cls._tick_interval
+
+    @classmethod
+    def _finish(cls, *, commit: bool):
+        cls._gen = None
+        cls.building = False
+        if commit and cls._pending_accel is not None:
+            cls.accel = cls._pending_accel
+            cls.source_datablock_names = cls._pending_names
+            # Merge newly scanned per-object data into the persistent per-object cache.
+            for key, (segs, crns) in cls._pending_obj_data.items():
+                cls._obj_type_cache[key] = (segs, crns)
+            # Prune cache entries for objects no longer in the source set.
+            current_obj_names = {obj.name for obj in cls._build_sources}
+            cls._obj_type_cache = {k: v for k, v in cls._obj_type_cache.items()
+                                   if k[1] in current_obj_names}
+            # On a manual rebuild, prune cache entries for feature types that are no longer enabled
+            # Automatic rebuilds keep stale type entries so they remain available if the type is re-enabled
+            if getattr(cls, '_manual_rebuild', False):
+                _b_angle, _b_sharps, _b_seams, _b_creases = cls._build_settings[:4]
+                active_type_keys = set()
+                if _b_sharps:           active_type_keys.add('sharps')
+                if _b_seams:            active_type_keys.add('seams')
+                if _b_creases:          active_type_keys.add('creases')
+                if _b_angle < math.pi:  active_type_keys.add(('angle', round(_b_angle, 9)))
+                cls._obj_type_cache = {k: v for k, v in cls._obj_type_cache.items()
+                                       if k[0] in active_type_keys}
+            # Record what was actually built so future settings changes can be compared.
+            cls._committed_detection_settings = cls._build_settings[:4]  # (angle, sharps, seams, creases)
+            if cls._dirty_token == cls._build_token:
+                cls.dirty = False
+            cls.progress = 1.0
+            print(f'SourceCache: build committed; features={"yes" if cls.accel else "no"}')
+        else:
+            cls.progress = 0.0
+        cls._pending_accel = None
+        cls._pending_names = frozenset()
+        cls._pending_obj_data = {}
+        cls._tag_redraw()
+
+    @classmethod
+    def cached_object_names(cls) -> list:
+        return sorted({k[1] for k in cls._obj_type_cache})
+
+    @classmethod
+    def cached_types_for_object(cls, obj_name: str) -> list:
+        ''' List of feature types cached for this object, used by the UI to show cache state. '''
+        keys = {k[0] for k in cls._obj_type_cache if k[1] == obj_name}
+        labels = []
+        if 'sharps'  in keys: labels.append('Sharps')
+        if 'seams'   in keys: labels.append('Seams')
+        if 'creases' in keys: labels.append('Creases')
+        if any(isinstance(k, tuple) for k in keys): labels.append('Angle')
+        return labels
+
+    @classmethod
+    def evict_object(cls, obj_name: str):
+        cls._obj_type_cache = {k: v for k, v in cls._obj_type_cache.items() if k[1] != obj_name}
+        cls.mark_dirty(f'evicted {obj_name!r} from cache')
+
+    @classmethod
+    def cancel_rebuild(cls):
+        if cls.building: cls._cancel = True
+
+    @staticmethod
+    def _tag_redraw():
+        wm = bpy.context.window_manager
+        if wm:
+            for win in wm.windows:
+                for area in win.screen.areas:
+                    if area.type in {'VIEW_3D', 'PROPERTIES'}:
+                        area.tag_redraw()
+        rfcore = RFGlobals.RFCore_None
+        if rfcore is not None:
+            try: rfcore.refresh_statusbar()
+            except Exception: pass
+
+    @classmethod
+    def note_depsgraph_update(cls, context: Context, depsgraph) -> None:
+        ''' Auto-rebuild trigger for source geometry edits. Marks the cache dirty when a source object's geometry changed. '''
+        if not cls.auto_rebuild_enabled(context): return
+        if not cls.source_datablock_names: return
+        for update in depsgraph.updates:
+            if not getattr(update, 'is_updated_geometry', False): continue
+            name = getattr(getattr(update, 'id', None), 'name', None)
+            if name and name in cls.source_datablock_names:
+                cls.mark_dirty_geometry_changed(f'source geometry edited ({name})', obj_name=name)
+                SourceMeshCache.evict(name)
+                return
+
+    @classmethod
+    def clear(cls):
+        ''' Drop the cache and stop any in-flight build. '''
+        cls._cancel = True
+        cls._gen = None
+        cls.building = False
+        cls.progress = 0.0
+        cls._committed_detection_settings = None
+        cls._obj_type_cache.clear()
+        cls._pending_obj_data.clear()
+        if bpy.app.timers.is_registered(_source_cache_timer):
+            try: bpy.app.timers.unregister(_source_cache_timer)
+            except Exception: pass
+        cls.accel = None
+        cls.dirty = True
+        cls.source_datablock_names = frozenset()
+        cls._pending_accel = None
+        cls._pending_names = frozenset()
+        SourceMeshCache.clear()

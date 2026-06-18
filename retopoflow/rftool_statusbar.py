@@ -33,6 +33,7 @@ import platform
 
 from .rfglobals import RFGlobals
 from .common.icons import Icon
+from .common.accel import SourceCache
 from ..addon_common.common.useractions import blenderop_to_kmis, kmi_to_op_properties
 from .rftool_base import RFTool_Base
 
@@ -367,6 +368,19 @@ def draw_rftool_statusbar(statusbar: Header, context: Context, tool: type[RFTool
 
     if not statusbar.layout: return
     layout: UILayout = statusbar.layout
+
+    # Cache build progress gets exclusive use of the status bar while rebuilding
+    if SourceCache.building and hasattr(layout, 'progress'):
+        layout.separator_spacer()
+        row = layout.row(align=True)
+        row.separator_spacer()
+        prog = row.row(align=True)
+        prog.scale_x = 1.8
+        prog.progress(factor=SourceCache.progress, text=f'Source Cache {SourceCache.progress * 100:.0f}%', type='BAR')
+        prog.operator('retopoflow.cancel_source_cache_rebuild', text='', icon='X')
+        row.separator_spacer()
+        layout.separator_spacer()
+        return
 
     # Selected Tool Icon.
     # draw_rftool_icon(tool, layout, scale=0.9)

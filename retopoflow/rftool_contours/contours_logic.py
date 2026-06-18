@@ -23,6 +23,7 @@ import bpy
 import math
 import bmesh
 import time
+import numpy as np
 from itertools import chain
 from collections import defaultdict
 from collections.abc import Sequence, Iterator
@@ -44,6 +45,7 @@ from ..common.maths import (
     lerp, get_closest_axis, snap_plane_to_direction,
     closest_point_linesegment,
 )
+from ..common.accel import SourceMeshCache
 from ..common.raycast import raycast_ray_valid_sources, nearest_point_valid_sources, nearest_normal_valid_sources, raycast_multiple_hits
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.debug import debugger
@@ -54,7 +56,7 @@ from ...addon_common.ext.circle_fit import hyperLSQ
 
 
 CREATE_DEBUG_OBJECTS = False
-PRINT_DEBUG_TIMINGS = False
+PRINT_DEBUG_TIMINGS = True
 
 class Contours_Logic:
     matrix_world : Matrix | None
@@ -1315,15 +1317,12 @@ class Contours_Logic:
 
         return True
 
-    def process_source_walk(self, context:Context):
-        '''
-        gathers cut info of high-res mesh (hit_obj) starting at hit_bmf
-        '''
-        if PRINT_DEBUG_TIMINGS: timers = [('start', time.perf_counter())]
-        plane_cut = self.plane
-        hit_obj = self.hit['object']
-        M = hit_obj.matrix_world
-        hit_bm = get_object_bmesh(hit_obj)
+    def walk_bmesh(self, context:Context, timers:list) -> 'tuple[list[Vector], bool, list[Vector], str] | bool':
+        ''' Graph walk using BMesh objects. Returns (points, cyclic, end_pts, timing_title) or False. '''
+        plane_cut  = self.plane
+        hit_obj    = self.hit['object']
+        M          = hit_obj.matrix_world
+        hit_bm     = get_object_bmesh(hit_obj)
         face_index = self.hit['face_index']
         if face_index >= len(hit_bm.faces):
             # cache is stale, source mesh changed face count
@@ -1450,13 +1449,14 @@ class Contours_Logic:
         ####################################################################################################
         # find points in order
 
-        points = []
         def add_path_end(bmf:BMFace) -> list[Vector]:
             bmelem = next((
                 bmelem for bmelem in bmf_intersections[bmf]
                 if type(bmelem) != BMFace and len(bmelem.link_faces) == 1
             ), None)
             return [ self.matrix_world_inv @ bmf_intersections[bmf][bmelem] ] if bmelem else []
+
+        points: list[Vector] = []
         if not cyclic:
             points += add_path_end(path[0])
         points += [
@@ -1466,6 +1466,211 @@ class Contours_Logic:
         if not cyclic:
             points += add_path_end(path[-1])
 
+        end_pts = add_path_end(path[-1]) if not cyclic else []
+        timing_title = f'WALK  faces={len(hit_bm.faces)}  path={len(path)}  cyclic={cyclic}'
+        return points, cyclic, end_pts, timing_title
+
+    def walk_accel(self, context:Context, md, face_index:int, timers:list) -> 'tuple[list[Vector], bool, list[Vector], str] | bool':
+        ''' Graph walk using SourceMeshCache flat arrays. Returns (points, cyclic, end_pts, timing_title) or False. '''
+        plane_cut = self.plane
+
+        ####################################################################################################
+        # Lazy per-vertex signed distance and edge intersection
+        # Distances are computed on first access and memoised — no global broadcast.
+
+        pn = np.array(plane_cut.n, dtype=np.float64)
+        pd = float(plane_cut.d)
+        EPS = 1e-6
+
+        dist_cache: dict[int, float] = {}
+
+        def vert_dist(vi: int) -> float:
+            d = dist_cache.get(vi)
+            if d is None:
+                w = md.world[vi]
+                d = float(w[0] * pn[0] + w[1] * pn[1] + w[2] * pn[2]) - pd
+                dist_cache[vi] = d
+            return d
+
+        def edge_isect(ei: int) -> 'tuple[Vector, bool, bool] | None':
+            ''' Returns (world_pt, is_vert0_on_plane, is_vert1_on_plane) or None if no crossing.
+            "On plane" cases are tracked so callers know to propagate through the vertex. '''
+            vi0, vi1 = int(md.edge_verts[ei, 0]), int(md.edge_verts[ei, 1])
+            d0, d1   = vert_dist(vi0), vert_dist(vi1)
+            on0, on1 = abs(d0) < EPS, abs(d1) < EPS
+            if on0:
+                return Vector(md.world[vi0]), True, False
+            if on1:
+                return Vector(md.world[vi1]), False, True
+            if (d0 > 0.0) == (d1 > 0.0):
+                return None  # same side
+            t  = d0 / (d0 - d1)
+            w0 = md.world[vi0]
+            w1 = md.world[vi1]
+            return Vector(w0 + t * (w1 - w0)), False, False
+
+        def edge_face_neighbors(ei: int, exclude_fi: int) -> list[int]:
+            cnt = int(md.edge_face_counts[ei])
+            if cnt < 2:
+                return []
+            off = int(md.edge_face_offsets[ei])
+            return [int(md.sorted_faces[off + k]) for k in range(cnt)
+                    if int(md.sorted_faces[off + k]) != exclude_fi]
+
+        def vert_face_neighbors(vi: int, exclude_fi: int) -> list[int]:
+            cnt = int(md.vert_face_counts[vi])
+            off = int(md.vert_face_offsets[vi])
+            return [int(md.vert_sorted_faces[off + k]) for k in range(cnt)
+                    if int(md.vert_sorted_faces[off + k]) != exclude_fi]
+
+        ####################################################################################################
+        # BFS — only visits faces the cut actually crosses
+
+        face_graph: dict[int, set[int]] = {}
+        face_isect: dict[tuple, Vector] = {}  # (fi, fj|str) → world pt
+
+        working_set: set[int] = {face_index}
+        while working_set:
+            fi = working_set.pop()
+            if fi in face_graph:
+                continue
+            face_graph[fi] = set()
+
+            s = int(md.face_start[fi])
+            t = int(md.face_total[fi])
+            face_loop_edges = md.loop_edge[s : s + t]
+
+            visited_verts_on_plane: set[int] = set()
+
+            for ei in face_loop_edges:
+                result = edge_isect(int(ei))
+                if result is None:
+                    continue
+                pt, on_v0, on_v1 = result
+
+                if on_v0 or on_v1:
+                    # Intersection is exactly at a vertex — propagate through all faces
+                    # sharing that vertex (not just the two edge-adjacent faces).
+                    vi = int(md.edge_verts[ei, 0] if on_v0 else md.edge_verts[ei, 1])
+                    if vi in visited_verts_on_plane:
+                        continue
+                    visited_verts_on_plane.add(vi)
+                    face_isect[(fi, f'vert:{vi}')] = pt
+                    for fj in vert_face_neighbors(vi, fi):
+                        face_graph[fi].add(fj)
+                        face_isect[(fi, fj)] = pt
+                        face_isect[(fj, fi)] = pt
+                        working_set.add(fj)
+                else:
+                    # Interpolated crossing — propagate only to the (up to 1) other face
+                    # sharing this edge.
+                    is_boundary = bool(md.boundary[ei])
+                    for fj in edge_face_neighbors(int(ei), fi):
+                        face_graph[fi].add(fj)
+                        face_isect[(fi, fj)] = pt
+                        face_isect[(fj, fi)] = pt
+                        working_set.add(fj)
+                    if is_boundary:
+                        face_isect[(fi, f'boundary:{ei}')] = pt
+
+        if PRINT_DEBUG_TIMINGS: timers.append((f'BFS ({len(face_graph)} faces, {len(dist_cache)} dists)', time.perf_counter()))
+
+        ####################################################################################################
+        # find longest cycle or path (same logic as bmesh walk, over int keys)
+
+        def find_cycle_or_path() -> tuple[list[int], bool]:
+            longest_path : list[int] = []
+            longest_cycle: list[int] = []
+
+            endpoint_faces: set[int] = set()
+            for key in face_isect:
+                if isinstance(key[0], int) and isinstance(key[1], str):
+                    endpoint_faces.add(key[0])
+            start_faces = endpoint_faces if endpoint_faces else set(face_graph.keys())
+
+            for start_fi in start_faces:
+                stack: list[tuple[int, Iterator]] = [(start_fi, iter(face_graph[start_fi]))]
+                touched: set[int] = {start_fi}
+                limit_finds = 10
+                while stack and limit_finds > 0:
+                    cur_fi, cur_iter = stack[-1]
+                    next_fi = next(cur_iter, None)
+                    if next_fi is None:
+                        if len(stack) > len(longest_path):
+                            longest_path = [f for (f, _) in stack]
+                        stack.pop()
+                        touched.discard(cur_fi)
+                        limit_finds -= 1
+                        continue
+                    if next_fi in touched:
+                        if next_fi == start_fi and len(stack) > 2 and len(stack) > len(longest_cycle):
+                            longest_cycle = [f for (f, _) in stack]
+                        continue
+                    touched.add(next_fi)
+                    stack.append((next_fi, iter(face_graph[next_fi])))
+                if len(longest_cycle) > 50:
+                    break
+
+            is_cyclic = len(longest_cycle) >= len(longest_path) * 0.5
+            return (longest_cycle if is_cyclic else longest_path, is_cyclic)
+
+        path, cyclic = find_cycle_or_path()
+        if len(path) < 2:
+            print('CONTOURS ERROR: PATH IS UNEXPECTEDLY TOO SHORT')
+            return False
+
+        if PRINT_DEBUG_TIMINGS: timers.append((f'find path/cycle ({len(path)} faces, cyclic={cyclic})', time.perf_counter()))
+
+        ####################################################################################################
+        # ordered points
+
+        MWI = self.matrix_world_inv
+
+        def add_path_end(fi: int) -> list[Vector]:
+            for key, pt in face_isect.items():
+                if key[0] == fi and isinstance(key[1], str):
+                    return [MWI @ pt]
+            return []
+
+        points: list[Vector] = []
+        if not cyclic:
+            points += add_path_end(path[0])
+        for fi0, fi1 in iter_pairs(path, cyclic):
+            pt = face_isect.get((fi0, fi1))
+            if pt is not None:
+                points.append(MWI @ pt)
+        if not cyclic:
+            points += add_path_end(path[-1])
+
+        end_pts = add_path_end(path[-1]) if not cyclic else []
+        timing_title = f'WALK(lazy)  mesh={md.n_faces}  path={len(path)}  dists={len(dist_cache)}  cyclic={cyclic}'
+        return points, cyclic, end_pts, timing_title
+
+    def process_source_walk(self, context:Context) -> bool:
+        ''' Walk the mesh along the cut one face at a time until finding a boundary or returning to the start. '''
+        timers     = [('start', time.perf_counter())] if PRINT_DEBUG_TIMINGS else []
+        hit_obj    = self.hit['object']
+        face_index = self.hit['face_index']
+        skip_accel = False # For debugging / testing timing
+
+        if not skip_accel:
+            depsgraph = context.evaluated_depsgraph_get()
+            md = SourceMeshCache.get(hit_obj, depsgraph)
+            if md is None or face_index >= md.n_faces:
+                SourceMeshCache.evict(hit_obj.name)
+                md = SourceMeshCache.get(hit_obj, depsgraph)
+
+        if skip_accel or md is None or face_index >= md.n_faces:
+            print(f'CONTOURS: SourceMeshCache unavailable for {hit_obj.name!r}, falling back to bmesh walk')
+            result = self.walk_bmesh(context, timers)
+        else:
+            # Warm any other uncached sources in the background while the user is working.
+            SourceMeshCache.request_warmup(context)
+            result = self.walk_accel(context, md, face_index, timers)
+
+        if result is False: return False
+
+        points, cyclic, end_pts, timing_title = result
 
         ####################################################################################################
         # subdivide for better circle-fitting
@@ -1475,13 +1680,9 @@ class Contours_Logic:
             for (p0, p1) in iter_pairs(points, cyclic)
             for pt in (lerp(i / subdiv, p0, p1) for i in range(subdiv))
         ]
-        if not cyclic: points += add_path_end(path[-1])
-        points = [
-            p0 for (p0, p1) in iter_pairs(points, cyclic)
-            if (p0 - p1).length > 0
-        ]
-
-
+        if not cyclic:
+            points += end_pts
+        points = [p0 for (p0, p1) in iter_pairs(points, cyclic) if (p0 - p1).length > 0]
 
         ####################################################################################################
         # handle cutting across mirror planes
@@ -1515,7 +1716,7 @@ class Contours_Logic:
                 f'{t1-t0:.4f}s  {lbl}'
                 for (lbl, t0), (_, t1) in zip(timers[:-1], timers[1:])
             ] + ['--------  ---------------', f'{_total:.4f}s  total']
-            term_printer.boxed(*_report, title=f'WALK  faces={len(hit_bm.faces)}  path={len(path)}  cyclic={cyclic}')
+            term_printer.boxed(*_report, title=timing_title)
         return True
 
 

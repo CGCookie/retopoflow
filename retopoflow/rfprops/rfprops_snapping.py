@@ -21,6 +21,14 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import math
 import bpy
+from ..common.accel import SourceCache
+
+
+def on_source_obj_changed(self, context):
+    SourceCache.mark_dirty_geometry_changed('source set changed')
+
+def on_source_feature_changed(self, context):
+    SourceCache.mark_dirty_settings_changed(context)
 
 
 class RFProps_Snapping(bpy.types.PropertyGroup):
@@ -29,25 +37,55 @@ class RFProps_Snapping(bpy.types.PropertyGroup):
     snap_only_selected: bpy.props.BoolProperty(
         name='Exclude Non-selected',
         description='Only selected objects in Object Mode are considered as valid sources. This allows you to manage what you snap to in the Outliner',
-        default=False
+        default=False,
+        update=on_source_obj_changed,
     )
     snap_object: bpy.props.PointerProperty(
         name='Source Object',
         type=bpy.types.Object,
         poll= lambda self, obj: obj.mode != 'EDIT' and obj.type in ['MESH', 'CURVE', 'SURFACE', 'META', 'FONT'],
+        update=on_source_obj_changed,
     )
     snap_collection: bpy.props.PointerProperty(
         name='Source Collection',
         type=bpy.types.Collection,
         poll= lambda self, collection: collection in [c for c in bpy.data.collections if bpy.context.scene.user_of_id(c)],
+        update=on_source_obj_changed,
     )
 
 
     """ Feature Detection """
+    source_feature_auto_rebuild: bpy.props.BoolProperty(
+        name='Auto Rebuild',
+        description=(
+            'Automatically rebuild the source feature cache when entering RetopoFlow, when '
+            'detection settings change, or when a source mesh is edited. Turn off to keep the '
+            'cache frozen and rebuild only with the Rebuild Source Cache button'
+        ),
+        default=True,
+        update=lambda self, ctx: SourceCache.mark_dirty_settings_changed(ctx) if self.source_feature_auto_rebuild else None,
+
+
+    )
+    source_feature_batch_power: bpy.props.IntProperty(
+        name='Batch Size (12^n)',
+        description=(
+            'Chunk size exponent for incremental source-cache rebuilding. '
+            'Actual chunk size is 12^n for both edge and vertex chunks. '
+            'Higher n rebuilds faster but can reduce UI responsiveness'
+        ),
+        min=2,
+        soft_min=2,
+        soft_max=6,
+        max=8,
+        default=3,
+        update=lambda self, ctx: SourceCache.request_rebuild(ctx, restart=True) if SourceCache.building else None,
+    )
     source_edge_angle_enabled: bpy.props.BoolProperty(
         name='Use Angle Threshold',
         description='Detect sharp edges on the source mesh based on face angle',
         default=False,
+        update=on_source_feature_changed,
     )
     source_edge_angle: bpy.props.FloatProperty(
         name='Angle',
@@ -56,21 +94,25 @@ class RFProps_Snapping(bpy.types.PropertyGroup):
         min=math.radians(1),
         max=math.radians(180),
         default=math.radians(45),
+        update=on_source_feature_changed,
     )
     source_edge_creases: bpy.props.BoolProperty(
         name='Snap to Source Creases',
         description='Snap vertices to the creases of the high poly mesh',
         default=False,
+        update=on_source_feature_changed,
     )
     source_edge_seams: bpy.props.BoolProperty(
         name='Snap to Source Seams',
         description='Snap vertices to the seams of the high poly mesh',
         default=False,
+        update=on_source_feature_changed,
     )
     source_edge_sharps: bpy.props.BoolProperty(
         name='Snap to Source Sharps',
         description='Snap vertices to the sharps of the high poly mesh',
         default=False,
+        update=on_source_feature_changed,
     )
     source_edge_proximity: bpy.props.FloatProperty(
         name='Proximity',
