@@ -43,7 +43,7 @@ from ..common.maths import (
     bvec_to_point, point_to_bvec3,
     pt_x0, pt_y0, pt_z0,
     lerp, get_closest_axis, snap_plane_to_direction,
-    closest_point_linesegment,
+    closest_point_linesegment, map_range
 )
 from ..common.accel import SourceMeshCache
 from ..common.raycast import raycast_ray_valid_sources, nearest_point_valid_sources, nearest_normal_valid_sources, raycast_multiple_hits
@@ -214,7 +214,7 @@ def sample_even(points: list, cyclic: bool, vertex_count: int, path_length: floa
     return best_npts
 
 
-def sample_curvature(points: list, cyclic: bool, vertex_count: int, path_length: float, curvature_bias: float = 0.7) -> list:
+def sample_curvature(points: list, cyclic: bool, vertex_count: int, path_length: float, curvature_bias: float = 0) -> list:
     """Simplify the cross-section path with Ramer-Douglas-Peucker to choose exactly
     vertex_count positions that best preserve the visible shape.
 
@@ -281,63 +281,42 @@ def sample_curvature(points: list, cyclic: bool, vertex_count: int, path_length:
         scores[n - 1] = float('inf')
         rdp_score(0, n - 1)
 
-    # Two-step approach:
-    #   Step 1 — Pure RDP selection with farthest-point tiebreaker.
-    #     i0/i1 are pre-seeded at max_finite so they are valid RDP endpoints and
-    #     compete fairly against real corners.  The tiebreaker (TIEBREAK_FRAC of
-    #     max_finite) only fires when RDP scores tie (flat regions), keeping those
-    #     verts spread out without affecting genuine corner priority.
+    # Frac-blend approach:
+    #   1. Compute RDP selection with a spreading tiebreaker → rdp_fracs
+    #   2. Compute ideal uniform fracs → even_fracs (exactly what sample_even produces)
+    #   3. Align rdp_fracs to even_fracs by finding the best cyclic rotation (cyclic only)
+    #   4. Lerp each pair by curvature_bias in arc-length fraction space
+    #   5. fracs_to_positions → interpolated 3D positions on the polyline
     #
-    #   Step 2 — Redistribution pass (independent of Step 1 scoring).
-    #     Selected verts are processed in decreasing norm_rdp order.  Each vert
-    #     finds its nearest already-processed (higher-norm_rdp) neighbours and
-    #     computes seg_even = its proportional position within that raw segment.
-    #     adjusted[k] = lerp(seg_even, raw[k], norm_rdp[k])
-    #     → norm_rdp=1 (sharp corner): stays exactly at raw RDP position.
-    #     → norm_rdp=0 (flat):         lands at the exact midpoint of the segment.
-    #     Segment boundaries always use raw fracs (anchor_frac) so flat fill-verts
-    #     centre between the actual corner positions, not softened ones.
+    # curvature_bias=0 → identical to Even mode (exact arc-length uniform spacing)
+    # curvature_bias=1 → RDP curvature placement selected with a spreading tiebreaker
+    # 0<curvature_bias<1 → smooth positional blend, no greedy approximation artefacts.
     #
-    #   Step 3 — Outer bias lerp: blend from pure even (bias=0) to redistributed (bias=1).
-    TIEBREAK_FRAC = 0.001
+    # The tiebreaker is always active in the RDP selection: when two candidates have
+    # similar RDP scores (flat regions), the one farthest from already-selected verts
+    # wins.  The tiebreaker weight is at most TIEBREAK_FRAC of max_finite so it never
+    # overrides genuine curvature differences, but on flat geometry (all scores ≈ 0)
+    # it dominates and produces even selection order.
+    TIEBREAK_FRAC = 0.1
 
-    bias = max(0.0, min(1.0, curvature_bias))
     pt_fracs = arc_fracs(points, cyclic)
 
-    # ── Step 1: Pure RDP greedy selection ──────────────────────────────────────
-    # Compute max_finite from interior points only — i0/i1 are still 'inf' here.
-    max_finite = max((s for s in scores if s < float('inf')), default=1.0)
-
+    # --- RDP greedy selection with spreading tiebreaker ---
     if cyclic:
-        # Replace each inf anchor with its actual local-chord perpendicular deviation.
-        # Using the two nearest sample points on each side as the chord endpoints gives
-        # a stable estimate of how much the path bends at i0/i1 — matching the scale
-        # of the RDP scores assigned to other corners.  This lets i0/i1 compete fairly:
-        # if they sit at a sharp corner they win a slot on merit; if they sit on a smooth
-        # region they don't displace real corners.
-        window = max(1, min(2, (n - 1) // 2))
-        for anchor in (i0, i1):
-            p0 = Vector(points[(anchor - window) % n])
-            p1 = Vector(points[(anchor + window) % n])
-            p  = Vector(points[anchor])
-            seg = p1 - p0
-            seg_len2 = seg.length_squared
-            if seg_len2 < 1e-20:
-                scores[anchor] = (p - p0).length
-            else:
-                t = max(0.0, min(1.0, (p - p0).dot(seg) / seg_len2))
-                scores[anchor] = (p - p0.lerp(p1, t)).length
-        rdp_selected   = []
-        rdp_candidates = list(range(n))
+        rdp_selected = sorted([i0, i1])
+        rdp_candidates = [i for i in range(n) if i != i0 and i != i1]
     else:
-        for i in [0, n - 1]:
-            if scores[i] >= float('inf'):
-                scores[i] = max_finite
-        rdp_selected   = [0, n - 1]
+        rdp_selected = [0, n - 1]
         rdp_candidates = list(range(1, n - 1))
 
-    tiebreak_scale       = max(max_finite * TIEBREAK_FRAC, 1e-9)
-    selected_fracs_rdp   = [pt_fracs[i] for i in rdp_selected]
+    # Normalise the inf anchor seeds to finite so they participate in scoring.
+    max_finite = max((s for s in scores if s < float('inf')), default=1.0)
+    for i in range(n):
+        if scores[i] >= float('inf'):
+            scores[i] = max_finite
+
+    tiebreak_scale = max(max_finite * TIEBREAK_FRAC, 1e-9)
+    selected_fracs_rdp = [pt_fracs[i] for i in rdp_selected]
 
     while len(rdp_selected) < vertex_count and rdp_candidates:
         def rdp_key(i):
@@ -349,7 +328,8 @@ def sample_curvature(points: list, cyclic: bool, vertex_count: int, path_length:
                     dist = min(abs(f - sf) for sf in selected_fracs_rdp)
             else:
                 dist = 1.0
-            return scores[i] + min(dist * vertex_count, 1.0) * tiebreak_scale
+            norm_even = min(dist * vertex_count, 1.0)
+            return scores[i] + norm_even * tiebreak_scale
 
         best_i = max(rdp_candidates, key=rdp_key)
         rdp_selected.append(best_i)
@@ -357,99 +337,84 @@ def sample_curvature(points: list, cyclic: bool, vertex_count: int, path_length:
         rdp_candidates.remove(best_i)
 
     rdp_selected.sort()
-    raw_rdp_fracs   = [pt_fracs[i]           for i in rdp_selected]
-    rdp_norm_scores = [scores[i] / max_finite for i in rdp_selected]  # 0=flat, 1=sharpest
+    rdp_fracs  = [pt_fracs[i] for i in rdp_selected]
+    rdp_norm_scores = [min(scores[i] / max_finite, 1.0) for i in rdp_selected]
 
-    # ── Step 2: Redistribution pass ────────────────────────────────────────────
     N = len(rdp_selected)
     if N < 1:
         return []
 
-    # Process in decreasing norm_rdp order: sharpest corners placed first and used
-    # as raw-position anchors for the subsequent flat verts.
-    placed_frac = {}   # k → blended final frac
-    anchor_frac = {}   # k → always raw (used as segment boundaries)
-
-    for k in sorted(range(N), key=lambda k: -rdp_norm_scores[k]):
-        raw_f = raw_rdp_fracs[k]
-        norm  = rdp_norm_scores[k]
-        anchor_frac[k] = raw_f           # never changes — always the raw RDP position
-
-        if len(anchor_frac) == 1:
-            placed_frac[k] = raw_f       # first vert: no neighbours yet, stays at raw
-            continue
-
-        # Find nearest already-processed neighbour on each side in k-index space.
-        left_k = right_k = None
-        for offset in range(1, N):
-            if left_k  is None and ((k - offset) % N) in anchor_frac:
-                left_k  = (k - offset) % N
-            if right_k is None and ((k + offset) % N) in anchor_frac:
-                right_k = (k + offset) % N
-            if left_k is not None and right_k is not None:
-                break
-
-        if left_k is None or right_k is None:
-            placed_frac[k] = raw_f
-            continue
-
-        # seg_even: proportional position within the raw-anchored segment.
-        lf     = anchor_frac[left_k]
-        rf     = anchor_frac[right_k]
-        steps  = (right_k - left_k) % N or N
-        k_off  = (k - left_k) % N
-        local_t = k_off / steps
-
-        if cyclic:
-            span    = 1.0 if left_k == right_k else (rf - lf) % 1.0
-            seg_even = (lf + span * local_t) % 1.0
-            d = raw_f - seg_even
-            if d >  0.5: d -= 1.0
-            elif d < -0.5: d += 1.0
-            placed_frac[k] = (seg_even + d * norm) % 1.0
-        else:
-            seg_even = lf + (rf - lf) * local_t
-            placed_frac[k] = seg_even + (raw_f - seg_even) * norm
-
-    adjusted_rdp_fracs = [placed_frac[k] for k in range(N)]
-
-    # ── Step 3: Outer bias lerp ─────────────────────────────────────────────────
-    if cyclic:
-        even_fracs = [k / N for k in range(N)]
-    else:
-        even_fracs = [k / (N - 1) for k in range(N)] if N > 1 else [0.0]
-
-    if bias <= 0.0:
+    if curvature_bias <= 0.0:
+        even_fracs = [k / N for k in range(N)] if cyclic else ([k / (N - 1) for k in range(N)] if N > 1 else [0.0])
         return fracs_to_positions(points, even_fracs, cyclic)
-    if bias >= 1.0:
-        return fracs_to_positions(points, adjusted_rdp_fracs, cyclic)
 
-    # Rotation alignment: best cyclic rotation of adjusted_rdp_fracs vs even_fracs
-    # so the lerp pairs each adjusted vert with its corresponding even position.
+    # --- Pin / free classification ---
+    # Verts whose normalised RDP score >= pin_threshold are "pinned" — they keep their
+    # RDP arc-length fraction exactly.  The rest are "free" and are redistributed
+    # evenly within the gap between their two enclosing pinned verts.
+    #
+    # curvature_bias = 1.0 → threshold = FLAT_THRESHOLD (only flat verts freed)
+    # curvature_bias = 0.5 → threshold = 0.5 (top 50% pinned, bottom 50% freed)
+    # curvature_bias = 0.0 → pure even spacing (handled above)
+    #
+    # FLAT_THRESHOLD: minimum threshold kept even at curvature_bias=1.0. Verts with
+    # normalised RDP score below this are always considered flat and redistributed
+    # evenly between surrounding pinned anchors regardless of curvature_bias.
+    # Raise toward 0.3 to free moderately-curved verts; lower toward 0.01 to free
+    # only near-perfectly-flat verts.
+    FLAT_THRESHOLD = 0.1
+    pin_threshold = map_range(curvature_bias, 0.25, 1, 1, FLAT_THRESHOLD)
+    is_pinned = [s >= pin_threshold for s in rdp_norm_scores]
+    if not cyclic:
+        is_pinned[0] = True   # path endpoints are always anchors on open strips
+        is_pinned[-1] = True
+
+    final_fracs = list(rdp_fracs)
+    pinned_indices = [k for k in range(N) if is_pinned[k]]
+
+    if not pinned_indices:
+        # Fallback: no pins at all → pure even
+        even_fracs = [k / N for k in range(N)] if cyclic else ([k / (N - 1) for k in range(N)] if N > 1 else [0.0])
+        return fracs_to_positions(points, even_fracs, cyclic)
+
+    # Redistribute free verts evenly within each gap between consecutive pinned verts.
     if cyclic:
-        best_rot, best_cost = 0, float('inf')
-        for rot in range(N):
-            cost = 0.0
-            for k in range(N):
-                d = adjusted_rdp_fracs[(k + rot) % N] - even_fracs[k]
-                if d >  0.5: d -= 1.0
-                elif d < -0.5: d += 1.0
-                cost += d * d
-            if cost < best_cost:
-                best_cost, best_rot = cost, rot
-        adjusted_rdp_fracs = adjusted_rdp_fracs[best_rot:] + adjusted_rdp_fracs[:best_rot]
+        n_pins = len(pinned_indices)
+        for seg in range(n_pins):
+            pa = pinned_indices[seg]
+            pb = pinned_indices[(seg + 1) % n_pins]
 
-    blended_fracs = []
-    for e, r in zip(even_fracs, adjusted_rdp_fracs):
-        if cyclic:
-            d = r - e
-            if d >  0.5: d -= 1.0
-            elif d < -0.5: d += 1.0
-            blended_fracs.append((e + d * bias) % 1.0)
-        else:
-            blended_fracs.append(e + (r - e) * bias)
+            free_in_gap = []
+            k = (pa + 1) % N
+            while k != pb:
+                if not is_pinned[k]:
+                    free_in_gap.append(k)
+                k = (k + 1) % N
 
-    return fracs_to_positions(points, blended_fracs, cyclic)
+            if not free_in_gap:
+                continue
+
+            fa, fb = rdp_fracs[pa], rdp_fracs[pb]
+            gap = (fb - fa) % 1.0
+            n_free = len(free_in_gap)
+            for j, k in enumerate(free_in_gap):
+                final_fracs[k] = (fa + gap * (j + 1) / (n_free + 1)) % 1.0
+    else:
+        for seg in range(len(pinned_indices) - 1):
+            pa = pinned_indices[seg]
+            pb = pinned_indices[seg + 1]
+
+            free_in_gap = [k for k in range(pa + 1, pb) if not is_pinned[k]]
+            if not free_in_gap:
+                continue
+
+            fa, fb = rdp_fracs[pa], rdp_fracs[pb]
+            gap = fb - fa
+            n_free = len(free_in_gap)
+            for j, k in enumerate(free_in_gap):
+                final_fracs[k] = fa + gap * (j + 1) / (n_free + 1)
+
+    return fracs_to_positions(points, final_fracs, cyclic)
 
 
 def snap_redistribute(
