@@ -77,15 +77,17 @@ import itertools
 
 def warmup_cache_on_change():
     # The slight delay keeps Blender from seeing the default as current immediately on switch
-    bpy.app.timers.register(
-            lambda: (SourceAccel.warmup(bpy.context, 3)
-                if (tool := bpy.context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False))
-                and (props := tool.operator_properties('retopoflow.contours'))
-                and props.process_source_method == 'walk'
-                else None
-            ),
-            first_interval= 0.1,
-    )
+    def warmup_if_walk():
+        ws = bpy.context.workspace
+        if not ws: return
+        tool = ws.tools.from_space_view3d_mode('EDIT_MESH', create=False)
+        if ((props := tool.operator_properties('retopoflow.contours')) and
+            props.process_source_method == 'walk'
+        ):
+            SourceAccel.warmup(bpy.context, 3)
+        # Returns None to unregister itself after first fire
+
+    bpy.app.timers.register(warmup_if_walk, first_interval= 0.1)
 
 
 class RFOperator_Contours_Insert_Keymaps:
@@ -210,6 +212,26 @@ class RFOperator_Contours_Insert_Properties:
         max=5.0,
         step=10,
     )
+    spacing_method: bpy.props.EnumProperty(              # pyright: ignore [reportUninitializedInstanceVariable]
+        name='Spacing Method',
+        description='How new vertices are distributed along the cut cross-section',
+        items=[
+            ('EVEN',        'Even',        'Space vertices at equal arc-length intervals regardless of surface shape'),
+            ('CURVATURE',   'Curvature',   'Place vertices at the sharpest corners first, then fill remaining spots evenly between them'),
+            ('INTERPOLATE', 'Interpolate', 'Match the spacing of surrounding loops when cutting into existing faces, falling back to Even for the first cut'),
+        ],
+        default='INTERPOLATE',
+    )
+    curvature_bias: bpy.props.FloatProperty(             # pyright: ignore [reportUninitializedInstanceVariable]
+        name='Curvature Bias',
+        description='Blend between even spacing (0.0) and pure curvature/RDP placement (1.0). '
+                    'At 0.5, high-deviation points are placed by shape and low-deviation points spread evenly',
+        default=0.7,
+        min=0.0,
+        max=1.0,
+        step=1,
+        precision=2,
+    )
 
 
 class RFOperator_Contours_Insert(
@@ -249,7 +271,8 @@ class RFOperator_Contours_Insert(
     @staticmethod
     def insert(context, hit, plane, circle_points, span_count, process_source_method, hits, cut_orientation,
                fast_depth=1, sample_points=50, fast_refine_steps=5, sdf_refine_steps=3, skip_step_size=1.0,
-               sdf_resolution=20, sdf_subdivisions=0, sdf_extent_scale=1.5):
+               sdf_resolution=20, sdf_subdivisions=0, sdf_extent_scale=1.5,
+               spacing_method='INTERPOLATE', curvature_bias=0.7):
         RFOperator_Contours_Insert.logic = Contours_Logic(
             context,
             hit,
@@ -267,6 +290,8 @@ class RFOperator_Contours_Insert(
             sdf_resolution,
             sdf_subdivisions,
             sdf_extent_scale,
+            spacing_method,
+            curvature_bias,
         )
         RFOperator_Contours_Insert.reinsert(context)
 
@@ -289,6 +314,8 @@ class RFOperator_Contours_Insert(
             is_cycle=logic.cyclic,
             loop_count=logic.loop_count,
             cut_orientation=logic.cut_orientation,
+            spacing_method=logic.spacing_method,
+            curvature_bias=logic.curvature_bias,
         )
 
     def draw(self, context):
@@ -311,6 +338,9 @@ class RFOperator_Contours_Insert(
         if logic.show_twist:
             layout.prop(self, 'twist', text='Twist')
         layout.prop(self, 'cut_orientation', text='Orientation')
+        layout.prop(self, 'spacing_method', text='Spacing', expand=True)
+        if self.spacing_method == 'CURVATURE':
+            layout.prop(self, 'curvature_bias', text='Curvature Bias', slider=True)
         layout.row(heading='Cyclic').prop(self, 'is_cycle', text='')
 
         layout.separator()
@@ -333,6 +363,8 @@ class RFOperator_Contours_Insert(
         logic.cyclic                = self.is_cycle
         logic.loop_count            = self.loop_count
         logic.cut_orientation       = self.cut_orientation
+        logic.spacing_method        = self.spacing_method
+        logic.curvature_bias        = self.curvature_bias
 
         try:
             logic.update(context)
@@ -357,6 +389,8 @@ class RFOperator_Contours_Insert(
         self.twist                 = logic.twist
         self.is_cycle              = logic.cyclic
         self.loop_count            = logic.loop_count
+        self.spacing_method        = logic.spacing_method
+        self.curvature_bias        = logic.curvature_bias
 
         return {'FINISHED'}
 
@@ -504,7 +538,7 @@ class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
         RFOperator_Contours_Insert.insert(context, hit, plane, circle_points, self.span_count, self.process_source_method, hits,
                                           self.cut_orientation, self.fast_depth, self.sample_points, self.fast_refine_steps,
                                           self.sdf_refine_steps, self.skip_step_size, self.sdf_resolution, self.sdf_subdivisions,
-                                          self.sdf_extent_scale)
+                                          self.sdf_extent_scale, self.spacing_method, self.curvature_bias)
 
     def update(self, context, event):
         RFCore = RFGlobals.RFCore_None
@@ -604,6 +638,9 @@ class RFTool_Contours(RFTool_Base):
             layout.label(text='Insert:')
             layout.prop(props_contours, 'span_count')
             layout.prop(props_contours, 'cut_orientation', text='')
+            layout.prop(props_contours, 'spacing_method', text='')
+            if props_contours.spacing_method == 'CURVATURE':
+                layout.prop(props_contours, 'curvature_bias', text='', slider=True)
             method_name = props_contours.bl_rna.properties['process_source_method'].enum_items[props_contours.process_source_method].name
             layout.popover('RF_PT_ContoursMethod', text=method_name)
             draw_line_separator(layout)
@@ -625,6 +662,9 @@ class RFTool_Contours(RFTool_Base):
             if panel:
                 panel.prop(props_contours, 'span_count')
                 panel.prop(props_contours, 'cut_orientation', text='Orientation')
+                panel.prop(props_contours, 'spacing_method', text='Spacing', expand=True)
+                if props_contours.spacing_method == 'CURVATURE':
+                    panel.prop(props_contours, 'curvature_bias', text='Curvature Bias', slider=True)
                 panel.separator()
                 draw_contours_method_options(context, panel, props_contours)
 
