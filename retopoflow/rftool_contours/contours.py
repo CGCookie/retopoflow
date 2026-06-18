@@ -75,6 +75,19 @@ from functools import wraps
 import itertools
 
 
+def warmup_cache_on_change():
+    # The slight delay keeps Blender from seeing the default as current immediately on switch
+    bpy.app.timers.register(
+            lambda: (SourceAccel.warmup(bpy.context, 3)
+                if (tool := bpy.context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False))
+                and (props := tool.operator_properties('retopoflow.contours'))
+                and props.process_source_method == 'walk'
+                else None
+            ),
+            first_interval= 0.1,
+    )
+
+
 class RFOperator_Contours_Insert_Keymaps:
     # used to collect redo shortcuts, which is filled in by redo_ fns below...
     # note: cannot use RFOperator_Contours_Insert.rf_keymaps, because RFOperator_Contours_Insert
@@ -116,7 +129,7 @@ class RFOperator_Contours_Insert_Properties:
             ),
         ],
         default='walk',
-        update=lambda self, context: SourceAccel.warmup(context, 3) if self.process_source_method == 'walk' else None,
+        update=lambda self, ctx: warmup_cache_on_change(),
     )
     cut_orientation: bpy.props.EnumProperty(                  # pyright: ignore [reportUninitializedInstanceVariable]
         name='Cut Orientation',
@@ -639,17 +652,11 @@ class RFTool_Contours(RFTool_Base):
         if prefs.setup_selection_mode:
             cls.resetter['context.tool_settings.mesh_select_mode'] = [False, True, False]
 
-        # Kick SourceMeshCache warmup when Walk is the active method, so the arrays are
-        # ready before the user's first stroke rather than building on-demand mid-stroke.
-        # Delayed by a few frames so the tool-switch UI finishes rendering first.
-        try:
-            tool   = context.workspace.tools.from_space_view3d_mode('EDIT_MESH')
-            props  = tool.operator_properties('retopoflow.contours') if tool else None
-            method = getattr(props, 'process_source_method', 'walk') if props else 'walk'
-        except Exception:
-            method = 'walk'
-        if method == 'walk':
-            SourceAccel.warmup(context, 3)
+        # Kick SourceMeshCache warmup when Walk is the active method
+        tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH')
+        props = tool.operator_properties('retopoflow.contours') if tool else None
+        if props and props.process_source_method == 'walk':
+            warmup_cache_on_change()
 
     @classmethod
     def deactivate(cls, context):
