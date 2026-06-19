@@ -214,7 +214,7 @@ def sample_even(points: list, cyclic: bool, vertex_count: int, path_length: floa
     return best_npts
 
 
-def sample_curvature(points: list, cyclic: bool, vertex_count: int, path_length: float, curvature_bias: float = 0) -> list:
+def sample_curvature(points: list, cyclic: bool, vertex_count: int, path_length: float, curvature_bias: float = 0, out_scores: list | None = None) -> list:
     """Simplify the cross-section path with Ramer-Douglas-Peucker to choose exactly
     vertex_count positions that best preserve the visible shape.
 
@@ -448,7 +448,15 @@ def sample_curvature(points: list, cyclic: bool, vertex_count: int, path_length:
                 blended.append(e + (f - e) * t)
         final_fracs = blended
 
+    if out_scores is not None:
+        # Populate with per-vert normalised RDP scores in arc-length order (same order as
+        # the returned positions).  1.0 = sharpest corner, 0.0 = perfectly flat.
+        # rdp_norm_scores was built from rdp_selected which is sorted by arc-length index,
+        # so it matches the final_fracs / returned position order exactly.
+        out_scores.extend(rdp_norm_scores)
+
     return fracs_to_positions(points, final_fracs, cyclic)
+
 
 
 def snap_redistribute(
@@ -514,6 +522,7 @@ class Contours_Logic:
     cyclic : bool
     spacing_method : str
     curvature_bias : float
+    interpolation_factor : float
 
     edge_ring : set[BMEdge] | None
     cyclic_ring : bool
@@ -531,7 +540,7 @@ class Contours_Logic:
                  process_source_method:str, hits:list[dict[str, ...]], cut_orientation:str='stroke', fast_depth:int=1,
                  sample_points:int=50, fast_refine_steps:int=5, sdf_refine_steps:int=3, skip_step_size:float=0.5, sdf_resolution:int=20,
                  sdf_subdivisions:int=0, sdf_extent_scale:float=1.5,
-                 spacing_method:str='INTERPOLATE', curvature_bias:float=0.7):
+                 spacing_method:str='INTERPOLATE', curvature_bias:float=0.7, interpolation_factor:float=1.0):
         self.hit = hit
         self.hits = hits
         self.cut_orientation = cut_orientation
@@ -563,6 +572,7 @@ class Contours_Logic:
         self.last_sdf_extent_scale = None
         self.spacing_method = spacing_method
         self.curvature_bias = curvature_bias
+        self.interpolation_factor = interpolation_factor
 
         self.action = ''
         self.initial = True
@@ -793,9 +803,10 @@ class Contours_Logic:
         if self.edge_ring is None:
             return
 
-        # For Interpolate mode: precompute path fracs before subdivision
+        # Precompute path fracs — used by Interpolate mode and by Curvature when
+        # interpolation_factor < 1 to blend toward neighbor-matched positions.
         pt_fracs = None
-        if self.spacing_method == 'INTERPOLATE' and self.points:
+        if self.points:
             pt_fracs = arc_fracs(self.points, self.cyclic)
 
         # USE SELECTION TO FIGURE OUT WHICH VERTS ARE NEW!
@@ -828,7 +839,8 @@ class Contours_Logic:
                     or (mz and abs(bmv.co.z) < 1e-4)
                 }
                 if self.spacing_method == 'CURVATURE':
-                    target_pts = sample_curvature(self.points, self.cyclic, len(ordered_nbmvs), self.path_length, self.curvature_bias)
+                    rdp_scores: list[float] = []
+                    target_pts = sample_curvature(self.points, self.cyclic, len(ordered_nbmvs), self.path_length, self.curvature_bias, out_scores=rdp_scores)
                     if target_pts:
                         n_rotations = len(ordered_nbmvs) if self.cyclic else 1
                         best_cost = float('inf')
@@ -841,6 +853,38 @@ class Contours_Logic:
                                 if cost < best_cost:
                                     best_cost = cost
                                     best_assignment = verts_k
+                        if self.interpolation_factor > 0.0 and pt_fracs is not None and self.plane_fit:
+                            neighbor_fracs = []
+                            for nbmv in best_assignment:
+                                parents = [
+                                    bme.other_vert(nbmv)
+                                    for bme in nbmv.link_edges
+                                    if bme.other_vert(nbmv) not in nbmvs_set
+                                ]
+                                if len(parents) == 2:
+                                    pa, pb = parents[0], parents[1]
+                                    da = self.plane_fit.signed_distance_to(Vector(pa.co))
+                                    db = self.plane_fit.signed_distance_to(Vector(pb.co))
+                                    t_par = da / (da - db) if abs(da - db) > 1e-10 else 0.5
+                                    t_par = max(0.0, min(1.0, t_par))
+                                    frac_a = project_co_to_frac(pa.co, self.points, self.cyclic, pt_fracs)
+                                    frac_b = project_co_to_frac(pb.co, self.points, self.cyclic, pt_fracs)
+                                    if self.cyclic:
+                                        d = frac_b - frac_a
+                                        if d >  0.5: d -= 1.0
+                                        elif d < -0.5: d += 1.0
+                                        neighbor_fracs.append((frac_a + t_par * d) % 1.0)
+                                    else:
+                                        neighbor_fracs.append(frac_a + t_par * (frac_b - frac_a))
+                                else:
+                                    neighbor_fracs.append(project_co_to_frac(nbmv.co, self.points, self.cyclic, pt_fracs))
+                            neighbor_pts = fracs_to_positions(self.points, neighbor_fracs, self.cyclic)
+                            # Per-vert blend weight: corners (high rdp_score) stay at curvature
+                            # position; flat verts (low rdp_score) blend fully toward neighbors.
+                            target_pts = [
+                                Vector(c).lerp(Vector(n), max(0.0, min(1.0, self.interpolation_factor)) * (1.0 - s))
+                                for c, n, s in zip(target_pts, neighbor_pts, rdp_scores)
+                            ]
                         snap_redistribute(
                             context, best_assignment, target_pts[:len(ordered_nbmvs)],
                             self.matrix_world, self.matrix_world_inv, sym_verts, mx, my, mz,
@@ -861,10 +905,24 @@ class Contours_Logic:
                             t = max(0.0, min(1.0, t))
                             frac_a = project_co_to_frac(pa.co, self.points, self.cyclic, pt_fracs)
                             frac_b = project_co_to_frac(pb.co, self.points, self.cyclic, pt_fracs)
-                            fracs.append(frac_a + t * (frac_b - frac_a))
+                            if self.cyclic:
+                                d = frac_b - frac_a
+                                if d >  0.5: d -= 1.0
+                                elif d < -0.5: d += 1.0
+                                fracs.append((frac_a + t * d) % 1.0)
+                            else:
+                                fracs.append(frac_a + t * (frac_b - frac_a))
                         else:
                             fracs.append(project_co_to_frac(nbmv.co, self.points, self.cyclic, pt_fracs))
-                    target_pts = fracs_to_positions(self.points, fracs, self.cyclic)
+                    interp_pts = fracs_to_positions(self.points, fracs, self.cyclic)
+                    if self.interpolation_factor >= 1.0:
+                        target_pts = interp_pts
+                    else:
+                        n_ev = len(ordered_nbmvs)
+                        even_fracs = [i / n_ev for i in range(n_ev)] if self.cyclic else ([i / (n_ev - 1) for i in range(n_ev)] if n_ev > 1 else [0.0])
+                        even_pts = fracs_to_positions(self.points, even_fracs, self.cyclic)
+                        f = max(0.0, min(1.0, self.interpolation_factor))
+                        target_pts = [Vector(e).lerp(Vector(ip), f) for e, ip in zip(even_pts, interp_pts)]
                     snap_redistribute(
                         context, ordered_nbmvs, target_pts,
                         self.matrix_world, self.matrix_world_inv, sym_verts, mx, my, mz,
@@ -909,11 +967,10 @@ class Contours_Logic:
     def insert_bridge(self, context:Context):
         orig_verts = {bv for bme in self.sel_path for bv in bme.verts}
 
-        # For Interpolate mode: project boundary-vert positions onto self.points before extrude.
-        # Key by rounded co so we can look up new verts by position right after extrusion,
-        # before finish_edgering_bridge moves them.
+        # Precompute boundary fracs — used by Interpolate mode and by Curvature when
+        # interpolation_factor < 1 to blend toward neighbor-matched positions.
         interp_new_vert_fracs = None
-        if self.spacing_method == 'INTERPOLATE' and self.points:
+        if self.points:
             pt_fracs = arc_fracs(self.points, self.cyclic)
             def _co_key(co):
                 return (round(co.x, 5), round(co.y, 5), round(co.z, 5))
@@ -926,7 +983,7 @@ class Contours_Logic:
         nbmvs = [bmelem for bmelem in nbmelems if type(bmelem) is BMVert]
 
         # Capture new-vert → frac by position NOW, before finish_edgering_bridge moves them.
-        if self.spacing_method == 'INTERPOLATE' and self.points:
+        if self.points:
             interp_new_vert_fracs = {
                 bv: boundary_frac_by_co.get(_co_key(bv.co), None)
                 for bv in nbmvs
@@ -948,7 +1005,8 @@ class Contours_Logic:
                     or (mz and abs(bmv.co.z) < 1e-4)
                 }
                 if self.spacing_method == 'CURVATURE':
-                    target_pts = sample_curvature(self.points, self.cyclic, len(ordered_nbmvs), self.path_length, self.curvature_bias)
+                    rdp_scores: list[float] = []
+                    target_pts = sample_curvature(self.points, self.cyclic, len(ordered_nbmvs), self.path_length, self.curvature_bias, out_scores=rdp_scores)
                     if target_pts:
                         n_rotations = len(ordered_nbmvs) if self.cyclic else 1
                         best_cost = float('inf')
@@ -961,6 +1019,20 @@ class Contours_Logic:
                                 if cost < best_cost:
                                     best_cost = cost
                                     best_assignment = verts_k
+                        if self.interpolation_factor > 0.0 and interp_new_vert_fracs is not None:
+                            pt_fracs_bridge = arc_fracs(self.points, self.cyclic)
+                            neighbor_fracs = [
+                                interp_new_vert_fracs.get(bmv) if interp_new_vert_fracs.get(bmv) is not None
+                                else project_co_to_frac(bmv.co, self.points, self.cyclic, pt_fracs_bridge)
+                                for bmv in best_assignment
+                            ]
+                            neighbor_pts = fracs_to_positions(self.points, neighbor_fracs, self.cyclic)
+                            # Per-vert blend weight: corners (high rdp_score) stay at curvature
+                            # position; flat verts (low rdp_score) blend fully toward neighbors.
+                            target_pts = [
+                                Vector(c).lerp(Vector(n), max(0.0, min(1.0, self.interpolation_factor)) * (1.0 - s))
+                                for c, n, s in zip(target_pts, neighbor_pts, rdp_scores)
+                            ]
                         snap_redistribute(
                             context, best_assignment, target_pts[:len(ordered_nbmvs)],
                             self.matrix_world, self.matrix_world_inv, sym_verts, mx, my, mz,
@@ -972,7 +1044,15 @@ class Contours_Logic:
                         else project_co_to_frac(bmv.co, self.points, self.cyclic, pt_fracs_interp)
                         for bmv in ordered_nbmvs
                     ]
-                    target_pts = fracs_to_positions(self.points, fracs, self.cyclic)
+                    interp_pts = fracs_to_positions(self.points, fracs, self.cyclic)
+                    if self.interpolation_factor >= 1.0:
+                        target_pts = interp_pts
+                    else:
+                        n_ev = len(ordered_nbmvs)
+                        even_fracs = [i / n_ev for i in range(n_ev)] if self.cyclic else ([i / (n_ev - 1) for i in range(n_ev)] if n_ev > 1 else [0.0])
+                        even_pts = fracs_to_positions(self.points, even_fracs, self.cyclic)
+                        f = max(0.0, min(1.0, self.interpolation_factor))
+                        target_pts = [Vector(e).lerp(Vector(ip), f) for e, ip in zip(even_pts, interp_pts)]
                     snap_redistribute(
                         context, ordered_nbmvs, target_pts,
                         self.matrix_world, self.matrix_world_inv, sym_verts, mx, my, mz,
@@ -1058,7 +1138,7 @@ class Contours_Logic:
                     bmv.co = co
                 ensure_correct_normals(self.bm, result['faces'])
 
-        self.action = 'Bridging Loop' if self.cyclic else 'Bridging Strip'
+        self.action = 'Extrude Loop' if self.cyclic else 'Extrude Strip'
         self.show_twist = self.cyclic
         self.show_loop_count = True
 
@@ -1222,6 +1302,7 @@ class Contours_Logic:
                 Mi @ snapped if (snapped := nearest_point_valid_sources(context, M @ pt, world=True, respect_clip_planes=True)) is not None else pt
                 for pt in npts
             ]
+            # interpolation_factor has no effect on new cuts (no surrounding topology)
         else:
             # Initial even sample on the self.points polyline approximation.
             npts = sample_even(points, self.cyclic, vertex_count, path_length)

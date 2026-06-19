@@ -59,7 +59,6 @@ from ..rfoperators.quickswitch import RFOperator_Relax_QuickSwitch, RFOperator_T
 from ..rfoperators.transform import RFOperator_Translate, sync_projection_from_blender
 from ..rfoperators.maximize_watcher import RFOperator_MaximizeWatcher
 
-from ..rfpanels.rfpanel_countours_method import draw_contours_method_options
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
 from ..rfpanels.tweaking_panel import draw_tweaking_panel
 from ..rfpanels.rfpanel_snapping import draw_snapping_panel
@@ -75,7 +74,10 @@ from functools import wraps
 import itertools
 
 
-def warmup_cache_on_change():
+def warmup_cache_on_change(cls):
+    # Skip warmup when the property changes via the redo panel (insert operator)
+    if type(cls).__name__ == 'RETOPOFLOW_OT_contours_insert': return
+
     # The slight delay keeps Blender from seeing the default as current immediately on switch
     def warmup_if_walk():
         ws = bpy.context.workspace
@@ -109,6 +111,13 @@ class RFOperator_Contours_Insert_Properties:
         min=3,
         max=500,
     )
+    loop_count: bpy.props.IntProperty(
+        name='Loop Count',
+        description='Number of loops to create when bridging',
+        default=1,
+        min=1,
+        max=20,
+    )
     process_source_method: bpy.props.EnumProperty(      # pyright: ignore [reportUninitializedInstanceVariable]
         name='Process Source Method',
         description="Source processing method",
@@ -131,7 +140,7 @@ class RFOperator_Contours_Insert_Properties:
             ),
         ],
         default='walk',
-        update=lambda self, ctx: warmup_cache_on_change(),
+        update=lambda self, ctx: warmup_cache_on_change(self),
     )
     cut_orientation: bpy.props.EnumProperty(                  # pyright: ignore [reportUninitializedInstanceVariable]
         name='Cut Orientation',
@@ -232,6 +241,70 @@ class RFOperator_Contours_Insert_Properties:
         step=1,
         precision=2,
     )
+    interpolation_factor: bpy.props.FloatProperty(       # pyright: ignore [reportUninitializedInstanceVariable]
+        name='Interpolation Factor',
+        description='Blend between even spacing (0.0) and matching the spacing of surrounding loops (1.0)',
+        default=1.0,
+        min=0.0,
+        max=1.0,
+        step=1,
+        precision=2,
+    )
+
+
+def draw_contours_method_options(context, layout, props):
+    layout.use_property_decorate = False
+    use_row = context.region.width > 1000 # usually only true for popover, but fine for really wide panel too
+    if use_row:
+        layout.use_property_split = False
+        layout.row().prop(props, 'process_source_method', text='Method', expand=True)
+    else:
+        layout.use_property_split = True
+        layout.row().prop(props, 'process_source_method', text='Method', expand=True)
+    layout.use_property_split = True
+
+    if props.process_source_method in ['fast', 'sdf', 'skip']:
+        header, panel = layout.panel(idname='contours_quality_panel', default_closed=False)
+        header.label(text="Quality")
+        if panel:
+            col = panel.column(align=False)
+            if props.process_source_method == 'fast':
+                col.prop(props, 'sample_points', text='Samples')
+                col.prop(props, 'fast_refine_steps', text='Refinement')
+            elif props.process_source_method == 'sdf':
+                col.prop(props, 'sdf_subdivisions', text='SDF Subdiv')
+                col.prop(props, 'sdf_refine_steps', text='Refinement')
+            elif props.process_source_method == 'skip':
+                panel.prop(props, 'skip_step_size', text='Step Size')
+            col.separator()
+
+    if props.process_source_method in ['fast', 'sdf']:
+        header, panel = layout.panel(idname='contours_source_panel', default_closed=False)
+        header.label(text="Source Detection")
+        if panel:
+            col = panel.column(align=False)
+            col.prop(props, 'sample_width',  text='Sample Width')
+            col.prop(props, 'fast_depth',    text='Ray Depth')
+            if props.process_source_method == 'sdf':
+                col.prop(props, 'sdf_extent_scale', text='Search Scale')
+            col.separator()
+
+
+def draw_contours_props(context, layout, props, logic):
+    layout.use_property_split = True
+    layout.use_property_decorate = False
+    if logic: # only available in redo panel after stroke
+        layout.row(heading=logic.action).prop(props, 'is_cycle', text='Cyclic')
+    layout.prop(props, 'cut_orientation', text='Orientation')
+    if not logic or logic.show_span_count:
+        layout.prop(props, 'span_count', text='Spans')
+    if not logic or logic.show_loop_count:
+        layout.prop(props, 'loop_count', text='Cuts')
+    if logic and logic.show_twist: # Only makes sense in redo panel
+        layout.prop(props, 'twist', text='Twist')
+    layout.prop(props, 'curvature_bias', text='Curvature', slider=True)
+    layout.prop(props, 'interpolation_factor', text='Interpolation', slider=True)
+    draw_contours_method_options(context, layout, props)
 
 
 class RFOperator_Contours_Insert(
@@ -257,13 +330,6 @@ class RFOperator_Contours_Insert(
         description='Force cut to be cyclic or strip',
         default=False,  # will be set on initial cut
     )
-    loop_count: bpy.props.IntProperty(
-        name='Loop Count',
-        description='Number of loops to create when bridging',
-        default=1,
-        min=1,
-        max=20,
-    )
 
     logic : Contours_Logic
     contours_data = None
@@ -272,7 +338,7 @@ class RFOperator_Contours_Insert(
     def insert(context, hit, plane, circle_points, span_count, process_source_method, hits, cut_orientation,
                fast_depth=1, sample_points=50, fast_refine_steps=5, sdf_refine_steps=3, skip_step_size=1.0,
                sdf_resolution=20, sdf_subdivisions=0, sdf_extent_scale=1.5,
-               spacing_method='INTERPOLATE', curvature_bias=0.7):
+               spacing_method='INTERPOLATE', curvature_bias=0.7, interpolation_factor=1.0):
         RFOperator_Contours_Insert.logic = Contours_Logic(
             context,
             hit,
@@ -292,6 +358,7 @@ class RFOperator_Contours_Insert(
             sdf_extent_scale,
             spacing_method,
             curvature_bias,
+            interpolation_factor,
         )
         RFOperator_Contours_Insert.reinsert(context)
 
@@ -316,35 +383,12 @@ class RFOperator_Contours_Insert(
             cut_orientation=logic.cut_orientation,
             spacing_method=logic.spacing_method,
             curvature_bias=logic.curvature_bias,
+            interpolation_factor=logic.interpolation_factor,
         )
 
     def draw(self, context):
-        layout = self.layout
-        layout.use_property_split = True
-        layout.use_property_decorate = False
         logic = RFOperator_Contours_Insert.logic
-
-        if logic.action:
-            split = layout.split(factor=0.4)
-            col = split.column()
-            col.alignment='RIGHT'
-            col.label(text='Insert')
-            split.label(text=logic.action)
-
-        if logic.show_span_count:
-            layout.prop(self, 'span_count', text='Spans')
-        if logic.show_loop_count:
-            layout.prop(self, 'loop_count', text='Loops')
-        if logic.show_twist:
-            layout.prop(self, 'twist', text='Twist')
-        layout.prop(self, 'cut_orientation', text='Orientation')
-        layout.prop(self, 'spacing_method', text='Spacing', expand=True)
-        if self.spacing_method == 'CURVATURE':
-            layout.prop(self, 'curvature_bias', text='Curvature Bias', slider=True)
-        layout.row(heading='Cyclic').prop(self, 'is_cycle', text='')
-
-        layout.separator()
-        draw_contours_method_options(context, layout, self)
+        draw_contours_props(context, self.layout, self, logic)
 
     def execute(self, context):
         logic = RFOperator_Contours_Insert.logic
@@ -365,6 +409,7 @@ class RFOperator_Contours_Insert(
         logic.cut_orientation       = self.cut_orientation
         logic.spacing_method        = self.spacing_method
         logic.curvature_bias        = self.curvature_bias
+        logic.interpolation_factor  = self.interpolation_factor
 
         try:
             logic.update(context)
@@ -391,6 +436,7 @@ class RFOperator_Contours_Insert(
         self.loop_count            = logic.loop_count
         self.spacing_method        = logic.spacing_method
         self.curvature_bias        = logic.curvature_bias
+        self.interpolation_factor  = logic.interpolation_factor
 
         return {'FINISHED'}
 
@@ -445,7 +491,6 @@ class RFOperator_Contours_Insert(
                           {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'shift': 1})
     def increase_twist(context, logic):
         if logic.show_twist: logic.twist = min(math.pi / 2, logic.twist + math.radians(5))
-
 
 
 class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
@@ -538,7 +583,7 @@ class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
         RFOperator_Contours_Insert.insert(context, hit, plane, circle_points, self.span_count, self.process_source_method, hits,
                                           self.cut_orientation, self.fast_depth, self.sample_points, self.fast_refine_steps,
                                           self.sdf_refine_steps, self.skip_step_size, self.sdf_resolution, self.sdf_subdivisions,
-                                          self.sdf_extent_scale, self.spacing_method, self.curvature_bias)
+                                          self.sdf_extent_scale, self.spacing_method, self.curvature_bias, self.interpolation_factor)
 
     def update(self, context, event):
         RFCore = RFGlobals.RFCore_None
@@ -635,15 +680,16 @@ class RFTool_Contours(RFTool_Base):
         RFTool_Contours.props = props_contours
 
         if context.region.type == 'TOOL_HEADER':
-            layout.label(text='Insert:')
-            layout.prop(props_contours, 'span_count')
+            # layout.label(text='Insert:')
             layout.prop(props_contours, 'cut_orientation', text='')
-            layout.prop(props_contours, 'spacing_method', text='')
-            if props_contours.spacing_method == 'CURVATURE':
-                layout.prop(props_contours, 'curvature_bias', text='', slider=True)
+            layout.prop(props_contours, 'span_count', text='Spans')
+            layout.prop(props_contours, 'loop_count', text='Cuts')
+            layout.prop(props_contours, 'curvature_bias', text='Curvature', slider=True)
+            layout.prop(props_contours, 'interpolation_factor', text='Interpolation', slider=True)
             method_name = props_contours.bl_rna.properties['process_source_method'].enum_items[props_contours.process_source_method].name
             layout.popover('RF_PT_ContoursMethod', text=method_name)
             draw_line_separator(layout)
+
             row = layout.row(align=True)
             row.prop(props_contours, 'select_loops', text='Loops', toggle=True)
             row.popover('RF_PT_TweakCommon')
@@ -660,13 +706,7 @@ class RFTool_Contours(RFTool_Base):
             header, panel = layout.panel(idname='contours_cut_panel', default_closed=False)
             header.label(text="Insert")
             if panel:
-                panel.prop(props_contours, 'span_count')
-                panel.prop(props_contours, 'cut_orientation', text='Orientation')
-                panel.prop(props_contours, 'spacing_method', text='Spacing', expand=True)
-                if props_contours.spacing_method == 'CURVATURE':
-                    panel.prop(props_contours, 'curvature_bias', text='Curvature Bias', slider=True)
-                panel.separator()
-                draw_contours_method_options(context, panel, props_contours)
+                draw_contours_props(context, panel, props_contours, logic=None)
 
             draw_tweaking_panel(context, layout)
             draw_snapping_panel(context, layout, idname='contours_snapping_panel')
@@ -696,7 +736,7 @@ class RFTool_Contours(RFTool_Base):
         tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH')
         props = tool.operator_properties('retopoflow.contours') if tool else None
         if props and props.process_source_method == 'walk':
-            warmup_cache_on_change()
+            warmup_cache_on_change(cls)
 
     @classmethod
     def deactivate(cls, context):

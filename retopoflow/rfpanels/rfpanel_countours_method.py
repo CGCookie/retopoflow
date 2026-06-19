@@ -20,45 +20,7 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
-from ..common.interface import draw_section_header, draw_section_indent
-
-
-def draw_contours_method_options(context, layout, props):
-    layout.use_property_split = False
-    layout.use_property_decorate = False
-    layout.row().prop(props, 'process_source_method', text='Method', expand=True)
-    layout.use_property_split = True
-    if props.process_source_method == 'fast':
-        layout.separator()
-        draw_section_header(context, layout, text='Quality')
-        layout.prop(props, 'sample_points',      text='Samples')
-        layout.prop(props, 'fast_refine_steps',  text='Refinement')
-        layout.separator()
-        draw_section_header(context, layout, text='Source Detection')
-        layout.prop(props, 'sample_width',  text='Sample Width')
-        layout.prop(props, 'fast_depth',    text='Ray Depth')
-        layout.separator()
-    elif props.process_source_method == 'sdf':
-        layout.separator()
-        draw_section_header(context, layout, text='Quality')
-        # layout.prop(props, 'sdf_resolution',         text='Resolution')
-        layout.prop(props, 'sdf_subdivisions',        text='SDF Subdiv')
-        layout.prop(props, 'sdf_refine_steps',        text='Refinement')
-        layout.separator()
-        draw_section_header(context, layout, text='Source Detection')
-        layout.prop(props, 'sdf_extent_scale', text='Search Scale')
-        layout.prop(props, 'sample_width', text='Sample Width')
-        layout.prop(props, 'fast_depth', text='Ray Depth')
-        layout.separator()
-    elif props.process_source_method == 'skip':
-        layout.prop(props, 'skip_step_size', text='Step Size')
-
-
-def draw_contours_method_panel(context, layout, props):
-    header, panel = layout.panel(idname='contours_method_panel', default_closed=False)
-    header.label(text='Method')
-    if panel:
-        draw_contours_method_options(context, panel, props)
+from ..rftool_contours.contours import draw_contours_method_options
 
 
 class RFMenu_PT_ContoursMethod(bpy.types.Panel):
