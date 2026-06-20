@@ -221,16 +221,6 @@ class RFOperator_Contours_Insert_Properties:
         max=5.0,
         step=10,
     )
-    spacing_method: bpy.props.EnumProperty(              # pyright: ignore [reportUninitializedInstanceVariable]
-        name='Spacing Method',
-        description='How new vertices are distributed along the cut cross-section',
-        items=[
-            ('EVEN',        'Even',        'Space vertices at equal arc-length intervals regardless of surface shape'),
-            ('CURVATURE',   'Curvature',   'Place vertices at the sharpest corners first, then fill remaining spots evenly between them'),
-            ('INTERPOLATE', 'Interpolate', 'Match the spacing of surrounding loops when cutting into existing faces, falling back to Even for the first cut'),
-        ],
-        default='INTERPOLATE',
-    )
     curvature_bias: bpy.props.FloatProperty(             # pyright: ignore [reportUninitializedInstanceVariable]
         name='Curvature Bias',
         description='Blend between even spacing (0.0) and pure curvature/RDP placement (1.0). '
@@ -338,7 +328,7 @@ class RFOperator_Contours_Insert(
     def insert(context, hit, plane, circle_points, span_count, process_source_method, hits, cut_orientation,
                fast_depth=1, sample_points=50, fast_refine_steps=5, sdf_refine_steps=3, skip_step_size=1.0,
                sdf_resolution=20, sdf_subdivisions=0, sdf_extent_scale=1.5,
-               spacing_method='INTERPOLATE', curvature_bias=0.7, interpolation_factor=1.0):
+               curvature_bias=0.7, interpolation_factor=1.0):
         RFOperator_Contours_Insert.logic = Contours_Logic(
             context,
             hit,
@@ -356,7 +346,6 @@ class RFOperator_Contours_Insert(
             sdf_resolution,
             sdf_subdivisions,
             sdf_extent_scale,
-            spacing_method,
             curvature_bias,
             interpolation_factor,
         )
@@ -381,7 +370,6 @@ class RFOperator_Contours_Insert(
             is_cycle=logic.cyclic,
             loop_count=logic.loop_count,
             cut_orientation=logic.cut_orientation,
-            spacing_method=logic.spacing_method,
             curvature_bias=logic.curvature_bias,
             interpolation_factor=logic.interpolation_factor,
         )
@@ -407,7 +395,6 @@ class RFOperator_Contours_Insert(
         logic.cyclic                = self.is_cycle
         logic.loop_count            = self.loop_count
         logic.cut_orientation       = self.cut_orientation
-        logic.spacing_method        = self.spacing_method
         logic.curvature_bias        = self.curvature_bias
         logic.interpolation_factor  = self.interpolation_factor
 
@@ -434,7 +421,6 @@ class RFOperator_Contours_Insert(
         self.twist                 = logic.twist
         self.is_cycle              = logic.cyclic
         self.loop_count            = logic.loop_count
-        self.spacing_method        = logic.spacing_method
         self.curvature_bias        = logic.curvature_bias
         self.interpolation_factor  = logic.interpolation_factor
 
@@ -583,7 +569,7 @@ class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
         RFOperator_Contours_Insert.insert(context, hit, plane, circle_points, self.span_count, self.process_source_method, hits,
                                           self.cut_orientation, self.fast_depth, self.sample_points, self.fast_refine_steps,
                                           self.sdf_refine_steps, self.skip_step_size, self.sdf_resolution, self.sdf_subdivisions,
-                                          self.sdf_extent_scale, self.spacing_method, self.curvature_bias, self.interpolation_factor)
+                                          self.sdf_extent_scale, self.curvature_bias, self.interpolation_factor)
 
     def update(self, context, event):
         RFCore = RFGlobals.RFCore_None
