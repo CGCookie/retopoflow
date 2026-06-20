@@ -59,6 +59,11 @@ CREATE_DEBUG_OBJECTS = False
 PRINT_DEBUG_TIMINGS = False
 PRINT_DEBUG_SPACING = False
 
+# proportional_redistribute promotion / best-of-three reseat tuning (normalised RDP score units, 0..1):
+MATCH_TOLERANCE         = 0.20  # a vert is "well-seated" when |slot score - reference score| is within this
+SHIFT_MARGIN            = 0.10  # a neighbour slot must beat the current slot's match by this to reseat onto it
+PROMOTE_DISTINCT_MARGIN = 0.10  # reference must differ from a neighbour's by this to count as a distinctive feature
+
 
 ###############################################################################
 # Spacing-mode helper functions (module-level, used by Contours_Logic)
@@ -476,14 +481,21 @@ def proportional_redistribute(
     it by an edge on the neighbouring loop(s), found purely by topology.  Corner-ness is measured
     from the reference loop's own geometry; nothing here projects onto the new cross-section.
 
-    Promotion (assign_corner_pins): each vert whose reference is a corner is pinned to the
-    cross-section corner its reference corresponds to — shifting where a neighbour is the better
-    match (chamfer) or staying in place when already aligned.  The match preserves ring order, so a
-    vert is always pinned to its own reference's corner and never to the wrong side of a chamfer.
+    Promotion + best-of-three reseat.  Each vert is judged against its reference by how well its
+    slot's corner-ness matches its reference's (match cost = |rdp_scores[slot] - ref_scores[i]|).  A
+    vert anchored to a *distinctive* feature — its reference at/above the curvature floor AND standing
+    out from a neighbour's reference — is either:
+      * reseated, if a neighbouring slot is a clearly better-matching corner: the vert shifts onto it
+        and whatever vert was there is freed (the "best of three" — slot i-1, i, i+1);  or
+      * pinned in place, if it is already well-seated and its neighbours are too (the local curve
+        agrees).
+    Everything else stays free.  Crucially, a vert whose reference matches its neighbours' references
+    about equally well — a flat or evenly-curved run, where every position is equally valid — is NOT
+    distinctive and so is never pinned; the run is left free to redistribute.  A corner stands out
+    from its flatter neighbours and so anchors.
     Proportional spacing (relax_between_pins): the remaining free verts are distributed to match the
-    reference loop's edge-length proportions.  interpolation_factor dials curvature (0) -> fully
-    proportional and shifted onto corners (1); pinned corners hold the form throughout the spacing
-    step.
+    reference loop's edge-length proportions.  interpolation_factor dials curvature placement (0)
+    toward the reseated/pinned + proportionally spaced result (1).
 
     Returns final arc-fracs in slot order.
     """
@@ -492,32 +504,80 @@ def proportional_redistribute(
         return []
     ref_gaps = [(Vector(ref_points[(i + 1) % N]) - Vector(ref_points[i])).length for i in range(N)]
 
-    # Promotion — hold feature verts exactly where curvature placed them, never shifting.  A vert is
-    # pinned if it sits on a cross-section corner (a peak in rdp_scores) OR its reference is a corner
-    # (a peak in ref_scores).  Holding the first keeps the cross-section corners from drifting;
-    # holding the second keeps the reference-corner connecting edges straight.  Crucially, nothing is
-    # shifted onto a neighbour's slot: shifting a reference-corner vert onto a cross-section corner
-    # would knock the vert already holding that corner off it (and send it across to the wrong side),
-    # which is the exact failure seen at interp=1.  Only the remaining flat verts move, taking up the
-    # reference loop's proportional spacing.
-    corner_slots = corner_indices(rdp_scores, cyclic, corner_threshold)   # cross-section corners
-    corner_refs  = corner_indices(ref_scores, cyclic, corner_threshold)   # reference corners
-    pinned = set(corner_slots) | set(corner_refs)
-    pin_slot = [i if i in pinned else None for i in range(N)]
+    floor = corner_threshold
+    def neighbours(i):
+        if cyclic:
+            return [(i - 1) % N, (i + 1) % N]
+        return [j for j in (i - 1, i + 1) if 0 <= j < N]
+    def match_cost(i, s):
+        return abs(rdp_scores[s] - ref_scores[i])
+
+    # A vert is "well-seated" when its slot's corner-ness already matches its reference's.
+    good = [match_cost(i, i) <= MATCH_TOLERANCE for i in range(N)]
+    # Distinctive: the reference's corner-ness stands out from a neighbour's.  On a flat or evenly
+    # curved run every reference score is about equal, so nothing is distinctive -> nothing pins ->
+    # the run redistributes freely.  A corner's reference differs from its flatter neighbours.
+    distinctive = [
+        any(abs(ref_scores[i] - ref_scores[j]) >= PROMOTE_DISTINCT_MARGIN for j in neighbours(i))
+        for i in range(N)
+    ]
+
+    # Decide each vert's desired slot: its own (pin in place), a neighbour's (best-of-three reseat),
+    # or None (free).  Only verts anchored to a distinctive feature above the curvature floor take part
+    # — so flat / evenly-curved runs never pin and are free to take up reference proportional spacing.
+    desired = [None] * N
+    for i in range(N):
+        if ref_scores[i] < floor or not distinctive[i]:
+            continue
+        nbrs = neighbours(i)
+        best = min([i] + nbrs, key=lambda s: match_cost(i, s))
+        if best != i and rdp_scores[best] >= floor and match_cost(i, best) + SHIFT_MARGIN < match_cost(i, i):
+            desired[i] = best                          # reseat onto the better-matching neighbour corner slot
+        elif good[i] and all(good[j] for j in nbrs):
+            desired[i] = i                             # hold: well-seated and the local curve agrees
+
+    # Resolve collisions: a slot is held by at most one vert (the best match); the rest go free.  A
+    # reseat that lands on a slot another vert wanted simply frees that other vert (per design).
+    slot_owner = {}
+    for i in range(N):
+        s = desired[i]
+        if s is None:
+            continue
+        owner = slot_owner.get(s)
+        if owner is None or match_cost(i, s) < match_cost(owner, s):
+            slot_owner[s] = i
+    pin_slot = [None] * N
+    for s, i in slot_owner.items():
+        pin_slot[i] = s
+
+    # Uncross: the only self-intersection a reseat can produce is a mutual adjacent swap — vert a
+    # reseated onto slot b while vert b landed on slot a (b = a+1).  Reseats move at most one slot and
+    # slots are unique after the collision pass, so no longer-range inversion is possible; resetting
+    # the pair to their own slots removes the crossing without disturbing any non-crossed result.
+    uncrossed = []
+    for a in range(N if cyclic else N - 1):
+        b = (a + 1) % N
+        if pin_slot[a] == b and pin_slot[b] == a:
+            pin_slot[a], pin_slot[b] = a, b
+            uncrossed.append((a, b))
 
     if PRINT_DEBUG_SPACING:
-        print(f'[Contours spacing] N={N} cyclic={cyclic} interp={interpolation_factor:.2f} floor={corner_threshold}')
+        print(f'[Contours spacing] N={N} cyclic={cyclic} interp={interpolation_factor:.2f} floor={floor:.2f}')
         print(f'  rdp_scores (slots) = {[round(s, 2) for s in rdp_scores]}')
         print(f'  ref_scores (refs)  = {[round(s, 2) for s in ref_scores]}')
-        print(f'  corner slots (rdp peaks)={corner_slots}  corner refs (ref peaks)={corner_refs}')
-        print(f'  pinned in place    = {sorted(pinned)}')
+        print(f'  good={[int(g) for g in good]} distinctive={[int(d) for d in distinctive]}')
+        reseated = {i: pin_slot[i] for i in range(N) if pin_slot[i] is not None and pin_slot[i] != i}
+        held     = [i for i in range(N) if pin_slot[i] == i]
+        print(f'  reseated (vert->slot) = {reseated}')
+        print(f'  pinned in place       = {held}')
+        print(f'  uncrossed pairs       = {uncrossed}')
 
-    # Pinned verts stay at their own curvature frac; free verts get proportional spacing.
-    pin_frac = [target_fracs[i] if pin_slot[i] is not None else None for i in range(N)]
+    # Pinned verts take their slot's curvature frac (their own, or a neighbour's when reseated);
+    # free verts get reference-proportional spacing.
+    pin_frac = [target_fracs[pin_slot[i]] if pin_slot[i] is not None else None for i in range(N)]
     proportional = relax_between_pins(N, cyclic, target_fracs, pin_frac, ref_gaps)
 
-    # interpolation_factor dials curvature placement (0) toward pinning + proportional spacing (1).
-    # An in-place pin has computed == target, so it never drifts off its corner as interp rises.
+    # interpolation_factor dials curvature placement (0) toward the reseated/pinned + spaced result (1).
     w = max(0.0, min(1.0, interpolation_factor))
     return [
         lerp_frac(target_fracs[i], pin_frac[i] if pin_frac[i] is not None else proportional[i], w, cyclic)
