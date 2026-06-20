@@ -28,6 +28,7 @@ from itertools import chain
 from collections import defaultdict
 from collections.abc import Sequence, Iterator
 from math import isclose
+from typing import Literal
 from bmesh.types import BMVert, BMEdge, BMFace, BMesh
 from bpy.types import Context, Mesh
 from bpy_extras.view3d_utils import location_3d_to_region_2d
@@ -63,6 +64,20 @@ PRINT_DEBUG_SPACING = False
 MATCH_TOLERANCE         = 0.20  # a vert is "well-seated" when |slot score - reference score| is within this
 SHIFT_MARGIN            = 0.10  # a neighbour slot must beat the current slot's match by this to reseat onto it
 PROMOTE_DISTINCT_MARGIN = 0.10  # reference must differ from a neighbour's by this to count as a distinctive feature
+
+# Weight of curvature-change (dκ/ds) signal relative to RDP in sample_curvature greedy selection.
+# 0.0 = pure RDP; 1.0 = equal weight. Scales with curvature_bias so it has no effect at bias=0.
+TRANSITION_WEIGHT = 0.5
+# dκ/ds gate: suppress the dκ boost wherever any path point within TRANSITION_WINDOW indices has a
+# turning angle (measured as sin) at or above TRANSITION_ANGLE_GATE.  This keeps dκ out of the
+# pre-corner flanking region (which has large angles nearby even though the dκ peak itself is gentle)
+# while still letting it fire at soft-bevel boundaries (small angles throughout the neighbourhood).
+#   TRANSITION_ANGLE_GATE: sin(angle) threshold — sin(30°)≈0.50, sin(45°)≈0.71, sin(20°)≈0.34.
+#     Raise if moderate corners still cluster; lower if soft bevels are missed.
+#   TRANSITION_WINDOW: how many input-path indices to check each side of a candidate.
+#     Raise if the dκ peak can be far from the corner in the raw path.
+TRANSITION_ANGLE_GATE = 0.50   # sin(30°) — suppress dκ if any nearby point turns more than ~30°
+TRANSITION_WINDOW     = 3      # check ±3 input-path indices around each candidate
 
 
 ###############################################################################
@@ -251,6 +266,50 @@ def rdp_point_scores(points: list, cyclic: bool) -> list:
     if max_finite < 1e-12:
         max_finite = 1.0
     return [min((max_finite if s >= float('inf') else s) / max_finite, 1.0) for s in scores]
+
+
+def curvature_change_scores(points: list, cyclic: bool, pt_fracs: list) -> tuple:
+    """Rate-of-curvature-change scores and per-point turning angles for every point.
+
+    Returns (sin_angles, dk_norm) where:
+      sin_angles[i] — sin of the turning angle at point i (cross-product magnitude of the two
+                      unit edge vectors meeting at i).  0 = perfectly flat, 1 = 90° corner.
+                      Used as the angle gate in sample_curvature to suppress dκ near sharp corners.
+      dk_norm[i]    — normalised [0,1] dκ/ds score.  Peaks at flat→bevel transition boundaries
+                      even when per-point RDP scores are low.
+    """
+    n = len(points)
+    if n < 3:
+        return [0.0] * n, [0.0] * n
+
+    sin_angles = [0.0] * n
+    kappa      = [0.0] * n
+    for i in range(n):
+        if not cyclic and (i == 0 or i == n - 1):
+            continue
+        im1, ip1 = (i - 1) % n, (i + 1) % n
+        t1 = Vector(points[i]) - Vector(points[im1])
+        t2 = Vector(points[ip1]) - Vector(points[i])
+        l1, l2 = t1.length, t2.length
+        if l1 < 1e-10 or l2 < 1e-10:
+            continue
+        cross_mag      = t1.cross(t2).length / (l1 * l2)   # = sin(turning angle)
+        sin_angles[i]  = cross_mag
+        mean_len       = (l1 + l2) * 0.5
+        kappa[i]       = cross_mag / mean_len if mean_len > 1e-10 else 0.0
+
+    dk = [0.0] * n
+    for i in range(n):
+        if not cyclic and (i == 0 or i == n - 1):
+            continue
+        im1, ip1 = (i - 1) % n, (i + 1) % n
+        ds    = (pt_fracs[ip1] - pt_fracs[im1]) % 1.0 if cyclic else (pt_fracs[ip1] - pt_fracs[im1])
+        dk[i] = abs(kappa[ip1] - kappa[im1]) / ds if ds > 1e-10 else 0.0
+
+    max_dk = max(dk, default=0.0)
+    if max_dk < 1e-12:
+        return sin_angles, [0.0] * n
+    return sin_angles, [d / max_dk for d in dk]
 
 
 def loop_scores_by_vert(vert_set: set, cyclic: bool) -> dict:
@@ -572,15 +631,21 @@ def proportional_redistribute(
         print(f'  pinned in place       = {held}')
         print(f'  uncrossed pairs       = {uncrossed}')
 
-    # Pinned verts take their slot's curvature frac (their own, or a neighbour's when reseated);
-    # free verts get reference-proportional spacing.
+    # Pinned verts take their slot's curvature frac (their own, or a neighbour's when reseated).
     pin_frac = [target_fracs[pin_slot[i]] if pin_slot[i] is not None else None for i in range(N)]
+    # Two spacing options for free verts, blended by interpolation_factor:
+    #   even         (w=0) — equal arc-length steps between enclosing pins; resolves overlaps when a
+    #                         pinned neighbour reseats away, leaving the free vert at a stale position.
+    #   proportional (w=1) — steps proportional to reference edge lengths (reference loop's spacing).
+    even         = relax_between_pins(N, cyclic, target_fracs, pin_frac, [1.0] * N)
     proportional = relax_between_pins(N, cyclic, target_fracs, pin_frac, ref_gaps)
 
-    # interpolation_factor dials curvature placement (0) toward the reseated/pinned + spaced result (1).
+    # Reseating is always active: a vert pinned to a neighbour's slot uses that slot's curvature frac.
+    # interpolation_factor dials free-vert spacing only: 0 = even, 1 = reference-proportional.
     w = max(0.0, min(1.0, interpolation_factor))
     return [
-        lerp_frac(target_fracs[i], pin_frac[i] if pin_frac[i] is not None else proportional[i], w, cyclic)
+        target_fracs[pin_slot[i]] if pin_slot[i] is not None
+        else lerp_frac(even[i], proportional[i], w, cyclic)
         for i in range(N)
     ]
 
@@ -758,6 +823,29 @@ def sample_curvature(points: list, cyclic: bool, vertex_count: int, path_length:
     for i in range(n):
         if scores[i] >= float('inf'):
             scores[i] = max_finite
+
+    # Augment RDP scores with the rate-of-curvature-change (dκ/ds) signal, scaled by curvature_bias.
+    # This boosts points at flat→bevel transition boundaries, placing verts there even when their
+    # individual RDP perpendicular-deviation score is low.  Seeds (pre-selected) are skipped.
+    if curvature_bias > 0.0:
+        sin_angles, dk = curvature_change_scores(points, cyclic, pt_fracs)
+        dk_weight    = max_finite * curvature_bias * TRANSITION_WEIGHT
+        pre_selected = set(rdp_selected)
+        # Gate dκ on the maximum turning angle in a local window.  A dκ peak that flanks a sharp
+        # corner (even 2-3 path-points away from it) will have a large sin(angle) somewhere in its
+        # window — so it is suppressed.  A soft-bevel boundary has small angles throughout its
+        # neighbourhood and passes the gate.  This is the right signal: "the angle is too low for
+        # RDP to catch" means no nearby point turns more than TRANSITION_ANGLE_GATE.
+        for i in range(n):
+            if i not in pre_selected:
+                win = (
+                    [(i + d) % n for d in range(-TRANSITION_WINDOW, TRANSITION_WINDOW + 1)]
+                    if cyclic else
+                    [max(0, min(n - 1, i + d)) for d in range(-TRANSITION_WINDOW, TRANSITION_WINDOW + 1)]
+                )
+                if max(sin_angles[j] for j in win) < TRANSITION_ANGLE_GATE:
+                    scores[i] += dk[i] * dk_weight
+        max_finite = max((s for s in scores), default=1.0) or 1.0
 
     tiebreak_scale = max(max_finite * TIEBREAK_FRAC, 1e-9)
     selected_fracs_rdp = [pt_fracs[i] for i in rdp_selected]
@@ -969,7 +1057,7 @@ class Contours_Logic:
     last_sdf_extent_scale : float | None
     last_cut_orientation : str | None
 
-    action : str
+    action : Literal['Loop Cut', 'Strip Cut', 'Extrude Loop', 'Extrude Strip', 'New Loop', 'New Strip' ]
     show_span_count : bool
     span_count : int
     show_twist : bool
@@ -1312,7 +1400,9 @@ class Contours_Logic:
                     # Score continuity: bias the rotation search toward assignments where new verts
                     # inherit the same corner/flat character as their references.
                     expected_scores = [ref_data[v][1] for v in ordered_nbmvs]
-                    score_weight = (self.path_length / len(ordered_nbmvs)) ** 2 * self.interpolation_factor
+                    # Score weight for rotation search is independent of interpolation_factor:
+                    # corner↔corner alignment matters even at interpolation=0.
+                    score_weight = (self.path_length / len(ordered_nbmvs)) ** 2
 
                     n_rotations = len(ordered_nbmvs) if self.cyclic else 1
                     best_cost = float('inf')
@@ -1328,15 +1418,14 @@ class Contours_Logic:
                             if cost < best_cost:
                                 best_cost = cost
                                 best_assignment = verts_k
-                    if self.interpolation_factor > 0.0 and self.points:
-                        ref_points = [ref_data[v][0] for v in best_assignment]
-                        ref_scores = [ref_data[v][1] for v in best_assignment]
-                        # Pin corners that agree with the source feature; proportionally space the rest.
-                        final_fracs = proportional_redistribute(
-                            self.cyclic, target_fracs_sc, rdp_scores,
-                            ref_points, ref_scores, self.interpolation_factor, self.get_corner_threshold(),
-                        )
-                        target_pts = fracs_to_positions(self.points, final_fracs, self.cyclic)
+                    # Reseating always runs: corner verts snap to the right slot even at interpolation=0.
+                    ref_points = [ref_data[v][0] for v in best_assignment]
+                    ref_scores = [ref_data[v][1] for v in best_assignment]
+                    final_fracs = proportional_redistribute(
+                        self.cyclic, target_fracs_sc, rdp_scores,
+                        ref_points, ref_scores, self.interpolation_factor, self.get_corner_threshold(),
+                    )
+                    target_pts = fracs_to_positions(self.points, final_fracs, self.cyclic)
                     snap_redistribute(
                         context, best_assignment, target_pts[:len(ordered_nbmvs)],
                         self.matrix_world, self.matrix_world_inv, sym_verts, mx, my, mz,
@@ -1383,7 +1472,9 @@ class Contours_Logic:
                     # Score continuity: bias the rotation search toward assignments where new verts
                     # inherit the same corner/flat character as their references.
                     expected_scores = [ref_data[v][1] for v in ordered_nbmvs]
-                    score_weight = (self.path_length / len(ordered_nbmvs)) ** 2 * self.interpolation_factor
+                    # Score weight for rotation search is independent of interpolation_factor:
+                    # corner↔corner alignment matters even at interpolation=0.
+                    score_weight = (self.path_length / len(ordered_nbmvs)) ** 2
 
                     n_rotations = len(ordered_nbmvs) if self.cyclic else 1
                     best_cost = float('inf')
@@ -1399,15 +1490,14 @@ class Contours_Logic:
                             if cost < best_cost:
                                 best_cost = cost
                                 best_assignment = verts_k
-                    if self.interpolation_factor > 0.0 and self.points:
-                        ref_points = [ref_data[v][0] for v in best_assignment]
-                        ref_scores = [ref_data[v][1] for v in best_assignment]
-                        # Pin corners that agree with the source feature; proportionally space the rest.
-                        final_fracs = proportional_redistribute(
-                            self.cyclic, target_fracs_sc, rdp_scores,
-                            ref_points, ref_scores, self.interpolation_factor, self.get_corner_threshold(),
-                        )
-                        target_pts = fracs_to_positions(self.points, final_fracs, self.cyclic)
+                    # Reseating always runs: corner verts snap to the right slot even at interpolation=0.
+                    ref_points = [ref_data[v][0] for v in best_assignment]
+                    ref_scores = [ref_data[v][1] for v in best_assignment]
+                    final_fracs = proportional_redistribute(
+                        self.cyclic, target_fracs_sc, rdp_scores,
+                        ref_points, ref_scores, self.interpolation_factor, self.get_corner_threshold(),
+                    )
+                    target_pts = fracs_to_positions(self.points, final_fracs, self.cyclic)
                     snap_redistribute(
                         context, best_assignment, target_pts[:len(ordered_nbmvs)],
                         self.matrix_world, self.matrix_world_inv, sym_verts, mx, my, mz,

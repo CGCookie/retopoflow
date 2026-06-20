@@ -280,20 +280,26 @@ def draw_contours_method_options(context, layout, props):
             col.separator()
 
 
-def draw_contours_props(context, layout, props, logic):
+def draw_contours_props(context, layout, props, redo):
     layout.use_property_split = True
     layout.use_property_decorate = False
-    if logic: # only available in redo panel after stroke
-        layout.row(heading=logic.action).prop(props, 'is_cycle', text='Cyclic')
+    if redo and redo.action not in ['Loop Cut', 'Strip Cut']:
+        layout.row(heading=redo.action).prop(props, 'is_cycle', text='Cyclic')
+    elif redo:
+        split = layout.split(factor=0.4)
+        row = split.row()
+        row.alignment = 'RIGHT'
+        row.label(text=redo.action)
     layout.prop(props, 'cut_orientation', text='Orientation')
-    if not logic or logic.show_span_count:
+    if not redo or redo.show_span_count:
         layout.prop(props, 'span_count', text='Spans')
-    if not logic or logic.show_loop_count:
+    if not redo or redo.show_loop_count:
         layout.prop(props, 'loop_count', text='Cuts')
-    if logic and logic.show_twist: # Only makes sense in redo panel
+    if redo and redo.show_twist: # Only makes sense in redo panel
         layout.prop(props, 'twist', text='Twist')
     layout.prop(props, 'curvature_bias', text='Curvature', slider=True)
-    layout.prop(props, 'interpolation_factor', text='Interpolation', slider=True)
+    if redo and 'New' not in redo.action: # Doesn't apply to single loops
+        layout.prop(props, 'interpolation_factor', text='Interpolation', slider=True)
     draw_contours_method_options(context, layout, props)
 
 
@@ -692,7 +698,7 @@ class RFTool_Contours(RFTool_Base):
             header, panel = layout.panel(idname='contours_cut_panel', default_closed=False)
             header.label(text="Insert")
             if panel:
-                draw_contours_props(context, panel, props_contours, logic=None)
+                draw_contours_props(context, panel, props_contours, None)
 
             draw_tweaking_panel(context, layout)
             draw_snapping_panel(context, layout, idname='contours_snapping_panel')
