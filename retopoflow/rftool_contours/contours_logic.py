@@ -61,6 +61,12 @@ DEBUG_PRINT_TIMINGS = False
 DEBUG_PRINT_SPACING = False
 DEBUG_SKIP_BRIDGE_SNAP = False   # set True to see raw xform result (before ring-normal snap)
 DEBUG_SKIP_REDISTRIBUTE = False  # set True to see raw Stage-2 snap result without any redistribution
+DEBUG_PRINT_SNAP_PATH  = False  # set True to print which snap branch each vert takes in Pass 2
+
+# If a ray hit is farther than nearest_dist * this factor, discard the ray result and fall back to
+# nearest-point.  Protects against the ring-normal crossing the concave region to hit the far wall
+# when the near path corner has s just outside [0,1] and gets rejected from the ray test.
+RAYCAST_NEAREST_FACTOR = 2.0
 
 # proportional_redistribute promotion / best-of-three reseat tuning (normalised RDP score units, 0..1):
 MATCH_TOLERANCE         = 0.20  # a vert is "well-seated" when |slot score - reference score| is within this
@@ -1914,6 +1920,8 @@ class Contours_Logic:
             if nearest_dist < ON_PATH_EPS:
                 if nearest_pt is not None:
                     bmv.co = nearest_pt
+                if DEBUG_PRINT_SNAP_PATH:
+                    print(f'[SnapPass2] vert {v}  → ON-PATH  (nearest_dist={nearest_dist:.2e})')
                 continue
 
             # Ring tangent from the two adjacent new verts (edges that stay within the new ring).
@@ -1955,11 +1963,24 @@ class Contours_Logic:
                         best_dist = dist
                         best_pt = snap_pt
 
-            if best_pt is not None:
+            use_ray = best_pt is not None and best_dist <= nearest_dist * RAYCAST_NEAREST_FACTOR
+            if use_ray:
                 bmv.co = best_pt
+                if DEBUG_PRINT_SNAP_PATH:
+                    n_nbrs = len(ring_nbrs) if tangent else 0
+                    print(f'[SnapPass2] vert {v}  → RAYCAST  (best_dist={best_dist:.4f}  nearest_dist={nearest_dist:.4f}  ring_nbrs={n_nbrs})  new_pos={Vector(bmv.co)}')
             elif nearest_pt is not None:
-                # Fallback: nearest point already computed above (no extra loop needed).
+                # Fallback: nearest point — either no ray hit, or ray crossed the concave region
+                # and landed far from the vert (best_dist > nearest_dist * RAYCAST_NEAREST_FACTOR).
                 bmv.co = nearest_pt
+                if DEBUG_PRINT_SNAP_PATH:
+                    if best_pt is not None:
+                        reason = f'ray too far ({best_dist:.4f} > {nearest_dist * RAYCAST_NEAREST_FACTOR:.4f})'
+                    elif not (tangent and tangent.length > 1e-9):
+                        reason = 'no tangent'
+                    else:
+                        reason = 'no ray hit'
+                    print(f'[SnapPass2] vert {v}  → NEAREST-PT fallback  ({reason}  nearest_dist={nearest_dist:.4f})  new_pos={Vector(bmv.co)}')
             else:
                 # Last resort: world-space snap.
                 npt_local = bvec_to_point(v)
@@ -1967,6 +1988,8 @@ class Contours_Logic:
                 npt_world_snapped = nearest_point_valid_sources(context, npt_world, world=True, respect_clip_planes=True)
                 npt_world_new = npt_world_snapped if npt_world_snapped else npt_world
                 bmv.co = self.matrix_world_inv @ npt_world_new if npt_world_new is not None else npt_local
+                if DEBUG_PRINT_SNAP_PATH:
+                    print(f'[SnapPass2] vert {v}  → WORLD-SNAP fallback  new_pos={Vector(bmv.co)}')
 
         # re-pin any verts that were on a symmetry plane so twist can't move them off
         for bmv in sym_verts:
