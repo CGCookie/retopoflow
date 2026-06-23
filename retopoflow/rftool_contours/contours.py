@@ -109,6 +109,7 @@ class RFOperator_Contours_Insert_Properties:
         description='Number of vertices to create in a new cut',
         default=16,
         min=3,
+        soft_max=100,
         max=500,
     )
     loop_count: bpy.props.IntProperty(

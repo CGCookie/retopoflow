@@ -306,7 +306,7 @@ def get_co_on_arc(fac, order, cumul, total, initial_coords, mw):
             return a + t * (b - a)
 
 
-def arc_path_facs(points: list, cyclic: bool) -> list:
+def arc_path_factors(points: list, cyclic: bool) -> list:
     '''Path factor (0-1) for each point along a polyline arc.
     For cyclic paths the closing segment is included, so path_facs[-1] < 1.0.'''
     n = len(points)
@@ -355,7 +355,7 @@ def path_facs_to_positions(points: list, path_facs: list, cyclic: bool) -> list:
 
 def project_to_path_fac(co, points: list, cyclic: bool, point_path_facs: list) -> float:
     '''Arc-length factor of the nearest point on the polyline to `co`.
-    Requires precomputed point_path_facs from arc_path_facs().'''
+    Requires precomputed point_path_facs from arc_path_factors().'''
     n = len(points)
     n_segs = n if cyclic else n - 1
     best_path_fac = 0.0
@@ -375,50 +375,6 @@ def project_to_path_fac(co, points: list, cyclic: bool, point_path_facs: list) -
             f1 = point_path_facs[i + 1] if i + 1 < n else 1.0
             best_path_fac = point_path_facs[i] + t * (f1 - point_path_facs[i])
     return best_path_fac
-
-
-def project_along_axis_to_path_fac(co, direction, plane_fit, points: list, cyclic: bool, point_path_facs: list) -> float:
-    '''Arc-length factor on `points` of `co` projected along `direction` onto the cut plane.'''
-    # Projecting along the inter-loop axis rather than the cut-plane normal makes the connecting rung from `co`'s parent run parallel to that axis.
-    # Falls back to a normal projection if `direction` lies in the plane.
-    c = Vector(co)
-    n = Vector(plane_fit.n)
-    d = Vector(direction)
-    denom = d.dot(n)
-    if abs(denom) < 1e-9:
-        on_plane = c - plane_fit.signed_distance_to(c) * n
-    else:
-        on_plane = c - (plane_fit.signed_distance_to(c) / denom) * d
-    return project_to_path_fac(on_plane, points, cyclic, point_path_facs)
-
-
-def score_at_path_fac(path_fac: float, path_facs: list, scores: list, cyclic: bool) -> float:
-    '''Linearly interpolate a score at a given arc-length factor. path_facs and scores must be parallel and in arc-length order.'''
-    n = len(path_facs)
-    if n == 0:
-        return 0.0
-    if n == 1:
-        return scores[0]
-    if cyclic:
-        for i in range(n):
-            f0 = path_facs[i]
-            f1 = path_facs[(i + 1) % n]
-            gap = (f1 - f0) % 1.0
-            if gap < 1e-10:
-                continue
-            d = (path_fac - f0) % 1.0
-            if d <= gap:
-                t = d / gap
-                return scores[i] + t * (scores[(i + 1) % n] - scores[i])
-    else:
-        if path_fac <= path_facs[0]:  return scores[0]
-        if path_fac >= path_facs[-1]: return scores[-1]
-        for i in range(n - 1):
-            if path_facs[i] <= path_fac <= path_facs[i + 1]:
-                gap = path_facs[i + 1] - path_facs[i]
-                t = (path_fac - path_facs[i]) / gap if gap > 1e-10 else 0.0
-                return scores[i] + t * (scores[i + 1] - scores[i])
-    return scores[-1]
 
 
 def lerp_path_fac(a: float, b: float, t: float, cyclic: bool) -> float:
@@ -488,9 +444,10 @@ def curvature_rdp_scores(points: list, cyclic: bool) -> list:
 
 
 def curvature_change_scores(points: list, cyclic: bool, point_path_facs: list) -> tuple:
-    '''Turning angle magnitudes and rate of curvature change scores for each point. Returns (sin_angles, dk_norm) where:
-      sin_angles[i] — sin of the turning angle at point i (0 = flat, 1 = 90°).
-      dk_norm[i]    — normalised [0,1] dκ/ds score; peaks at flat to bevel transitions.
+    '''Turning angle magnitudes and rate of curvature change scores for each point.
+    Returns (sin_angles, dk_norm):
+    - sin_angles[i]: sin of the turning angle at point i (0 = flat, 1 = 90°).
+    - dk_norm[i]: 0-1 dκ/ds score which peaks at flat to smooth bevel transitions.
     '''
     n = len(points)
     if n < 3:
