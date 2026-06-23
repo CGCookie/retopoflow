@@ -44,7 +44,11 @@ from ..common.maths import (
     bvec_to_point, point_to_bvec3,
     pt_x0, pt_y0, pt_z0,
     lerp, get_closest_axis, snap_plane_to_direction,
-    closest_point_linesegment, map_range
+    closest_point_linesegment, map_range,
+    arc_path_facs, path_facs_to_positions, project_to_path_fac,
+    project_along_axis_to_path_fac, score_at_path_fac,
+    lerp_path_fac, curvature_rdp_scores, curvature_change_scores,
+    enforce_path_min_gap, sample_even,
 )
 from ..common.accel import SourceMeshCache
 from ..common.raycast import raycast_ray_valid_sources, nearest_point_valid_sources, nearest_normal_valid_sources, raycast_multiple_hits
@@ -79,6 +83,7 @@ PROMOTE_DISTINCT_MARGIN = 0.10  # reference must differ from a neighbour's by th
 # (These are the old get_corner_threshold endpoints — now a smooth per-vert ramp instead of a moving floor.)
 CORNER_FLOOR_SHARP = 0.10
 CORNER_FLOOR_FLAT  = 0.75
+SYM_THRESHOLD      = 1e-4   # distance from a symmetry plane for a vert to be considered on-plane
 # How quickly a feature, once engaged, finishes sliding onto its slot.  A feature reaches full snap at
 # curvature_bias = activation + ENGAGE_FRACTION*(1 - activation): a sharp corner (activation 0) lands by
 # ENGAGE_FRACTION (≈half the slider), softer features finish progressively later, the flattest only at 1.
@@ -107,253 +112,6 @@ TRANSITION_WINDOW     = 3      # check ±3 input-path indices around each candid
 # Spacing-mode helper functions (module-level, used by Contours_Logic)
 ###############################################################################
 
-def arc_fracs(points: list, cyclic: bool) -> list:
-    """Return the fractional arc-length position [0..1] for each point.
-
-    For cyclic paths the closing segment (points[-1] -> points[0]) is included
-    in the total path length, so fracs[-1] < 1.0.
-    """
-    n = len(points)
-    if n == 0:
-        return []
-    n_segs = n if cyclic else n - 1
-    seg_lens = [(points[(i + 1) % n] - points[i]).length for i in range(n_segs)]
-    total = sum(seg_lens)
-    if total < 1e-10:
-        return [0.0] * n
-    cum = [0.0]
-    for sl in seg_lens:
-        cum.append(cum[-1] + sl / total)
-    return cum[:n]
-
-
-def fracs_to_positions(points: list, fracs: list, cyclic: bool) -> list:
-    """Return 3D positions on the polyline at the given arc-length fractions."""
-    n = len(points)
-    if n == 0:
-        return []
-    n_segs = n if cyclic else n - 1
-    seg_lens = [(points[(i + 1) % n] - points[i]).length for i in range(n_segs)]
-    total = sum(seg_lens)
-    if total < 1e-10:
-        return [Vector(points[0]) for _ in fracs]
-    cum_seg = [0.0]
-    for sl in seg_lens:
-        cum_seg.append(cum_seg[-1] + sl / total)
-    result = []
-    for frac in fracs:
-        frac = max(0.0, min(1.0, frac))
-        seg_idx = n_segs - 1
-        for i in range(n_segs):
-            if cum_seg[i + 1] >= frac - 1e-10:
-                seg_idx = i
-                break
-        f0, f1 = cum_seg[seg_idx], cum_seg[seg_idx + 1]
-        p0 = Vector(points[seg_idx % n])
-        p1 = Vector(points[(seg_idx + 1) % n])
-        if f1 - f0 < 1e-10:
-            result.append(p0)
-        else:
-            result.append(p0.lerp(p1, max(0.0, min(1.0, (frac - f0) / (f1 - f0)))))
-    return result
-
-
-def project_co_to_frac(co, points: list, cyclic: bool, pt_fracs: list) -> float:
-    """Project a local-space coordinate onto the polyline path.
-
-    Returns its fractional arc-length position using the precomputed pt_fracs
-    from _arc_fracs().
-    """
-    n = len(points)
-    n_segs = n if cyclic else n - 1
-    best_frac = 0.0
-    best_dist2 = float('inf')
-    co_v = Vector(co)
-    for i in range(n_segs):
-        p0 = Vector(points[i])
-        p1 = Vector(points[(i + 1) % n])
-        seg = p1 - p0
-        seg_len2 = seg.length_squared
-        if seg_len2 < 1e-20:
-            continue
-        t = max(0.0, min(1.0, (co_v - p0).dot(seg) / seg_len2))
-        d2 = (co_v - p0.lerp(p1, t)).length_squared
-        if d2 < best_dist2:
-            best_dist2 = d2
-            f1 = pt_fracs[i + 1] if i + 1 < n else 1.0
-            best_frac = pt_fracs[i] + t * (f1 - pt_fracs[i])
-    return best_frac
-
-
-def axis_projected_frac(co, direction, plane_fit, points: list, cyclic: bool, pt_fracs: list) -> float:
-    """Arc-frac on `points` of `co` projected along `direction` onto the cut plane.
-
-    Projecting along the inter-loop axis (the offset between the two loops) rather than the cut-plane
-    normal makes the connecting rung from `co`'s parent run parallel to that axis — vertical on a
-    tilted cylindrical cut — instead of perpendicular to the tilted plane, which splays the rungs.
-    Falls back to a normal projection if `direction` lies in the plane (degenerate).
-    """
-    c = Vector(co)
-    n = Vector(plane_fit.n)
-    d = Vector(direction)
-    denom = d.dot(n)
-    if abs(denom) < 1e-9:
-        on_plane = c - plane_fit.signed_distance_to(c) * n
-    else:
-        on_plane = c - (plane_fit.signed_distance_to(c) / denom) * d
-    return project_co_to_frac(on_plane, points, cyclic, pt_fracs)
-
-
-def score_at_frac(frac: float, fracs: list, scores: list, cyclic: bool) -> float:
-    """Linearly interpolate an RDP score at a given arc-length fraction.
-
-    fracs and scores must be parallel and in arc-length order (as returned by
-    sample_curvature via out_scores / project_co_to_frac on target_pts).
-    """
-    n = len(fracs)
-    if n == 0:
-        return 0.0
-    if n == 1:
-        return scores[0]
-    if cyclic:
-        for i in range(n):
-            f0 = fracs[i]
-            f1 = fracs[(i + 1) % n]
-            gap = (f1 - f0) % 1.0
-            if gap < 1e-10:
-                continue
-            d = (frac - f0) % 1.0
-            if d <= gap:
-                t = d / gap
-                return scores[i] + t * (scores[(i + 1) % n] - scores[i])
-    else:
-        if frac <= fracs[0]:  return scores[0]
-        if frac >= fracs[-1]: return scores[-1]
-        for i in range(n - 1):
-            if fracs[i] <= frac <= fracs[i + 1]:
-                gap = fracs[i + 1] - fracs[i]
-                t = (frac - fracs[i]) / gap if gap > 1e-10 else 0.0
-                return scores[i] + t * (scores[i + 1] - scores[i])
-    return scores[-1]
-
-
-def lerp_frac(a: float, b: float, t: float, cyclic: bool) -> float:
-    """Interpolate between two arc-length fractions, taking the shorter way for cyclic paths."""
-    if cyclic:
-        d = b - a
-        if d >  0.5: d -= 1.0
-        elif d < -0.5: d += 1.0
-        return (a + t * d) % 1.0
-    return a + t * (b - a)
-
-
-def rdp_point_scores(points: list, cyclic: bool) -> list:
-    """Normalised [0,1] RDP corner score for every point (1 = sharp corner, 0 = flat).
-
-    This is the same Ramer-Douglas-Peucker perpendicular-deviation metric sample_curvature uses
-    to place verts, but evaluated for every input point (not a selected subset) — so a reference
-    loop's corner scores are directly comparable to the new cross-section's rdp_scores.  Used to
-    measure a bridge reference vert's corner-ness from the parent loop's own geometry, which is
-    robust where projecting the off-plane parent onto the new cross-section is not.
-    """
-    n = len(points)
-    if n < 3:
-        return [0.0] * n
-    scores = [0.0] * n
-
-    def rdp_score(i0: int, i1: int) -> None:
-        stack = [(i0, i1)]
-        while stack:
-            a, b = stack.pop()
-            if b - a <= 1:
-                continue
-            p0 = Vector(points[a % n])
-            p1 = Vector(points[b % n])
-            seg = p1 - p0
-            seg_len2 = seg.length_squared
-            max_dist, max_k = -1.0, a + 1
-            for k in range(a + 1, b):
-                p = Vector(points[k % n])
-                if seg_len2 < 1e-20:
-                    d = (p - p0).length
-                else:
-                    t = max(0.0, min(1.0, (p - p0).dot(seg) / seg_len2))
-                    d = (p - p0.lerp(p1, t)).length
-                if d > max_dist:
-                    max_dist, max_k = d, k
-            if max_dist > 0:
-                scores[max_k % n] = max_dist
-            stack.append((a, max_k))
-            stack.append((max_k, b))
-
-    if cyclic:
-        centroid = Vector((0.0, 0.0, 0.0))
-        for p in points:
-            centroid += Vector(p)
-        centroid /= n
-        i0 = max(range(n), key=lambda i: (Vector(points[i]) - centroid).length_squared)
-        i1 = max(range(n), key=lambda i: (Vector(points[i]) - Vector(points[i0])).length_squared)
-        if i1 < i0:
-            i0, i1 = i1, i0
-        scores[i0] = float('inf')
-        scores[i1] = float('inf')
-        rdp_score(i0, i1)
-        rdp_score(i1, i0 + n)
-    else:
-        scores[0] = float('inf')
-        scores[n - 1] = float('inf')
-        rdp_score(0, n - 1)
-
-    max_finite = max((s for s in scores if s < float('inf')), default=1.0)
-    if max_finite < 1e-12:
-        max_finite = 1.0
-    return [min((max_finite if s >= float('inf') else s) / max_finite, 1.0) for s in scores]
-
-
-def curvature_change_scores(points: list, cyclic: bool, pt_fracs: list) -> tuple:
-    """Rate-of-curvature-change scores and per-point turning angles for every point.
-
-    Returns (sin_angles, dk_norm) where:
-      sin_angles[i] — sin of the turning angle at point i (cross-product magnitude of the two
-                      unit edge vectors meeting at i).  0 = perfectly flat, 1 = 90° corner.
-                      Used as the angle gate in sample_curvature to suppress dκ near sharp corners.
-      dk_norm[i]    — normalised [0,1] dκ/ds score.  Peaks at flat→bevel transition boundaries
-                      even when per-point RDP scores are low.
-    """
-    n = len(points)
-    if n < 3:
-        return [0.0] * n, [0.0] * n
-
-    sin_angles = [0.0] * n
-    kappa      = [0.0] * n
-    for i in range(n):
-        if not cyclic and (i == 0 or i == n - 1):
-            continue
-        im1, ip1 = (i - 1) % n, (i + 1) % n
-        t1 = Vector(points[i]) - Vector(points[im1])
-        t2 = Vector(points[ip1]) - Vector(points[i])
-        l1, l2 = t1.length, t2.length
-        if l1 < 1e-10 or l2 < 1e-10:
-            continue
-        cross_mag      = t1.cross(t2).length / (l1 * l2)   # = sin(turning angle)
-        sin_angles[i]  = cross_mag
-        mean_len       = (l1 + l2) * 0.5
-        kappa[i]       = cross_mag / mean_len if mean_len > 1e-10 else 0.0
-
-    dk = [0.0] * n
-    for i in range(n):
-        if not cyclic and (i == 0 or i == n - 1):
-            continue
-        im1, ip1 = (i - 1) % n, (i + 1) % n
-        ds    = (pt_fracs[ip1] - pt_fracs[im1]) % 1.0 if cyclic else (pt_fracs[ip1] - pt_fracs[im1])
-        dk[i] = abs(kappa[ip1] - kappa[im1]) / ds if ds > 1e-10 else 0.0
-
-    max_dk = max(dk, default=0.0)
-    if max_dk < 1e-12:
-        return sin_angles, [0.0] * n
-    return sin_angles, [d / max_dk for d in dk]
-
-
 def loop_scores_by_vert(vert_set: set, cyclic: bool) -> dict:
     """Map every vert in vert_set to its RDP corner score, scoring each connected loop on its own
     geometry.  vert_set may hold more than one disjoint loop (e.g. the two reference loops on either
@@ -365,7 +123,7 @@ def loop_scores_by_vert(vert_set: set, cyclic: bool) -> dict:
         comp = ordered_ring_verts(remaining, cyclic)
         if not comp:
             break
-        for v, s in zip(comp, rdp_point_scores([Vector(v.co) for v in comp], cyclic)):
+        for v, s in zip(comp, curvature_rdp_scores([Vector(v.co) for v in comp], cyclic)):
             result[v] = s
         remaining.difference_update(comp)
     return result
@@ -571,16 +329,16 @@ def relax_between_pins(N: int, cyclic: bool, base_fracs: list, pin_frac: list, r
 
 
 def proportional_redistribute(
-    cyclic: bool, target_fracs: list, rdp_scores: list,
+    cyclic: bool, target_fracs: list, curvature_rdp_scores: list,
     ref_points: list, ref_scores: list, interpolation_factor: float, curvature_bias: float,
     parent_fracs: list = None, vert_indices: list = None,
 ) -> list:
     """Place each vert by easing it from a spacing position onto its curvature feature.
 
-    target_fracs[i] / rdp_scores[i] describe slot i on the new cross-section.  ref_points[i] /
+    target_fracs[i] / curvature_rdp_scores[i] describe slot i on the new cross-section.  ref_points[i] /
     ref_scores[i] are the position and corner-ness of the vert-that-owns-slot-i's reference (its
     topological neighbour(s) on the parent loop).  Corner identification and the rotation upstream use
-    the FULL rdp_scores, so the assignment is curvature-independent (stable, no threshold to cross).
+    the FULL curvature_rdp_scores, so the assignment is curvature-independent (stable, no threshold to cross).
 
     Two knobs, applied as continuous slides (no on/off thresholds, so dragging either slider never
     snaps):
@@ -610,7 +368,7 @@ def proportional_redistribute(
             return [(i - 1) % N, (i + 1) % N]
         return [j for j in (i - 1, i + 1) if 0 <= j < N]
     def match_cost(i, s):
-        return abs(rdp_scores[s] - ref_scores[i])
+        return abs(curvature_rdp_scores[s] - ref_scores[i])
 
     # --- Identify each feature vert's slot (curvature-independent: full scores, fixed low floor) ---
     # A vert is "well-seated" when its slot's corner-ness already matches its reference's.
@@ -628,7 +386,7 @@ def proportional_redistribute(
             continue
         nbrs = neighbours(i)
         best = min([i] + nbrs, key=lambda s: match_cost(i, s))
-        if best != i and rdp_scores[best] >= floor and match_cost(i, best) + SHIFT_MARGIN < match_cost(i, i):
+        if best != i and curvature_rdp_scores[best] >= floor and match_cost(i, best) + SHIFT_MARGIN < match_cost(i, i):
             desired[i] = best                          # reseat onto the better-matching neighbour slot
         elif good[i] and all(good[j] for j in nbrs):
             desired[i] = i                             # hold its own slot (well-seated, neighbours agree)
@@ -656,7 +414,7 @@ def proportional_redistribute(
     even_free = relax_between_pins(N, cyclic, target_fracs, [None] * N, [1.0] * N)
     parent_free = relax_between_pins(N, cyclic, parent_fracs if parent_fracs else target_fracs,
                                      [None] * N, parent_gaps if parent_fracs else ref_gaps)
-    spacing_pos = [lerp_frac(even_free[i], parent_free[i], w, cyclic) for i in range(N)]
+    spacing_pos = [lerp_path_fac(even_free[i], parent_free[i], w, cyclic) for i in range(N)]
 
     # --- Per-vert curvature slide: each feature eases from its spacing position onto its slot ---
     cb = max(0.0, min(1.0, curvature_bias))
@@ -670,7 +428,7 @@ def proportional_redistribute(
         # Reach full snap partway between activation and 1, so sharp features land by mid-slider.
         denom = ENGAGE_FRACTION * (1.0 - activation)
         blend = max(0.0, min(1.0, (cb - activation) / denom)) if denom > 1e-9 else (1.0 if cb >= activation else 0.0)
-        pin_frac[i] = lerp_frac(spacing_pos[i], target_fracs[pin_slot[i]], blend, cyclic)
+        pin_frac[i] = lerp_path_fac(spacing_pos[i], target_fracs[pin_slot[i]], blend, cyclic)
         engage[i] = round(blend, 2)
 
     # Clamp blended pins to forward-monotonic ring order — a per-vert slide can momentarily reorder two
@@ -696,7 +454,7 @@ def proportional_redistribute(
         print(f'  slot index         = {list(range(N))}')
         if vert_indices is not None:
             print(f'  slot -> vert index = {vert_indices}')
-        print(f'  rdp_scores (slots) = {[round(s, 2) for s in rdp_scores]}')
+        print(f'  curvature_rdp_scores (slots) = {[round(s, 2) for s in curvature_rdp_scores]}')
         print(f'  ref_scores (refs)  = {[round(s, 2) for s in ref_scores]}')
         pin_fracs_dbg = {i: round(pin_frac[i], 3) for i in range(N) if pin_frac[i] is not None}
         print(f'  good={[int(g) for g in good]} distinctive={[int(d) for d in distinctive]}')
@@ -711,7 +469,7 @@ def proportional_redistribute(
                                        pin_frac, parent_gaps if parent_fracs else ref_gaps)
     return [
         pin_frac[i] if pin_frac[i] is not None
-        else lerp_frac(even[i], parent_target[i], w, cyclic)
+        else lerp_path_fac(even[i], parent_target[i], w, cyclic)
         for i in range(N)
     ]
 
@@ -740,106 +498,6 @@ def ordered_ring_verts(nbmvs_set: set, cyclic: bool) -> list:
 
 
 
-
-
-def enforce_min_gap(fracs: list, cyclic: bool, min_gap: float) -> list:
-    """Spread arc-fracs so no two consecutive verts are closer than min_gap, staying as close to the
-    input as possible (least-squares) and preserving order.
-
-    Curvature placement can pile several verts onto one feature (a sharp corner or the flanks of a soft
-    bevel); this caps how tight a cluster can get without otherwise disturbing the distribution.  Uses
-    Pool-Adjacent-Violators on u[i] = pos[i] - i*min_gap, whose non-decreasing projection is exactly
-    the closest min-gap-feasible placement.  Cyclic paths are cut at their largest gap first (the most
-    slack), so the wrap-around seam stays >= min_gap.
-    """
-    n = len(fracs)
-    if n < 2 or min_gap <= 0.0 or n * min_gap >= 1.0:
-        return fracs   # nothing to do, or infeasibly large min_gap — leave untouched
-
-    if cyclic:
-        # Cut at the largest gap, unwrap to a monotonic chain, PAVA, rewrap.  No fixed endpoints, so
-        # the least-squares (closest) solution is valid and the slack seam keeps the wrap >= min_gap.
-        gaps = [(fracs[(i + 1) % n] - fracs[i]) % 1.0 for i in range(n)]
-        cut = max(range(n), key=lambda i: gaps[i])
-        order = [(cut + 1 + k) % n for k in range(n)]
-        pos = [fracs[order[0]]]
-        for k in range(1, n):
-            pos.append(pos[-1] + (fracs[order[k]] - fracs[order[k - 1]]) % 1.0)
-        # PAVA: closest non-decreasing fit to u[i] = pos[i] - i*min_gap  ->  gaps >= min_gap.
-        u = [pos[i] - i * min_gap for i in range(n)]
-        vals, cnts = [], []
-        for x in u:
-            vals.append(x); cnts.append(1)
-            while len(vals) >= 2 and vals[-2] > vals[-1]:
-                x2, c2 = vals.pop(), cnts.pop()
-                x1, c1 = vals.pop(), cnts.pop()
-                c = c1 + c2
-                vals.append((x1 * c1 + x2 * c2) / c); cnts.append(c)
-        u_iso = []
-        for v, c in zip(vals, cnts):
-            u_iso.extend([v] * c)
-        result = list(fracs)
-        for k, idx in enumerate(order):
-            result[idx] = (u_iso[k] + k * min_gap) % 1.0
-        return result
-
-    # Open strip: endpoints are fixed path ends, so spread the interior with a forward then backward
-    # min-gap clamp anchored at fracs[0]/fracs[-1] (a free least-squares fit could push past an end).
-    result = list(fracs)
-    lo, hi, prev = result[0], result[-1], result[0] - min_gap
-    for i in range(n):
-        result[i] = max(result[i], prev + min_gap); prev = result[i]
-    nxt = hi + min_gap
-    for i in range(n - 1, -1, -1):
-        result[i] = min(result[i], nxt - min_gap); nxt = result[i]
-    return result
-
-
-def sample_even(points: list, cyclic: bool, vertex_count: int, path_length: float) -> list | None:
-    """Uniform arc-length sampling: iterative bisection to place exactly vertex_count points.
-
-    Returns a list of Vectors or None on failure.
-    """
-    segment_count = vertex_count if cyclic else vertex_count - 1
-    if segment_count <= 0 or path_length < 1e-10:
-        return None
-    true_segment_length = path_length / segment_count
-    factor_min, factor_max = 0.8, 1.2
-    best_npts = None
-    for _ in range(10):
-        factor = (factor_min + factor_max) / 2
-        segment_length = true_segment_length * factor
-        dist, npts = 0.0, []
-        for pt0, pt1 in iter_pairs(points, cyclic):
-            vec01 = pt1 - pt0
-            len01 = vec01.length
-            if dist > len01:
-                dist -= len01
-                continue
-            dir01 = vec01 / len01
-            pt = pt0
-            while dist <= len01:
-                pt = pt + dir01 * dist
-                npts.append(pt)
-                len01 -= dist
-                dist = segment_length
-            dist -= len01
-        if not cyclic:
-            npts.append(points[-1])
-        if len(npts) == vertex_count:
-            best_npts = npts
-            final_dist = (npts[0] - npts[-1]).length if cyclic else (npts[-1] - npts[-2]).length
-            if final_dist < true_segment_length:
-                factor_min, factor_max = factor_min, factor
-            else:
-                factor_min, factor_max = factor, factor_max
-        elif len(npts) < vertex_count:
-            factor_min, factor_max = factor_min, factor
-        else:
-            factor_min, factor_max = factor, factor_max
-            if not best_npts or len(npts) <= len(best_npts):
-                best_npts = npts
-    return best_npts
 
 
 def sample_curvature(points: list, cyclic: bool, vertex_count: int, path_length: float, curvature_bias: float = 0, out_scores: list | None = None) -> list:
@@ -914,7 +572,7 @@ def sample_curvature(points: list, cyclic: bool, vertex_count: int, path_length:
     #   2. Compute ideal uniform fracs → even_fracs (exactly what sample_even produces)
     #   3. Align rdp_fracs to even_fracs by finding the best cyclic rotation (cyclic only)
     #   4. Lerp each pair by curvature_bias in arc-length fraction space
-    #   5. fracs_to_positions → interpolated 3D positions on the polyline
+    #   5. path_facs_to_positions → interpolated 3D positions on the polyline
     #
     # curvature_bias=0 → identical to Even mode (exact arc-length uniform spacing)
     # curvature_bias=1 → RDP curvature placement selected with a spreading tiebreaker
@@ -927,7 +585,7 @@ def sample_curvature(points: list, cyclic: bool, vertex_count: int, path_length:
     # it dominates and produces even selection order.
     TIEBREAK_FRAC = 0.1
 
-    pt_fracs = arc_fracs(points, cyclic)
+    pt_fracs = arc_path_facs(points, cyclic)
 
     # --- RDP greedy selection with spreading tiebreaker ---
     if cyclic:
@@ -1002,7 +660,7 @@ def sample_curvature(points: list, cyclic: bool, vertex_count: int, path_length:
             # Full scores even at bias 0, so the rotation/corner-ID stay stable across the 0 boundary
             # (the per-vert slide keeps every feature at its parent-matched spot at bias 0 regardless).
             out_scores.extend(rdp_norm_scores)
-        return fracs_to_positions(points, even_fracs, cyclic)
+        return path_facs_to_positions(points, even_fracs, cyclic)
 
     # --- Pin / free classification ---
     # Verts whose normalised RDP score >= pin_threshold are "pinned" — they keep their
@@ -1031,7 +689,7 @@ def sample_curvature(points: list, cyclic: bool, vertex_count: int, path_length:
     if not pinned_indices:
         # Fallback: no pins at all → pure even
         even_fracs = [k / N for k in range(N)] if cyclic else ([k / (N - 1) for k in range(N)] if N > 1 else [0.0])
-        return fracs_to_positions(points, even_fracs, cyclic)
+        return path_facs_to_positions(points, even_fracs, cyclic)
 
     # Redistribute free verts evenly within each gap between consecutive pinned verts.
     if cyclic:
@@ -1114,8 +772,8 @@ def sample_curvature(points: list, cyclic: bool, vertex_count: int, path_length:
 
     # Cap clustering: no edge shorter than path_length / vertex_count / MIN_EDGE_LENGTH_DIVISOR.
     # (Even spacing already exceeds this, so it only ever loosens curvature clusters.)
-    final_fracs = enforce_min_gap(final_fracs, cyclic, 1.0 / (vertex_count * MIN_EDGE_LENGTH_DIVISOR))
-    return fracs_to_positions(points, final_fracs, cyclic)
+    final_fracs = enforce_path_min_gap(final_fracs, cyclic, 1.0 / (vertex_count * MIN_EDGE_LENGTH_DIVISOR))
+    return path_facs_to_positions(points, final_fracs, cyclic)
 
 
 
@@ -1473,15 +1131,103 @@ class Contours_Logic:
         The lower the value the shallower the angle that can be sticky. Setting here so it can be tuned once for both functions '''
         return map_range(self.curvature_bias, 0, 1, 0.75, 0.1)
 
+    def _redistribute_ring(self, context: Context, nbmvs: Sequence[BMVert]):
+        if not (self.points and self.path_length and (self.curvature_bias > 0 or self.interpolation_factor > 0)):
+            return
+        point_path_facs = arc_path_facs(self.points, self.cyclic)
+        ordered_nbmvs = ordered_ring_verts(set(nbmvs), self.cyclic)
+        if not ordered_nbmvs:
+            return
+        n = len(ordered_nbmvs)
+        mx, my, mz = has_mirror_x(context), has_mirror_y(context), has_mirror_z(context)
+        sym_verts = {
+            bmv for bmv in ordered_nbmvs
+            if (mx and abs(bmv.co.x) < SYM_THRESHOLD)
+            or (my and abs(bmv.co.y) < SYM_THRESHOLD)
+            or (mz and abs(bmv.co.z) < SYM_THRESHOLD)
+        }
+        # Arc-length factors of ring verts after the bridge snap — baseline each vert starts from.
+        current_path_facs = [
+            project_to_path_fac(Vector(v.co), self.points, self.cyclic, point_path_facs)
+            for v in ordered_nbmvs
+        ]
+        # Traversal direction for cyclic rings: fwd_total ≈ 1.0 = forward, ≈ n-1 = backward.
+        if self.cyclic:
+            fwd_total = sum((current_path_facs[(i+1) % n] - current_path_facs[i]) % 1.0 for i in range(n))
+            step = (1.0 / n) if fwd_total <= n / 2 else (-1.0 / n)
+
+        # --- Curvature: pin feature verts to path corners ---
+        pin_path_fac = [None] * n
+        if self.curvature_bias > 0:
+            path_scores = curvature_rdp_scores(self.points, self.cyclic)
+            threshold = CORNER_FLOOR_FLAT - self.curvature_bias * (CORNER_FLOOR_FLAT - CORNER_FLOOR_SHARP)
+            corner_list = [
+                (point_path_facs[j], path_scores[j])
+                for j in range(len(self.points)) if path_scores[j] >= threshold
+            ]
+            half_slot = 0.5 / n
+            used_verts = set()
+            for c_path_fac, cscore in sorted(corner_list, key=lambda x: -x[1]):  # sharpest first
+                best_i, best_d = None, float('inf')
+                for i, vf in enumerate(current_path_facs):
+                    if i in used_verts:
+                        continue
+                    d = min((vf - c_path_fac) % 1.0, (c_path_fac - vf) % 1.0) if self.cyclic else abs(vf - c_path_fac)
+                    if d < half_slot and d < best_d:
+                        best_d, best_i = d, i
+                if best_i is not None:
+                    pin_path_fac[best_i] = lerp_path_fac(current_path_facs[best_i], c_path_fac, self.curvature_bias, self.cyclic)
+                    used_verts.add(best_i)
+
+        post_curvature = [pin_path_fac[i] if pin_path_fac[i] is not None else current_path_facs[i] for i in range(n)]
+
+        # --- Space Evenly: distribute free verts evenly between the pins ---
+        # Cyclic: compute span-by-span with direction-aware step; relax_between_pins always
+        # distributes forward and would flip backward rings, so we bypass it here.
+        # Non-cyclic: relax_between_pins handles signed spans correctly, so use it directly.
+        w = max(0.0, min(1.0, self.interpolation_factor))
+        if w > 0:
+            if self.cyclic:
+                pins_list = sorted([(i, pin_path_fac[i]) for i in range(n) if pin_path_fac[i] is not None])
+                even_path_facs = [None] * n
+                if not pins_list:
+                    even_path_facs = [(current_path_facs[0] + i * step) % 1.0 for i in range(n)]
+                else:
+                    P_ev = len(pins_list)
+                    for s in range(P_ev):
+                        ai, af = pins_list[s]
+                        bi, bf = pins_list[(s + 1) % P_ev]
+                        free_verts = []
+                        k = (ai + 1) % n
+                        while k != bi:
+                            free_verts.append(k)
+                            k = (k + 1) % n
+                        nf = len(free_verts)
+                        if not nf:
+                            continue
+                        span = (bf - af) % 1.0 if step > 0 else (af - bf) % 1.0
+                        for j, idx in enumerate(free_verts):
+                            t = (j + 1) / (nf + 1)
+                            even_path_facs[idx] = (af + span * t * (1 if step > 0 else -1)) % 1.0
+            else:
+                even_path_facs = relax_between_pins(n, False, list(post_curvature), pin_path_fac, [1.0] * n)
+            final_path_facs = [
+                pin_path_fac[i] if pin_path_fac[i] is not None
+                else lerp_path_fac(post_curvature[i], even_path_facs[i] if even_path_facs[i] is not None else post_curvature[i], w, self.cyclic)
+                for i in range(n)
+            ]
+        else:
+            final_path_facs = post_curvature
+
+        target_pts = path_facs_to_positions(self.points, final_path_facs, self.cyclic)
+        snap_redistribute(
+            context, ordered_nbmvs, target_pts[:n],
+            self.matrix_world, self.matrix_world_inv, sym_verts, mx, my, mz,
+        )
+
     def insert_edge_ring(self, context: Context):
         if self.edge_ring is None:
             return
-
-        # Precompute path fracs — used by Interpolate mode and by Curvature when
-        # interpolation_factor < 1 to blend toward neighbor-matched positions.
-        pt_fracs = None
-        if self.points:
-            pt_fracs = arc_fracs(self.points, self.cyclic)
 
         # USE SELECTION TO FIGURE OUT WHICH VERTS ARE NEW!
         # select only the edges on either side of cut
@@ -1499,99 +1245,7 @@ class Contours_Logic:
 
         self.finish_edgering_bridge(context, nbmelems, nbmvs)
         if DEBUG_SKIP_REDISTRIBUTE: return
-
-        # Redistribute: curvature first (pins feature verts to path corners), then Space Evenly
-        # distributes free verts between the pins.  At both=0 nothing moves.
-        if self.points and self.path_length and (self.curvature_bias > 0 or self.interpolation_factor > 0):
-            nbmvs_set = set(nbmvs)
-            ordered_nbmvs = ordered_ring_verts(nbmvs_set, self.cyclic)
-            if ordered_nbmvs:
-                n = len(ordered_nbmvs)
-                mx, my, mz = has_mirror_x(context), has_mirror_y(context), has_mirror_z(context)
-                sym_verts = {
-                    bmv for bmv in ordered_nbmvs
-                    if (mx and abs(bmv.co.x) < 1e-4)
-                    or (my and abs(bmv.co.y) < 1e-4)
-                    or (mz and abs(bmv.co.z) < 1e-4)
-                }
-                # Arc-fracs of ring verts after the bridge snap — the baseline each vert starts from.
-                current_fracs = [
-                    project_co_to_frac(Vector(v.co), self.points, self.cyclic, pt_fracs)
-                    for v in ordered_nbmvs
-                ]
-                # Traversal direction for cyclic rings: fwd_total ≈ 1.0 = forward, ≈ n-1 = backward.
-                if self.cyclic:
-                    fwd_total = sum((current_fracs[(i+1) % n] - current_fracs[i]) % 1.0 for i in range(n))
-                    step = (1.0 / n) if fwd_total <= n / 2 else (-1.0 / n)
-
-                # --- Curvature: pin feature verts to path corners ---
-                pin_frac = [None] * n
-                if self.curvature_bias > 0:
-                    path_scores = rdp_point_scores(self.points, self.cyclic)
-                    threshold = CORNER_FLOOR_FLAT - self.curvature_bias * (CORNER_FLOOR_FLAT - CORNER_FLOOR_SHARP)
-                    corner_list = [
-                        (pt_fracs[j], path_scores[j])
-                        for j in range(len(self.points)) if path_scores[j] >= threshold
-                    ]
-                    half_slot = 0.5 / n
-                    used_verts = set()
-                    for cfrac, cscore in sorted(corner_list, key=lambda x: -x[1]):  # sharpest first
-                        best_i, best_d = None, float('inf')
-                        for i, vf in enumerate(current_fracs):
-                            if i in used_verts:
-                                continue
-                            d = min((vf - cfrac) % 1.0, (cfrac - vf) % 1.0) if self.cyclic else abs(vf - cfrac)
-                            if d < half_slot and d < best_d:
-                                best_d, best_i = d, i
-                        if best_i is not None:
-                            pin_frac[best_i] = lerp_frac(current_fracs[best_i], cfrac, self.curvature_bias, self.cyclic)
-                            used_verts.add(best_i)
-
-                post_curvature = [pin_frac[i] if pin_frac[i] is not None else current_fracs[i] for i in range(n)]
-
-                # --- Space Evenly: distribute free verts evenly between the pins ---
-                # Cyclic: compute span-by-span with direction-aware step; relax_between_pins always
-                # distributes forward and would flip backward rings, so we bypass it here.
-                # Non-cyclic: relax_between_pins handles signed spans correctly, so use it directly.
-                w = max(0.0, min(1.0, self.interpolation_factor))
-                if w > 0:
-                    if self.cyclic:
-                        pins_list = sorted([(i, pin_frac[i]) for i in range(n) if pin_frac[i] is not None])
-                        even_fracs = [None] * n
-                        if not pins_list:
-                            even_fracs = [(current_fracs[0] + i * step) % 1.0 for i in range(n)]
-                        else:
-                            P_ev = len(pins_list)
-                            for s in range(P_ev):
-                                ai, af = pins_list[s]
-                                bi, bf = pins_list[(s + 1) % P_ev]
-                                free_verts = []
-                                k = (ai + 1) % n
-                                while k != bi:
-                                    free_verts.append(k)
-                                    k = (k + 1) % n
-                                nf = len(free_verts)
-                                if not nf:
-                                    continue
-                                span = (bf - af) % 1.0 if step > 0 else (af - bf) % 1.0
-                                for j, idx in enumerate(free_verts):
-                                    t = (j + 1) / (nf + 1)
-                                    even_fracs[idx] = (af + span * t * (1 if step > 0 else -1)) % 1.0
-                    else:
-                        even_fracs = relax_between_pins(n, False, list(post_curvature), pin_frac, [1.0] * n)
-                    final_fracs = [
-                        pin_frac[i] if pin_frac[i] is not None
-                        else lerp_frac(post_curvature[i], even_fracs[i] if even_fracs[i] is not None else post_curvature[i], w, self.cyclic)
-                        for i in range(n)
-                    ]
-                else:
-                    final_fracs = post_curvature
-
-                target_pts = fracs_to_positions(self.points, final_fracs, self.cyclic)
-                snap_redistribute(
-                    context, ordered_nbmvs, target_pts[:n],
-                    self.matrix_world, self.matrix_world_inv, sym_verts, mx, my, mz,
-                )
+        self._redistribute_ring(context, nbmvs)
 
         self.action = 'Loop Cut' if self.cyclic else 'Strip Cut'
         self.show_twist = self.cyclic
@@ -1599,106 +1253,12 @@ class Contours_Logic:
     def insert_bridge(self, context:Context):
         orig_verts = {bv for bme in self.sel_path for bv in bme.verts}
 
-        if self.points:
-            pt_fracs = arc_fracs(self.points, self.cyclic)
-
         nbmelems = bmesh.ops.extrude_edge_only(self.bm, edges=self.sel_path)['geom']
         nbmvs = [bmelem for bmelem in nbmelems if type(bmelem) is BMVert]
 
         self.finish_edgering_bridge(context, nbmelems, nbmvs)
         if DEBUG_SKIP_REDISTRIBUTE: return
-
-        # Redistribute: curvature first (pins feature verts to path corners), then Space Evenly
-        # distributes free verts between the pins.  At both=0 nothing moves.
-        if self.points and self.path_length and (self.curvature_bias > 0 or self.interpolation_factor > 0):
-            nbmvs_set = set(nbmvs)
-            ordered_nbmvs = ordered_ring_verts(nbmvs_set, self.cyclic)
-            if ordered_nbmvs:
-                n = len(ordered_nbmvs)
-                mx, my, mz = has_mirror_x(context), has_mirror_y(context), has_mirror_z(context)
-                sym_verts = {
-                    bmv for bmv in ordered_nbmvs
-                    if (mx and abs(bmv.co.x) < 1e-4)
-                    or (my and abs(bmv.co.y) < 1e-4)
-                    or (mz and abs(bmv.co.z) < 1e-4)
-                }
-                current_fracs = [
-                    project_co_to_frac(Vector(v.co), self.points, self.cyclic, pt_fracs)
-                    for v in ordered_nbmvs
-                ]
-                # Traversal direction for cyclic rings: fwd_total ≈ 1.0 = forward, ≈ n-1 = backward.
-                if self.cyclic:
-                    fwd_total = sum((current_fracs[(i+1) % n] - current_fracs[i]) % 1.0 for i in range(n))
-                    step = (1.0 / n) if fwd_total <= n / 2 else (-1.0 / n)
-
-                # --- Curvature: pin feature verts to path corners ---
-                pin_frac = [None] * n
-                if self.curvature_bias > 0:
-                    path_scores = rdp_point_scores(self.points, self.cyclic)
-                    threshold = CORNER_FLOOR_FLAT - self.curvature_bias * (CORNER_FLOOR_FLAT - CORNER_FLOOR_SHARP)
-                    corner_list = [
-                        (pt_fracs[j], path_scores[j])
-                        for j in range(len(self.points)) if path_scores[j] >= threshold
-                    ]
-                    half_slot = 0.5 / n
-                    used_verts = set()
-                    for cfrac, cscore in sorted(corner_list, key=lambda x: -x[1]):  # sharpest first
-                        best_i, best_d = None, float('inf')
-                        for i, vf in enumerate(current_fracs):
-                            if i in used_verts:
-                                continue
-                            d = min((vf - cfrac) % 1.0, (cfrac - vf) % 1.0) if self.cyclic else abs(vf - cfrac)
-                            if d < half_slot and d < best_d:
-                                best_d, best_i = d, i
-                        if best_i is not None:
-                            pin_frac[best_i] = lerp_frac(current_fracs[best_i], cfrac, self.curvature_bias, self.cyclic)
-                            used_verts.add(best_i)
-
-                post_curvature = [pin_frac[i] if pin_frac[i] is not None else current_fracs[i] for i in range(n)]
-
-                # --- Space Evenly: distribute free verts evenly between the pins ---
-                # Cyclic: compute span-by-span with direction-aware step; relax_between_pins always
-                # distributes forward and would flip backward rings, so we bypass it here.
-                # Non-cyclic: relax_between_pins handles signed spans correctly, so use it directly.
-                w = max(0.0, min(1.0, self.interpolation_factor))
-                if w > 0:
-                    if self.cyclic:
-                        pins_list = sorted([(i, pin_frac[i]) for i in range(n) if pin_frac[i] is not None])
-                        even_fracs = [None] * n
-                        if not pins_list:
-                            even_fracs = [(current_fracs[0] + i * step) % 1.0 for i in range(n)]
-                        else:
-                            P_ev = len(pins_list)
-                            for s in range(P_ev):
-                                ai, af = pins_list[s]
-                                bi, bf = pins_list[(s + 1) % P_ev]
-                                free_verts = []
-                                k = (ai + 1) % n
-                                while k != bi:
-                                    free_verts.append(k)
-                                    k = (k + 1) % n
-                                nf = len(free_verts)
-                                if not nf:
-                                    continue
-                                span = (bf - af) % 1.0 if step > 0 else (af - bf) % 1.0
-                                for j, idx in enumerate(free_verts):
-                                    t = (j + 1) / (nf + 1)
-                                    even_fracs[idx] = (af + span * t * (1 if step > 0 else -1)) % 1.0
-                    else:
-                        even_fracs = relax_between_pins(n, False, list(post_curvature), pin_frac, [1.0] * n)
-                    final_fracs = [
-                        pin_frac[i] if pin_frac[i] is not None
-                        else lerp_frac(post_curvature[i], even_fracs[i] if even_fracs[i] is not None else post_curvature[i], w, self.cyclic)
-                        for i in range(n)
-                    ]
-                else:
-                    final_fracs = post_curvature
-
-                target_pts = fracs_to_positions(self.points, final_fracs, self.cyclic)
-                snap_redistribute(
-                    context, ordered_nbmvs, target_pts[:n],
-                    self.matrix_world, self.matrix_world_inv, sym_verts, mx, my, mz,
-                )
+        self._redistribute_ring(context, nbmvs)
 
         if self.loop_count > 1:
             # Add more loop cuts to the bridge
@@ -1774,13 +1334,12 @@ class Contours_Logic:
 
         # identify symmetry plane verts before any transformation so we can re-pin them after
         mx, my, mz = has_mirror_x(context), has_mirror_y(context), has_mirror_z(context)
-        sym_verts = set()
-        if mx or my or mz:
-            threshold = 1e-4
-            for bmv in nbmvs:
-                if mx and abs(bmv.co.x) < threshold: sym_verts.add(bmv)
-                if my and abs(bmv.co.y) < threshold: sym_verts.add(bmv)
-                if mz and abs(bmv.co.z) < threshold: sym_verts.add(bmv)
+        sym_verts = {
+            bmv for bmv in nbmvs
+            if (mx and abs(bmv.co.x) < SYM_THRESHOLD)
+            or (my and abs(bmv.co.y) < SYM_THRESHOLD)
+            or (mz and abs(bmv.co.z) < SYM_THRESHOLD)
+        }
 
         center_new = Vector((0.0, 0.0, 0.0))
         for bmv in nbmvs:

@@ -32,6 +32,7 @@ import random
 from collections.abc import Sequence
 
 from ...addon_common.common.maths import clamp, Point, Vector, Normal, Plane
+from ...addon_common.common.utils import iter_pairs
 
 def local_to_world(matrix_world: Matrix, co: Vector) -> Vector:
     return point_to_bvec3((matrix_world @ Vector((*co, 1.0))).xyz)
@@ -173,21 +174,6 @@ def pt_z0(pt0, pt1):
     return pt
 
 
-def get_co_on_arc(frac, order, cumul, total, initial_coords, mw):
-    ''' World space point at fractional perimeter position frac. Wraps at 1.0. '''
-    target = (frac % 1.0) * total
-    n      = len(order)
-    for i in range(n):
-        nxt     = (i + 1) % n
-        seg_end = cumul[nxt] if nxt != 0 else total
-        if target <= seg_end + 1e-12 or i == n - 1:
-            seg_len = seg_end - cumul[i]
-            t = max(0.0, min(1.0, (target - cumul[i]) / seg_len)) if seg_len > 1e-12 else 0.0
-            a = mw @ initial_coords[order[i]]
-            b = mw @ initial_coords[order[nxt]]
-            return a + t * (b - a)
-
-
 def proportional_edit(falloff_type, dist):
     # see calculatePropRatio() in blender/source/blender/editors/transform/transform_generics.cc
     match falloff_type:
@@ -216,6 +202,12 @@ def perpendicular_direction2(vec2 : Vector, vec2_along : Vector) -> Vector:
         vec2_perp.negate()
     return vec2_perp
 
+
+###############################################################################
+# MARK: Planes
+###############################################################################
+
+
 def get_closest_axis(normal: Vector, axes: list[Vector]) -> Vector:
     '''Return the axis from `axes` (and its negatives) with the smallest angle to `normal`.'''
     best, best_dot = axes[0], -2.0
@@ -227,7 +219,7 @@ def get_closest_axis(normal: Vector, axes: list[Vector]) -> Vector:
     return best
 
 def snap_plane_x_to_direction(plane: Plane, hit: dict, orientation: str, context) -> Plane:
-    ''' Return a new plane with the same normal but with its local X axis snapped to `orientation`. '''
+    '''Return a new plane with the same normal but with its local X axis snapped to `orientation`. '''
     if orientation == 'stroke': return plane
 
     origin  = plane.o
@@ -292,3 +284,329 @@ def snap_plane_to_direction(plane: Plane, hit: dict, orientation: str) -> Plane:
         return plane
 
     return Plane(origin, new_normal)
+
+
+###############################################################################
+# MARK: Paths
+###############################################################################
+
+
+def get_co_on_arc(fac, order, cumul, total, initial_coords, mw):
+    '''World space point at fractional position along a path. Wraps at 1.0.'''
+    target = (fac % 1.0) * total
+    n = len(order)
+    for i in range(n):
+        nxt = (i + 1) % n
+        seg_end = cumul[nxt] if nxt != 0 else total
+        if target <= seg_end + 1e-12 or i == n - 1:
+            seg_len = seg_end - cumul[i]
+            t = max(0.0, min(1.0, (target - cumul[i]) / seg_len)) if seg_len > 1e-12 else 0.0
+            a = mw @ initial_coords[order[i]]
+            b = mw @ initial_coords[order[nxt]]
+            return a + t * (b - a)
+
+
+def arc_path_facs(points: list, cyclic: bool) -> list:
+    '''Path factor (0-1) for each point along a polyline arc.
+    For cyclic paths the closing segment is included, so path_facs[-1] < 1.0.'''
+    n = len(points)
+    if n == 0: return []
+    n_segs = n if cyclic else n - 1
+    seg_lens = [(points[(i + 1) % n] - points[i]).length for i in range(n_segs)]
+    total = sum(seg_lens)
+    if total < 1e-10:
+        return [0.0] * n
+    cumul = [0.0]
+    for sl in seg_lens:
+        cumul.append(cumul[-1] + sl / total)
+    return cumul[:n]
+
+
+def path_facs_to_positions(points: list, path_facs: list, cyclic: bool) -> list:
+    '''Return 3D positions on the polyline path at the given arc-length factors.'''
+    n = len(points)
+    if n == 0:
+        return []
+    n_segs = n if cyclic else n - 1
+    seg_lens = [(points[(i + 1) % n] - points[i]).length for i in range(n_segs)]
+    total = sum(seg_lens)
+    if total < 1e-10:
+        return [Vector(points[0]) for _ in path_facs]
+    cumul_seg = [0.0]
+    for sl in seg_lens:
+        cumul_seg.append(cumul_seg[-1] + sl / total)
+    result = []
+    for path_fac in path_facs:
+        path_fac = max(0.0, min(1.0, path_fac))
+        seg_idx = n_segs - 1
+        for i in range(n_segs):
+            if cumul_seg[i + 1] >= path_fac - 1e-10:
+                seg_idx = i
+                break
+        f0, f1 = cumul_seg[seg_idx], cumul_seg[seg_idx + 1]
+        p0 = Vector(points[seg_idx % n])
+        p1 = Vector(points[(seg_idx + 1) % n])
+        if f1 - f0 < 1e-10:
+            result.append(p0)
+        else:
+            result.append(p0.lerp(p1, max(0.0, min(1.0, (path_fac - f0) / (f1 - f0)))))
+    return result
+
+
+def project_to_path_fac(co, points: list, cyclic: bool, point_path_facs: list) -> float:
+    '''Arc-length factor of the nearest point on the polyline to `co`.
+    Requires precomputed point_path_facs from arc_path_facs().'''
+    n = len(points)
+    n_segs = n if cyclic else n - 1
+    best_path_fac = 0.0
+    best_dist2 = float('inf')
+    co_v = Vector(co)
+    for i in range(n_segs):
+        p0 = Vector(points[i])
+        p1 = Vector(points[(i + 1) % n])
+        seg = p1 - p0
+        seg_len2 = seg.length_squared
+        if seg_len2 < 1e-20:
+            continue
+        t = max(0.0, min(1.0, (co_v - p0).dot(seg) / seg_len2))
+        d2 = (co_v - p0.lerp(p1, t)).length_squared
+        if d2 < best_dist2:
+            best_dist2 = d2
+            f1 = point_path_facs[i + 1] if i + 1 < n else 1.0
+            best_path_fac = point_path_facs[i] + t * (f1 - point_path_facs[i])
+    return best_path_fac
+
+
+def project_along_axis_to_path_fac(co, direction, plane_fit, points: list, cyclic: bool, point_path_facs: list) -> float:
+    '''Arc-length factor on `points` of `co` projected along `direction` onto the cut plane.'''
+    # Projecting along the inter-loop axis rather than the cut-plane normal makes the connecting rung from `co`'s parent run parallel to that axis.
+    # Falls back to a normal projection if `direction` lies in the plane.
+    c = Vector(co)
+    n = Vector(plane_fit.n)
+    d = Vector(direction)
+    denom = d.dot(n)
+    if abs(denom) < 1e-9:
+        on_plane = c - plane_fit.signed_distance_to(c) * n
+    else:
+        on_plane = c - (plane_fit.signed_distance_to(c) / denom) * d
+    return project_to_path_fac(on_plane, points, cyclic, point_path_facs)
+
+
+def score_at_path_fac(path_fac: float, path_facs: list, scores: list, cyclic: bool) -> float:
+    '''Linearly interpolate a score at a given arc-length factor. path_facs and scores must be parallel and in arc-length order.'''
+    n = len(path_facs)
+    if n == 0:
+        return 0.0
+    if n == 1:
+        return scores[0]
+    if cyclic:
+        for i in range(n):
+            f0 = path_facs[i]
+            f1 = path_facs[(i + 1) % n]
+            gap = (f1 - f0) % 1.0
+            if gap < 1e-10:
+                continue
+            d = (path_fac - f0) % 1.0
+            if d <= gap:
+                t = d / gap
+                return scores[i] + t * (scores[(i + 1) % n] - scores[i])
+    else:
+        if path_fac <= path_facs[0]:  return scores[0]
+        if path_fac >= path_facs[-1]: return scores[-1]
+        for i in range(n - 1):
+            if path_facs[i] <= path_fac <= path_facs[i + 1]:
+                gap = path_facs[i + 1] - path_facs[i]
+                t = (path_fac - path_facs[i]) / gap if gap > 1e-10 else 0.0
+                return scores[i] + t * (scores[i + 1] - scores[i])
+    return scores[-1]
+
+
+def lerp_path_fac(a: float, b: float, t: float, cyclic: bool) -> float:
+    '''Interpolate between two arc-length factors, taking the short way around for cyclic paths.'''
+    if cyclic:
+        d = b - a
+        if d >  0.5: d -= 1.0
+        elif d < -0.5: d += 1.0
+        return (a + t * d) % 1.0
+    return a + t * (b - a)
+
+
+def curvature_rdp_scores(points: list, cyclic: bool) -> list:
+    '''Normalised Ramer-Douglas-Peucker corner score for each point. 1 = sharp, 0 = flat.'''
+    n = len(points)
+    if n < 3:
+        return [0.0] * n
+    scores = [0.0] * n
+
+    def rdp_score(i0: int, i1: int) -> None:
+        stack = [(i0, i1)]
+        while stack:
+            a, b = stack.pop()
+            if b - a <= 1:
+                continue
+            p0 = Vector(points[a % n])
+            p1 = Vector(points[b % n])
+            seg = p1 - p0
+            seg_len2 = seg.length_squared
+            max_dist, max_k = -1.0, a + 1
+            for k in range(a + 1, b):
+                p = Vector(points[k % n])
+                if seg_len2 < 1e-20:
+                    d = (p - p0).length
+                else:
+                    t = max(0.0, min(1.0, (p - p0).dot(seg) / seg_len2))
+                    d = (p - p0.lerp(p1, t)).length
+                if d > max_dist:
+                    max_dist, max_k = d, k
+            if max_dist > 0:
+                scores[max_k % n] = max_dist
+            stack.append((a, max_k))
+            stack.append((max_k, b))
+
+    if cyclic:
+        centroid = Vector((0.0, 0.0, 0.0))
+        for p in points:
+            centroid += Vector(p)
+        centroid /= n
+        i0 = max(range(n), key=lambda i: (Vector(points[i]) - centroid).length_squared)
+        i1 = max(range(n), key=lambda i: (Vector(points[i]) - Vector(points[i0])).length_squared)
+        if i1 < i0:
+            i0, i1 = i1, i0
+        scores[i0] = float('inf')
+        scores[i1] = float('inf')
+        rdp_score(i0, i1)
+        rdp_score(i1, i0 + n)
+    else:
+        scores[0] = float('inf')
+        scores[n - 1] = float('inf')
+        rdp_score(0, n - 1)
+
+    max_finite = max((s for s in scores if s < float('inf')), default=1.0)
+    if max_finite < 1e-12:
+        max_finite = 1.0
+    return [min((max_finite if s >= float('inf') else s) / max_finite, 1.0) for s in scores]
+
+
+def curvature_change_scores(points: list, cyclic: bool, point_path_facs: list) -> tuple:
+    '''Turning angle magnitudes and rate of curvature change scores for each point. Returns (sin_angles, dk_norm) where:
+      sin_angles[i] — sin of the turning angle at point i (0 = flat, 1 = 90°).
+      dk_norm[i]    — normalised [0,1] dκ/ds score; peaks at flat to bevel transitions.
+    '''
+    n = len(points)
+    if n < 3:
+        return [0.0] * n, [0.0] * n
+
+    sin_angles = [0.0] * n
+    kappa      = [0.0] * n
+    for i in range(n):
+        if not cyclic and (i == 0 or i == n - 1):
+            continue
+        im1, ip1 = (i - 1) % n, (i + 1) % n
+        t1 = Vector(points[i]) - Vector(points[im1])
+        t2 = Vector(points[ip1]) - Vector(points[i])
+        l1, l2 = t1.length, t2.length
+        if l1 < 1e-10 or l2 < 1e-10:
+            continue
+        cross_mag      = t1.cross(t2).length / (l1 * l2)
+        sin_angles[i]  = cross_mag
+        mean_len       = (l1 + l2) * 0.5
+        kappa[i]       = cross_mag / mean_len if mean_len > 1e-10 else 0.0
+
+    dk = [0.0] * n
+    for i in range(n):
+        if not cyclic and (i == 0 or i == n - 1):
+            continue
+        im1, ip1 = (i - 1) % n, (i + 1) % n
+        ds    = (point_path_facs[ip1] - point_path_facs[im1]) % 1.0 if cyclic else (point_path_facs[ip1] - point_path_facs[im1])
+        dk[i] = abs(kappa[ip1] - kappa[im1]) / ds if ds > 1e-10 else 0.0
+
+    max_dk = max(dk, default=0.0)
+    if max_dk < 1e-12:
+        return sin_angles, [0.0] * n
+    return sin_angles, [d / max_dk for d in dk]
+
+
+def enforce_path_min_gap(path_facs: list, cyclic: bool, min_gap: float) -> list:
+    '''Spread arc-length factors so no two consecutive values are closer than min_gap, staying as close to the input as possible.
+    Cyclic paths are cut at their largest gap first so the wrap-around seam stays >= min_gap.'''
+    n = len(path_facs)
+    if n < 2 or min_gap <= 0.0 or n * min_gap >= 1.0:
+        return path_facs
+
+    if cyclic:
+        gaps = [(path_facs[(i + 1) % n] - path_facs[i]) % 1.0 for i in range(n)]
+        cut = max(range(n), key=lambda i: gaps[i])
+        order = [(cut + 1 + k) % n for k in range(n)]
+        pos = [path_facs[order[0]]]
+        for k in range(1, n):
+            pos.append(pos[-1] + (path_facs[order[k]] - path_facs[order[k - 1]]) % 1.0)
+        u = [pos[i] - i * min_gap for i in range(n)]
+        vals, cnts = [], []
+        for x in u:
+            vals.append(x); cnts.append(1)
+            while len(vals) >= 2 and vals[-2] > vals[-1]:
+                x2, c2 = vals.pop(), cnts.pop()
+                x1, c1 = vals.pop(), cnts.pop()
+                c = c1 + c2
+                vals.append((x1 * c1 + x2 * c2) / c); cnts.append(c)
+        u_iso = []
+        for v, c in zip(vals, cnts):
+            u_iso.extend([v] * c)
+        result = list(path_facs)
+        for k, idx in enumerate(order):
+            result[idx] = (u_iso[k] + k * min_gap) % 1.0
+        return result
+
+    result = list(path_facs)
+    lo, hi, prev = result[0], result[-1], result[0] - min_gap
+    for i in range(n):
+        result[i] = max(result[i], prev + min_gap); prev = result[i]
+    nxt = hi + min_gap
+    for i in range(n - 1, -1, -1):
+        result[i] = min(result[i], nxt - min_gap); nxt = result[i]
+    return result
+
+
+def sample_even(points: list, cyclic: bool, vertex_count: int, path_length: float) -> list | None:
+    '''Uniform arc-length sampling: iterative bisection to place exactly vertex_count points.
+    Returns a list of Vectors or None on failure.'''
+    segment_count = vertex_count if cyclic else vertex_count - 1
+    if segment_count <= 0 or path_length < 1e-10:
+        return None
+    true_segment_length = path_length / segment_count
+    factor_min, factor_max = 0.8, 1.2
+    best_npts = None
+    for _ in range(10):
+        factor = (factor_min + factor_max) / 2
+        segment_length = true_segment_length * factor
+        dist, npts = 0.0, []
+        for pt0, pt1 in iter_pairs(points, cyclic):
+            vec01 = pt1 - pt0
+            len01 = vec01.length
+            if dist > len01:
+                dist -= len01
+                continue
+            dir01 = vec01 / len01
+            pt = pt0
+            while dist <= len01:
+                pt = pt + dir01 * dist
+                npts.append(pt)
+                len01 -= dist
+                dist = segment_length
+            dist -= len01
+        if not cyclic:
+            npts.append(points[-1])
+        if len(npts) == vertex_count:
+            best_npts = npts
+            final_dist = (npts[0] - npts[-1]).length if cyclic else (npts[-1] - npts[-2]).length
+            if final_dist < true_segment_length:
+                factor_min, factor_max = factor_min, factor
+            else:
+                factor_min, factor_max = factor, factor_max
+        elif len(npts) < vertex_count:
+            factor_min, factor_max = factor_min, factor
+        else:
+            factor_min, factor_max = factor, factor_max
+            if not best_npts or len(npts) <= len(best_npts):
+                best_npts = npts
+    return best_npts
