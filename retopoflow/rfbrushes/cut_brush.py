@@ -107,7 +107,7 @@ class RFBrush_Cut(RFBrush_Base):
             return False
         return True
 
-    def update(self, context:Context, event:Event):
+    def update(self, context:Context, event:Event, *, force : bool = False) -> None:
         RFCore = RFGlobals.RFCore_None
         if not RFCore: return
 

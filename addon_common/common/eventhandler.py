@@ -26,10 +26,7 @@ from copy import deepcopy
 
 import bpy
 
-from .debug import dprint
-from .decorators import blender_version_wrapper
-from .human_readable import convert_actions_to_human_readable, convert_human_readable_to_actions
-from .maths import Point2D, Vec2D
+from .maths import Point2D
 from .timerhandler import TimerHandler
 from . import blender_preferences as bprefs
 

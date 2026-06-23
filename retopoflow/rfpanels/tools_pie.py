@@ -169,7 +169,7 @@ class RFMenu_MT_ToolPie(Menu):
         pie = layout.menu_pie()
 
         # West
-        pie.operator(
+        _ = pie.operator(
             'retopoflow.switch_to_polystrips',
             text='PolyStrips',
             icon_value=RF_icons['POLYSTRIPS'].icon_id,
@@ -177,7 +177,7 @@ class RFMenu_MT_ToolPie(Menu):
         )
 
         # East
-        pie.operator(
+        _ = pie.operator(
             'retopoflow.switch_to_tweak',
             text='Tweak',
             icon_value=RF_icons['TWEAK'].icon_id,
@@ -188,7 +188,7 @@ class RFMenu_MT_ToolPie(Menu):
         self.draw_bottom_menu(context, pie)
 
         # North
-        pie.operator(
+        _ = pie.operator(
             'retopoflow.switch_to_contours',
             text='Contours',
             icon_value=RF_icons['CONTOURS'].icon_id,
@@ -196,7 +196,7 @@ class RFMenu_MT_ToolPie(Menu):
         )
 
         # Northwest
-        pie.operator(
+        _ = pie.operator(
             'retopoflow.switch_to_strokes',
             text='Strokes',
             icon_value=RF_icons['STROKES'].icon_id,
@@ -204,7 +204,7 @@ class RFMenu_MT_ToolPie(Menu):
         )
 
         # Northeast
-        pie.operator(
+        _ = pie.operator(
             'retopoflow.switch_to_patches',
             text='Patches',
             icon_value=RF_icons['PATCHES'].icon_id,
@@ -212,7 +212,7 @@ class RFMenu_MT_ToolPie(Menu):
         )
 
         # Southwest
-        pie.operator(
+        _ = pie.operator(
             'retopoflow.switch_to_polypen',
             text='PolyPen',
             icon_value=RF_icons['POLYPEN'].icon_id,
@@ -220,25 +220,13 @@ class RFMenu_MT_ToolPie(Menu):
         )
 
         # Southeast
-        pie.operator(
+        _ = pie.operator(
             'retopoflow.switch_to_relax',
             text='Relax',
             icon_value=RF_icons['RELAX'].icon_id,
             depress=tool.idname=='retopoflow.relax'
         )
 
-
-class RFTool_OT_SwitchToPatches(bpy.types.Operator):
-    bl_idname = 'retopoflow.switch_to_patches'
-    bl_label = 'Switch to Patches'
-    bl_description = 'Temporary operator to show that patches cannot be switched to'
-
-    @classmethod
-    def poll(cls, context):
-        return False
-
-    def execute(self, context):
-        return {'FINISHED'}
 
 
 keymaps = []
@@ -247,7 +235,6 @@ RF_icons = None
 
 def register():
     bpy.utils.register_class(RFMenu_MT_ToolPie)
-    bpy.utils.register_class(RFTool_OT_SwitchToPatches)
 
     wm = bpy.context.window_manager
     keyconfigs = wm.keyconfigs.addon
@@ -270,7 +257,6 @@ def register():
 
 def unregister():
     bpy.utils.unregister_class(RFMenu_MT_ToolPie)
-    bpy.utils.unregister_class(RFTool_OT_SwitchToPatches)
 
     for keymap, keymap_item in keymaps:
         keymap.keymap_items.remove(keymap_item)

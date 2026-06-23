@@ -27,9 +27,7 @@ from mathutils import Matrix
 from ..common import gpustate
 from ..common.globals import Globals
 from ..common.gpustate import ScissorStack
-from ..common.blender import bversion, tag_redraw_all, get_view3d_area, get_view3d_region, get_view3d_space
-from ..common.decorators import blender_version_wrapper
-from ..common.debug import debugger, tprint
+from ..common.blender import tag_redraw_all, get_view3d_area, get_view3d_region, get_view3d_space
 from ..common.drawing import Drawing, DrawCallbacks
 from ..common.ui_core_images import preload_image
 from ..common.ui_document import UI_Document
@@ -58,9 +56,7 @@ if not bpy.app.background:
             }
         }
     '''
-    Drawing.glCheckError(f'Pre-compile check: cover shader')
     shader, _ = gpustate.gpu_shader(f'blender ui cover', cover_vshader, cover_fshader)
-    Drawing.glCheckError(f'Post-compile check: cover shader')
 
     # create batch to draw large triangle that covers entire clip space (-1,-1)--(+1,+1)
     batch_full = batch_for_shader(shader, 'TRIS', {"position": [(-100, -100), (300, -100), (-100, 300)]})

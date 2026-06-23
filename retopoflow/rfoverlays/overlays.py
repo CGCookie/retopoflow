@@ -20,4 +20,6 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 
+# set of all the overlays
+# this set is added to AutoSave's exclude list so auto saving can happen when any overlay is top-most operator.
 overlay_names : set[str] = set()

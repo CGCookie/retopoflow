@@ -203,7 +203,7 @@ def bme_unshared_bmv(bme, bme_other):
     return bmv0 if bmv1 in bme_other.verts else bmv1
 def bmvs_shared_bme(bmv0 : BMVert, bmv1 : BMVert) -> BMEdge | None:
     return next((bme for bme in bmv0.link_edges if bmv1 in bme.verts), None)
-def bmfs_shared_bme(bmf0, bmf1):
+def bmfs_shared_bme(bmf0 : BMFace, bmf1 : BMFace) -> BMEdge | None:
     return next((bme for bme in bmf0.edges if bme in bmf1.edges), None)
 
 def bme_vector(bme:BMEdge) -> Vector:
@@ -305,7 +305,7 @@ def bmf_opposite_bme(bmf:BMFace, bme:BMEdge) -> BMEdge | None:
         None,
     )
 
-def quad_bmf_opposite_bme(bmf, bme):
+def quad_bmf_opposite_bme(bmf : BMFace, bme : BMEdge) -> BMEdge:
     return next(bme_ for bme_ in bmf.edges if not bmes_share_bmv(bme, bme_))
 
 def is_bmv_end(bmv, bmes):

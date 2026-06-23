@@ -477,7 +477,7 @@ class Tweak_Logic:
         for (bmv, co, _, _) in self.verts:
             bmv.co = co
         bmesh.update_edit_mesh(self.em)
-        context.area.tag_redraw()
+        # context.area.tag_redraw()
 
     def project_pt(self, context, pt):
         p = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ pt)
@@ -1228,7 +1228,7 @@ class Tweak_Logic:
                 self._do_relax_step(context)
 
         bmesh.update_edit_mesh(self.em)
-        context.area.tag_redraw()
+        # context.area.tag_redraw()
         self.mouse_prev = mouse
 
     def _smudge_sweep(self, context, mouse: Vector, delta: Vector, delta_3d: 'Vector | None', pressure: float, pre_frame_world: 'dict[BMVert, Vector]'):

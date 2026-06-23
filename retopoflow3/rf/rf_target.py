@@ -30,8 +30,6 @@ from mathutils import Vector
 from mathutils.geometry import intersect_line_line_2d as intersect_segment_segment_2d
 
 from ...config.options import visualization, options, retopoflow_datablocks
-from ...addon_common.common.debug import dprint, Debugger
-from ...addon_common.common.decorators import timed_call
 from ...addon_common.common.profiler import profiler, time_it
 from ...addon_common.common.utils import iter_pairs, Dict
 from ...addon_common.common.maths import Point, Vec, Direction, Normal, Ray, XForm, BBox

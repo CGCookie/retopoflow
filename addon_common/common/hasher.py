@@ -19,9 +19,11 @@ Created by Jonathan Denning, Jonathan Williamson
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+from __future__ import annotations
 import time
 from struct import pack
-from hashlib import md5
+import hashlib
+from collections.abc import Iterable
 
 import bpy
 from bmesh.types import BMesh
@@ -40,63 +42,67 @@ known_hash_types = {
 }
 
 class Hasher:
-    def __init__(self, *args):
-        self._hasher = md5()
+    _hasher : hashlib._Hash
+    _digest : str | None
+
+    def __init__(self, *args: ...):
+        self._hasher = hashlib.md5()
         self._digest = None
         self.add(*args)
 
-    def __iadd__(self, other):
+    def __iadd__(self, other : ...):
         self.add(other)
         return self
 
-    def __str__(self):
-        return '<Hasher %s>' % str(self.get_hash())
+    def __str__(self) -> str:
+        return f'<Hasher {self.get_hash()}>'
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self.get_hash())
 
-    list_like_types = {
-        list:   'list',
-        tuple:  'tuple',
-        set:    'set',
-    }
-    def add(self, *args):
+    def add(self, *args : ...):
         self._digest = None
-        llt = Hasher.list_like_types
         for arg in args:
-            t = type(arg)
-            if t is Vector:
-                self._hasher.update(bytes(f'Vector {len(arg)}', 'utf8'))
-                self.add(*arg)
-            elif t is Matrix:
-                l0 = len(arg)
-                l1 = len(arg[0])
-                self._hasher.update(bytes(f'Matrix {l0} {l1}', 'utf8'))
-                self.add_list([v for r in arg for v in r])
-            elif t is Color:
-                self._hasher.update(bytes(f'Color', 'utf8'))
-                self.add_list([arg.r, arg.g, arg.b, arg.a])
-            elif t in llt:
-                self._hasher.update(bytes(f'{llt[t]} {len(arg)}', 'utf8'))
-                self.add_list(arg)
-            elif t is int:
-                self._hasher.update(pack('i', arg))
-            elif t is float:
-                self._hasher.update(pack('f', arg))
-            elif t is bool:
-                self._hasher.update(pack('b', arg))
-            elif t in known_hash_types:
-                self._hasher.update(bytes(str(arg), 'utf8'))
-            else:
-                # unknown type.  still works, but might want to know about it
-                # to handle special cases
-                # print(f'Hasher.add: {arg} {t}')
-                self._hasher.update(bytes(str(arg), 'utf8'))
+            match arg:
+                case Vector():
+                    self._hasher.update(bytes(f'Vector {len(arg)}', 'utf8'))
+                    self.add(*arg)
+                case Matrix():
+                    l0 = len(arg)
+                    l1 = len(arg[0])
+                    self._hasher.update(bytes(f'Matrix {l0} {l1}', 'utf8'))
+                    self.add_list([v for r in arg for v in r])
+                case Color():
+                        self._hasher.update(bytes(f'Color', 'utf8'))
+                        self.add_list([arg.r, arg.g, arg.b, arg.a])
+                case list():
+                    self._hasher.update(bytes(f'list {len(arg)}', 'utf8'))
+                    self.add_list(arg)
+                case tuple():
+                    self._hasher.update(bytes(f'tuple {len(arg)}', 'utf8'))
+                    self.add_list(arg)
+                case set():
+                    self._hasher.update(bytes(f'set {len(arg)}', 'utf8'))
+                    self.add_list(arg)
+                case int():
+                    self._hasher.update(pack('i', arg))
+                case float():
+                    self._hasher.update(pack('f', arg))
+                case bool():
+                    self._hasher.update(pack('b', arg))
+                case str() | None | dict():
+                    self._hasher.update(bytes(str(arg), 'utf8'))
+                case _:
+                    # unknown type.  still works, but might want to know about it
+                    # to handle special cases
+                    # print(f'Hasher.add: {arg} {t}')
+                    self._hasher.update(bytes(str(arg), 'utf8'))
 
-    def add_list(self, args):
-        for arg in args: self.add(arg)
+    def add_list(self, args : Iterable[...]):
+        for arg in args:
+            self.add(arg)
 
-    def get_hash(self):
+    def get_hash(self) -> str:
         if self._digest is None:
             self._digest = self._hasher.hexdigest()
         return self._digest

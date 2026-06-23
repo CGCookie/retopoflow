@@ -27,7 +27,7 @@ from bpy.types import Context, Menu, Event, Depsgraph, Scene, Area, Region, Spac
 
 import time
 import traceback
-from typing import Any
+from typing import Any, ClassVar
 from collections.abc import Sequence, Callable
 
 from . import rfglobals
@@ -108,19 +108,19 @@ class RFCore:
     event_mouse    : tuple[int, int] | None = None   # keeps track of last mouse update, hack used to determine if RFCore is top modal operator
     depsgraph_version : int = 0
 
-    default_RFTool         = RFTool_PolyPen     # TODO: should be stored and sticky across sessions
+    default_RFTool : type[RFTool_Base] = RFTool_PolyPen     # TODO: should be stored and sticky across sessions
     selected_RFTool_idname : str | None = None               # currently selected RFTool, but might not be active
-    running_in_areas       = []                 # areas that RFCore operator is currently running in
-    resetter               = Resetter('RFCore')  # helper for resetting bpy settings to original settings
-    reset_attempts         = 0
-    last_reset_attempt     = 0
-    km_context             = None   # context for the active tool keymap (used by the statusbar drawing to filter out keymaps that does not match the current tool context)
+    running_in_areas : list[Area] = []                 # areas that RFCore operator is currently running in
+    resetter : Resetter = Resetter('RFCore')  # helper for resetting bpy settings to original settings
+    reset_attempts : int = 0
+    last_reset_attempt : int = 0
+    km_context : str | None = None   # context for the active tool keymap (used by the statusbar drawing to filter out keymaps that does not match the current tool context)
     km_status_override : str | Sequence[str] | None = None   # override for the statusbar text (used to display additional information about the current tool)
 
     _last_rf_mesh_update_time: float = 0.0
     _original_bmesh_update_edit_mesh = None   # used to know when to pause statusbar drawing to let Blender info be displayed
 
-    _is_registered        = False   # True if RF is registered with Blender
+    _is_registered : bool = False   # True if RF is registered with Blender
     _unwrap_activate_tool : Callable[[], None] | None = None    # fn to unwrap space_toolsystem_common.activate_by_id
     _handle_draw_cursor   = None    # handle to callback for WindowManager's draw cursor
     _handle_preview       = None    # handle to callback for PRE_VIEW draw handler
@@ -654,7 +654,7 @@ class RFCore:
         if brush: brush.update(context, event)
 
     @staticmethod
-    def is_current_area(context : Context):
+    def is_current_area(context : Context) -> bool:
         return context.area == RFCore.running_in_areas[0] if RFCore.running_in_areas else False
 
     @staticmethod

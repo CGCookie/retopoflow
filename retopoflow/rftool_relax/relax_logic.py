@@ -1809,7 +1809,7 @@ class Relax_Logic:
 
         # print(f'relaxed {len(verts)} ({len(chk_verts)}) in {time.time() - st} with {strength}')
         bmesh.update_edit_mesh(self.em)
-        if context.area: context.area.tag_redraw()
+        # if context.area: context.area.tag_redraw()
 
         if debug_print:
             print(f'elapsed: {time.time() - self._time:0.3f}s {1.0/time_delta:0.1f}fps v:{len(verts)} e:{len(edges)} f:{len(faces)}')
@@ -1872,10 +1872,10 @@ class Relax_Logic:
 
     def finish(self, context):
         bmesh.update_edit_mesh(self.em)
-        context.area.tag_redraw()
+        # context.area.tag_redraw()
 
     def cancel(self, context):
         for (bmv, co) in self.prev_position.items():
             bmv.co = co
         bmesh.update_edit_mesh(self.em)
-        context.area.tag_redraw()
+        # context.area.tag_redraw()

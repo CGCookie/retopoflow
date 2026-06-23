@@ -21,51 +21,71 @@ Created by Jonathan Denning, Jonathan Williamson
 
 import bpy
 
+from typing import Literal, get_args, cast
+
 from .globals import Globals
 
+# https://docs.blender.org/api/current/bpy.types.Window.html#bpy.types.Window.cursor_set
+# https://docs.blender.org/api/4.2/bpy_types_enum_items/window_cursor_items.html#rna-enum-window-cursor-items
+BLENDER_CURSORS_42 = Literal[
+    "DEFAULT",
+    "NONE",
+    "WAIT",
+    "CROSSHAIR",
+    "MOVE_X",
+    "MOVE_Y",
+    "KNIFE",
+    "TEXT",
+    "PAINT_BRUSH",
+    "PAINT_CROSS",
+    "DOT",
+    "ERASER",
+    "HAND",
+    "SCROLL_X",
+    "SCROLL_Y",
+    "SCROLL_XY",
+    "EYEDROPPER",
+    "PICK_AREA",
+    "STOP",
+    "COPY",
+    "CROSS",
+    "MUTE",
+    "ZOOM_IN",
+    "ZOOM_OUT",
+]
+
+# two new cursor items were added to Blender 4.3
+# https://docs.blender.org/api/current/bpy_types_enum_items/window_cursor_items.html#rna-enum-window-cursor-items
+BLENDER_CURSORS_43 = Literal[
+    BLENDER_CURSORS_42,
+    "HAND_POINT",
+    "HAND_CLOSED",
+]
+
+
 class Cursors:
-    # https://docs.blender.org/api/current/bpy.types.Window.html#bpy.types.Window.cursor_set
-    _blender_cursors = [
-        # https://docs.blender.org/api/current/bpy_types_enum_items/window_cursor_items.html#rna-enum-window-cursor-items
-        'DEFAULT',
-        'NONE',
-        'WAIT',
-        'CROSSHAIR',
-        'MOVE_X',
-        'MOVE_Y',
-        'KNIFE',
-        'TEXT',
-        'PAINT_BRUSH',
-        'PAINT_CROSS',
-        'DOT',
-        'ERASER',
-        'HAND',
-        'SCROLL_X',
-        'SCROLL_Y',
-        'SCROLL_XY',
-        'EYEDROPPER',
-        'PICK_AREA',
-        'STOP',
-        'COPY',
-        'CROSS',
-        'MUTE',
-        'ZOOM_IN',
-        'ZOOM_OUT',
-    ]
-    _cursors = { k: k for k in _blender_cursors } | { k.lower(): k for k in _blender_cursors }
-
     @staticmethod
-    def __getattr__(cursor):
-        assert cursor in Cursors._cursors
-        return Cursors._cursors.get(cursor, 'DEFAULT')
+    def set(cursor : str):
+        cursor = cursor.upper()
 
-    @staticmethod
-    def set(cursor):
-        # print('Cursors.set', cursor)
-        cursor = Cursors._cursors.get(cursor, 'DEFAULT')
+        if cursor in get_args(BLENDER_CURSORS_42):
+            pass
+
+        elif cursor in get_args(BLENDER_CURSORS_43) and bpy.app.version > (4, 3, 0):
+            pass
+
+        else:
+            match cursor:
+                case 'HAND_POINT':
+                    cursor = 'HAND'
+                case 'HAND_CLOSED':
+                    cursor = 'HAND'
+                case _:
+                    cursor = 'DEFAULT'
+
         for wm in bpy.data.window_managers:
             for win in wm.windows:
-                win.cursor_modal_set(cursor)
+                win.cursor_modal_set(cursor) # pyright: ignore[reportArgumentType]
 
     @staticmethod
     def restore():
@@ -73,14 +93,8 @@ class Cursors:
             for win in wm.windows:
                 win.cursor_modal_restore()
 
-    @property
     @staticmethod
-    def cursor(): return 'DEFAULT'   # TODO: how to get??
-    @cursor.setter
-    @staticmethod
-    def cursor(cursor): Cursors.set(cursor)
-
-    @staticmethod
-    def warp(x, y): bpy.context.window.cursor_warp(x, y)
+    def warp(x : int, y : int):
+        bpy.context.window.cursor_warp(x, y)
 
 Globals.set(Cursors())

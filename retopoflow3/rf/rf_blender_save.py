@@ -32,9 +32,6 @@ from bpy.app.handlers import persistent
 
 from ...config.options import options, sessionoptions, retopoflow_datablocks
 
-from ...addon_common.common.globals import Globals
-from ...addon_common.common.boundvar import BoundBool
-from ...addon_common.common.decorators import blender_version_wrapper
 from ...addon_common.common.blender import (
     set_object_selection,
     set_active_object,

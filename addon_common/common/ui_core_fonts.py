@@ -21,8 +21,8 @@ Created by Jonathan Denning, Jonathan Williamson
 
 import os
 
-from .blender import tag_redraw_all, get_path_from_addon_common, get_path_from_addon_root
-from .decorators import debug_test_call, blender_version_wrapper, add_cache
+from .blender import get_path_from_addon_common, get_path_from_addon_root
+from .decorators import add_cache
 from .fontmanager import FontManager
 
 

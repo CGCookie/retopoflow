@@ -19,6 +19,8 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+from bpy.types import Context, Event
+
 class RFBrush_Base:
     _subclasses = {}
     def __new__(cls):
@@ -42,9 +44,9 @@ class RFBrush_Base:
         )
 
     def init(self): pass
-    def update(self, context, event): pass
-    def draw_postpixel(self, context): pass
-    def draw_postview(self, context): pass
+    def update(self, context : Context, event : Event, *, force : bool = False): pass
+    def draw_postpixel(self, context : Context): pass
+    def draw_postview(self, context : Context): pass
     def stop(self): pass
 
     @classmethod

@@ -47,9 +47,8 @@ from ...addon_common.common.maths import Point2D
 from ...addon_common.common.maths import Ray, XForm, BBox, Plane
 from ...addon_common.common.hasher import hash_object, Hasher
 from ...addon_common.common.utils import min_index, UniqueCounter, iter_pairs, accumulate_last, deduplicate_list, has_duplicates
-from ...addon_common.common.decorators import stats_wrapper, blender_version_wrapper
-from ...addon_common.common.debug import dprint
-from ...addon_common.common.profiler import profiler, time_it
+from ...addon_common.common.decorators import stats_wrapper
+from ...addon_common.common.profiler import profiler
 from ...addon_common.terminal import term_printer
 
 from ...config.options import options

@@ -20,6 +20,18 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 '''
 
 
+
+import gpu
+import bpy
+from bpy_extras.view3d_utils import region_2d_to_origin_3d
+from gpu_extras.batch import batch_for_shader
+
+from . import gpustate
+from .debug import dprint
+from .drawing import Drawing
+from .maths import Frame
+
+
 '''
 notes: something is really wrong here to have such poor performance
 
@@ -29,28 +41,6 @@ Below are some related, interesting links
 - https://developer.apple.com/library/archive/documentation/3DDrawing/Conceptual/OpenGLES_ProgrammingGuide/BestPracticesforShaders/BestPracticesforShaders.html
 - https://stackoverflow.com/questions/16415037/opengl-core-profile-incredible-slowdown-on-os-x
 '''
-
-
-import os
-import re
-import math
-import ctypes
-import random
-import traceback
-
-import gpu
-import bpy
-from bpy_extras.view3d_utils import region_2d_to_origin_3d
-from mathutils import Vector, Matrix, Quaternion
-from mathutils.bvhtree import BVHTree
-
-from . import gpustate
-from .debug import dprint
-from .decorators import blender_version_wrapper, add_cache, only_in_blender_version
-from .drawing import Drawing
-from .maths import (Point, Direction, Frame, XForm, invert_matrix, matrix_normal)
-from .profiler import profiler
-from .utils import shorten_floats
 
 
 
@@ -96,18 +86,14 @@ def triangulateFace(verts):
 #############################################################################################################
 #############################################################################################################
 
-import gpu
-from gpu_extras.batch import batch_for_shader
 
 if not bpy.app.background:
-    Drawing.glCheckError(f'Pre-compile check: bmesh render shader')
     verts_vs, verts_fs = gpustate.shader_parse_file('bmesh_render_verts.glsl', includeVersion=False)
     verts_shader, verts_ubos = gpustate.gpu_shader('bmesh render: verts', verts_vs, verts_fs)
     edges_vs, edges_fs = gpustate.shader_parse_file('bmesh_render_edges.glsl', includeVersion=False)
     edges_shader, edges_ubos = gpustate.gpu_shader('bmesh render: edges', edges_vs, edges_fs)
     faces_vs, faces_fs = gpustate.shader_parse_file('bmesh_render_faces.glsl', includeVersion=False)
     faces_shader, faces_ubos = gpustate.gpu_shader('bmesh render: faces', faces_vs, faces_fs)
-    Drawing.glCheckError(f'Compiled bmesh render shader')
 
 
 class BufferedRender_Batch:
@@ -175,9 +161,7 @@ class BufferedRender_Batch:
             opt = f'{prefix}{opt}'
             if opt not in opts: return
             cb(opts[opt])
-            Drawing.glCheckError(f'setting {opt} to {opts[opt]}')
 
-        Drawing.glCheckError('BufferedRender_Batch.set_options: start')
         dpi_mult = opts.get('dpi mult', 1.0)
         set_if_set('color',          lambda v: self.set_shader_option('color_normal', v))
         set_if_set('color selected', lambda v: self.set_shader_option('color_selected', v))

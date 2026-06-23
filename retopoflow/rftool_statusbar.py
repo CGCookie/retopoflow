@@ -466,7 +466,11 @@ def draw_rftool_statusbar(statusbar: Header, context: Context, tool: type[RFTool
                 icon += '_DRAG'
             row.label(text='', icon=icon) # pyright: ignore[reportArgumentType]
         if 'WHEEL' in event_type:
-            row.label(text='', icon='MOUSE_MMB_SCROLL')
+            if bpy.app.version >= (4, 3, 0):
+                # MOUSE_MMB_SCROLL did not show up until Blender 4.3
+                # https://docs.blender.org/api/4.2/bpy_types_enum_items/icon_items.html
+                # https://docs.blender.org/api/4.3/bpy_types_enum_items/icon_items.html
+                row.label(text='', icon='MOUSE_MMB_SCROLL')
 
         row.label(text=km_label)
         row.separator()

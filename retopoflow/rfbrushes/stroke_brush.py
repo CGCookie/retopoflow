@@ -273,7 +273,7 @@ def create_stroke_brush(
                     self.snap_bmf1 = self.nearest_bmf.bmf
 
 
-        def update(self, context : Context, event : Event):
+        def update(self, context : Context, event : Event, *, force : bool = False) -> None:
             RFCore = RFGlobals.RFCore_None
             if not RFCore: return
 

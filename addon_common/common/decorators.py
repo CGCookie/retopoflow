@@ -25,7 +25,7 @@ import json
 import time
 import inspect
 from functools import wraps
-from typing import Callable, Any
+from typing import Callable, Literal, ParamSpec, TypeVar, cast
 
 import bpy
 
@@ -156,8 +156,13 @@ def stats_report():
 
 
 
-def add_cache(attr, default):
-    def wrapper(fn):
+def add_cache( # pyright: ignore[reportUnknownParameterType]
+    attr : str,
+    default : object
+) -> Callable[[Callable[[...], ...]], Callable[[...], ...]]:
+    P = ParamSpec('P')
+    R = TypeVar('R')
+    def wrapper(fn : Callable[P,R]) -> Callable[P,R]:
         setattr(fn, attr, default)
         return fn
     return wrapper
@@ -183,15 +188,18 @@ class LimitRecursion:
 
 
 @add_cache('data', {'nested':0, 'last':None})
-def timed_call(label):
-    def wrapper(fn):
-        def wrapped(*args, **kwargs):
-            data = timed_call.data
+def timed_call(label : str) -> Callable[[Callable[[...], ...]], Callable[[...], ...]]:
+    P = ParamSpec('P')
+    R = TypeVar('R')
+    def wrapper(fn : Callable[P,R]) -> Callable[P,R]:
+        @wraps(fn)
+        def wrapped(*args : P.args, **kwargs : P.kwargs) -> R:
+            data : dict[str, int|str|None] = getattr(timed_call, 'data')
             if data['last']: print(data['last'])
-            data['last'] = f'''{"  " * data['nested']}Timing {label}'''
-            data['nested'] += 1
+            data['last'] = f'''{"  " * int(data['nested'] or 0)}Timing {label}'''
+            data['nested'] = int(data['nested'] or 0) + 1
             time_beg = time.time()
-            ret = fn(*args, **kwargs)
+            ret : R = fn(*args, **kwargs)
             time_end = time.time()
             time_delta = time_end - time_beg
             if data['last']:
@@ -199,7 +207,7 @@ def timed_call(label):
                 data['last'] = None
             else:
                 print(f'''{"  " * data['nested']}{time_delta:0.4f}s''')
-            data['nested'] -= 1
+            data['nested'] = int(data['nested'] or 0) - 1
             return ret
         return wrapped
     return wrapper
@@ -207,39 +215,39 @@ def timed_call(label):
 
 # corrected bug in previous version of blender_version fn wrapper
 # https://github.com/CGCookie/retopoflow/commit/135746c7b4ee0052ad0c1842084b9ab983726b33#diff-d4260a97dcac93f76328dfaeb5c87688
-def blender_version_wrapper(op : str, ver : str) -> Callable[[...], Any]:
-    self = blender_version_wrapper
-    if not hasattr(self, 'fns'):
-        major, minor, rev = bpy.app.version
-        self.blenderver = '%d.%02d' % (major, minor)
-        self.fns = fns = {}
-        self.ops = {
-            '<':  lambda v: self.blenderver <  v,
-            '>':  lambda v: self.blenderver >  v,
-            '<=': lambda v: self.blenderver <= v,
-            '==': lambda v: self.blenderver == v,
-            '>=': lambda v: self.blenderver >= v,
-            '!=': lambda v: self.blenderver != v,
-        }
+bver = f'{bpy.app.version[0]}.{bpy.app.version[1]:02d}'
+op_map = {
+    '<': str.__lt__,
+    '>': str.__gt__,
+    '<=': str.__le__,
+    '==': str.__eq__,
+    '>=': str.__ge__,
+    '!=': str.__ne__,
+}
+version_wrapper_cache : dict[str, Callable[[...], ...]] = {} # pyright: ignore[reportUnknownVariableType]
+def blender_version_wrapper( # pyright: ignore[reportUnknownParameterType]
+    op : Literal['<','>','<=','>=','==','!='],
+    rbver : str
+) -> Callable[[Callable[[...], ...]], Callable[[...], ...]]:
+    P = ParamSpec('P')
+    R = TypeVar('R')
+    def wrapit(fn : Callable[P, R]) -> Callable[P, R]:
+        fn_name = f'{fn.__module__}.{fn.__qualname__}'
 
-    update_fn = self.ops[op](ver)
-    def wrapit(fn):
-        nonlocal self, update_fn
-        fn_name = fn.__name__
-        fns = self.fns
-        error_msg = "Could not find appropriate function named %s for version Blender %s" % (fn_name, self.blenderver)
+        if op_map[op](bver, rbver):
+            assert fn_name not in version_wrapper_cache, f'Found multiple functions named {fn_name} for version {bver}'
+            version_wrapper_cache[fn_name] = cast(Callable[[...], ...], fn)
 
-        if update_fn: fns[fn_name] = fn
-
-        def callit(*args, **kwargs):
-            nonlocal fns, fn_name, error_msg
-            fn = fns.get(fn_name, None)
-            assert fn, error_msg
-            ret = fn(*args, **kwargs)
-            return ret
+        def callit(*args : P.args, **kwargs : P.kwargs) -> R:
+            nonlocal fn_name
+            assert fn_name in version_wrapper_cache, f'Could not find appropriate function name {fn_name} for version {bver}'
+            fn = cast(Callable[P, R], version_wrapper_cache[fn_name])
+            return fn(*args, **kwargs)
 
         return callit
     return wrapit
+
+
 
 def only_in_blender_version(*args, ignore_others=False, ignore_return=None):
     self = only_in_blender_version
@@ -416,5 +424,3 @@ class PersistentOptions:
             def gettersetter(self, key, fn_get_wrap=None, fn_set_wrap=None):
                 return self._db.gettersetter(key, fn_get_wrap=fn_get_wrap, fn_set_wrap=fn_set_wrap)
         return WrappedClass
-
-
