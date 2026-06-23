@@ -498,11 +498,15 @@ class RFCore:
             for s in iter_all_view3d_spaces():
                 show_fade_inactive(s)
 
+        # Always capture theme settings so changes during a session are restored on exit
+        RFCore.resetter.store('context.preferences.themes[0].view_3d.vertex_size')
+        RFCore.resetter.store('context.preferences.themes[0].view_3d.edge_width')
         if prefs.setup_component_size:
             RFCore.resetter['context.preferences.themes[0].view_3d.vertex_size'] = prefs.vertex_size
             RFCore.resetter['context.preferences.themes[0].view_3d.edge_width'] = prefs.edge_width
-
         Theme.store_default(context)
+        for pref in Theme.default.keys():
+            RFCore.resetter.store('context.preferences.themes[0].view_3d.' + pref)
         if prefs.theme != 'none':
             settings = Theme.common | getattr(Theme, prefs.theme)
             for pref in settings.keys():

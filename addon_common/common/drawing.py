@@ -45,6 +45,7 @@ from .maths import Point2D, Point, Ray, Direction, Color, Normal, Frame
 from .utils import iter_pairs
 from . import gpustate
 
+shaders_initialized = False
 
 class Drawing:
     _instance : ClassVar[Drawing | None] = None
@@ -380,14 +381,26 @@ class Drawing:
         if not self.rgn or not self.r3d: return None
         return Point2D(location_3d_to_region_2d(self.rgn, self.r3d, p3d))
 
-    def draw2D_point(self, pt:Point2D, color:Color, *, radius=1, border=0, borderColor=None):
-        radius = self.scale(radius)
-        border = self.scale(border)
+    def draw2D_point(
+        self,
+        pt : Point2D | Vector,
+        color : Color | Sequence[float],
+        *,
+        radius : float = 1,
+        border : float = 0,
+        borderColor : Color | Sequence[float] | None = None,
+    ):
+        if not self.area:
+            return
+
+        init_shaders()
+        radius_scaled = self.scale(radius) or radius
+        border_scaled = self.scale(border) or border
         if borderColor is None: borderColor = (0,0,0,0)
         shader_2D_point.bind()
         ubos_2D_point.options.screensize = (self.area.width, self.area.height, 0, 0)
         ubos_2D_point.options.mvpmatrix = self.get_pixel_matrix()
-        ubos_2D_point.options.radius_border = (radius, border, 0, 0)
+        ubos_2D_point.options.radius_border = (radius_scaled, border_scaled, 0, 0)
         ubos_2D_point.options.color = color
         ubos_2D_point.options.colorBorder = borderColor
         ubos_2D_point.options.center = (*pt, 0, 1)
@@ -395,14 +408,28 @@ class Drawing:
         batch_2D_point.draw(shader_2D_point)
         gpu.shader.unbind()
 
-    def draw2D_points(self, pts:list[Point2D], color:Color, *, radius=1, border=0, borderColor=None):
-        radius = self.scale(radius)
-        border = self.scale(border)
+    def draw2D_points(
+        self,
+        pts : list[Point2D | Vector],
+        color : Color | Sequence[float],
+        *,
+        radius : float = 1,
+        border : float = 0,
+        borderColor : Color | Sequence[float] | None = None,
+    ):
+        if not self.area:
+            return
+        init_shaders()
+
+        radius_scaled = r if (r := self.scale(radius)) is not None else 1
+        border_scaled = s if border and (s := self.scale(border)) is not None else 0
+        
         if borderColor is None: borderColor = (0,0,0,0)
+
         shader_2D_point.bind()
         ubos_2D_point.options.screensize = (self.area.width, self.area.height, 0, 0)
         ubos_2D_point.options.mvpmatrix = self.get_pixel_matrix()
-        ubos_2D_point.options.radius_border = (radius, border, 0, 0)
+        ubos_2D_point.options.radius_border = (radius_scaled, border_scaled, 0, 0)
         ubos_2D_point.options.color = color
         ubos_2D_point.options.colorBorder = borderColor
         for pt in pts:
@@ -412,24 +439,54 @@ class Drawing:
         gpu.shader.unbind()
 
     # draw line segment in screen space
-    def draw2D_line(self, p0:Point2D, p1:Point2D, color0:Color, *, color1=None, width=1, stipple=None, offset=0):
-        if color1 is None: color1 = (color0[0],color0[1],color0[2],0)
-        width = self.scale(width)
-        stipple = [self.scale(v) for v in stipple] if stipple else [1.0, 0.0]
-        offset = self.scale(offset)
+    def draw2D_line(
+        self,
+        p0 : Point2D | Vector,
+        p1 : Point2D | Vector,
+        color0 : Color | Sequence[float],
+        *,
+        color1 : Color | Sequence[float] | None = None,
+        width : float = 1,
+        stipple : tuple[float, float] | None = None,
+        offset : float = 0,
+    ):
+        if not self.area:
+            return
+
+        init_shaders()
+
+        if color1:
+            color1_ = color1
+        else:
+            r, g, b, *_ = color0
+            color1_ = (r, g, b, 0)
+
+        width_scaled = w if (w := self.scale(width)) is not None else 1.0
+
+        if stipple:
+            stipple0_scaled = s if (s := self.scale(stipple[0])) is not None else 1.0
+            stipple1_scaled = s if (s := self.scale(stipple[1])) is not None else 0.0
+        else:
+            stipple0_scaled = s if (s := self.scale(1.0)) is not None else 1.0
+            stipple1_scaled = s if (s := self.scale(0.0)) is not None else 0.0
+
+        offset_scaled = o if (o := self.scale(offset)) is not None else 0.0
+
         shader_2D_lineseg.bind()
         ubos_2D_lineseg.options.MVPMatrix = self.get_pixel_matrix()
         ubos_2D_lineseg.options.screensize = (self.area.width, self.area.height, 0, 0)
         ubos_2D_lineseg.options.pos0 = (*p0, 0, 1)
         ubos_2D_lineseg.options.color0 = color0
         ubos_2D_lineseg.options.pos1 = (*p1, 0, 1)
-        ubos_2D_lineseg.options.color1 = color1
-        ubos_2D_lineseg.options.stipple_width = (stipple[0], stipple[1], offset, width)
+        ubos_2D_lineseg.options.color1 = color1_
+        ubos_2D_lineseg.options.stipple_width = (stipple0_scaled, stipple1_scaled, offset_scaled, width_scaled)
         ubos_2D_lineseg.update_shader()
         batch_2D_lineseg.draw(shader_2D_lineseg)
         gpu.shader.unbind()
 
     def draw2D_lines(self, points, color0:Color, *, color1=None, width=1, stipple=None, offset=0):
+        init_shaders()
+
         if color1 is None: color1 = (color0[0],color0[1],color0[2],0)
         width = self.scale(width)
         stipple = [self.scale(v) for v in stipple] if stipple else [1.0, 0.0]
@@ -450,6 +507,8 @@ class Drawing:
         gpu.shader.unbind()
 
     def draw3D_lines(self, points, color0:Color, *, color1=None, width=1, stipple=None, offset=0):
+        init_shaders()
+
         if color1 is None: color1 = (color0[0],color0[1],color0[2],0)
         width = self.scale(width)
         stipple = [self.scale(v) for v in stipple] if stipple else [1.0, 0.0]
@@ -470,6 +529,7 @@ class Drawing:
         gpu.shader.unbind()
 
     def draw2D_linestrip(self, points, color0:Color, *, color1=None, width=1, stipple=None, offset=0):
+        init_shaders()
         if color1 is None: color1 = (color0[0],color0[1],color0[2],0)
         width = self.scale(width)
         stipple = [self.scale(v) for v in stipple] if stipple else [1.0, 0.0]
@@ -490,6 +550,7 @@ class Drawing:
 
     # draw circle in screen space
     def draw2D_circle(self, center:Point2D, radius:float, color0:Color, *, color1=None, width=1, stipple=None, offset=0):
+        init_shaders()
         if color1 is None: color1 = (color0[0],color0[1],color0[2],0)
         radius = self.scale(radius)
         width = self.scale(width)
@@ -508,6 +569,7 @@ class Drawing:
         gpu.shader.unbind()
 
     def draw3D_circle(self, center:Point, radius:float, color:Color, *, width=1, n:Normal=None, x:Direction=None, y:Direction=None, depth_near=0, depth_far=1):
+        init_shaders()
         assert n is not None or x is not None or y is not None, 'Must specify at least one of n,x,y'
         f = Frame(o=center, x=x, y=y, z=n)
         radius = self.scale(radius)
@@ -525,6 +587,8 @@ class Drawing:
         gpu.shader.unbind()
 
     def draw3D_triangles(self, points:[Point], colors:[Color]):
+        init_shaders()
+
         shader_3D_triangle.bind()
         ubos_3D_triangle.options.MVPMatrix = self.get_view_matrix()
         for i in range(0, len(points), 3):
@@ -545,6 +609,7 @@ class Drawing:
     @contextlib.contextmanager
     def draw(self, draw_type:"CC_DRAW"):
         assert getattr(self, '_draw', None) is None, 'Cannot nest Drawing.draw calls'
+        init_shaders()
         self._draw = draw_type
         try:
             draw_type.begin()
@@ -559,10 +624,18 @@ if not bpy.app.background:
     Drawing.initialize()
 
 
-
-
-if not bpy.app.background and bpy.app.version >= (3, 2, 0):
-    import gpu
+def init_shaders():
+    global shaders_initialized
+    global shader_2D_point, ubos_2D_point, batch_2D_point
+    global shader_2D_lineseg, ubos_2D_lineseg, batch_2D_lineseg
+    global shader_2D_circle, ubos_2D_circle, batch_2D_circle
+    global shader_3D_circle, ubos_3D_circle, batch_3D_circle
+    global shader_3D_triangle, ubos_3D_triangle, batch_3D_triangle
+    global shader_2D_triangle, ubos_2D_triangle, batch_2D_triangle
+    if shaders_initialized:
+        return
+    if bpy.app.background:
+        return
     from gpu_extras.batch import batch_for_shader
 
     # https://docs.blender.org/api/blender2.8/gpu.html#triangle-with-custom-shader
@@ -616,14 +689,15 @@ if not bpy.app.background and bpy.app.version >= (3, 2, 0):
     shader_3D_triangle, ubos_3D_triangle = create_shader('triangle_3D.glsl')
     batch_3D_triangle = batch_for_shader(shader_3D_triangle, 'TRIS', {'pos': [(1,0), (0,1), (0,0)]})
 
-    # 3D triangle
+    # 2D triangle
     shader_2D_triangle, ubos_2D_triangle = create_shader('triangle_2D.glsl')
     batch_2D_triangle = batch_for_shader(shader_2D_triangle, 'TRIS', {'pos': [(1,0), (0,1), (0,0)]})
 
-    del pts
+    shaders_initialized = True
 
 
 def free_shaders_and_batches():
+    global shaders_initialized
     if bpy.app.background: return
     names = (
         'shader_2D_point', 'ubos_2D_point', 'batch_2D_point',
@@ -637,6 +711,7 @@ def free_shaders_and_batches():
     for name in names:
         # pop so we do not throw if the shader was never created
         g.pop(name, None)
+    shaders_initialized = False
 
 
 ######################################################################################################
