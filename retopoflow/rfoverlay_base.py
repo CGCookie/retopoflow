@@ -20,6 +20,6 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 class RFOverlay_Base:
-    @staticmethod
-    def activate():
+    @classmethod
+    def activate(cls):
         pass

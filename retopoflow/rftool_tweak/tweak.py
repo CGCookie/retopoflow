@@ -19,50 +19,18 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-import blf
-import bmesh
-import bpy
-import gpu
-import os
-from itertools import chain
-from random import random
-from bmesh.types import BMVert, BMEdge, BMFace
-from bpy_extras.view3d_utils import location_3d_to_region_2d
-from mathutils import Vector, Matrix
-from mathutils.bvhtree import BVHTree
+# pyright: reportUninitializedInstanceVariable = false
 
-import math
-import time
-from typing import List
-from enum import Enum
+
+import bpy
+from bpy.types import Context, Event, UILayout, WorkSpaceTool
 
 from ..rfglobals import RFGlobals
 from ..rftool_base import RFTool_Base
-from ..rfbrush_base import RFBrush_Base
-from ..common.bmesh import get_bmesh_emesh, NearestBMVert
-from ..common.drawing import (
-    Drawing,
-    CC_2D_POINTS,
-    CC_2D_LINES,
-    CC_2D_LINE_STRIP,
-    CC_2D_LINE_LOOP,
-    CC_2D_TRIANGLES,
-    CC_2D_TRIANGLE_FAN,
-    CC_3D_TRIANGLES,
-)
 from ..common.icons import get_path_to_blender_icon
 from ..common.operator import RFOperator, wrap_property, chain_rf_keymaps, execute_operator, poll_retopoflow, RFKeyMaps, BLKeyMaps
-from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, size2D_to_size, vec_forward, mouse_from_event
-from ..common.maths import view_forward_direction, lerp
-from ...addon_common.common import bmesh_ops as bmops
-from ...addon_common.common.blender_cursors import Cursors
-from ...addon_common.common.maths import Color, Frame
+from ...addon_common.common.maths import Color
 from ...addon_common.common.resetter import Resetter
-from ...addon_common.common.blender import get_path_from_addon_common
-from ...addon_common.common import gpustate
-from ...addon_common.common.colors import Color4
-from ...addon_common.common.maths import clamp, Direction, Vec, Point, Point2D, Vec2D
-from ...addon_common.common.utils import iter_pairs
 from ...addon_common.common.timerhandler import TimerHandler
 
 from .tweak_logic import Tweak_Logic
@@ -243,8 +211,12 @@ class RFOperator_Tweak(RFOperator):
         min=0.1, max=10.0, default=2.0,
     )
 
-    def init(self, context, event):
+    logic : Tweak_Logic
+    timer : TimerHandler
+
+    def init(self, context : Context, event : Event):
         # print(f'STARTING POLYPEN')
+        assert RFTool_Tweak.rf_brush
         RFTool_Tweak.rf_brush.update(context, event, force=True)
         self.logic = Tweak_Logic(context, event, RFTool_Tweak.rf_brush, self)
         self.tickle(context)
@@ -253,7 +225,10 @@ class RFOperator_Tweak(RFOperator):
     def reset(self):
         pass
 
-    def update(self, context, event):
+    def check(self, _context : Context) -> bool: # pyright: ignore[reportIncompatibleMethodOverride]
+        return True
+
+    def update(self, context : Context, event : Event):
         self.logic.update(context, event)
 
         if event.type == 'LEFTMOUSE' and event.value == 'RELEASE':
@@ -265,15 +240,15 @@ class RFOperator_Tweak(RFOperator):
             return {'CANCELLED'}
 
         if event.type in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE'}:
-            context.area.tag_redraw()
+            # context.area.tag_redraw()
             return {'PASS_THROUGH'}
 
         return {'RUNNING_MODAL'} # allow other operators, such as UNDO!!!
 
-    def finish(self, context):
+    def finish(self, _context : Context):
         self.timer.stop()
 
-    def draw_postpixel(self, context):
+    def draw_postpixel(self, context : Context):
         RFCore = RFGlobals.RFCore_None
         if not RFCore or not RFCore.is_current_area(context): return
         self.logic.draw(context)
@@ -285,14 +260,14 @@ def switch_rftool(context):
 
 
 class RFTool_Tweak(RFTool_Base):
-    bl_idname = "retopoflow.tweak"
-    bl_label = "Tweak"
-    bl_description = "Tweak the vertex positions"
-    bl_icon = get_path_to_blender_icon('tweak')
-    bl_widget = None
-    bl_operator = 'retopoflow.tweak'
+    bl_idname : str = "retopoflow.tweak"
+    bl_label : str = "Tweak"
+    bl_description : str = "Tweak the vertex positions"
+    bl_icon : str = get_path_to_blender_icon('tweak')
+    bl_widget : str | None = None
+    bl_operator : str = 'retopoflow.tweak'
 
-    rf_brush = RFBrush_Tweak()
+    rf_brush : RFBrush_Tweak = RFBrush_Tweak()
 
     props = None  # needed to reset properties
 
@@ -304,7 +279,8 @@ class RFTool_Tweak(RFTool_Base):
         RFOperator_Relax_QuickSwitch,
     )
 
-    def draw_settings(context, layout, tool):
+    @staticmethod
+    def draw_settings(context : Context, layout : UILayout, tool : WorkSpaceTool):
         props_tweak = tool.operator_properties(RFOperator_Tweak.bl_idname)
         RFTool_Tweak.props = props_tweak
         props_scene = context.scene.retopoflow
@@ -381,7 +357,7 @@ class RFTool_Tweak(RFTool_Base):
             print(f'RFTool_Tweak.draw_settings: {context.region.type=}')
 
     @classmethod
-    def activate(cls, context):
+    def activate(cls, context : Context):
         # TODO: some of the following might not be needed since we are creating our own transform operators
         Tweak_Logic.check_nans = True
         cls.rf_brush.set_operator(RFOperator_Tweak)
@@ -401,6 +377,6 @@ class RFTool_Tweak(RFTool_Base):
             cls.resetter['context.tool_settings.snap_elements_individual'] = {snap_elem}
 
     @classmethod
-    def deactivate(cls, context):
+    def deactivate(cls, _context : Context):
         cls.resetter.reset()
         cls.rf_brush.stop()

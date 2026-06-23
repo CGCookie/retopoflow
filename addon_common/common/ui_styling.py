@@ -44,8 +44,8 @@ from .ui_core_utilities import (
 )
 
 from .blender import get_path_from_addon_common
-from .decorators import blender_version_wrapper, debug_test_call, add_cache
-from .maths import Point2D, Vec2D, clamp, mid, Color, NumberUnit
+from .decorators import add_cache
+from .maths import Color, NumberUnit
 from .profiler import profiler
 from .utils import iter_head, UniqueCounter, join
 

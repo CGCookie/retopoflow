@@ -39,7 +39,7 @@ class RFTool_Base(WorkSpaceTool):
     bl_keymap : BLKeyMaps = ()
     rf_idname : str = 'unlabeled'
     rf_brush : RFBrush_Base | None = None
-    rf_overlay : RFOverlay_Base | None = None
+    rf_overlay : type[RFOverlay_Base] | None = None
     resetter : Resetter | None = None
 
     _subclasses : list[type[RFTool_Base]] = []

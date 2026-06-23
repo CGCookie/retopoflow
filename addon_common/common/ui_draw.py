@@ -29,16 +29,15 @@ from mathutils import Vector, Matrix
 from .ui_styling import UI_Styling, ui_defaultstylings
 
 from . import gpustate
-from .boundvar import BoundVar
-from .debug import debugger, dprint, tprint
-from .decorators import debug_test_call, blender_version_wrapper, add_cache
-from .drawing import Drawing
 from .globals import Globals
 from .hasher import Hasher
 from .maths import Vec2D, Color, mid, Box2D, Size1D, Size2D, Point2D, RelPoint2D, Index2D, clamp, NumberUnit
 from .maths import floor_if_finite, ceil_if_finite
 from .profiler import profiler, time_it
 from .utils import iter_head, any_args, join
+
+
+ui_draw_initialized = False
 
 style_to_image_scale = {
     'fill':       0, # default.  stretch/squash to fill entire container
@@ -118,18 +117,24 @@ debug_defines = {
     'COLOR_CHECKER_15':     'vec4(1.0, 1.0, 1.0, 1.00)',
 }
 
-if not bpy.app.background:
+
+def init_ui_shader():
+    global ui_draw_initialized, ui_draw_shader, ui_draw_ubos, ui_draw_batch
+    if ui_draw_initialized: return
+    if bpy.app.background: return
     draw_data = ( 'TRIS', { 'pos': [(0,0),(1,0),(1,1),  (1,1),(0,1),(0,0)] } )
     defines = image_scale_defines | region_defines | debug_defines | { k:True for k in enabled_debug_options }
     vertex_shader, fragment_shader = gpustate.shader_parse_file('ui_element.glsl', includeVersion=False)
     ui_draw_shader, ui_draw_ubos = gpustate.gpu_shader('UI_Draw', vertex_shader, fragment_shader, defines=defines)
     ui_draw_batch = batch_for_shader(ui_draw_shader, *draw_data)
+    ui_draw_initialized = True
 
 def free_ui_draw_shaders_and_batches():
-    """Release UI draw GPU resources."""
+    global ui_draw_initialized
     g = globals()
     for name in ('ui_draw_ubos', 'ui_draw_batch', 'ui_draw_shader'):
         g.pop(name, None)
+    ui_draw_initialized = False
 
 
 class UI_Draw:
@@ -142,6 +147,7 @@ class UI_Draw:
     def update(self): pass
 
     def draw(self, left, top, width, height, dpi_mult, style, texture_id=None, gputexture=None, texture_fit='fill', background_override=None, depth=None):
+        init_ui_shader()
         def_color = (0,0,0,0)
         def get_v(style_key, def_val):
             v = style.get(style_key, def_val)

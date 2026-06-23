@@ -54,10 +54,9 @@ from .useractions import ActionHandler
 
 from .boundvar import BoundVar
 from .blender import get_view3d_area, get_view3d_region
-from .debug import debugger, dprint, tprint
-from .decorators import debug_test_call, blender_version_wrapper, add_cache
+from .debug import debugger
 from .globals import Globals
-from .hasher import Hasher
+
 from .maths import Vec2D, Color, mid, Box2D, Size1D, Size2D, Point2D, RelPoint2D, Index2D, clamp, NumberUnit
 from .profiler import profiler, time_it
 from .utils import iter_head
@@ -692,19 +691,16 @@ class UI_Document:
         self._context = context
         self._area = get_view3d_area(context)
         # if self._area != context.area: return
-        Globals.drawing.glCheckError('UI_Document.draw: start')
 
         time_start = time.time()
 
         self.force_clean(context)
 
-        Globals.drawing.glCheckError('UI_Document.draw: setting options')
         ScissorStack.start(context)
         gpustate.blend('ALPHA')
         gpustate.scissor_test(True)
         gpustate.depth_test('NONE')
 
-        Globals.drawing.glCheckError('UI_Document.draw: drawing')
         self._body.draw()
         ScissorStack.end()
 
@@ -716,8 +712,6 @@ class UI_Document:
             # print('~%f fps  (%f / %d = %f)' % (self._draw_fps, self._draw_time, self._draw_count, self._draw_time / self._draw_count))
             self._draw_count = 0
             self._draw_time = 0
-
-        Globals.drawing.glCheckError('UI_Document.draw: done')
 
 ui_document = Globals.set(UI_Document())
 

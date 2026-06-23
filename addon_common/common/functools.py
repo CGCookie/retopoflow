@@ -20,7 +20,7 @@ Created by Jonathan Denning, Jonathan Williamson
 '''
 
 from functools import wraps
-from inspect import signature, getmodule, getfile, currentframe, getframeinfo
+from inspect import signature, getmodule, getfile, currentframe, getframeinfo, isroutine
 from types import FrameType
 from typing import ParamSpec, TypeVar
 from collections.abc import Callable
@@ -92,18 +92,15 @@ def wrap_function(
 
 # find functions of object that has key attribute
 # returns list of (attribute value, fn)
-def find_fns(obj, key, *, full_search=False):
+def find_fns(obj : object, key : str, *, full_search : bool = False) -> list[tuple[object, Callable[Param, RetType]]]:
     classes = type(obj).__mro__ if full_search else [type(obj)]
-    members = [getattr(cls, k) for cls in classes for k in dir(cls) if hasattr(cls, k)]
-    # test if type is fn_type rather than isfunction() because bpy has problems!
-    # methods = [member for member in members if isfunction(member)]
-    fn_type = type(find_fns)
-    methods = [member for member in members if type(member) == fn_type]
-    return [
-        (getattr(method, key), method)
-        for method in methods
-        if hasattr(method, key)
+    attrs : list[object] = [getattr(cls, k) for cls in classes for k in dir(cls) if hasattr(cls, k)]
+    fns = [attr for attr in attrs if isroutine(attr)]
+    fns = [fn for fn in fns if hasattr(fn, key)]
+    data_fns : list[tuple[object, Callable[Param, RetType]]] = [
+        (getattr(fn, key), fn) for fn in fns
     ]
+    return data_fns
 
 def self_wrapper(self, fn):
     sig = signature(fn)

@@ -19,7 +19,9 @@ Created by Jonathan Denning, Jonathan Williamson
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+from __future__ import annotations
 import math
+from collections.abc import Sequence, Iterator, Callable
 
 from mathutils import Vector, Matrix
 
@@ -211,31 +213,43 @@ def fit_cubicbezier_spline(
 
 
 class CubicBezier:
-    split_default = 100
-    segments_default = 100
+    split_default : int = 100
+    segments_default : int = 100
+    p0 : Vector
+    p1 : Vector
+    p2 : Vector
+    p3 : Vector
+    tessellation : list[Vector]
+    fn_dist : Callable[[Vector, Vector], float] | None
 
     @staticmethod
-    def create_from_points(pts_list):
+    def create_from_points(pts_list : Sequence[Vector]) -> CubicBezier:
         '''
         Estimates best spline to fit given points
         '''
-        count = len(pts_list)
-        if count == 0:
-            assert False
-        if count == 1:
-            assert False
-        if count == 2:
-            p0, p3 = pts_list
-            diff = p3-p0
-            p1, p2 = p0+diff*0.33, p0+diff*0.66
-            return CubicBezier(p0, p1, p2, p3)
-        if count == 3:
-            p0, p03, p3 = pts_list
-            d003, d303 = (p03-p0), (p03-p3)
-            p1, p2 = p0+d003*0.5, p3+d303*0.5
-            return CubicBezier(p0, p1, p2, p3)
-        l_d = [0] + [(p0-p1).length for p0,
-                     p1 in zip(pts_list[:-1], pts_list[1:])]
+        match pts_list:
+            case [] | [_]:
+                assert False, 'Must have at least 2 points to create CubicBezier'
+
+            case [p0, p3]:
+                diff = p3 - p0
+                p1 = p0 + diff * 0.33
+                p2 = p0 + diff * 0.66
+                return CubicBezier(p0, p1, p2, p3)
+
+            case [p0, p03, p3]:
+                d003, d303 = (p03 - p0), (p03 - p3)
+                p1 = p0 + d003 * 0.5
+                p2 = p3 + d303 * 0.5
+                return CubicBezier(p0, p1, p2, p3)
+
+            case _:
+                pass
+
+        l_d = [0] + [
+            (p0 - p1).length
+            for (p0, p1) in zip(pts_list[:-1], pts_list[1:])
+        ]
         l_ad = [s for d, s in iter_running_sum(l_d)]
         dist = sum(l_d)
         if dist <= 0:
@@ -252,32 +266,38 @@ class CubicBezier:
         p3 = Point((x3, y3, z3))
         return CubicBezier(p0, p1, p2, p3)
 
-    def __init__(self, p0, p1, p2, p3):
+    def __init__(self, p0 : Vector, p1 : Vector, p2 : Vector, p3 : Vector):
         self.p0, self.p1, self.p2, self.p3 = p0, p1, p2, p3
         self.tessellation = []
+        self.fn_dist = None
 
-    def __iter__(self): return iter([self.p0, self.p1, self.p2, self.p3])
+    def __iter__(self) -> Iterator[Vector]:
+        yield self.p0
+        yield self.p1
+        yield self.p2
+        yield self.p3
 
-    def points(self): return (self.p0, self.p1, self.p2, self.p3)
+    def points(self) -> tuple[Vector, Vector, Vector, Vector]:
+        return (self.p0, self.p1, self.p2, self.p3)
 
-    def copy(self):
+    def copy(self) -> CubicBezier:
         ''' shallow copy '''
         return CubicBezier(self.p0, self.p1, self.p2, self.p3)
 
-    def eval(self, t):
+    def eval(self, t) -> Point:
         p0, p1, p2, p3 = self.p0, self.p1, self.p2, self.p3
         b0, b1, b2, b3 = compute_cubic_weights(t)
         return Point.weighted_average([
             (b0, p0), (b1, p1), (b2, p2), (b3, p3)
         ])
 
-    def eval_derivative(self, t):
+    def eval_derivative(self, t : float) -> Vector:
         p0, p1, p2, p3 = self.p0, self.p1, self.p2, self.p3
         q0, q1, q2 = 3*(p1-p0), 3*(p2-p1), 3*(p3-p2)
         b0, b1, b2 = compute_quadratic_weights(t)
-        return q0*b0 + q1*b1 + q2*b2
+        return q0 * b0 + q1 * b1 + q2 * b2
 
-    def subdivide(self, iters=1):
+    def subdivide(self, iters : int = 1) -> list[CubicBezier]:
         if iters == 0:
             return [self]
         # de casteljau subdivide
@@ -290,7 +310,7 @@ class CubicBezier:
             return [cb0, cb1]
         return cb0.subdivide(iters=iters-1) + cb1.subdivide(iters=iters-1)
 
-    def compute_linearity(self, fn_dist):
+    def compute_linearity(self, fn_dist : Callable[[Vector, Vector], float]) -> float:
         '''
         Estimating measure of linearity as ratio of distances
         of curve mid-point and mid-point of end control points
@@ -302,8 +322,10 @@ class CubicBezier:
                  ﹨_/
                  p2
         '''
-        p0, p1, p2, p3 = Vector(self.p0), Vector(
-            self.p1), Vector(self.p2), Vector(self.p3)
+        p0 = Vector(self.p0)
+        p1 = Vector(self.p1)
+        p2 = Vector(self.p2)
+        p3 = Vector(self.p3)
         q0, q1, q2 = (p0+p1)/2, (p1+p2)/2, (p2+p3)/2
         r0, r1 = (q0+q1)/2, (q1+q2)/2
         s = (r0+r1)/2
@@ -312,25 +334,41 @@ class CubicBezier:
         dsm = fn_dist(s, m)
         return 2 * dsm / d03
 
-    def subdivide_linesegments(self, fn_dist, max_linearity=None):
+    def subdivide_linesegments(
+        self,
+        fn_dist : Callable[[Vector, Vector], float],
+        max_linearity : float | None = None,
+    ) -> list[CubicBezier]:
         if self.compute_linearity(fn_dist) < (max_linearity or 0.1):
             return [self]
         # de casteljau subdivide:
-        p0, p1, p2, p3 = Vector(self.p0), Vector(
-            self.p1), Vector(self.p2), Vector(self.p3)
+        p0 = Vector(self.p0)
+        p1 = Vector(self.p1)
+        p2 = Vector(self.p2)
+        p3 = Vector(self.p3)
         q0, q1, q2 = (p0+p1)/2, (p1+p2)/2, (p2+p3)/2
         r0, r1 = (q0+q1)/2, (q1+q2)/2
         s = (r0+r1)/2
         cbs = CubicBezier(p0, q0, r0, s), CubicBezier(s, r1, q2, p3)
-        segs0, segs1 = [cb.subdivide_linesegments(
-            fn_dist, max_linearity=max_linearity) for cb in cbs]
+        segs0, segs1 = [
+            cb.subdivide_linesegments(fn_dist, max_linearity=max_linearity)
+            for cb in cbs
+        ]
         return segs0 + segs1
 
-    def length(self, fn_dist, max_linearity=None):
-        l = self.subdivide_linesegments(fn_dist, max_linearity=max_linearity)
-        return sum(fn_dist(cb.p0, cb.p3) for cb in l)
+    def length(
+        self,
+        fn_dist : Callable[[Vector, Vector], float],
+        max_linearity : float | None = None,
+    ) -> float:
+        cbs = self.subdivide_linesegments(fn_dist, max_linearity=max_linearity)
+        return sum(fn_dist(cb.p0, cb.p3) for cb in cbs)
 
-    def approximate_length_uniform(self, fn_dist, split=None):
+    def approximate_length_uniform(
+        self,
+        fn_dist : Callable[[Vector, Vector], float],
+        split : int | None = None,
+    ) -> float:
         split = split or self.split_default
         p = self.p0
         d = 0
@@ -340,7 +378,12 @@ class CubicBezier:
             p = q
         return d
 
-    def approximate_t_at_interval_uniform(self, interval, fn_dist, split=None):
+    def approximate_t_at_interval_uniform(
+        self,
+        interval : float,  # should be int?
+        fn_dist : Callable[[Vector, Vector], float],
+        split : int | None = None,
+    ) -> float:
         split = split or self.split_default
         p = self.p0
         d = 0
@@ -354,21 +397,31 @@ class CubicBezier:
         return 1
 
     def approximate_ts_at_intervals_uniform(
-        self, intervals, fn_dist, split=None
-    ):
-        a = self.approximate_t_at_interval_uniform
+        self,
+        intervals : list[float],  # should be int?
+        fn_dist : Callable[[Vector, Vector], float],
+        split : int | None = None,
+    ) -> list[float]:
+        self_approx = self.approximate_t_at_interval_uniform
+        def approx(i : float) -> float:
+            return self_approx(i, fn_dist, split=None)
+        return [ approx(interval) for interval in intervals ]
 
-        def approx(i): return a(i, fn_dist, split=None)
-        return [approx(interval) for interval in intervals]
-
-    def get_tessellate_uniform(self, fn_dist, split=None):
+    def get_tessellate_uniform(
+        self,
+        fn_dist : Callable[[Vector, Vector], float],
+        split : int | None = None,
+    ) -> list[tuple[float, Vector, float]]:
         split = split or self.split_default
         ts = [i / (split - 1) for i in range(split)]
         ps = [self.eval(t) for t in ts]
         ds = [0] + [fn_dist(p, q) for p, q in iter_pairs(ps, False)]
         return [(t, p, d) for (t, p, d) in zip(ts, ps, ds)]
 
-    def tessellate_uniform_points(self, segments=None):
+    def tessellate_uniform_points(
+        self,
+        segments : int | None = None,
+    ) -> list[Vector]:
         segments = segments or self.segments_default
         ts = [i/(segments-1) for i in range(segments)]
         ps = [self.eval(t) for t in ts]
@@ -382,25 +435,34 @@ class CubicBezier:
     #                                       #
     #########################################
 
-    def tessellate_uniform(self, *, fn_dist=None, split=None):
-        if not fn_dist: fn_dist = lambda a, b: (a - b).length
+    def tessellate_uniform(
+        self,
+        *,
+        fn_dist : Callable[[Vector, Vector], float] | None = None,
+        split : int | None = None,
+    ):
+        if not fn_dist:
+            fn_dist = lambda a, b: (a - b).length
         self.fn_dist = fn_dist
         self.tessellation = self.get_tessellate_uniform(fn_dist, split=split)
 
-    def approximate_t_at_point_tessellation(self, point):
+    def approximate_t_at_point_tessellation(self, point : Vector) -> float:
+        assert self.fn_dist, 'tessellate_uniform must be called first!'
         fn_dist = self.fn_dist
-        bd, bt = None, None
-        for t, q, _ in self.tessellation:
+        bt : float | None = None
+        bd : float | None = None
+        for (t, q, _) in self.tessellation:
             d = fn_dist(point, q)
             if bd is None or d < bd:
                 bd, bt = d, t
+        assert bt is not None
         return bt
 
-    def approximate_totlength_tessellation(self):
+    def approximate_totlength_tessellation(self) -> float:
         return sum(self.approximate_lengths_tessellation())
 
-    def approximate_lengths_tessellation(self):
-        return [d for _, _, d in self.tessellation]
+    def approximate_lengths_tessellation(self) -> list[float]:
+        return [d for (_, _, d) in self.tessellation]
 
 
 class CubicBezierSpline:

@@ -36,10 +36,8 @@ from ...addon_common.common.maths import (
     Point2D, Vec2D, Direction2D,
     clamp, Color, Plane,
 )
-from ...addon_common.common.debug import dprint
 from ...addon_common.common.blender import tag_redraw_all
-from ...addon_common.common.decorators import timed_call
-from ...addon_common.common.drawing import CC_2D_LINE_STRIP, CC_2D_LINE_LOOP, CC_DRAW, DrawCallbacks
+from ...addon_common.common.drawing import DrawCallbacks
 from ...addon_common.common.fsm import FSM
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.profiler import profiler

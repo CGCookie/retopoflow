@@ -21,6 +21,7 @@ Created by Jonathan Denning, Jonathan Lampel
 
 from __future__ import annotations
 import os
+from typing import cast
 from collections.abc import Callable, Sequence
 
 import bpy
@@ -191,7 +192,11 @@ class Patches_Template:
         return active.is_flat if active else False
 
     @staticmethod
-    def activate(context : Context, asset_identifier : str, library_identifier : str, library_type : str):
+    def activate(context : Context, asset_identifier : str | None, library_identifier : str | None, library_type : str | None):
+        if not asset_identifier or not library_identifier or not library_type:
+            Patches_Template._active = None
+            return
+
         print(f'Activate asset: "{asset_identifier}" from libary: "{library_identifier}" ({library_type})')
         template_id = f'{library_type} {library_identifier} {asset_identifier}'
         cache = Patches_Template._cache
@@ -204,8 +209,15 @@ class Patches_Template:
 
             if library_type == 'LOCAL':
                 obj_name = asset_identifier.split('/')[-1]
-                mesh = bpy.data.objects[obj_name].data
-                cache[template_id] = Patches_Template(mesh)
+                obj = bpy.data.objects[obj_name]
+                if not obj:
+                    print(f'Patches_Template.activate failed due to not finding object {obj_name}')
+                    return
+                mesh = obj.data
+                if not mesh:
+                    print(f'Patches_Template.activate failed due to not finding mesh for object {obj_name}')
+                    return
+                cache[template_id] = Patches_Template(cast(Mesh, mesh))
 
             elif library_type == 'CUSTOM':
                 blend, object_type, object_name = asset_identifier.split('/')
@@ -222,11 +234,13 @@ class Patches_Template:
                 with bpy.data.libraries.load(blend_path, link=True) as (data_from, data_to):
                     assert object_name in data_from.objects, f'Could not find {object_name} ({object_type}) in {blend} ({blend_path})'
                     data_to.objects = [object_name]
+                # the following must be **OUTSIDE** the with above
                 asset_scene.collection.objects.link(data_to.objects[0])  # does NOT return the object linked!
                 asset_object = asset_scene.collection.objects[0]  # should be only one object in temp scene
+                assert asset_object
 
                 # grab and process mesh data
-                cache[template_id] = Patches_Template(asset_object.data)
+                cache[template_id] = Patches_Template(cast(Mesh, asset_object.data))
 
                 # clean up!
                 bpy.data.objects.remove(asset_object, do_unlink=True)

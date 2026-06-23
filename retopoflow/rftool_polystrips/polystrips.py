@@ -21,33 +21,33 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy
 import bmesh
-import math
 from mathutils import Vector
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_location_3d
 
+from ..rfoverlay_base import RFOverlay_Base
 from ..rfglobals import RFGlobals
+
 from ..rfbrushes.stroke_brush import create_stroke_brush
 from ..rfoverlays.quadstrip_selection_overlay import create_quadstrip_selection_overlay
 
 from ..rftool_base import RFTool_Base
-from ..common.bmesh import get_bmesh_emesh, bme_midpoint, get_boundary_strips_cycles
+from ..common.bmesh import get_bmesh_emesh
 from ..common.drawing import Drawing
 from ..common.icons import get_path_to_blender_icon
-from ..common.maths import point_to_bvec4, view_forward_direction, proportional_edit, xform_direction, view_right_direction
-from ..common.raycast import raycast_point_valid_sources, mouse_from_event, size2D_to_size
-from ..common.raycast import is_point_hidden, nearest_point_valid_sources, raycast_valid_sources
+from ..common.maths import view_forward_direction, proportional_edit, xform_direction, view_right_direction
+from ..common.raycast import raycast_point_valid_sources, mouse_from_event
+from ..common.raycast import nearest_point_valid_sources
 from ..common.operator import (
     execute_operator,
     RFOperator, RFOperator_Execute, RFKeyMap, RFKeyMaps, BLKeyMaps,
     chain_rf_keymaps,
     wrap_property, poll_retopoflow,
 )
-from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common import gpustate
 from ...addon_common.common.blender import event_modifier_check
 from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.debug import debugger
-from ...addon_common.common.maths import clamp, Frame, Direction2D, Color, sign_threshold
+from ...addon_common.common.maths import Frame, Direction2D, Color, sign_threshold
 from ...addon_common.common.resetter import Resetter
 from ...addon_common.common.utils import iter_pairs
 
@@ -696,14 +696,6 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
         return {'PASS_THROUGH'} if event.type in {'MOUSEMOVE', 'LEFTMOUSE'} else {'RUNNING_MODAL'}
 
 
-RFOperator_PolyStrips_Overlay = create_quadstrip_selection_overlay(
-    'RFOperator_PolyStrips_Selection_Overlay',
-    'retopoflow.polystrips',  # must match RFTool_base.bl_idname
-    'polystrips_overlay',
-    'PolyStrips Selected Overlay',
-    True,
-)
-
 
 @execute_operator('switch_to_polystrips', 'RetopoFlow: Switch to PolyStrips', fn_poll=poll_retopoflow)
 def switch_rftool(context):
@@ -711,15 +703,21 @@ def switch_rftool(context):
 
 
 class RFTool_PolyStrips(RFTool_Base):
-    bl_idname = "retopoflow.polystrips"
-    bl_label = "PolyStrips"
-    bl_description = "Insert quad strip"
-    bl_icon = get_path_to_blender_icon('polystrips')
-    bl_widget = None
-    bl_operator = 'retopoflow.polystrips'
+    bl_idname : str = "retopoflow.polystrips"
+    bl_label : str = "PolyStrips"
+    bl_description : str = "Insert quad strip"
+    bl_icon : str = get_path_to_blender_icon('polystrips')
+    bl_widget : str | None = None
+    bl_operator : str = 'retopoflow.polystrips'
 
     rf_brush = RFBrush_Strokes()
-    rf_overlay = RFOperator_PolyStrips_Overlay
+    rf_overlay : type[RFOverlay_Base] | None = create_quadstrip_selection_overlay(
+        'RFOperator_PolyStrips_Selection_Overlay',
+        'retopoflow.polystrips',  # must match RFTool_base.bl_idname
+        'polystrips_overlay',
+        'PolyStrips Selected Overlay',
+        True,
+    )
 
     props = None  # needed to reset properties
 

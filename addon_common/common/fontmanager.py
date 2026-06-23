@@ -19,37 +19,32 @@ Created by Jonathan Denning, Jonathan Williamson
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-import bpy
 import blf
-import gpu
+from bpy.types import Preferences
+
+from typing import ClassVar
+from collections.abc import Callable, Sequence
 
 from . import gpustate
-from .blender import get_path_from_addon_root, get_path_shortened_from_addon_root
 from .blender_preferences import get_preferences
 from .debug import dprint
-from .decorators import blender_version_wrapper, only_in_blender_version
-from .profiler import profiler
 
 # https://docs.blender.org/api/current/blf.html
 
 class FontManager:
-    _cache = {0:0}
-    _last_fontid = 0
-    _prefs = get_preferences()
+    _cache : ClassVar[dict[str|int, int]] = {0:0}
+    _last_fontid : ClassVar[int] = 0
+    _prefs : ClassVar[Preferences] = get_preferences()
 
     @staticmethod
-    @property
-    def last_fontid(): return FontManager._last_fontid
-
-    @staticmethod
-    def get_dpi():
+    def get_dpi() -> int:
         ui_scale = FontManager._prefs.view.ui_scale
         pixel_size = FontManager._prefs.system.pixel_size
         dpi = 72 # FontManager._prefs.system.dpi
         return int(dpi * ui_scale * pixel_size)
 
     @staticmethod
-    def load(val, load_callback=None):
+    def load(val : str | int | None, load_callback : Callable[[int], None] | None = None) -> int:
         if val is None:
             fontid = FontManager._last_fontid
         else:
@@ -67,121 +62,119 @@ class FontManager:
 
     @staticmethod
     def unload_fontids():
-        for name,fontid in FontManager._cache.items():
+        for (name, fontid) in FontManager._cache.items():
+            if isinstance(name, int):
+                continue
             print('Unloading font "%s" as id %d' % (name, fontid))
             blf.unload(name)
         FontManager._cache = {}
         FontManager._last_fontid = 0
 
     @staticmethod
-    def unload(filename):
+    def unload(filename : str):
         assert filename in FontManager._cache
         fontid = FontManager._cache[filename]
         dprint('Unloading font "%s" as id %d' % (filename, fontid))
         blf.unload(filename)
         del FontManager._cache[filename]
+        del FontManager._cache[fontid]
         if fontid == FontManager._last_fontid:
             FontManager._last_fontid = 0
 
     @staticmethod
-    def aspect(aspect, fontid=None):
-        return blf.aspect(FontManager.load(fontid), aspect)
+    def aspect(aspect : float, fontid : str | int | None = None):
+        blf.aspect(FontManager.load(fontid), aspect)
 
     @staticmethod
-    def blur(radius, fontid=None):
-        return blf.blur(FontManager.load(fontid), radius)
+    def clipping(xymin : Sequence[float], xymax : Sequence[float], fontid : str | int | None = None):
+        blf.clipping(FontManager.load(fontid), *xymin, *xymax)
 
     @staticmethod
-    def clipping(xymin, xymax, fontid=None):
-        return blf.clipping(FontManager.load(fontid), *xymin, *xymax)
-
-    @staticmethod
-    def color(color, fontid=None):
+    def color(color : Sequence[float], fontid : str | int | None = None):
         blf.color(FontManager.load(fontid), *color)
 
     @staticmethod
-    def dimensions(text, fontid=None):
+    def dimensions(text : str, fontid : str | int | None = None) -> tuple[float, float]:
         return blf.dimensions(FontManager.load(fontid), text)
 
     @staticmethod
-    def disable(option, fontid=None):
-        return blf.disable(FontManager.load(fontid), option)
+    def disable(option : int, fontid : str | int | None = None):
+        assert option in {blf.ROTATION, blf.CLIPPING, blf.SHADOW, blf.MONOCHROME, blf.WORD_WRAP}, f'Expected {option=} to be blf.ROTATION, blf.CLIPPING, blf.SHADOW, blf.MONOCHROME, blf.WORD_WRAP'
+        blf.disable(FontManager.load(fontid), option)
 
     @staticmethod
-    def disable_rotation(fontid=None):
-        return blf.disable(FontManager.load(fontid), blf.ROTATION)
+    def disable_rotation(fontid : str | int | None = None):
+        blf.disable(FontManager.load(fontid), blf.ROTATION)
 
     @staticmethod
-    def disable_clipping(fontid=None):
-        return blf.disable(FontManager.load(fontid), blf.CLIPPING)
+    def disable_clipping(fontid : str | int | None = None):
+        blf.disable(FontManager.load(fontid), blf.CLIPPING)
 
     @staticmethod
-    def disable_shadow(fontid=None):
-        return blf.disable(FontManager.load(fontid), blf.SHADOW)
+    def disable_shadow(fontid : str | int | None = None):
+        blf.disable(FontManager.load(fontid), blf.SHADOW)
 
     @staticmethod
-    def disable_word_wrap(fontid=None):
-        return blf.disable(FontManager.load(fontid), blf.WORD_WRAP)
+    def disable_word_wrap(fontid : str | int | None = None):
+        blf.disable(FontManager.load(fontid), blf.WORD_WRAP)
 
     @staticmethod
-    def draw(text, xyz=None, fontsize=None, fontid=None):
+    def draw(text : str, xyz : Sequence[float] | None = None, fontsize : float | None = None, fontid : int | str | None = None):
         fontid = FontManager.load(fontid)
         if xyz: blf.position(fontid, *xyz)
         if fontsize: FontManager.size(fontsize, fontid=fontid)
-        return blf.draw(fontid, text)
+        blf.draw(fontid, text)
 
     @staticmethod
-    def draw_simple(text, xyz):
+    def draw_simple(text : str, xyz : Sequence[float]):
         fontid = FontManager._last_fontid
         blf.position(fontid, *xyz)
         blend_eqn = gpustate.get_blend()   # storing blend settings, because blf.draw used to overwrite them (not sure if still applies)
-        ret = blf.draw(fontid, text)
+        blf.draw(fontid, text)
         gpustate.blend(blend_eqn)      # restore blend settings
-        return ret
 
     @staticmethod
-    def enable(option, fontid=None):
-        return blf.enable(FontManager.load(fontid), option)
+    def enable(option : int, fontid : str | int | None = None):
+        assert option in {blf.ROTATION, blf.CLIPPING, blf.SHADOW, blf.MONOCHROME, blf.WORD_WRAP}, f'Expected {option=} to be blf.ROTATION, blf.CLIPPING, blf.SHADOW, blf.MONOCHROME, blf.WORD_WRAP'
+        blf.enable(FontManager.load(fontid), option)
 
     @staticmethod
-    def enable_rotation(fontid=None):
-        return blf.enable(FontManager.load(fontid), blf.ROTATION)
+    def enable_rotation(fontid : str | int | None = None):
+        blf.enable(FontManager.load(fontid), blf.ROTATION)
 
     @staticmethod
-    def enable_clipping(fontid=None):
-        return blf.enable(FontManager.load(fontid), blf.CLIPPING)
+    def enable_clipping(fontid : str | int | None = None):
+        blf.enable(FontManager.load(fontid), blf.CLIPPING)
 
     @staticmethod
-    def enable_shadow(fontid=None):
-        return blf.enable(FontManager.load(fontid), blf.SHADOW)
+    def enable_shadow(fontid : str | int | None = None):
+        blf.enable(FontManager.load(fontid), blf.SHADOW)
 
     @staticmethod
-    def enable_word_wrap(fontid=None):
-        # note: not a listed option in docs for `blf.enable`, but see `blf.word_wrap`
-        return blf.enable(FontManager.load(fontid), blf.WORD_WRAP)
+    def enable_word_wrap(fontid : str | int | None = None):
+        blf.enable(FontManager.load(fontid), blf.WORD_WRAP)
 
     @staticmethod
-    def position(xyz, fontid=None):
-        return blf.position(FontManager.load(fontid), *xyz)
+    def position(xyz : Sequence[float], fontid : str | int | None = None):
+        blf.position(FontManager.load(fontid), *xyz)
 
     @staticmethod
-    def rotation(angle, fontid=None):
-        return blf.rotation(FontManager.load(fontid), angle)
+    def rotation(angle : float, fontid : str | int | None = None):
+        blf.rotation(FontManager.load(fontid), angle)
 
     @staticmethod
-    def shadow(level, rgba, fontid=None):
-        return blf.shadow(FontManager.load(fontid), level, *rgba)
+    def shadow(level : int, rgba : Sequence[float], fontid : str | int | None = None):
+        assert level in {0, 3, 5, 6}, f'Expected {level=} to be 0, 3, 5, 6'
+        blf.shadow(FontManager.load(fontid), level, *rgba)
 
     @staticmethod
-    def shadow_offset(xy, fontid=None):
-        return blf.shadow_offset(FontManager.load(fontid), *xy)
+    def shadow_offset(xy : Sequence[int], fontid : str | int | None = None):
+        blf.shadow_offset(FontManager.load(fontid), *xy)
 
     @staticmethod
-    def size(size, fontid=None):
-        return blf.size(FontManager.load(fontid), size)
+    def size(size : float, fontid : str | int | None = None):
+        blf.size(FontManager.load(fontid), size)
 
     @staticmethod
-    def word_wrap(wrap_width, fontid=None):
-        return blf.word_wrap(FontManager.load(fontid), wrap_width)
-
-
+    def word_wrap(wrap_width : int, fontid : str | int | None = None):
+        blf.word_wrap(FontManager.load(fontid), wrap_width)

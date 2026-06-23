@@ -29,8 +29,6 @@ import bpy
 from bpy.types import Event, KeyMapItem, Context
 
 from .blender import get_view3d_area, get_view3d_space, get_view3d_region
-from .debug import dprint
-from .decorators import blender_version_wrapper
 from .human_readable import convert_actions_to_human_readable, convert_human_readable_to_actions
 from .maths import Point2D, Vec2D
 from .timerhandler import TimerHandler
@@ -726,7 +724,7 @@ class Actions:
     def as_char(self, ftype):
         return action_to_char.get(ftype, '')
 
-    def start_timer(self, hz, enabled=True):
+    def start_timer(self, hz : float, enabled : bool=True) -> TimerHandler:
         return TimerHandler(hz, context=bpy.context, enabled=enabled)
 
 

@@ -23,8 +23,8 @@ import os
 
 import gpu
 
-from .blender import tag_redraw_all, get_path_from_addon_common, get_path_from_addon_root
-from .decorators import debug_test_call, blender_version_wrapper, add_cache
+from .blender import get_path_from_addon_common, get_path_from_addon_root
+from .decorators import add_cache
 from .utils import iter_head, any_args, join
 
 from ..ext import png

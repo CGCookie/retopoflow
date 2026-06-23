@@ -31,8 +31,7 @@ from ..rfmesh.rfmesh_wrapper import RFVert, RFEdge, RFFace
 from ...addon_common.common import gpustate
 from ...addon_common.cookiecutter.cookiecutter import CookieCutter
 from ...addon_common.common.blender import tag_redraw_all
-from ...addon_common.common.decorators import timed_call
-from ...addon_common.common.drawing import Cursors, DrawCallbacks, CC_DRAW, CC_2D_LINES
+from ...addon_common.common.drawing import Cursors, DrawCallbacks
 from ...addon_common.common.fsm import FSM
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.maths import Vec2D, Point2D, RelPoint2D, Direction2D
@@ -40,7 +39,7 @@ from ...addon_common.common.profiler import profiler
 from ...addon_common.common.ui_core import UI_Element
 from ...addon_common.common.utils import normalize_triplequote, Dict
 from ...config.options import options, retopoflow_files
-from ...addon_common.common.timerhandler import StopwatchHandler, CallGovernor
+from ...addon_common.common.timerhandler import CallGovernor
 
 class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to override fns
     def setup_states(self):

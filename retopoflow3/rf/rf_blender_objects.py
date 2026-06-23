@@ -33,8 +33,6 @@ from ...config.options import (
     retopoflow_product,
 )
 
-from ...addon_common.common.globals import Globals
-from ...addon_common.common.decorators import blender_version_wrapper
 from ...addon_common.common.blender import (
     set_object_selection,
     get_active_object, set_active_object,

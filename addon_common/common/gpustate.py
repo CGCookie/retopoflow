@@ -20,28 +20,21 @@ Created by Jonathan Denning, Jonathan Williamson
 '''
 
 
-#######################################################################
-# THE FOLLOWING FUNCTIONS ARE ONLY FOR THE TRANSITION FROM BGL TO GPU #
-# THIS FILE **SHOULD** GO AWAY ONCE WE DROP SUPPORT FOR BLENDER 2.83  #
-# AROUND JUNE 2023 AS BLENDER 2.93 HAS GPU MODULE                     #
-#######################################################################
-
 import os
 import platform
 import re
-import traceback
 from inspect import isroutine
 from itertools import chain
 from contextlib import contextmanager
+from typing import Literal
 
 import bpy
 import gpu
 
-from mathutils import Matrix, Vector
+from mathutils import Matrix
 
 from .blender import get_path_from_addon_common
 from .globals import Globals
-from .decorators import only_in_blender_version, warn_once, add_cache
 from .maths import mid
 from .utils import Dict
 from ..terminal import term_printer
@@ -59,186 +52,82 @@ from ..terminal import term_printer
 #                      4.6    460
 
 
-if bpy.app.version < (3,4,0):
-    use_bgl_default = True
-    use_gpu_default = False
-    use_gpu_scissor = False
-elif bpy.app.version < (3,5,1):
-    use_bgl_default = False # gpu.platform.backend_type_get() in {'OPENGL',}
-    use_gpu_default = True  # not use_bgl_default
-    use_gpu_scissor = False
-else:
-    use_bgl_default = False # gpu.platform.backend_type_get() in {'OPENGL',}
-    use_gpu_default = True  # not use_bgl_default
-    use_gpu_scissor = True
+def get_blend() -> str:
+    return gpu.state.blend_get()
 
-print(f'Addon Common: {use_bgl_default=} {use_gpu_default=} {use_gpu_scissor=}')
-
-def get_blend(): return gpu.state.blend_get()
-def blend(mode, *, use_gpu=use_gpu_default, use_bgl=use_bgl_default, only=None):
-    assert use_gpu or use_bgl
-    if use_bgl:
-        import bgl
-        if only != 'function':
-            if mode == 'NONE':
-                bgl.glDisable(bgl.GL_BLEND)
-            else:
-                bgl.glEnable(bgl.GL_BLEND)
-        if only != 'enable':
-            map_mode_bgl = {
-                'ALPHA':            (bgl.GL_SRC_ALPHA,           bgl.GL_ONE_MINUS_SRC_ALPHA),
-                'ALPHA_PREMULT':    (bgl.GL_ONE,                 bgl.GL_ONE_MINUS_SRC_ALPHA),
-                'ADDITIVE':         (bgl.GL_SRC_ALPHA,           bgl.GL_ONE),
-                'ADDITIVE_PREMULT': (bgl.GL_ONE,                 bgl.GL_ONE),
-                'MULTIPLY':         (bgl.GL_DST_COLOR,           bgl.GL_ZERO),
-                'SUBTRACT':         (bgl.GL_ONE,                 bgl.GL_ONE),
-                'INVERT':           (bgl.GL_ONE_MINUS_DST_COLOR, bgl.GL_ZERO),
-            }
-            bgl.glBlendFunc(*map_mode_bgl[mode])
-    if use_gpu:
-        if not only:
+def blend(
+    mode : Literal[
+        "NONE",
+        "ALPHA",
+        "ALPHA_PREMULT",
+        "ADDITIVE",
+        "ADDITIVE_PREMULT",
+        "MULTIPLY",
+        "SUBTRACT",
+        "INVERT",
+    ],
+    *,
+    only : Literal['enable', 'function'] | None = None
+):
+    if not only:
+        gpu.state.blend_set(mode)
+    elif only == 'enable':
+        if (mode == 'NONE') != (gpu.state.blend_get() == 'NONE'):
+            # enabled-ness is different (one is enabled and other disabled)
             gpu.state.blend_set(mode)
-        elif only == 'enable':
-            if (mode == 'NONE') != (gpu.state.blend_get() == 'NONE'):
-                # enabled-ness is different (one is enabled and other disabled)
-                gpu.state.blend_set(mode)
-        elif only == 'function':
-            if gpu.state.blend_get() != 'NONE':
-                # only set when blending is already enabled
-                gpu.state.blend_set(mode)
+    elif only == 'function':
+        if gpu.state.blend_get() != 'NONE':
+            # only set when blending is already enabled
+            gpu.state.blend_set(mode)
 
 
-def depth_test(mode, *, use_gpu=use_gpu_default, use_bgl=use_bgl_default):
-    assert use_gpu or use_bgl
-    if use_bgl:
-        import bgl
-        if mode == 'NONE':
-            bgl.glDisable(bgl.GL_DEPTH_TEST)
-        else:
-            bgl.glEnable(bgl.GL_DEPTH_TEST)
-            map_mode_bgl = {
-                'NEVER':         bgl.GL_NEVER,
-                'LESS':          bgl.GL_LESS,
-                'EQUAL':         bgl.GL_EQUAL,
-                'LESS_EQUAL':    bgl.GL_LEQUAL,
-                'GREATER':       bgl.GL_GREATER,
-                'GREATER_EQUAL': bgl.GL_GEQUAL,
-                'ALWAYS':        bgl.GL_ALWAYS,
-                # NOTE: no equivalent for `bgl.GL_NOTEQUAL` in `gpu` module as of Blender 3.5.1
-            }
-            bgl.glDepthFunc(map_mode_bgl[mode])
-    if use_gpu:
-        gpu.state.depth_test_set(mode)
-def get_depth_test(*, use_gpu=use_gpu_default, use_bgl=use_bgl_default):
-    assert use_gpu or use_bgl
-    if use_bgl:
-        return bgl_get_integerv('GL_DEPTH_FUNC')
-    if use_gpu:
-        return gpu.state.depth_test_get()
+def depth_test(mode : Literal[
+    "NONE", "ALWAYS", "LESS", "LESS_EQUAL", "EQUAL", "GREATER", "GREATER_EQUAL"
+]):
+    gpu.state.depth_test_set(mode)
 
-def depth_mask(enable, *, use_gpu=use_gpu_default, use_bgl=use_bgl_default):
-    assert use_gpu or use_bgl
-    if use_bgl:
-        import bgl
-        bgl.glDepthMask(bgl.GL_TRUE if enable else bgl.GL_FALSE)
-    if use_gpu:
-        gpu.state.depth_mask_set(enable)
-def get_depth_mask(*, use_gpu=use_gpu_default, use_bgl=use_bgl_default):
-    assert use_gpu or use_bgl
-    if use_bgl:
-        return bgl_get_integerv('GL_DEPTH_WRITEMASK')
-    if use_gpu:
-        return gpu.state.depth_mask_get()
+def get_depth_test() -> str:
+    return gpu.state.depth_test_get()
 
-def line_width(width): gpu.state.line_width_set(width)
-def get_line_width(): return gpu.state.line_width_get()
+def depth_mask(enable : bool):
+    gpu.state.depth_mask_set(enable)
 
-def point_size(size): gpu.state.point_size_set(size)
-def get_point_size(): return gpu.state.point_size_get()
+def get_depth_mask() -> bool:
+    return gpu.state.depth_mask_get()
 
-def scissor(left, bottom, width, height, *, use_gpu=use_gpu_default, use_bgl=use_bgl_default):
-    assert use_gpu or use_bgl
-    if use_bgl or (not use_gpu_scissor):
-        import bgl
-        bgl.glScissor(left, bottom, width, height)
-    if use_gpu and use_gpu_scissor:
-        gpu.state.scissor_set(left, bottom, width, height)
-def get_scissor(*, use_gpu=use_gpu_default, use_bgl=use_bgl_default):
-    assert use_gpu or use_bgl
-    if use_bgl or (not use_gpu_scissor):
-        return bgl_get_integerv_tuple('GL_SCISSOR_BOX', 4)
-    if use_gpu and use_gpu_scissor:
-        return gpu.state.scissor_get()
+def line_width(width : float):
+    gpu.state.line_width_set(width)
 
-def scissor_test(enable, *, use_gpu=use_gpu_default, use_bgl=use_bgl_default):
-    assert use_gpu or use_bgl
-    if use_bgl or (not use_gpu_scissor):
-        bgl_enable('GL_SCISSOR_TEST', enable)
-    if use_gpu and use_gpu_scissor:
-        gpu.state.scissor_test_set(enable)
-def get_scissor_test(*, use_gpu=use_gpu_default, use_bgl=use_bgl_default):
-    assert use_gpu or use_bgl
-    if use_bgl or (not use_gpu_scissor):
-        return bgl_is_enabled('GL_SCISSOR_TEST')
-    if use_gpu and use_gpu_scissor:
-        # NOTE: no equivalent in `gpu` module as of Blender 3.5.1
-        # return gpu.state.scissor_test_get()
-        return False
+def get_line_width() -> float:
+    return gpu.state.line_width_get()
 
-def culling(mode, *, use_gpu=use_gpu_default, use_bgl=use_bgl_default):
-    assert use_gpu or use_bgl
-    if use_bgl:
-        import bgl
-        if mode == 'NONE':
-            bgl.glDisable(bgl.GL_CULL_FACE)
-        else:
-            bgl.glEnable(bgl.GL_CULL_FACE)
-            map_mode_bgl = {
-                'FRONT': bgl.GL_FRONT,
-                'BACK':  bgl.GL_BACK,
-            }
-            bgl.glCullFace(map_mode_bgl[mode])
-    if use_gpu:
-        gpu.state.face_culling_set(mode)
+def point_size(size : float):
+    gpu.state.point_size_set(size)
+
+def scissor(left : int, bottom : int, width : int, height : int):
+    gpu.state.scissor_set(left, bottom, width, height)
+
+def get_scissor() -> tuple[int, int, int, int]:
+    return gpu.state.scissor_get()
+
+def scissor_test(enable : bool):
+    gpu.state.scissor_test_set(enable)
+
+def get_scissor_test() -> bool:
+    # NOTE: no equivalent in `gpu` module as of Blender 5.1
+    # return gpu.state.scissor_test_get()
+    return False
+
+def culling(mode : Literal["NONE", "FRONT", "BACK"]):
+    gpu.state.face_culling_set(mode)
 
 
 #########################
 # opengl errors
 
-@add_cache('_error_check', True)
-@add_cache('_error_count', 0)
-@add_cache('_error_limit', 10)
-def get_glerror(title, *, use_bgl=use_bgl_default):
-    if not use_bgl:
-        # NOTE: no equivalent in `gpu` module as of Blender 3.5.1
-        return False
-    if not get_glerror._error_check: return
-    import bgl
-    err = bgl.glGetError()
-    if err == bgl.GL_NO_ERROR:
-        return False
-    get_glerror._error_count += 1
-    if get_glerror._error_count >= get_glerror._error_limit:
-        return True
-    error_map = {
-        getattr(bgl, k): s
-        for (k,s) in [
-            # https://www.khronos.org/opengl/wiki/OpenGL_Error#Meaning_of_errors
-            ('GL_INVALID_ENUM', 'invalid enum'),
-            ('GL_INVALID_VALUE', 'invalid value'),
-            ('GL_INVALID_OPERATION', 'invalid operation'),
-            ('GL_STACK_OVERFLOW', 'stack overflow'),    # does not exist in b3d 2.8x for OSX??
-            ('GL_STACK_UNDERFLOW', 'stack underflow'),  # does not exist in b3d 2.8x for OSX??
-            ('GL_OUT_OF_MEMORY', 'out of memory'),
-            ('GL_INVALID_FRAMEBUFFER_OPERATION', 'invalid framebuffer operation'),
-            ('GL_CONTEXT_LOST', 'context lost'),
-            ('GL_TABLE_TOO_LARGE', 'table too large'),  # deprecated in OpenGL 3.0, removed in 3.1 core and above
-        ]
-        if hasattr(bgl, k)
-    }
-    print(f'ERROR {get_glerror._error_count}/{get_glerror._error_limit} ({title}): {error_map.get(err, f"code {err}")}')
-    traceback.print_stack()
-    return True
+def get_glerror(_title : str) -> bool:
+    # NOTE: no equivalent in `gpu` module as of Blender 3.5.1
+    return False
 
 
 
@@ -753,10 +642,8 @@ class ScissorStack:
 
         # remember the current scissor box settings so we can return to them when done
         ScissorStack.scissor_test_was_enabled = get_scissor_test()
-        get_glerror('get_scissor_test')
         if ScissorStack.scissor_test_was_enabled:
             pl, pb, pw, ph = get_scissor() #ScissorStack.buf
-            get_glerror('get_scissor')
             pt = pb + ph - 1
             ScissorStack.stack = [(pl, pt, pw, ph)]
             ScissorStack.msg_stack = ['init']
@@ -787,7 +674,6 @@ class ScissorStack:
         l,t,w,h = ScissorStack.stack[-1]
         b = t - (h - 1)
         scissor(l, b, w, h)
-        get_glerror('scissor')
 
     @staticmethod
     def push(nl, nt, nw, nh, msg='', clamp=True):
@@ -875,25 +761,6 @@ class ScissorStack:
 # gather gpu information
 
 # https://www.khronos.org/registry/OpenGL-Refpages/gl2.1/xhtml/glGetString.xml
-@only_in_blender_version('< 3.0')
-def gpu_info():
-    import bgl
-    return {
-        'vendor':   bgl.glGetString(bgl.GL_VENDOR),
-        'renderer': bgl.glGetString(bgl.GL_RENDERER),
-        'version':  bgl.glGetString(bgl.GL_VERSION),
-        'shading':  bgl.glGetString(bgl.GL_SHADING_LANGUAGE_VERSION),
-    }
-
-@only_in_blender_version('>= 3.0', '< 3.4')
-def gpu_info():
-    return {
-        'vendor':   gpu.platform.vendor_get(),
-        'renderer': gpu.platform.renderer_get(),
-        'version':  gpu.platform.version_get(),
-    }
-
-@only_in_blender_version('>= 3.4')
 def gpu_info():
     platform = {
         'backend':  gpu.platform.backend_type_get(),
@@ -911,39 +778,3 @@ def gpu_info():
 
 # if not bpy.app.background:
 #     print(f'Addon Common: {gpu_info()}')
-
-
-####################################
-# helper functions
-
-@contextmanager
-@add_cache('_buffers', dict())
-def bgl_get_temp_buffer(type_str, size):
-    import bgl
-    bufs, key = bgl_get_temp_buffer._buffers, (type_str, size)
-    if key not in bufs:
-        bufs[key] = bgl.Buffer(getattr(bgl, type_str), size)
-    yield bufs[key]
-
-def bgl_get_integerv(pname_str, *, type_str='GL_INT'):
-    import bgl
-    with bgl_get_temp_buffer(type_str, 1) as buf:
-        bgl.glGetIntegerv(getattr(bgl, pname_str), buf)
-        return buf[0]
-
-def bgl_get_integerv_tuple(pname_str, size, *, type_str='GL_INT'):
-    import bgl
-    with bgl_get_temp_buffer(type_str, size) as buf:
-        bgl.glGetIntegerv(getattr(bgl, pname_str), buf)
-        return tuple(buf)
-
-def bgl_is_enabled(pname_str):
-    import bgl
-    return (bgl.glIsEnabled(getattr(bgl, pname_str)) == bgl.GL_TRUE)
-
-def bgl_enable(pname_str, enabled):
-    import bgl
-    pname = getattr(bgl, pname_str)
-    if enabled: bgl.glEnable(pname)
-    else:       bgl.glDisable(pname)
-

@@ -32,7 +32,7 @@ def draw_ui_options(context, layout):
     grid.use_property_decorate = False
 
     col = grid.column()
-    if hasattr(context.space_data, 'overlay'):
+    if context.space_data.type == 'VIEW_3D':
         col.prop(props_scene, 'retopo_offset', text='Overlay Offset')
         col.separator()
         row = col.row(heading='Fade Inactive')

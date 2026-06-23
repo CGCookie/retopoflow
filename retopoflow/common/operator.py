@@ -20,12 +20,21 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 from __future__ import annotations
-from typing import Self, ClassVar, Protocol, Any, cast, ParamSpec, TypeVar
+from typing import Self, ClassVar, Protocol, Any, cast, ParamSpec, TypeVar, Literal
 from collections.abc import Sequence, Callable
 from inspect import signature
 
 import bpy
-from bpy.types import Context, Event, Area, Window, Operator, KeyMapItem, WindowManager, Timer, SpaceView3D, bpy_struct, Property
+from bpy.types import (
+    Context, Event,
+    Area, Window, WindowManager, SpaceView3D,
+    Operator,  OperatorProperties,
+    KeyMapItem,
+    Timer,
+    bpy_struct,
+    Property,
+    AssetShelf,
+)
 from bpy.props import EnumProperty, StringProperty, IntProperty, FloatProperty
 
 from ..rfglobals import RFGlobals
@@ -38,8 +47,10 @@ from ...addon_common.terminal import term_printer
 dev_env = 'vscode_development' in __file__
 
 def poll_retopoflow(context : Context) -> bool:
-    if not context.edit_object: return False
-    if context.edit_object.type != 'MESH': return False
+    if not context.edit_object:
+        return False
+    if context.edit_object.type != 'MESH':
+        return False
     return True
 
 
@@ -80,6 +91,9 @@ RFKeyMap = tuple[
 RFKeyMaps = list[RFKeyMap]
 BLKeyMaps = tuple[RFKeyMap, ...]
 
+
+DEBUG_PRINT = False
+
 class RFOperator_Base(Operator):
     _subclasses : list[type[RFOperator_Base]] = []
     # bl_idname : ClassVar[str]
@@ -94,6 +108,11 @@ class RFOperator_Base(Operator):
             return
 
         cls.rf_idname = cls.bl_idname
+        if DEBUG_PRINT:
+            print('RFOperator_Base.__init_subclass__:')
+            print(f'  - {cls.__name__=} {cls.__qualname__=}')
+            print(f'  - {cls.__mro__=}')
+            print(f'  - {cls.rf_idname=} {cls.bl_idname=}')
         RFOperator_Base._subclasses.append(cls)
         super().__init_subclass__(*args, **kwargs)
 
@@ -104,14 +123,31 @@ class RFOperator_Base(Operator):
 
     @staticmethod
     def register_all():
+        if DEBUG_PRINT:
+            print('RFOperator_Base.register_all:')
         for op in RFOperator_Base.get_all_RFOperators():
-            bpy.utils.register_class(op)
+            if DEBUG_PRINT:
+                print(f'  - {op.rf_idname=}, {op.bl_idname=}')
+                print('    - bpy.utils.register_class(op)')
+            try:
+                bpy.utils.register_class(op)
+            except Exception as e:
+                assert False, f'caught Exception {e} while trying to register class'
+            if DEBUG_PRINT:
+                print('    - op.register()')
             op.register()
+            if DEBUG_PRINT:
+                print('    - done')
         print(f'RF registered {len(RFOperator_Base.get_all_RFOperators())} RFOperators')
+
     @staticmethod
     def unregister_all():
         exceptions : list[tuple[str, str, Exception]] = []
+        if DEBUG_PRINT:
+            print('RFOperator_Base.unregister_all:')
         for op in reversed(RFOperator_Base.get_all_RFOperators()):
+            if DEBUG_PRINT:
+                print(f'  - {op.rf_idname=}, {op.bl_idname=}')
             try:
                 op.unregister()
             except Exception as e:
@@ -120,7 +156,8 @@ class RFOperator_Base(Operator):
                 bpy.utils.unregister_class(op)
             except Exception as e:
                 exceptions.append((op.rf_idname, 'bpy.utils.unregister_class', e))
-        if not exceptions: return
+        if not exceptions:
+            return
 
         print()
         term_printer.boxed(
@@ -137,63 +174,94 @@ class RFOperator_Base(Operator):
 
 
 
-class RFOperator_KeymapContext:
-    def update_km_context(self, _context : Context):
+class RFOperator_KeymapContext(RFOperator_Base):
+    @staticmethod
+    def update_km_context(props : OperatorProperties, _context : Context):
         # technically, self is a bpy_struct type that "wraps" RFOperator_KeymapContext
-
         RFCore = RFGlobals.RFCore_None
-        if not RFCore: return
+        if not RFCore:
+            return
+        if not hasattr(props, 'km_context'):
+            return
 
-        if self.km_context == 'OVERRIDE':
+        km_context : str = getattr(props, 'km_context')
+
+        if km_context == 'OVERRIDE':
             # NOTE: 'km_status_override' is set by caller ('set_statusbar_override')
             # NOTE: 'km_context' is not reset as we need is as a fallback when we exit the override
             pass
         else:
             # print(f'RFOperator_KeymapContext._update_km_context {RFCore.km_context=} -> {km_context=}')
             RFCore.km_status_override = None
-            RFCore.km_context = self.km_context if self.km_context else None
+            RFCore.km_context = km_context if km_context else None
 
     km_context: StringProperty( # pyright: ignore[reportUninitializedInstanceVariable]
         name='Keymap Context',
         description='Context for the tool keymap',
         # cast update_km_context so type hinting matches (looks like blender abuses type system)
-        update=cast(Callable[[bpy_struct, Context], None], update_km_context),
+        update=cast(Callable[[bpy_struct, Context], None], update_km_context.__func__),
     )
 
     def set_statusbar_override(self, status: str | Sequence[str] | None):
         RFCore = RFGlobals.RFCore_None
-        if not RFCore: return
+        if not RFCore:
+            return
 
         if status is None:
             # print(f'RFOperator_KeymapContext:: reset_override {RFOperator.RFCore.km_context=}')
             self.km_context = RFCore.km_context if RFCore.km_context is not None else ''
             return
+
         # print(f'RFOperator_KeymapContext:: set_statusbar_override. {status=}')
         RFCore.km_status_override = status
         self.km_context = 'OVERRIDE'  # IMPORTANT: updating a property triggers statusbar update!
 
 
 
+class RFAssetShelf(AssetShelf):
+    bl_space_type : Literal[
+        "EMPTY",
+        "VIEW_3D",
+        "IMAGE_EDITOR",
+        "NODE_EDITOR",
+        "SEQUENCE_EDITOR",
+        "CLIP_EDITOR",
+        "DOPESHEET_EDITOR",
+        "GRAPH_EDITOR",
+        "NLA_EDITOR",
+        "TEXT_EDITOR",
+        "CONSOLE",
+        "INFO",
+        "TOPBAR",
+        "STATUSBAR",
+        "OUTLINER",
+        "PROPERTIES",
+        "FILE_BROWSER",
+        "SPREADSHEET",
+        "PREFERENCES",
+    ] = 'VIEW_3D'
+    asset_library_reference : Literal["ALL", "LOCAL", "ESSENTIALS", "CUSTOM"] = 'CUSTOM'
 
-class RFAssetShelf(bpy.types.AssetShelf):
-    bl_space_type = 'VIEW_3D'
-    asset_library_reference = 'CUSTOM'
+    rf_idname : ClassVar[str]
 
-    _subclasses = []
-    def __init_subclass__(cls, **kwargs):
+    _subclasses : list[type[RFAssetShelf]] = []
+    def __init_subclass__(cls, **kwargs : dict[str, ...]):
         RFAssetShelf._subclasses.append(cls)
         cls.rf_idname = cls.bl_idname
         super().__init_subclass__(**kwargs)
+
     @staticmethod
-    def get_all_RFOperators():
+    def get_all_RFOperators() -> list[type[RFAssetShelf]]:
         return RFAssetShelf._subclasses
         # return RFOperator.__subclasses__()  # this only works if the subclass is still in scope!!!!!
+
     @staticmethod
     def register_all():
         for op in RFAssetShelf.get_all_RFOperators():
             bpy.utils.register_class(op)
             op.register()
         print(f'RF registered {len(RFAssetShelf.get_all_RFOperators())} RFAssetShelves')
+
     @staticmethod
     def unregister_all():
         for op in reversed(RFAssetShelf.get_all_RFOperators()):
@@ -203,14 +271,20 @@ class RFAssetShelf(bpy.types.AssetShelf):
     @classmethod
     def poll(cls, context : Context) -> bool:
         RFCore = RFGlobals.RFCore_None
-        # make sure RFCore is running
-        if not RFCore or not RFCore.is_running: return False
 
-        if not context.edit_object: return False
-        if context.edit_object.type != 'MESH': return False
+        # make sure RFCore is running
+        if not RFCore or not RFCore.is_running:
+            return False
+
+        if not context.edit_object:
+            return False
+
+        if context.edit_object.type != 'MESH':
+            return False
 
         # make sure RFOperator has only one running instance!
-        if getattr(cls, '_is_running', False): return False
+        if getattr(cls, '_is_running', False):
+            return False
 
         if not cls.can_start(context):
             # print(f'{cls}.poll: {cls.can_start(context)=}')
@@ -220,13 +294,15 @@ class RFAssetShelf(bpy.types.AssetShelf):
 
     @classmethod
     def register(cls): pass
+
     @classmethod
     def unregister(cls): pass
+
     @classmethod
     def can_start(cls, _context : Context) -> bool: return True
 
 
-class RFOperator_Execute(RFOperator_Base, RFOperator_KeymapContext, bpy.types.Operator):
+class RFOperator_Execute(RFOperator_KeymapContext):
     @classmethod
     def poll(cls, context : Context) -> bool:
         return poll_retopoflow(context)
@@ -236,7 +312,7 @@ class RFOperator_Execute(RFOperator_Base, RFOperator_KeymapContext, bpy.types.Op
 class TickledCallback(Protocol):
     def __call__(self): pass
 
-class RFOperator(RFOperator_Base, RFOperator_KeymapContext, Operator):
+class RFOperator(RFOperator_KeymapContext):
     active_operators : list[Self] = []
 
     tickled : TickledCallback | None = None
@@ -247,7 +323,7 @@ class RFOperator(RFOperator_Base, RFOperator_KeymapContext, Operator):
     working_window : Window | None
     last_op : Operator | None
     _stop : bool
-    fullscreen_keymaps : set[KeyMapItem]
+    fullscreen_keymaps : list[KeyMapItem]
     _draw_postpixel_overlay : object | None
 
 
@@ -258,13 +334,14 @@ class RFOperator(RFOperator_Base, RFOperator_KeymapContext, Operator):
         self.working_window = None
         self.last_op = None
         self._stop = False
-        self.fullscreen_keymaps = set()
+        self.fullscreen_keymaps = []
         self._draw_postpixel_overlay = None
 
     @staticmethod
     def handle_tickle():
         tickled = RFOperator.tickled
-        if not tickled: return
+        if not tickled:
+            return
         tickled()
 
     @staticmethod
@@ -301,21 +378,25 @@ class RFOperator(RFOperator_Base, RFOperator_KeymapContext, Operator):
         return True
 
     def invoke(self, context : Context, event : Event) -> set[str]:
-        if not self.can_init(context, event): return {'CANCELLED'}
+        if not self.can_init(context, event):
+            return {'CANCELLED'}
         type(self)._is_running = True
         RFOperator.active_operators.append(self)
-        _ = context.window_manager.modal_handler_add(self) # pyright: ignore[reportAny]
+        _ = context.window_manager.modal_handler_add(self)
         self.last_op = None
-        self.working_area = context.area # pyright: ignore[reportAny]
-        self.working_window = context.window # pyright: ignore[reportAny]
+        self.working_area = context.area
+        self.working_window = context.window
         self._stop = False
 
-        keymap_items = context.window_manager.keyconfigs.user.keymaps['Screen'].keymap_items # pyright: ignore[reportAny]
-        self.fullscreen_keymaps = {
+        user_keyconfigs = context.window_manager.keyconfigs.user
+        if not user_keyconfigs:
+            return {'CANCELLED'}
+        keymap_items = user_keyconfigs.keymaps['Screen'].keymap_items
+        self.fullscreen_keymaps = [
             km
-            for km in keymap_items # pyright: ignore[reportAny]
-            if km.idname == 'screen.screen_full_area' # pyright: ignore[reportAny]
-        }
+            for km in keymap_items
+            if km.idname == 'screen.screen_full_area'
+        ]
 
         if self.draw_postpixel_overlay.__func__ != RFOperator.draw_postpixel_overlay:
             self._draw_postpixel_overlay = SpaceView3D.draw_handler_add(
@@ -331,10 +412,11 @@ class RFOperator(RFOperator_Base, RFOperator_KeymapContext, Operator):
         except Exception as e:
             print(f'Caught Exception in operator init: {e}')
             _ = Debugger.print_exception()
-            if self in RFOperator.active_operators: RFOperator.active_operators.remove(self)
+            if self in RFOperator.active_operators:
+                RFOperator.active_operators.remove(self)
             type(self)._is_running = False
             return {'CANCELLED'}
-        context.area.tag_redraw() # pyright: ignore[reportAny]
+        context.area.tag_redraw()
         return {'RUNNING_MODAL'}
 
     def stop(self):
@@ -401,10 +483,10 @@ class RFOperator(RFOperator_Base, RFOperator_KeymapContext, Operator):
                 self.finish(context)
             except Exception as e:
                 print(f'RFOperator.modal: Unhandled Exception Caught in self.finish: {e}')
-                Debugger.print_exception()
+                _ = Debugger.print_exception()
                 ret = {'CANCELLED'}
             if self._draw_postpixel_overlay:
-                wm, space = bpy.types.WindowManager, bpy.types.SpaceView3D
+                _wm, space = bpy.types.WindowManager, bpy.types.SpaceView3D
                 space.draw_handler_remove(self._draw_postpixel_overlay, 'WINDOW')
                 self._draw_postpixel_overlay = None
             if RFOperator.active_operator() != self:
@@ -412,8 +494,10 @@ class RFOperator(RFOperator_Base, RFOperator_KeymapContext, Operator):
                 # print(self)
                 # print(RFOperator.active_operators)
                 pass
-            if self in RFOperator.active_operators: RFOperator.active_operators.remove(self)
-            for area in context.screen.areas: area.tag_redraw()
+            if self in RFOperator.active_operators:
+                RFOperator.active_operators.remove(self)
+            for area in context.screen.areas:
+                area.tag_redraw()
             Cursors.restore()
             if RFOperator.active_operators:
                 # other RF operators on stack, so tickle them so they can see the changes
@@ -454,12 +538,13 @@ class RFOperator(RFOperator_Base, RFOperator_KeymapContext, Operator):
         # ex: context.window.event_simulate('TIMER', 'NOTHING')
         # bpy.app.timer also does not work, as it doesn't trigger an event
         RFOperator.handle_tickle()
-        wm : WindowManager = context.window_manager # pyright: ignore[reportAny]
-        win : Window = context.window # pyright: ignore[reportAny]
+        wm : WindowManager = context.window_manager
+        win : Window = context.window
         timer : Timer = wm.event_timer_add(0.01, window=win)
         def tickled():
             RFCore = RFGlobals.RFCore_None
-            if not RFCore: return
+            if not RFCore:
+                return
             try:
                 wm.event_timer_remove(timer)
                 RFOperator.tickled = None
@@ -471,6 +556,7 @@ class RFOperator(RFOperator_Base, RFOperator_KeymapContext, Operator):
 
     @classmethod
     def register(cls): pass
+
     @classmethod
     def unregister(cls): pass
 
@@ -526,7 +612,6 @@ def create_operator(
     fn_exec     : Callable[[Operator, Context],        set[str] | None] | Callable[[Context],        set[str] | None] | None = None,
     fn_modal    : Callable[[Operator, Context, Event], set[str] | None] | Callable[[Context, Event], set[str] | None] | None = None,
     options     : set[str] | None = None,
-    asset_shelf : bool = False,
 ) -> RFOperator:
 
     if fn_invoke:
