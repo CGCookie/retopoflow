@@ -58,12 +58,13 @@ from ...addon_common.common.utils import iter_pairs
 from ...addon_common.ext.circle_fit import hyperLSQ
 
 
-DEBUG_PRINT_TIMINGS = False
 DEBUG_CREATE_OBJECTS = False     # For inspecting the cut path and plane. Currently only used for SDF method
-DEBUG_SKIP_BRIDGE_SNAP = False   # Initial transform result before snapping
-DEBUG_PRINT_SNAP_PATH  = False   # How each vert ends up snapping to the cut path
+DEBUG_SKIP_BRIDGE_SNAP = True   # Initial transform result before snapping
 DEBUG_SKIP_REDISTRIBUTE = False  # Snapping result before any redistribution
-DEBUG_PRINT_SPACING = False
+
+DEBUG_PRINT_TIMINGS = False
+DEBUG_PRINT_SNAP_PATH  = False   # How each vert ends up snapping to the cut path
+DEBUG_PRINT_SPACING = False   # How the verts spread out from curvature and space evenly
 
 
 def sample_curvature(points: list, cyclic: bool, vertex_count: int, path_length: float, curvature_bias: float = 0) -> list:
@@ -239,18 +240,17 @@ def sample_curvature(points: list, cyclic: bool, vertex_count: int, path_length:
             for j, k in enumerate(free_in_gap):
                 final_path_factors[k] = fa + gap * (j + 1) / (n_free + 1)
 
-    # Step 3: Ease from even spacing into the curvature pinned layout
-    # Below 0.5, t = bias / 0.5 blends even → pinned; at 0.5+ the pinned layout is full-strength.
-    smooth_range = 0.5
-    if curvature_bias < smooth_range:
-        t = curvature_bias / smooth_range
+    # Step 3: Blend in the curvature result
+    lerp_range = 0.5 # Fade in between curvature bias 0 and this value
+    if curvature_bias < lerp_range:
+        t = curvature_bias / lerp_range
         if cyclic:
             even_path_factors = [k / N for k in range(N)]
         else:
             even_path_factors = [k / (N - 1) for k in range(N)] if N > 1 else [0.0]
 
         if cyclic:
-            # Align even_path_factors rotation to final_path_factors so lerp pairs the right verts.
+            # Align even_path_factors rotation to final_path_factors so lerp pairs the right verts
             best_rot, best_cost = 0, float('inf')
             for rot in range(N):
                 cost = sum(
@@ -277,36 +277,6 @@ def sample_curvature(points: list, cyclic: bool, vertex_count: int, path_length:
     MIN_EDGE_LEN = 0.3 # What % of the average edge length can the shortest edge be
     final_path_factors = enforce_path_min_gap(final_path_factors, cyclic, MIN_EDGE_LEN / vertex_count)
     return path_facs_to_positions(points, final_path_factors, cyclic)
-
-
-def snap_redistribute(
-    context, nbmvs: list, target_cos: list,
-    matrix_world, matrix_world_inv,
-    sym_verts: set, mx: bool, my: bool, mz: bool,
-) -> None:
-    """Move each vert to target_cos[i] (local space), snap to source, re-pin sym verts,
-    then refresh the affected normals so the viewport reshades after the move."""
-    new_cos = {}
-    for bmv, co in zip(nbmvs, target_cos):
-        npt_world = point_to_bvec3(matrix_world @ bvec_to_point(Vector(co)))
-        snapped = nearest_point_valid_sources(context, npt_world, world=True, respect_clip_planes=True)
-        new_cos[bmv] = matrix_world_inv @ snapped if snapped is not None else Vector(co)
-    for bmv, co in new_cos.items():
-        bmv.co = co
-    for bmv in sym_verts:
-        if mx: bmv.co.x = 0
-        if my: bmv.co.y = 0
-        if mz: bmv.co.z = 0
-
-    # The verts moved, so the cached face/vert normals are stale.  Recompute them on the touched
-    # faces (and their verts) so viewport shading updates after redistribution.  normal_update only
-    # refreshes the normal vectors from the current geometry — it never flips winding, unlike
-    # recalc_face_normals — so it can't invert a face that was already wound correctly on creation.
-    faces = {bmf for bmv in nbmvs for bmf in bmv.link_faces}
-    for bmf in faces:
-        bmf.normal_update()
-    for bmv in {v for bmf in faces for v in bmf.verts}:
-        bmv.normal_update()
 
 
 class Contours_Logic:
@@ -352,7 +322,7 @@ class Contours_Logic:
     loop_count : int
     cyclic : bool
     curvature_bias : float
-    interpolation_factor : float
+    space_evenly : float
 
     edge_ring : set[BMEdge] | None
     cyclic_ring : bool
@@ -370,7 +340,7 @@ class Contours_Logic:
                  process_source_method:str, hits:list[dict[str, ...]], cut_orientation:str='stroke', fast_depth:int=1,
                  sample_points:int=50, fast_refine_steps:int=5, sdf_refine_steps:int=3, skip_step_size:float=0.5, sdf_resolution:int=20,
                  sdf_subdivisions:int=0, sdf_extent_scale:float=1.5,
-                 curvature_bias:float=0.7, interpolation_factor:float=1.0):
+                 curvature_bias:float=0.7, space_evenly:float=1.0):
         self.hit = hit
         self.hits = hits
         self.cut_orientation = cut_orientation
@@ -401,7 +371,7 @@ class Contours_Logic:
         self.sdf_extent_scale = sdf_extent_scale
         self.last_sdf_extent_scale = None
         self.curvature_bias = curvature_bias
-        self.interpolation_factor = interpolation_factor
+        self.space_evenly = space_evenly
 
         self.action = ''
         self.initial = True
@@ -629,14 +599,8 @@ class Contours_Logic:
             self.insert_new_cut(context)
         bmops.flush_selection(self.bm, self.em)
 
-    def get_corner_threshold(self):
-        ''' Determines how sharp a corner must be in order for a vert to stick to in rather than move towards ideal spacing.
-        The lower the value the shallower the angle that can be sticky. Setting here so it can be tuned once for both functions '''
-        return map_range(self.curvature_bias, 0, 1, 0.75, 0.1)
-
-    def ordered_ring_verts(self, nbmvs_set: set) -> list:
-        if not nbmvs_set:
-            return []
+    def order_ring_verts(self, nbmvs_set: set) -> list:
+        if not nbmvs_set: return []
         adj = {
             bmv: [bme.other_vert(bmv) for bme in bmv.link_edges if bme.other_vert(bmv) in nbmvs_set]
             for bmv in nbmvs_set
@@ -652,50 +616,14 @@ class Contours_Logic:
             visited.add(nexts[0])
         return ordered
 
-
-    def relax_between_pins(self, N: int, base_fracs: list, pin_frac: list, ref_gaps: list) -> list:
-        """Distribute free verts so their arc-frac gaps are proportional to reference edge lengths.
-
-        pin_frac[i] is the pinned arc-frac of vert i (or None if it is free).  Each run of free verts
-        between two consecutive pinned verts is laid out so the cumulative arc-frac distance from the
-        left pin matches the cumulative reference edge length (ref_gaps[i] = reference length from
-        vert i to vert i+1) — i.e. each free vert's left/right edge ratio matches its reference vert's.
-
-        base_fracs (curvature placement) anchors strip endpoints and the pin-less fallback.  Order is
-        preserved (free verts stay strictly between their enclosing pins), so it can't wind inside-out.
-        """
-        result = [pin_frac[i] if pin_frac[i] is not None else base_fracs[i] for i in range(N)]
-        pins = [i for i in range(N) if pin_frac[i] is not None]
-        anchors = sorted(set([0, N - 1] + pins))   # strip endpoints are always anchors
-        for s in range(len(anchors) - 1):
-            a, b = anchors[s], anchors[s + 1]
-            fa, fb = result[a], result[b]
-            span = fb - fa
-            free = list(range(a + 1, b))
-            if not free:
-                continue
-            steps = [ref_gaps[j] for j in range(a, b)]
-            total = sum(steps)
-            if total < 1e-12:
-                mm = len(free)
-                for idx, fk in enumerate(free):
-                    result[fk] = fa + span * (idx + 1) / (mm + 1)
-            else:
-                run = 0.0
-                for idx, fk in enumerate(free):
-                    run += steps[idx]
-                    result[fk] = fa + span * (run / total)
-        return result
-
-
-    def redistribute_ring(self, context: Context, nbmvs: Sequence[BMVert]):
+    def redistribute_ring(self, context: Context, new_bmvs: Sequence[BMVert]):
         CORNER_FLOOR_SHARP = 0.10
         CORNER_FLOOR_FLAT  = 0.75
 
-        if not (self.points and self.path_length and (self.curvature_bias > 0 or self.interpolation_factor > 0)):
+        if not (self.points and self.path_length and (self.curvature_bias > 0 or self.space_evenly > 0)):
             return
         point_path_facs = arc_path_factors(self.points, self.cyclic)
-        ordered_nbmvs = self.ordered_ring_verts(set(nbmvs))
+        ordered_nbmvs = self.order_ring_verts(set(new_bmvs))
         if not ordered_nbmvs:
             return
         n = len(ordered_nbmvs)
@@ -706,17 +634,16 @@ class Contours_Logic:
             or (my and abs(bmv.co.y) < self.mirror_threshold)
             or (mz and abs(bmv.co.z) < self.mirror_threshold)
         }
-        # Arc-length factors of ring verts after the bridge snap — baseline each vert starts from.
+        # Path factors of ring verts after the cut snap are the baseline each vert starts from.
         current_path_facs = [
             project_to_path_fac(Vector(v.co), self.points, self.cyclic, point_path_facs)
             for v in ordered_nbmvs
         ]
-        # Traversal direction for cyclic rings: fwd_total ≈ 1.0 = forward, ≈ n-1 = backward.
         if self.cyclic:
             fwd_total = sum((current_path_facs[(i+1) % n] - current_path_facs[i]) % 1.0 for i in range(n))
             step = (1.0 / n) if fwd_total <= n / 2 else (-1.0 / n)
 
-        # --- Curvature: pin feature verts to path corners ---
+        # Curvature bias: pin verts to shape features
         pin_path_fac = [None] * n
         if self.curvature_bias > 0:
             path_scores = curvature_rdp_scores(self.points, self.cyclic)
@@ -741,13 +668,11 @@ class Contours_Logic:
 
         post_curvature = [pin_path_fac[i] if pin_path_fac[i] is not None else current_path_facs[i] for i in range(n)]
 
-        # --- Space Evenly: distribute free verts evenly between the pins ---
-        # Cyclic: compute span-by-span with direction-aware step; relax_between_pins always
-        # distributes forward and would flip backward rings, so we bypass it here.
-        # Non-cyclic: relax_between_pins handles signed spans correctly, so use it directly.
-        w = max(0.0, min(1.0, self.interpolation_factor))
+        # Space evenly: equalize edge lengths between pins
+        w = max(0.0, min(1.0, self.space_evenly))
         if w > 0:
             if self.cyclic:
+                # compute span-by-span with direction-aware step
                 pins_list = sorted([(i, pin_path_fac[i]) for i in range(n) if pin_path_fac[i] is not None])
                 even_path_facs = [None] * n
                 if not pins_list:
@@ -769,20 +694,42 @@ class Contours_Logic:
                             t = (j + 1) / (nf + 1)
                             even_path_facs[idx] = (af + span * t * (1 if step > 0 else -1)) % 1.0
             else:
-                even_path_facs = self.relax_between_pins(n, list(post_curvature), pin_path_fac, [1.0] * n)
-            final_path_facs = [
-                pin_path_fac[i] if pin_path_fac[i] is not None
-                else lerp_path_fac(post_curvature[i], even_path_facs[i] if even_path_facs[i] is not None else post_curvature[i], w, self.cyclic)
-                for i in range(n)
-            ]
+                anchors = sorted({0, n - 1} | {i for i in range(n) if pin_path_fac[i] is not None})
+                even_path_facs = list(post_curvature)
+                for s in range(len(anchors) - 1):
+                    a, b = anchors[s], anchors[s + 1]
+                    fa = pin_path_fac[a] if pin_path_fac[a] is not None else post_curvature[a]
+                    fb = pin_path_fac[b] if pin_path_fac[b] is not None else post_curvature[b]
+                    free = [k for k in range(a + 1, b)]
+                    for j, k in enumerate(free):
+                        even_path_facs[k] = fa + (fb - fa) * (j + 1) / (len(free) + 1)
+            final_path_facs = []
+            for i in range(n):
+                if pin_path_fac[i] is not None:
+                    final_path_facs.append(pin_path_fac[i])
+                else:
+                    even = even_path_facs[i] if even_path_facs[i] is not None else post_curvature[i]
+                    final_path_facs.append(lerp_path_fac(post_curvature[i], even, w, self.cyclic))
         else:
             final_path_facs = post_curvature
 
         target_pts = path_facs_to_positions(self.points, final_path_facs, self.cyclic)
-        snap_redistribute(
-            context, ordered_nbmvs, target_pts[:n],
-            self.matrix_world, self.matrix_world_inv, sym_verts, mx, my, mz,
-        )
+
+        # Move vert to target position and snap to source
+        new_cos = {}
+        for bmv, co in zip(ordered_nbmvs, target_pts[:n]):
+            npt_world = point_to_bvec3(self.matrix_world @ bvec_to_point(Vector(co)))
+            snapped = nearest_point_valid_sources(context, npt_world, world=True, respect_clip_planes=True)
+            new_cos[bmv] = self.matrix_world_inv @ snapped if snapped is not None else Vector(co)
+        for bmv, co in new_cos.items():
+            bmv.co = co
+
+        # Re pin to symmetry line
+        for bmv in sym_verts:
+            if mx: bmv.co.x = 0
+            if my: bmv.co.y = 0
+            if mz: bmv.co.z = 0
+
 
     def insert_edge_ring(self, context: Context):
         if self.edge_ring is None:
@@ -798,13 +745,14 @@ class Contours_Logic:
         } - self.edge_ring
         bmops.deselect_all(self.bm)
         bmops.select_iter(self.bm, bmeloops)
-        nbmelems = bmesh.ops.subdivide_edgering(self.bm, edges=list(self.edge_ring), cuts=1)['faces']
+        new_bm_elems = bmesh.ops.subdivide_edgering(self.bm, edges=list(self.edge_ring), cuts=1)['faces']
         # newly created verts will not be selected
-        nbmvs = list({ bmv for bmf in nbmelems for bmv in bmf.verts if not bmv.select })
+        new_bmvs = list({ bmv for bmf in new_bm_elems for bmv in bmf.verts if not bmv.select })
 
-        self.finish_edgering_bridge(context, nbmelems, nbmvs)
+        self.finish_edgering_bridge(context, new_bm_elems, new_bmvs)
         if DEBUG_SKIP_REDISTRIBUTE: return
-        self.redistribute_ring(context, nbmvs)
+        self.redistribute_ring(context, new_bmvs)
+        ensure_correct_normals(self.bm, list(new_bm_elems))
 
         self.action = 'Loop Cut' if self.cyclic else 'Strip Cut'
         self.show_twist = self.cyclic
@@ -812,19 +760,20 @@ class Contours_Logic:
     def insert_bridge(self, context:Context):
         orig_verts = {bv for bme in self.sel_path for bv in bme.verts}
 
-        nbmelems = bmesh.ops.extrude_edge_only(self.bm, edges=self.sel_path)['geom']
-        nbmvs = [bmelem for bmelem in nbmelems if type(bmelem) is BMVert]
+        new_bm_elems = bmesh.ops.extrude_edge_only(self.bm, edges=self.sel_path)['geom']
+        new_bmvs = [bmelem for bmelem in new_bm_elems if type(bmelem) is BMVert]
 
-        self.finish_edgering_bridge(context, nbmelems, nbmvs)
+        self.finish_edgering_bridge(context, new_bm_elems, new_bmvs)
         if DEBUG_SKIP_REDISTRIBUTE: return
-        self.redistribute_ring(context, nbmvs)
+        self.redistribute_ring(context, new_bmvs)
+        all_new_bmfs = [bmelem for bmelem in new_bm_elems if type(bmelem) is BMFace]
 
         if self.loop_count > 1:
             # Add more loop cuts to the bridge
-            new_verts_set = set(nbmvs)
+            new_verts_set = set(new_bmvs)
             lateral_edges = list({
                 bme
-                for bmv in nbmvs
+                for bmv in new_bmvs
                 for bme in bmv.link_edges
                 if any(bv in orig_verts for bv in bme.verts)
             })
@@ -844,13 +793,13 @@ class Contours_Logic:
                 new_cos = {}
                 for bmv in intermediate_verts:
                     npt_world = point_to_bvec3(self.matrix_world @ bvec_to_point(bmv.co))
-                    # Find nearest surface point as reference / fallback.
+                    # Find nearest surface point as reference / fallback
                     nearest = nearest_point_valid_sources(context, npt_world, world=True, respect_clip_planes=True)
                     npt_snapped = nearest
                     # Get the outward surface normal at that nearest point.
                     surface_normal = nearest_normal_valid_sources(context, npt_world, world=True)
                     if surface_normal is not None and nearest is not None:
-                        # Raycast in both directions and pick whichever hit is closest to the nearest surface.
+                        # Raycast in both directions and pick whichever hit is closest to the nearest surface
                         hits = []
                         for sign in (1, -1):
                             ray_dir = Vector((*(surface_normal * sign), 0.0))
@@ -864,13 +813,14 @@ class Contours_Logic:
                 # Apply all positions at once.
                 for bmv, co in new_cos.items():
                     bmv.co = co
-                ensure_correct_normals(self.bm, result['faces'])
+                all_new_bmfs += result['faces']
 
+        ensure_correct_normals(self.bm, all_new_bmfs)
         self.action = 'Extrude Loop' if self.cyclic else 'Extrude Strip'
         self.show_twist = self.cyclic
         self.show_loop_count = True
 
-    def finish_edgering_bridge(self, context:Context, nbmelems:Sequence[BMVert|BMEdge|BMFace], nbmvs:Sequence[BMVert]):
+    def finish_edgering_bridge(self, context:Context, new_bm_elems:Sequence[BMVert|BMEdge|BMFace], new_bmvs:Sequence[BMVert]):
         if self.points is None or self.plane_fit is None or self.circle_fit is None:
             return
 
@@ -878,7 +828,7 @@ class Contours_Logic:
         circle_fit = self.circle_fit
 
         # compute useful statistics about newly created geometry
-        npoints = [Point(bmv.co) for bmv in nbmvs]
+        npoints = [Point(bmv.co) for bmv in new_bmvs]
         try:
             if len(npoints) < 3:
                 raise Exception(f'Not enough points to fit plane: {len(npoints)}')
@@ -894,52 +844,38 @@ class Contours_Logic:
         # identify symmetry plane verts before any transformation so we can re-pin them after
         mx, my, mz = has_mirror_x(context), has_mirror_y(context), has_mirror_z(context)
         sym_verts = {
-            bmv for bmv in nbmvs
+            bmv for bmv in new_bmvs
             if (mx and abs(bmv.co.x) < self.mirror_threshold)
             or (my and abs(bmv.co.y) < self.mirror_threshold)
             or (mz and abs(bmv.co.z) < self.mirror_threshold)
         }
 
-        center_new = Vector((0.0, 0.0, 0.0))
-        for bmv in nbmvs:
-            center_new += Vector(bmv.co)
-        center_new /= len(nbmvs)
-        # Use world-space bounding-box centre, converted back to local, as center_src.
-        # The arithmetic mean (plane_fit.o) is biased when sampling is non-uniform.
-        # The bbox midpoint is sampling-agnostic for symmetric shapes (always (max+min)/2).
-        # We must compute the bbox in world space: the bbox operation is not rotation-invariant,
-        # so a local-axis bbox on a rotated retopo mesh gives a different answer from what the
-        # viewport shows.  The ring appears at matrix_world @ center_src_local, so we need
-        # center_src_local = matrix_world_inv @ world_bbox_center to land at the right spot.
+        # Use world-space bbox center for both rings so T0 and T1 use the same center type.
+        # Arithmetic mean drifts from the visual center on non-uniformly sampled rings.
         _M  = self.matrix_world
         _Mi = self.matrix_world_inv
+        _ring_w = [_M @ Vector(bmv.co) for bmv in new_bmvs]
+        _rnx = (max(p.x for p in _ring_w) + min(p.x for p in _ring_w)) * 0.5
+        _rny = (max(p.y for p in _ring_w) + min(p.y for p in _ring_w)) * 0.5
+        _rnz = (max(p.z for p in _ring_w) + min(p.z for p in _ring_w)) * 0.5
+        center_new = _Mi @ Vector((_rnx, _rny, _rnz))
         _pts_w = [_M @ Vector(pt) for pt in self.points]
         _cx = (max(p.x for p in _pts_w) + min(p.x for p in _pts_w)) * 0.5
         _cy = (max(p.y for p in _pts_w) + min(p.y for p in _pts_w)) * 0.5
         _cz = (max(p.z for p in _pts_w) + min(p.z for p in _pts_w)) * 0.5
         center_src = _Mi @ Vector((_cx, _cy, _cz))
 
-        # Compute xforms to roughly move new geometry to match cut:
-        #   T0  — translate parent ring to origin
-        #   S   — scale to match path radius
-        #   Sh  — shear parent ring plane onto cut plane: keeps each vert's position along the
-        #          planes' intersection axis fixed, shifting only the perpendicular component.
-        #          This preserves angular correspondence (important for ring-normal snap).
-        #   RT  — apply user twist in the cut plane
-        #   T1  — translate ring centre to path centroid
-        #
-        # Math: for p in plane n1 (relative to center):
-        #   shear_dir = in-plane unit ⊥ to intersection axis = (n1 × (n1×n2)).normalized()
-        #   shear_vec = -(shear_dir·n2)/(n1·n2) * n1   ensures (p + (shear_dir·p)*shear_vec)·n2=0
-        T0 = Matrix.Translation(-center_new)
-        nbmvs_set_s = set(nbmvs)
+        # Calculate transform to roughly move new geometry to the cut
+        T1 = Matrix.Translation(center_src) # translate ring center to path centroid
+        RT = Matrix.Rotation(self.twist, 4, plane_fit.n) # user's twist
+        nbmvs_set_s = set(new_bmvs)
         ring_perimeter = sum(
             bme.calc_length()
-            for bmv in nbmvs
+            for bmv in new_bmvs
             for bme in bmv.link_edges
             if bme.other_vert(bmv) in nbmvs_set_s
         ) / 2
-        S  = Matrix.Scale(self.path_length / ring_perimeter, 4) if ring_perimeter > 1e-6 else Matrix.Scale(1.0, 4)
+        # Shear instead of rotate to avoid skewing!
         n1 = Vector(nplane_fit.n)
         n2 = Vector(plane_fit.n)
         cross = n1.cross(n2)
@@ -949,80 +885,37 @@ class Contours_Logic:
             shear_dir   = n1.cross(axis_vec).normalized()
             shear_coeff = -(shear_dir.dot(n2)) / dot_n1_n2
             shear_vec   = shear_coeff * n1
-            Sh = Matrix.Identity(4)
+            SH = Matrix.Identity(4)
             for row in range(3):
                 for col in range(3):
-                    Sh[row][col] += shear_vec[row] * shear_dir[col]
+                    SH[row][col] += shear_vec[row] * shear_dir[col]
         else:
-            Sh = Matrix.Identity(4)
+            SH = Matrix.Identity(4)
+        S  = Matrix.Scale(self.path_length / ring_perimeter, 4) if ring_perimeter > 1e-6 else Matrix.Scale(1.0, 4) # scale to match path radius
+        T0 = Matrix.Translation(-center_new) # translate parent ring to origin
+        xform = T1 @ RT @ SH @ S @ T0
 
-        RT = Matrix.Rotation(self.twist, 4, plane_fit.n)
-        T1 = Matrix.Translation(center_src)
-        xform = T1 @ RT @ Sh @ S @ T0
-
-
-        # Project each vert onto the cross-section path along its ring's 2D normal.
-        # For each new vert: compute the ring tangent from the two adjacent new verts, derive the
-        # in-plane normal (plane_n × tangent), then shoot a bidirectional ray and pick the closest
-        # path-segment hit.  This avoids the nearest-point corner ambiguity and works on non-convex
-        # paths where a centroid-based ray would fail.
-        #
-        # Nearest-point is always computed first and used as both a pre-check and a fallback:
-        #   • If the vert is already on the path (nearest_dist < ON_PATH_EPS), keep it there and
-        #     skip the raycast entirely.  The ray would start on a segment, making denom≈0 for
-        #     that segment (ray parallel when ring tangent ⊥ path tangent) — skipping it and
-        #     potentially landing on the wrong segment on the far side of the loop.
-        #   • If the ring tangent can't be computed (strip endpoints) or no segment is hit,
-        #     fall through to nearest-point, then the world-space snap as a last resort.
-        pts = self.points
-        n_pts = len(pts)
-        n_segs = n_pts if self.cyclic else n_pts - 1
-        plane_n = n2  # cut-plane normal (= plane_fit.n)
-        ON_PATH_EPS = 1e-6  # distance threshold: treat vert as already-on-path below this
-
-        # Pass 1: apply xform so that ring-neighbor positions are up-to-date before normals are read.
-        nbmvs_set_snap = set(nbmvs)
-        for bmv in nbmvs:
+        # Apply xform so that ring neighbor positions are fresh before normals are read
+        nbmvs_set_snap = set(new_bmvs)
+        for bmv in new_bmvs:
             bmv.co = xform @ bmv.co
 
-
-        # Bbox correction: pin the ring's world-bbox centre to the path's world-bbox centre.
-        # center_src was derived from the world-axis bbox of self.points, so we must compare
-        # like-with-like: compute the ring's world bbox after the xform and correct that,
-        # NOT the arithmetic mean.  For non-uniformly sampled rings, mean ≠ bbox centre, so
-        # a mean-based correction would leave the visual (bbox) centre offset.
-        _ring_cos_w = [_M @ Vector(bmv.co) for bmv in nbmvs]
-        _rbx = (max(c.x for c in _ring_cos_w) + min(c.x for c in _ring_cos_w)) * 0.5
-        _rby = (max(c.y for c in _ring_cos_w) + min(c.y for c in _ring_cos_w)) * 0.5
-        _rbz = (max(c.z for c in _ring_cos_w) + min(c.z for c in _ring_cos_w)) * 0.5
-        ring_world_bbox = Vector((_rbx, _rby, _rbz))
-        path_world_bbox = _M @ center_src  # world-space version of center_src
-        world_correction = path_world_bbox - ring_world_bbox
-        # Convert world-space correction to local space: delta_local s.t. R @ delta_local = delta_world
-        centroid_offset = _Mi.to_3x3() @ world_correction
-        if centroid_offset.length > 1e-9:
-            for bmv in nbmvs:
-                bmv.co += centroid_offset
-
         if DEBUG_PRINT_SPACING:
-            s_val = self.path_length / ring_perimeter if ring_perimeter > 1e-6 else 1.0
-            print(f'[Bridge] center_new:      {center_new}  (arith mean of parent ring)')
-            print(f'[Bridge] center_src:      {center_src}  (world bbox → local)')
-            print(f'[Bridge] path_world_bbox: {path_world_bbox}')
-            print(f'[Bridge] ring_world_bbox: {ring_world_bbox}  (after xform, before correction)')
-            print(f'[Bridge] plane_fit.o:     {Vector(plane_fit.o)}  (arith mean of path)')
-            print(f'[Bridge] path_length:     {self.path_length:.4f}  ring_perimeter: {ring_perimeter:.4f}  S={s_val:.4f}')
-            print(f'[Bridge] n1·n2 (dot):     {dot_n1_n2:.4f}  cross len: {cross.length:.4f}  shear applied: {cross.length > 1e-9 and abs(dot_n1_n2) > 1e-9}')
-            print(f'[Bridge] world_correction: {world_correction.length:.8f}  local_correction: {centroid_offset.length:.8f}')
+            self.debug_print_bridge(center_new, center_src, plane_fit, ring_perimeter, dot_n1_n2, cross)
 
         if DEBUG_SKIP_BRIDGE_SNAP: return
 
-        # Pass 2: project each vert along its ring normal onto the path.
-        for bmv in nbmvs:
+        # Project each vert along its 2D normal onto the path.
+        ON_PATH_THRESHOLD = 1e-6
+        pts = self.points
+        n_pts = len(pts)
+        n_segs = n_pts if self.cyclic else n_pts - 1
+        plane_n = n2  # cut plane normal (plane_fit.n)
+        for bmv in new_bmvs:
             v = Vector(bmv.co)
 
-            # Nearest point on path (raw Vector math — no bvec_to_point type conversion needed).
-            nearest_pt  = None
+            # Find nearest point on path
+            nearest_pt = None
             nearest_dist = float('inf')
             for i in range(n_segs):
                 a = Vector(pts[i])
@@ -1039,15 +932,15 @@ class Contours_Logic:
                     nearest_dist = d
                     nearest_pt   = cand
 
-            # If already on the path, keep position and skip the raycast.
-            if nearest_dist < ON_PATH_EPS:
+            # If already on the path, keep position and skip the raycast
+            if nearest_dist < ON_PATH_THRESHOLD:
                 if nearest_pt is not None:
                     bmv.co = nearest_pt
                 if DEBUG_PRINT_SNAP_PATH:
-                    print(f'[SnapPass2] vert {v}  → ON-PATH  (nearest_dist={nearest_dist:.2e})')
+                    self.debug_print_snap('ON_PATH', v, nearest_dist=nearest_dist)
                 continue
 
-            # Ring tangent from the two adjacent new verts (edges that stay within the new ring).
+            # Get ring tangent from the two adjacent loop verts
             ring_nbrs = [e.other_vert(bmv) for e in bmv.link_edges if e.other_vert(bmv) in nbmvs_set_snap]
             if len(ring_nbrs) >= 2:
                 tangent = Vector(ring_nbrs[1].co) - Vector(ring_nbrs[0].co)
@@ -1058,12 +951,9 @@ class Contours_Logic:
 
             best_pt = None
             if tangent and tangent.length > 1e-9:
-                # In-plane normal = plane_n × tangent (perpendicular to ring tangent, within cut plane).
-                # Direction doesn't matter — we shoot bidirectionally and pick the closest hit.
                 ring_normal = plane_n.cross(tangent).normalized()
 
-                # Bidirectional ray v + t*ring_normal.  Don't gate on t sign — both directions are
-                # valid.  Only s ∈ [0,1] matters (intersection must lie on the actual segment).
+                # Check both directions and pick the shortest one
                 best_dist = float('inf')
                 for i in range(n_segs):
                     a = Vector(pts[i])
@@ -1084,17 +974,13 @@ class Contours_Logic:
                         best_dist = dist
                         best_pt = snap_pt
 
-                # Explicitly test every path vertex (corner point) against the ray.
-                # Corner vertices sit at s=1 of one segment and s=0 of the next simultaneously,
-                # so any float perturbation in v pushes both adjacent s values outside [0,1]
-                # at once — the segment loop misses them.  A direct point-ray distance test
-                # has no degenerate boundary condition.
+                # Test every path vert, otherwise floating point error makes the ray miss the correct segment
                 for i in range(n_pts):
                     corner = Vector(pts[i])
                     to_corner = corner - v
                     t_along = to_corner.dot(ring_normal)
                     perp_dist = (to_corner - t_along * ring_normal).length
-                    if perp_dist < ON_PATH_EPS * 100:
+                    if perp_dist < ON_PATH_THRESHOLD * 100:
                         dist = to_corner.length
                         if dist < best_dist:
                             best_dist = dist
@@ -1107,29 +993,21 @@ class Contours_Logic:
             if use_ray:
                 bmv.co = best_pt
                 if DEBUG_PRINT_SNAP_PATH:
-                    n_nbrs = len(ring_nbrs) if tangent else 0
-                    print(f'[SnapPass2] vert {v}  → RAYCAST  (best_dist={best_dist:.4f}  nearest_dist={nearest_dist:.4f}  ring_nbrs={n_nbrs})  new_pos={Vector(bmv.co)}')
+                    self.debug_print_snap('RAYCAST', v, best_dist=best_dist, nearest_dist=nearest_dist, ring_nbrs=ring_nbrs, tangent=tangent, new_pos=Vector(bmv.co))
             elif nearest_pt is not None:
-                # Fallback: nearest point — either no ray hit, or ray crossed the concave region
-                # and landed far from the vert (best_dist > nearest_dist * RAYCAST_NEAREST_FACTOR).
+                # Fall back to nearest point if no ray hit or it hit too far away
                 bmv.co = nearest_pt
                 if DEBUG_PRINT_SNAP_PATH:
-                    if best_pt is not None:
-                        reason = f'ray too far ({best_dist:.4f} > {nearest_dist * RAYCAST_NEAREST_FACTOR:.4f})'
-                    elif not (tangent and tangent.length > 1e-9):
-                        reason = 'no tangent'
-                    else:
-                        reason = 'no ray hit'
-                    print(f'[SnapPass2] vert {v}  → NEAREST-PT fallback  ({reason}  nearest_dist={nearest_dist:.4f})  new_pos={Vector(bmv.co)}')
+                    self.debug_print_snap('NEAREST_PT', v, best_pt=best_pt, best_dist=best_dist, nearest_dist=nearest_dist, nearest_factor=RAYCAST_NEAREST_FACTOR, tangent=tangent, new_pos=Vector(bmv.co))
             else:
-                # Last resort: world-space snap.
+                # World space snap as last resort
                 npt_local = bvec_to_point(v)
                 npt_world = point_to_bvec3(self.matrix_world @ npt_local)
                 npt_world_snapped = nearest_point_valid_sources(context, npt_world, world=True, respect_clip_planes=True)
                 npt_world_new = npt_world_snapped if npt_world_snapped else npt_world
                 bmv.co = self.matrix_world_inv @ npt_world_new if npt_world_new is not None else npt_local
                 if DEBUG_PRINT_SNAP_PATH:
-                    print(f'[SnapPass2] vert {v}  → WORLD-SNAP fallback  new_pos={Vector(bmv.co)}')
+                    self.debug_print_snap('WORLD_SNAP', v, new_pos=Vector(bmv.co))
 
         # re-pin any verts that were on a symmetry plane so twist can't move them off
         for bmv in sym_verts:
@@ -1140,9 +1018,9 @@ class Contours_Logic:
         if not self.cyclic:
             # snap ends
             if self.edge_ring:
-                bmv_ends = [bmv for bmv in nbmvs if len(bmv.link_faces) == 2]
+                bmv_ends = [bmv for bmv in new_bmvs if len(bmv.link_faces) == 2]
             else:
-                bmv_ends = [bmv for bmv in nbmvs if len(bmv.link_faces) == 1]
+                bmv_ends = [bmv for bmv in new_bmvs if len(bmv.link_faces) == 1]
 
             if len(bmv_ends) != 2:
                 print(f'CONTOURS WARNING: FOUND {len(bmv_ends)} ENDS ON NON-CYCLIC PATH!?')
@@ -1155,14 +1033,9 @@ class Contours_Logic:
                 else:
                     bmv0.co, bmv1.co = pt1, pt0
 
-        # make sure face normals are correct.  cannot do this earlier, because
-        # faces have no defined normal (verts overlap)
-        nbmfs = [bmelem for bmelem in nbmelems if type(bmelem) is BMFace]
-        ensure_correct_normals(self.bm, nbmfs)
-
         # select newly created geometry
         bmops.deselect_all(self.bm)
-        bmops.select_iter(self.bm, nbmvs)
+        bmops.select_iter(self.bm, new_bmvs)
 
 
     def insert_new_cut(self, context:Context):
@@ -1192,12 +1065,9 @@ class Contours_Logic:
                     break
                 acc += seg
 
-        segment_count = self.span_count
         vertex_count = self.span_count if self.cyclic else self.span_count + 1
         if self.mirror_clipped_loop:
-            # update vertex count, because the loop crosses mirror
-            vertex_count = vertex_count // 2 + 1
-            segment_count = vertex_count - 1
+            vertex_count = vertex_count // 2 + 1 # update vert count when loop crosses mirror
 
         npts = sample_curvature(points, self.cyclic, vertex_count, path_length, self.curvature_bias)
         assert npts, f'Could not find enough points!?'
@@ -1208,12 +1078,12 @@ class Contours_Logic:
         ]
 
         # create geometry!
-        nbmvs = [ self.bm.verts.new(pt) for pt in npts[:vertex_count] ]
-        bmes = [self.bm.edges.new((bmv0, bmv1)) for (bmv0, bmv1) in iter_pairs(nbmvs, self.cyclic)]
+        new_bmvs = [ self.bm.verts.new(pt) for pt in npts[:vertex_count] ]
+        bmes = [self.bm.edges.new((bmv0, bmv1)) for (bmv0, bmv1) in iter_pairs(new_bmvs, self.cyclic)]
 
         if not self.cyclic:
             # snap ends
-            bmv_ends = [bmv for bmv in nbmvs if len(bmv.link_edges) == 1]
+            bmv_ends = [bmv for bmv in new_bmvs if len(bmv.link_edges) == 1]
             if len(bmv_ends) != 2:
                 print(f'CONTOURS WARNING: FOUND {len(bmv_ends)} ENDS ON NON-CYCLIC PATH!?')
             else:
@@ -1225,8 +1095,8 @@ class Contours_Logic:
                 else:
                     bmv0.co, bmv1.co = pt1, pt0
 
-        if DEBUG_SKIP_REDISTRIBUTE: pass
-        else: self.redistribute_ring(context, nbmvs)
+        if not DEBUG_SKIP_REDISTRIBUTE:
+            self.redistribute_ring(context, new_bmvs)
 
         if self.cyclic:
             self.action = 'New Loop'
@@ -1237,7 +1107,7 @@ class Contours_Logic:
 
         # select newly created geometry
         bmops.deselect_all(self.bm)
-        bmops.select_iter(self.bm, nbmvs)
+        bmops.select_iter(self.bm, new_bmvs)
 
 
     #######################################################
@@ -1424,13 +1294,7 @@ class Contours_Logic:
         self.mirror_clipped_loop = mirror_clipped_loop  # did cyclic loop cross mirror plane?
 
         if DEBUG_PRINT_TIMINGS:
-            timers.append(('finalize', time.perf_counter()))
-            _total = timers[-1][1] - timers[0][1]
-            _report = [
-                f'{t1-t0:.4f}s  {lbl}'
-                for (lbl, t0), (_, t1) in zip(timers[:-1], timers[1:])
-            ] + ['--------  ---------------', f'{_total:.4f}s  total']
-            term_printer.boxed(*_report, title=f'FAST  depth={self.fast_depth}  samples={nsamples}  refine={self.fast_refine_steps}')
+            self.debug_print_timings(timers, f'FAST  depth={self.fast_depth}  samples={nsamples}  refine={self.fast_refine_steps}')
         return True
 
     def process_source_sdf(self, context:Context) -> bool:
@@ -1815,13 +1679,7 @@ class Contours_Logic:
         self.mirror_clipped_loop = mirror_clipped_loop
 
         if DEBUG_PRINT_TIMINGS:
-            timers.append(('finalize', time.perf_counter()))
-            _total = timers[-1][1] - timers[0][1]
-            _report = [
-                f'{t1-t0:.4f}s  {lbl}'
-                for (lbl, t0), (_, t1) in zip(timers[:-1], timers[1:])
-            ] + ['--------  ---------------', f'{_total:.4f}s  total']
-            term_printer.boxed(*_report, title=f'SDF  grid={res_x}x{res_y}  fine_count={fine_count}  refine={self.sdf_refine_steps}')
+            self.debug_print_timings(timers, f'SDF  grid={res_x}x{res_y}  fine_count={fine_count}  refine={self.sdf_refine_steps}')
         return True
 
     def process_source_skip(self, context:Context) -> bool:
@@ -2296,13 +2154,7 @@ class Contours_Logic:
         self.mirror_clipped_loop = mirror_clipped_loop  # did cyclic loop cross mirror plane?
 
         if DEBUG_PRINT_TIMINGS:
-            timers.append(('finalize', time.perf_counter()))
-            _total = timers[-1][1] - timers[0][1]
-            _report = [
-                f'{t1-t0:.4f}s  {lbl}'
-                for (lbl, t0), (_, t1) in zip(timers[:-1], timers[1:])
-            ] + ['--------  ---------------', f'{_total:.4f}s  total']
-            term_printer.boxed(*_report, title=timing_title)
+            self.debug_print_timings(timers, timing_title)
         return True
 
 
@@ -2371,3 +2223,39 @@ class Contours_Logic:
             mirror_clipped_loop = True
 
         return (points, mirror_clipped_loop)
+
+    def debug_print_timings(self, timers, title):
+        timers.append(('finalize', time.perf_counter()))
+        _total = timers[-1][1] - timers[0][1]
+        _report = [
+            f'{t1-t0:.4f}s  {lbl}'
+            for (lbl, t0), (_, t1) in zip(timers[:-1], timers[1:])
+        ] + ['--------  ---------------', f'{_total:.4f}s  total']
+        term_printer.boxed(*_report, title=title)
+
+    def debug_print_bridge(self, center_new, center_src, plane_fit, ring_perimeter, dot_n1_n2, cross):
+        s_val = self.path_length / ring_perimeter if ring_perimeter > 1e-6 else 1.0
+        print(f'[Bridge] center_new:  {center_new}  (world bbox → local)')
+        print(f'[Bridge] center_src:  {center_src}  (world bbox → local)')
+        print(f'[Bridge] plane_fit.o: {Vector(plane_fit.o)}')
+        print(f'[Bridge] path_length: {self.path_length:.4f}  ring_perimeter: {ring_perimeter:.4f}  S={s_val:.4f}')
+        print(f'[Bridge] n1·n2 (dot): {dot_n1_n2:.4f}  cross len: {cross.length:.4f}  shear applied: {cross.length > 1e-9 and abs(dot_n1_n2) > 1e-9}')
+
+    def debug_print_snap(self, snap_type, v, **data):
+        if snap_type == 'ON_PATH':
+            print(f'[SnapPass2] vert {v}  → ON-PATH  (nearest_dist={data["nearest_dist"]:.2e})')
+        elif snap_type == 'RAYCAST':
+            n_nbrs = len(data['ring_nbrs']) if data.get('tangent') else 0
+            print(f'[SnapPass2] vert {v}  → RAYCAST  (best_dist={data["best_dist"]:.4f}  nearest_dist={data["nearest_dist"]:.4f}  ring_nbrs={n_nbrs})  new_pos={data["new_pos"]}')
+        elif snap_type == 'NEAREST_PT':
+            best_pt, best_dist, nearest_dist = data.get('best_pt'), data.get('best_dist'), data['nearest_dist']
+            factor, tangent = data['nearest_factor'], data.get('tangent')
+            if best_pt is not None:
+                reason = f'ray too far ({best_dist:.4f} > {nearest_dist * factor:.4f})'
+            elif not (tangent and tangent.length > 1e-9):
+                reason = 'no tangent'
+            else:
+                reason = 'no ray hit'
+            print(f'[SnapPass2] vert {v}  → NEAREST-PT fallback  ({reason}  nearest_dist={nearest_dist:.4f})  new_pos={data["new_pos"]}')
+        elif snap_type == 'WORLD_SNAP':
+            print(f'[SnapPass2] vert {v}  → WORLD-SNAP fallback  new_pos={data["new_pos"]}')

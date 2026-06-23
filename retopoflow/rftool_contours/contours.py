@@ -230,7 +230,7 @@ class RFOperator_Contours_Insert_Properties:
         min=0.0,
         max=1.0,
     )
-    interpolation_factor: bpy.props.FloatProperty(       # pyright: ignore [reportUninitializedInstanceVariable]
+    space_evenly: bpy.props.FloatProperty(       # pyright: ignore [reportUninitializedInstanceVariable]
         name='Space Evenly',
         description='0.0 = keep bridge snap result as-is, 1.0 = space verts evenly around the path',
         default=0.0,
@@ -295,7 +295,7 @@ def draw_contours_props(context, layout, props, redo):
     if redo and redo.show_twist: # Only makes sense in redo panel
         layout.prop(props, 'twist', text='Twist')
     layout.prop(props, 'curvature_bias', text='Curvature', slider=True)
-    layout.prop(props, 'interpolation_factor', text='Space Evenly', slider=True)
+    layout.prop(props, 'space_evenly', text='Space Evenly', slider=True)
     draw_contours_method_options(context, layout, props)
 
 
@@ -330,7 +330,7 @@ class RFOperator_Contours_Insert(
     def insert(context, hit, plane, circle_points, span_count, process_source_method, hits, cut_orientation,
                fast_depth=1, sample_points=50, fast_refine_steps=5, sdf_refine_steps=3, skip_step_size=1.0,
                sdf_resolution=20, sdf_subdivisions=0, sdf_extent_scale=1.5,
-               curvature_bias=0.7, interpolation_factor=1.0):
+               curvature_bias=0.7, space_evenly=1.0):
         RFOperator_Contours_Insert.logic = Contours_Logic(
             context,
             hit,
@@ -349,7 +349,7 @@ class RFOperator_Contours_Insert(
             sdf_subdivisions,
             sdf_extent_scale,
             curvature_bias,
-            interpolation_factor,
+            space_evenly,
         )
         RFOperator_Contours_Insert.reinsert(context)
 
@@ -373,7 +373,7 @@ class RFOperator_Contours_Insert(
             loop_count=logic.loop_count,
             cut_orientation=logic.cut_orientation,
             curvature_bias=logic.curvature_bias,
-            interpolation_factor=logic.interpolation_factor,
+            space_evenly=logic.space_evenly,
         )
 
     def draw(self, context):
@@ -398,7 +398,7 @@ class RFOperator_Contours_Insert(
         logic.loop_count            = self.loop_count
         logic.cut_orientation       = self.cut_orientation
         logic.curvature_bias        = self.curvature_bias
-        logic.interpolation_factor  = self.interpolation_factor
+        logic.space_evenly  = self.space_evenly
 
         try:
             logic.update(context)
@@ -424,7 +424,7 @@ class RFOperator_Contours_Insert(
         self.is_cycle              = logic.cyclic
         self.loop_count            = logic.loop_count
         self.curvature_bias        = logic.curvature_bias
-        self.interpolation_factor  = logic.interpolation_factor
+        self.space_evenly  = logic.space_evenly
 
         return {'FINISHED'}
 
@@ -571,7 +571,7 @@ class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
         RFOperator_Contours_Insert.insert(context, hit, plane, circle_points, self.span_count, self.process_source_method, hits,
                                           self.cut_orientation, self.fast_depth, self.sample_points, self.fast_refine_steps,
                                           self.sdf_refine_steps, self.skip_step_size, self.sdf_resolution, self.sdf_subdivisions,
-                                          self.sdf_extent_scale, self.curvature_bias, self.interpolation_factor)
+                                          self.sdf_extent_scale, self.curvature_bias, self.space_evenly)
 
     def update(self, context, event):
         RFCore = RFGlobals.RFCore_None
@@ -673,7 +673,7 @@ class RFTool_Contours(RFTool_Base):
             layout.prop(props_contours, 'span_count', text='Spans')
             layout.prop(props_contours, 'loop_count', text='Cuts')
             layout.prop(props_contours, 'curvature_bias', text='Curvature', slider=True)
-            layout.prop(props_contours, 'interpolation_factor', text='Space Evenly', slider=True)
+            layout.prop(props_contours, 'space_evenly', text='Space Evenly', slider=True)
             method_name = props_contours.bl_rna.properties['process_source_method'].enum_items[props_contours.process_source_method].name
             layout.popover('RF_PT_ContoursMethod', text=method_name)
             draw_line_separator(layout)
