@@ -58,7 +58,7 @@ from ...addon_common.ext.circle_fit import hyperLSQ
 
 DEBUG_CREATE_OBJECTS = False
 DEBUG_PRINT_TIMINGS = False
-DEBUG_PRINT_SPACING = True
+DEBUG_PRINT_SPACING = False
 DEBUG_SKIP_BRIDGE_SNAP = False   # set True to see raw xform result (before ring-normal snap)
 DEBUG_SKIP_REDISTRIBUTE = False  # set True to see raw Stage-2 snap result without any redistribution
 
@@ -1808,7 +1808,9 @@ class Contours_Logic:
         #   shear_dir = in-plane unit ⊥ to intersection axis = (n1 × (n1×n2)).normalized()
         #   shear_vec = -(shear_dir·n2)/(n1·n2) * n1   ensures (p + (shear_dir·p)*shear_vec)·n2=0
         T0 = Matrix.Translation(-center_new)
-        S  = Matrix.Scale(circle_fit[2] / ncircle_fit[2], 4) if ncircle_fit[2] > 1e-6 else Matrix.Scale(1.0, 4)
+        path_r = sum((Vector(p) - center_src).length for p in self.points) / max(1, len(self.points))
+        ring_r = sum((Vector(bmv.co) - center_new).length for bmv in nbmvs) / max(1, len(nbmvs))
+        S  = Matrix.Scale(path_r / ring_r, 4) if ring_r > 1e-6 else Matrix.Scale(1.0, 4)
         n1 = Vector(nplane_fit.n)
         n2 = Vector(plane_fit.n)
         cross = n1.cross(n2)
@@ -1874,13 +1876,13 @@ class Contours_Logic:
                 bmv.co += centroid_offset
 
         if DEBUG_PRINT_SPACING:
-            s_val = circle_fit[2] / ncircle_fit[2] if ncircle_fit[2] > 1e-6 else 1.0
+            s_val = path_r / ring_r if ring_r > 1e-6 else 1.0
             print(f'[Bridge] center_new:      {center_new}  (arith mean of parent ring)')
             print(f'[Bridge] center_src:      {center_src}  (world bbox → local)')
             print(f'[Bridge] path_world_bbox: {path_world_bbox}')
             print(f'[Bridge] ring_world_bbox: {ring_world_bbox}  (after xform, before correction)')
             print(f'[Bridge] plane_fit.o:     {Vector(plane_fit.o)}  (arith mean of path)')
-            print(f'[Bridge] path radius:     {circle_fit[2]:.4f}  ring radius: {ncircle_fit[2]:.4f}  S={s_val:.4f}')
+            print(f'[Bridge] path mean_r:     {path_r:.4f}  ring mean_r: {ring_r:.4f}  S={s_val:.4f}')
             print(f'[Bridge] n1·n2 (dot):     {dot_n1_n2:.4f}  cross len: {cross.length:.4f}  shear applied: {cross.length > 1e-9 and abs(dot_n1_n2) > 1e-9}')
             print(f'[Bridge] world_correction: {world_correction.length:.8f}  local_correction: {centroid_offset.length:.8f}')
 
