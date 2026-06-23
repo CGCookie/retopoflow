@@ -54,6 +54,7 @@ from .profiler import profiler
 from .utils import iter_pairs
 from . import gpustate
 
+shaders_initialized = False
 
 class Drawing:
     _instance = None
@@ -336,6 +337,7 @@ class Drawing:
 
     @blender_version_wrapper('>=', '2.80')
     def draw2D_point(self, pt:Point2D, color:Color, *, radius=1, border=0, borderColor=None):
+        init_shaders()
         radius = self.scale(radius)
         border = self.scale(border)
         if borderColor is None: borderColor = (0,0,0,0)
@@ -352,6 +354,7 @@ class Drawing:
 
     @blender_version_wrapper('>=', '2.80')
     def draw2D_points(self, pts:[Point2D], color:Color, *, radius=1, border=0, borderColor=None):
+        init_shaders()
         radius = self.scale(radius)
         border = self.scale(border)
         if borderColor is None: borderColor = (0,0,0,0)
@@ -369,6 +372,7 @@ class Drawing:
 
     # draw line segment in screen space
     def draw2D_line(self, p0:Point2D, p1:Point2D, color0:Color, *, color1=None, width=1, stipple=None, offset=0):
+        init_shaders()
         if color1 is None: color1 = (color0[0],color0[1],color0[2],0)
         width = self.scale(width)
         stipple = [self.scale(v) for v in stipple] if stipple else [1.0, 0.0]
@@ -386,6 +390,7 @@ class Drawing:
         gpu.shader.unbind()
 
     def draw2D_lines(self, points, color0:Color, *, color1=None, width=1, stipple=None, offset=0):
+        init_shaders()
         self.glCheckError('starting draw2D_lines')
         if color1 is None: color1 = (color0[0],color0[1],color0[2],0)
         width = self.scale(width)
@@ -408,6 +413,7 @@ class Drawing:
         self.glCheckError('done with draw2D_lines')
 
     def draw3D_lines(self, points, color0:Color, *, color1=None, width=1, stipple=None, offset=0):
+        init_shaders()
         self.glCheckError('starting draw3D_lines')
         if color1 is None: color1 = (color0[0],color0[1],color0[2],0)
         width = self.scale(width)
@@ -430,6 +436,7 @@ class Drawing:
         self.glCheckError('done with draw3D_lines')
 
     def draw2D_linestrip(self, points, color0:Color, *, color1=None, width=1, stipple=None, offset=0):
+        init_shaders()
         if color1 is None: color1 = (color0[0],color0[1],color0[2],0)
         width = self.scale(width)
         stipple = [self.scale(v) for v in stipple] if stipple else [1.0, 0.0]
@@ -450,6 +457,7 @@ class Drawing:
 
     # draw circle in screen space
     def draw2D_circle(self, center:Point2D, radius:float, color0:Color, *, color1=None, width=1, stipple=None, offset=0):
+        init_shaders()
         if color1 is None: color1 = (color0[0],color0[1],color0[2],0)
         radius = self.scale(radius)
         width = self.scale(width)
@@ -468,6 +476,7 @@ class Drawing:
         gpu.shader.unbind()
 
     def draw3D_circle(self, center:Point, radius:float, color:Color, *, width=1, n:Normal=None, x:Direction=None, y:Direction=None, depth_near=0, depth_far=1):
+        init_shaders()
         assert n is not None or x is not None or y is not None, 'Must specify at least one of n,x,y'
         f = Frame(o=center, x=x, y=y, z=n)
         radius = self.scale(radius)
@@ -485,6 +494,7 @@ class Drawing:
         gpu.shader.unbind()
 
     def draw3D_triangles(self, points:[Point], colors:[Color]):
+        init_shaders()
         self.glCheckError('starting draw3D_triangles')
         shader_3D_triangle.bind()
         ubos_3D_triangle.options.MVPMatrix = self.get_view_matrix()
@@ -507,6 +517,7 @@ class Drawing:
     @contextlib.contextmanager
     def draw(self, draw_type:"CC_DRAW"):
         assert getattr(self, '_draw', None) is None, 'Cannot nest Drawing.draw calls'
+        init_shaders()
         self._draw = draw_type
         self.glCheckError('starting draw')
         try:
@@ -525,10 +536,16 @@ if not bpy.app.background:
     Drawing.glCheckError(f'post-init check: Drawing')
 
 
-
-
-if not bpy.app.background and bpy.app.version >= (3, 2, 0):
-    import gpu
+def init_shaders():
+    global shaders_initialized
+    global shader_2D_point, ubos_2D_point, batch_2D_point
+    global shader_2D_lineseg, ubos_2D_lineseg, batch_2D_lineseg
+    global shader_2D_circle, ubos_2D_circle, batch_2D_circle
+    global shader_3D_circle, ubos_3D_circle, batch_3D_circle
+    global shader_3D_triangle, ubos_3D_triangle, batch_3D_triangle
+    global shader_2D_triangle, ubos_2D_triangle, batch_2D_triangle
+    if shaders_initialized: return
+    if bpy.app.background or bpy.app.version < (3, 2, 0): return
     from gpu_extras.batch import batch_for_shader
 
     # https://docs.blender.org/api/blender2.8/gpu.html#triangle-with-custom-shader
@@ -586,16 +603,16 @@ if not bpy.app.background and bpy.app.version >= (3, 2, 0):
     shader_3D_triangle, ubos_3D_triangle = create_shader('triangle_3D.glsl')
     batch_3D_triangle = batch_for_shader(shader_3D_triangle, 'TRIS', {'pos': [(1,0), (0,1), (0,0)]})
 
-    # 3D triangle
+    # 2D triangle
     shader_2D_triangle, ubos_2D_triangle = create_shader('triangle_2D.glsl')
     batch_2D_triangle = batch_for_shader(shader_2D_triangle, 'TRIS', {'pos': [(1,0), (0,1), (0,0)]})
-    
-    del pts
 
     Drawing.glCheckError(f'Compiled point, lineseg, circle shaders')
+    shaders_initialized = True
 
 
 def free_shaders_and_batches():
+    global shaders_initialized
     if bpy.app.background: return
     names = (
         'shader_2D_point', 'ubos_2D_point', 'batch_2D_point',
@@ -609,6 +626,7 @@ def free_shaders_and_batches():
     for name in names:
         # pop so we do not throw if the shader was never created
         g.pop(name, None)
+    shaders_initialized = False
 
 
 ######################################################################################################
@@ -926,5 +944,3 @@ class DrawCallbacks:
     def pre3d(self):  self._call('pre3d')
     def post3d(self): self._call('post3d')
     def post2d(self): self._call('post2d')
-
-

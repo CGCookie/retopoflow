@@ -946,4 +946,3 @@ def bgl_enable(pname_str, enabled):
     pname = getattr(bgl, pname_str)
     if enabled: bgl.glEnable(pname)
     else:       bgl.glDisable(pname)
-
