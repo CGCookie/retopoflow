@@ -27,18 +27,19 @@ from ..common.interface import draw_section_header
 
 def draw_tweaking_options(context, layout):
     props = RF_Prefs.get_prefs(context)
-    tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
-    tool_props = tool.operator_properties(tool.idname)
+
+    if context.space_data.type != 'PREFERENCES':
+        tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
+        if 'retopoflow' in tool.idname:
+            tool_props = tool.operator_properties(tool.idname)
+            if hasattr(tool_props, 'select_loops'):
+                col = layout.column()
+                draw_section_header(context, col, tool_props.bl_rna.name)
+                col.prop(tool_props, 'select_loops', text='Loops Mode')
 
     grid = layout.grid_flow(even_columns=True, even_rows=False)
     grid.use_property_split = True
     grid.use_property_decorate = False
-
-    select_loops = getattr(tool_props, 'select_loops', False)
-    if select_loops:
-        col = grid.column()
-        draw_section_header(context, col, tool_props.bl_rna.name)
-        col.prop(tool_props, 'select_loops', text='Loops Mode')
 
     col = grid.column()
     draw_section_header(context, col, 'Selection')
