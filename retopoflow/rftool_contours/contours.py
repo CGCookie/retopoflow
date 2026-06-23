@@ -294,8 +294,7 @@ def draw_contours_props(context, layout, props, redo):
     if redo and redo.show_twist: # Only makes sense in redo panel
         layout.prop(props, 'twist', text='Twist')
     layout.prop(props, 'curvature_bias', text='Curvature', slider=True)
-    if redo and 'New' not in redo.action: # Doesn't apply to single loops
-        layout.prop(props, 'interpolation_factor', text='Space Evenly', slider=True)
+    layout.prop(props, 'interpolation_factor', text='Space Evenly', slider=True)
     draw_contours_method_options(context, layout, props)
 
 
