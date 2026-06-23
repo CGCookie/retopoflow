@@ -225,20 +225,16 @@ class RFOperator_Contours_Insert_Properties:
         name='Curvature Bias',
         description='Blend between even spacing (0.0) and pure curvature/RDP placement (1.0). '
                     'At 0.5, high-deviation points are placed by shape and low-deviation points spread evenly',
-        default=0.7,
+        default=0,
         min=0.0,
         max=1.0,
-        step=1,
-        precision=2,
     )
     interpolation_factor: bpy.props.FloatProperty(       # pyright: ignore [reportUninitializedInstanceVariable]
-        name='Interpolation Factor',
-        description='Blend between even spacing (0.0) and matching the spacing of surrounding loops (1.0)',
-        default=1.0,
+        name='Space Evenly',
+        description='0.0 = keep bridge snap result as-is, 1.0 = space verts evenly around the path',
+        default=0.0,
         min=0.0,
         max=1.0,
-        step=1,
-        precision=2,
     )
 
 
@@ -299,7 +295,7 @@ def draw_contours_props(context, layout, props, redo):
         layout.prop(props, 'twist', text='Twist')
     layout.prop(props, 'curvature_bias', text='Curvature', slider=True)
     if redo and 'New' not in redo.action: # Doesn't apply to single loops
-        layout.prop(props, 'interpolation_factor', text='Interpolation', slider=True)
+        layout.prop(props, 'interpolation_factor', text='Space Evenly', slider=True)
     draw_contours_method_options(context, layout, props)
 
 
@@ -677,7 +673,7 @@ class RFTool_Contours(RFTool_Base):
             layout.prop(props_contours, 'span_count', text='Spans')
             layout.prop(props_contours, 'loop_count', text='Cuts')
             layout.prop(props_contours, 'curvature_bias', text='Curvature', slider=True)
-            layout.prop(props_contours, 'interpolation_factor', text='Interpolation', slider=True)
+            layout.prop(props_contours, 'interpolation_factor', text='Space Evenly', slider=True)
             method_name = props_contours.bl_rna.properties['process_source_method'].enum_items[props_contours.process_source_method].name
             layout.popover('RF_PT_ContoursMethod', text=method_name)
             draw_line_separator(layout)
