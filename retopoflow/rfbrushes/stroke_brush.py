@@ -271,7 +271,7 @@ def create_stroke_brush(
                     self.snap_bmf1 = self.nearest_bmf.bmf
 
 
-        def update(self, context, event):
+        def update(self, context, event, *, force : bool = False):
             try:
                 if self.operator: self.operator.is_active()
             except ReferenceError as referr:

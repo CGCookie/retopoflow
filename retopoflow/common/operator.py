@@ -131,6 +131,7 @@ class RFOperator_Execute(RFOperator_KeymapContext, bpy.types.Operator):
 
     @classmethod
     def register(cls): pass
+
     @classmethod
     def unregister(cls): pass
 
@@ -289,11 +290,14 @@ class RFOperator(RFOperator_KeymapContext, bpy.types.Operator):
         self.working_window = context.window
         self._stop = False
 
-        self.fullscreen_keymaps = {
+        user_keyconfigs = context.window_manager.keyconfigs.user
+        if not user_keyconfigs:
+            return {'CANCELLED'}
+        self.fullscreen_keymaps = [
             km
-            for km in context.window_manager.keyconfigs.user.keymaps['Screen'].keymap_items
+            for km in user_keyconfigs.keymaps['Screen'].keymap_items
             if km.idname == 'screen.screen_full_area'
-        }
+        ]
 
         if hasattr(self, 'draw_postpixel_overlay'):
             wm, space = bpy.types.WindowManager, bpy.types.SpaceView3D
@@ -378,10 +382,10 @@ class RFOperator(RFOperator_KeymapContext, bpy.types.Operator):
                 self.finish(context)
             except Exception as e:
                 print(f'RFOperator.modal: Unhandled Exception Caught in self.finish: {e}')
-                Debugger.print_exception()
+                _ = Debugger.print_exception()
                 ret = {'CANCELLED'}
             if self._draw_postpixel_overlay:
-                wm, space = bpy.types.WindowManager, bpy.types.SpaceView3D
+                _wm, space = bpy.types.WindowManager, bpy.types.SpaceView3D
                 space.draw_handler_remove(self._draw_postpixel_overlay, 'WINDOW')
                 self._draw_postpixel_overlay = None
             if RFOperator.active_operator() != self:
@@ -389,8 +393,10 @@ class RFOperator(RFOperator_KeymapContext, bpy.types.Operator):
                 # print(self)
                 # print(RFOperator.active_operators)
                 pass
-            if self in RFOperator.active_operators: RFOperator.active_operators.remove(self)
-            for area in context.screen.areas: area.tag_redraw()
+            if self in RFOperator.active_operators:
+                RFOperator.active_operators.remove(self)
+            for area in context.screen.areas:
+                area.tag_redraw()
             Cursors.restore()
             if RFOperator.active_operators:
                 # other RF operators on stack, so tickle them so they can see the changes

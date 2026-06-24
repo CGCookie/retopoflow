@@ -28,6 +28,7 @@ import inspect
 import operator
 import itertools
 import importlib
+from collections.abc import Sequence, Iterator
 
 import bpy
 from mathutils import Vector, Matrix
@@ -390,20 +391,28 @@ def iter_running_sum(lw):
         s += w
         yield (w,s)
 
-def enumerate_direction(l, forward):
-    if forward: yield from enumerate(l)
-    else: yield from enumerate_reversed(l)
+def enumerate_direction(l : Sequence[...], forward : bool) -> Iterator[tuple[int, ...]]:
+    if forward:
+        yield from enumerate(l)
+    else:
+        yield from enumerate_reversed(l)
 
-def enumerate_reversed(l):
+def enumerate_reversed(l : Sequence[...]) -> Iterator[tuple[int, ...]]:
     n = len(l)
-    yield from ((i,l[i]) for i in range(n - 1, -1, -1))
+    yield from (
+        (i, l[i])
+        for i in range(n-1, -1, -1)
+    )
 
-def iter_pairs(items, wrap, repeat=False):
-    if not items: return
+def iter_pairs(items : Sequence[...], wrap : bool, repeat : bool = False) -> Iterator[tuple[..., ...]]:
+    if not items:
+        return
     while True:
         yield from zip(items[:-1], items[1:])
-        if wrap: yield items[-1],items[0]
-        if not repeat: return
+        if wrap:
+            yield (items[-1], items[0])
+        if not repeat:
+            return
 
 def rip(zipped):
     # inverse of zip

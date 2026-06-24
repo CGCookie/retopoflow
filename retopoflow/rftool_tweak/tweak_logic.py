@@ -168,7 +168,7 @@ class Tweak_Logic:
         for (bmv, co, _, _) in self.verts:
             bmv.co = co
         bmesh.update_edit_mesh(self.em)
-        context.area.tag_redraw()
+        # context.area.tag_redraw()
 
     def project_pt(self, context, pt):
         p = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ pt)
@@ -245,5 +245,5 @@ class Tweak_Logic:
 
             if new_co: bmv.co = new_co
         bmesh.update_edit_mesh(self.em)
-        context.area.tag_redraw()
+        # context.area.tag_redraw()
         self.mouse_prev = mouse

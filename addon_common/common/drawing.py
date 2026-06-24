@@ -25,7 +25,7 @@ import math
 import time
 import ctypes
 import random
-from typing import List
+from typing import List, Literal, Sequence, ClassVar
 import traceback
 import functools
 import contextlib
@@ -35,7 +35,7 @@ from itertools import chain
 
 import bpy
 import gpu
-from bpy.types import BoolProperty
+from bpy.types import BoolProperty, Area, SpaceView3D, Region, RegionView3D, Window
 from mathutils import Matrix, Vector
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
@@ -91,11 +91,11 @@ class Drawing:
         if Globals.is_set('drawing'): return
         Drawing._creating = True
         Globals.set(Drawing())
-        del Drawing._creating
+        Drawing._creating = False
         Drawing._instance = Globals.drawing
 
     def __init__(self):
-        assert hasattr(self, '_creating'), "Do not instantiate directly.  Use Drawing.get_instance()"
+        assert self._creating, "Do not instantiate directly.  Use Drawing.get_instance()"
 
         self.area,self.space,self.rgn,self.r3d,self.window = None,None,None,None,None
         # self.font_id = 0
@@ -105,10 +105,13 @@ class Drawing:
         self.fontsize_scaled = None
         self.line_cache = {}
         self.size_cache = {}
-        self.set_font_size(12)
+
+        self.line_height = 0 # will be overwritten
+        self.line_base = 0   # will be overwritten
+        _ = self.set_font_size(12, force=True)
         self._pixel_matrix = None
 
-    def set_region(self, area, space, rgn, r3d, window):
+    def set_region(self, area : Area, space : SpaceView3D, rgn : Region, r3d : RegionView3D, window : Window):
         self.area = area
         self.space = space
         self.rgn = rgn
@@ -116,26 +119,38 @@ class Drawing:
         self.window = window
 
     @staticmethod
-    def set_cursor(cursor): Cursors.set(cursor)
+    def set_cursor(cursor : str):
+        Cursors.set(cursor)
 
-    def scale(self, s): return s * self._dpi_mult if s is not None else None
-    def unscale(self, s): return s / self._dpi_mult if s is not None else None
-    def get_dpi_mult(self): return self._dpi_mult
-    def get_pixel_size(self): return self._pixel_size
-    def line_width(self, width): gpustate.line_width(max(1, self.scale(width)))
-    def point_size(self, size): gpustate.point_size(max(1, self.scale(size)))
+    def scale(self, s : float | None) -> float | None:
+        return s * self._dpi_mult if s is not None else None
 
-    def set_font_color(self, fontid, color):
+    def unscale(self, s : float | None):
+        return s / self._dpi_mult if s is not None else None
+
+    @staticmethod
+    def get_dpi_mult() -> float:
+        return Drawing._dpi_mult
+
+    def line_width(self, width : float):
+        gpustate.line_width(max(1, self.scale(width) or width))
+    def point_size(self, size : float):
+        gpustate.point_size(max(1, self.scale(size) or size))
+
+    def set_font_color(self, fontid : str | int | None, color : Sequence[float]):
         fm.color(color, fontid=fontid)
 
-    def set_font_size(self, fontsize, fontid=None, force=False):
-        if fontid is None: fontid = fm._last_fontid
-        else: fontid = fm.load(fontid)
+    def set_font_size(self, fontsize : float, fontid : str | int | None = None, force : bool = False) -> float | None:
+        fontid_ = fm.load(fontid)
         fontsize_prev = self.fontsize
         fontsize, fontsize_scaled = int(fontsize), int(int(fontsize) * self._dpi_mult)
-        cache_key = (fontid, fontsize_scaled)
-        if self.last_font_key == cache_key and not force: return fontsize_prev
-        fm.size(fontsize_scaled, fontid=fontid)
+        cache_key = (fontid_, fontsize_scaled)
+
+        if self.last_font_key == cache_key and not force:
+            return fontsize_prev
+
+        fm.size(fontsize_scaled, fontid=fontid_)
+        s4 = s if (s := self.scale(4)) is not None else 4.0
         if cache_key not in self.line_cache:
             # cache away useful details about font (line height, line base)
             dprint('Caching new scaled font size:', cache_key)
@@ -148,40 +163,49 @@ class Drawing:
             ])
             all_caps = all_chars.upper()
             self.line_cache[cache_key] = {
-                'line height': math.ceil(fm.dimensions(all_chars, fontid=fontid)[1] + self.scale(4)),
-                'line base': math.ceil(fm.dimensions(all_caps, fontid=fontid)[1]),
+                'line height': math.ceil(fm.dimensions(all_chars, fontid=fontid_)[1] + s4),
+                'line base': math.ceil(fm.dimensions(all_caps, fontid=fontid_)[1]),
             }
         info = self.line_cache[cache_key]
         self.line_height = info['line height']
         self.line_base = info['line base']
-        self.fontid = fontid
+        self.fontid = fontid_
         self.fontsize = fontsize
         self.fontsize_scaled = fontsize_scaled
         self.last_font_key = cache_key
 
         return fontsize_prev
 
-    def get_text_size_info(self, text, item, fontsize=None, fontid=None):
-        if fontsize or fontid: size_prev = self.set_font_size(fontsize, fontid=fontid)
+    def get_text_size_info(self, text : str | list[str] | None, item, fontsize : float | None = None, fontid : str | int | None = None):
+        fontid_prev : int = self.fontid
+        size_prev : float | None = self.set_font_size(fontsize, fontid=fontid) if fontsize else None
 
-        if text is None: text, lines = '', []
-        elif type(text) is list: text, lines = '\n'.join(text), text
-        else: text, lines = text, text.splitlines()
+        match text:
+            case None:
+                text_, lines = '', []
+            case list():
+                text_, lines = '\n'.join(text), text
+            case str():
+                text_, lines = text, text.splitlines()
+            case _: # pyright: ignore[reportUnnecessaryComparison]
+                assert False, f'Unexpected type {type(text)} of {text}' # pyright: ignore[reportUnreachable]
 
         fontid = fm.load(fontid)
-        key = (text, self.fontsize_scaled, fontid)
+        key : tuple[str, float, int] = (text_, self.fontsize_scaled or self.fontsize or 0.0, fontid)
         # key = (text, self.fontsize_scaled, self.font_id)
         if key not in self.size_cache:
-            d = {}
-            if not text:
+            d : dict[Literal['width']|Literal['height']|Literal['line height'], float] = {}
+            if not text_:
                 d['width'] = 0
                 d['height'] = 0
                 d['line height'] = self.line_height
             else:
-                get_width = lambda t: math.ceil(fm.dimensions(t, fontid=fontid)[0])
-                get_height = lambda t: math.ceil(fm.dimensions(t, fontid=fontid)[1])
-                d['width'] = max(get_width(l) for l in lines)
-                d['height'] = get_height(text)
+                def get_width(t : str) -> float:
+                    return math.ceil(fm.dimensions(t, fontid=fontid)[0])
+                def get_height(t : str) -> float:
+                    return math.ceil(fm.dimensions(t, fontid=fontid)[1])
+                d['width'] = max(get_width(line) for line in lines)
+                d['height'] = get_height(text_)
                 d['line height'] = self.line_height * len(lines)
             self.size_cache[key] = d
             if False:
@@ -192,7 +216,11 @@ class Drawing:
                 print('>   size: %s' % str(d))
                 print('--------------------------------------')
                 print('')
-        if fontsize: self.set_font_size(size_prev, fontid=fontid)
+
+        if size_prev is not None:
+            _ = self.set_font_size(size_prev, fontid=fontid)
+        self.fontid = fontid_prev
+
         return self.size_cache[key][item]
 
     def get_text_width(self, text, fontsize=None, fontid=None):
@@ -216,8 +244,19 @@ class Drawing:
     def text_color_set(self, color, fontid):
         if color is not None: fm.color(color, fontid=fontid)
 
-    def text_draw2D(self, text, pos:Point2D, *, color=None, dropshadow=None, fontsize=None, fontid=None, lineheight=True):
-        if fontsize: size_prev = self.set_font_size(fontsize, fontid=fontid)
+    def text_draw2D(
+        self,
+        text : object,
+        pos : Point2D | Sequence[float],
+        *,
+        color : Color | Sequence[float] | None = None,
+        dropshadow : Color | Sequence[float] | None = None,
+        fontsize : float | None = None,
+        fontid : str | int | None = None,
+        lineheight : bool = True,
+    ):
+        fontid_prev : int = self.fontid
+        size_prev : float | None = self.set_font_size(fontsize, fontid=fontid) if fontsize else None
 
         lines = str(text).splitlines()
         l,t = round(pos[0]),round(pos[1])
@@ -232,7 +271,9 @@ class Drawing:
             fm.draw(line, xyz=(l, t - lb, 0), fontid=fontid)
             t -= lh if lineheight else self.get_text_height(line)
 
-        if fontsize: self.set_font_size(size_prev, fontid=fontid)
+        if size_prev is not None:
+            _ = self.set_font_size(size_prev, fontid=fontid)
+        self.fontid = fontid_prev
 
     def text_draw2D_simple(self, text, pos:Point2D):
         l,t = round(pos[0]),round(pos[1])
@@ -240,13 +281,15 @@ class Drawing:
         fm.draw_simple(text, xyz=(l, t - lb, 0))
 
 
-    def get_mvp_matrix(self, view3D=True):
+    def get_mvp_matrix(self, view3D : bool = True) -> Matrix | None:
         '''
         if view3D == True: returns MVP for 3D view
         else: returns MVP for pixel view
         TODO: compute separate M,V,P matrices
         '''
-        if not self.r3d: return None
+        if not self.r3d:
+            return None
+
         if view3D:
             # 3D view
             return self.r3d.perspective_matrix
@@ -254,70 +297,63 @@ class Drawing:
             # pixel view
             return self.get_pixel_matrix()
 
-        mat_model = Matrix()
-        mat_view = Matrix()
-        mat_proj = Matrix()
+        # mat_model = Matrix()
+        # mat_view = Matrix()
+        # mat_proj = Matrix()
 
-        view_loc = self.r3d.view_location # vec
-        view_rot = self.r3d.view_rotation # quat
-        view_per = self.r3d.view_perspective # 'PERSP' or 'ORTHO'
+        # view_loc = self.r3d.view_location # vec
+        # view_rot = self.r3d.view_rotation # quat
+        # view_per = self.r3d.view_perspective # 'PERSP' or 'ORTHO'
 
-        return mat_model,mat_view,mat_proj
+        # return mat_model,mat_view,mat_proj
 
-    def get_pixel_matrix_list(self):
-        if not self.r3d: return None
+    def get_pixel_matrix_list(self) -> list[list[float]] | None:
+        if not self.rgn or not self.r3d or not self.window:
+            return None
         x,y = self.rgn.x,self.rgn.y
         w,h = self.rgn.width,self.rgn.height
         ww,wh = self.window.width,self.window.height
         return [[2/w,0,0,-1],  [0,2/h,0,-1],  [0,0,1,0],  [0,0,0,1]]
 
-    def load_pixel_matrix(self, m):
+    def load_pixel_matrix(self, m : Matrix):
         self._pixel_matrix = m
 
-    @add_cache('_cache', {'w':-1, 'h':-1, 'm':None})
-    def get_pixel_matrix(self):
+    _prev_pixel_matrix : tuple[int, int, Matrix] | None = None
+    def get_pixel_matrix(self) -> Matrix | None:
         '''
         returns MVP for pixel view
         TODO: compute separate M,V,P matrices
         '''
-        if not self.r3d: return None
-        if self._pixel_matrix: return self._pixel_matrix
-        w,h = self.rgn.width,self.rgn.height
-        cache = self.get_pixel_matrix._cache
-        if cache['w'] != w or cache['h'] != h:
-            mx, my, mw, mh = -1, -1, 2 / w, 2 / h
-            cache['w'],cache['h'] = w,h
-            cache['m'] = Matrix([
-                [ mw,  0,  0, mx],
-                [  0, mh,  0, my],
-                [  0,  0,  1,  0],
-                [  0,  0,  0,  1]
-            ])
-        return cache['m']
+        if not self.rgn or not self.r3d:
+            return None
+        if self._pixel_matrix:
+            return self._pixel_matrix
+        w, h = self.rgn.width, self.rgn.height
 
-    def get_view_matrix_list(self):
-        return list(self.get_view_matrix()) if self.r3d else None
+        cache = self._prev_pixel_matrix
+        if cache and cache[0] == w and cache[1] == h:
+            return cache[2]
 
-    def get_view_matrix(self):
+        mx, my, mw, mh = -1, -1, 2 / w, 2 / h
+        M = Matrix([
+            [ mw,  0,  0, mx],
+            [  0, mh,  0, my],
+            [  0,  0,  1,  0],
+            [  0,  0,  0,  1]
+        ])
+        self._prev_pixel_matrix = (w, h, M)
+        return M
+
+    def get_view_matrix(self) -> Matrix | None:
         return self.r3d.perspective_matrix if self.r3d else None
 
-    def get_view_version(self):
-        if not self.r3d: return None
+    def get_view_version(self) -> Hasher | None:
+        if not self.r3d or not self.space: return None
         return Hasher(self.r3d.view_matrix, self.space.lens, self.r3d.view_distance)
 
-    @staticmethod
-    def glCheckError(title, **kwargs):
-        return gpustate.get_glerror(title, **kwargs)
-
-    @staticmethod
-    @contextlib.contextmanager
-    def glCheckError_wrap(title, *, stop_on_error=False):
-        if Drawing.glCheckError(f'addon common: pre {title}') and stop_on_error: return True
-        yield None
-        if Drawing.glCheckError(f'addon common: post {title}') and stop_on_error: return True
-        return False
-
-    def get_view_origin(self, *, orthographic_distance=1000):
+    def get_view_origin(self, *, orthographic_distance : float = 1000) -> Vector | None:
+        if not self.r3d:
+            return None
         focus = self.r3d.view_location
         rot = self.r3d.view_rotation
         dist = self.r3d.view_distance if self.r3d.is_perspective else orthographic_distance
@@ -328,14 +364,15 @@ class Drawing:
         # return Point(region_2d_to_origin_3d(self.rgn, self.r3d, center))
 
     def Point2D_to_Ray(self, p2d):
+        if not self.rgn or not self.r3d: return None
         o = Point(region_2d_to_origin_3d(self.rgn, self.r3d, p2d))
         d = Direction(region_2d_to_vector_3d(self.rgn, self.r3d, p2d))
         return Ray(o, d)
 
     def Point_to_Point2D(self, p3d):
+        if not self.rgn or not self.r3d: return None
         return Point2D(location_3d_to_region_2d(self.rgn, self.r3d, p3d))
 
-    @blender_version_wrapper('>=', '2.80')
     def draw2D_point(self, pt:Point2D, color:Color, *, radius=1, border=0, borderColor=None):
         init_shaders()
         radius = self.scale(radius)
@@ -352,8 +389,7 @@ class Drawing:
         batch_2D_point.draw(shader_2D_point)
         gpu.shader.unbind()
 
-    @blender_version_wrapper('>=', '2.80')
-    def draw2D_points(self, pts:[Point2D], color:Color, *, radius=1, border=0, borderColor=None):
+    def draw2D_points(self, pts:list[Point2D], color:Color, *, radius=1, border=0, borderColor=None):
         init_shaders()
         radius = self.scale(radius)
         border = self.scale(border)
@@ -391,7 +427,6 @@ class Drawing:
 
     def draw2D_lines(self, points, color0:Color, *, color1=None, width=1, stipple=None, offset=0):
         init_shaders()
-        self.glCheckError('starting draw2D_lines')
         if color1 is None: color1 = (color0[0],color0[1],color0[2],0)
         width = self.scale(width)
         stipple = [self.scale(v) for v in stipple] if stipple else [1.0, 0.0]
@@ -410,11 +445,9 @@ class Drawing:
             ubos_2D_lineseg.update_shader()
             batch_2D_lineseg.draw(shader_2D_lineseg)
         gpu.shader.unbind()
-        self.glCheckError('done with draw2D_lines')
 
     def draw3D_lines(self, points, color0:Color, *, color1=None, width=1, stipple=None, offset=0):
         init_shaders()
-        self.glCheckError('starting draw3D_lines')
         if color1 is None: color1 = (color0[0],color0[1],color0[2],0)
         width = self.scale(width)
         stipple = [self.scale(v) for v in stipple] if stipple else [1.0, 0.0]
@@ -433,7 +466,6 @@ class Drawing:
             ubos_2D_lineseg.update_shader()
             batch_2D_lineseg.draw(shader_2D_lineseg)
         gpu.shader.unbind()
-        self.glCheckError('done with draw3D_lines')
 
     def draw2D_linestrip(self, points, color0:Color, *, color1=None, width=1, stipple=None, offset=0):
         init_shaders()
@@ -495,7 +527,6 @@ class Drawing:
 
     def draw3D_triangles(self, points:[Point], colors:[Color]):
         init_shaders()
-        self.glCheckError('starting draw3D_triangles')
         shader_3D_triangle.bind()
         ubos_3D_triangle.options.MVPMatrix = self.get_view_matrix()
         for i in range(0, len(points), 3):
@@ -512,14 +543,12 @@ class Drawing:
             ubos_3D_triangle.update_shader()
             batch_3D_triangle.draw(shader_3D_triangle)
         gpu.shader.unbind()
-        self.glCheckError('done with draw3D_triangles')
 
     @contextlib.contextmanager
     def draw(self, draw_type:"CC_DRAW"):
         assert getattr(self, '_draw', None) is None, 'Cannot nest Drawing.draw calls'
         init_shaders()
         self._draw = draw_type
-        self.glCheckError('starting draw')
         try:
             draw_type.begin()
             yield draw_type
@@ -527,13 +556,10 @@ class Drawing:
         except Exception as e:
             print('Exception caught while in Drawing.draw with %s' % str(draw_type))
             debugger.print_exception()
-        self.glCheckError('done with draw')
         self._draw = None
 
 if not bpy.app.background:
-    Drawing.glCheckError(f'pre-init check: Drawing')
     Drawing.initialize()
-    Drawing.glCheckError(f'post-init check: Drawing')
 
 
 def init_shaders():
@@ -555,15 +581,11 @@ def init_shaders():
         txt = open(path_glsl, 'rt').read()
         vert_source, frag_source = gpustate.shader_parse_string(txt)
         try:
-            Drawing.glCheckError(f'pre-compile check: {fn_glsl}')
             ret = gpustate.gpu_shader(f'drawing {fn_glsl}', vert_source, frag_source)
-            Drawing.glCheckError(f'post-compile check: {fn_glsl}')
             return ret
         except Exception as e:
             print('ERROR WHILE COMPILING SHADER %s' % fn_glsl)
             assert False
-
-    Drawing.glCheckError(f'Pre-compile check: point, lineseg, circle, triangle shaders')
 
     # 2D point
     shader_2D_point, ubos_2D_point = create_shader('point_2D.glsl')
@@ -607,7 +629,6 @@ def init_shaders():
     shader_2D_triangle, ubos_2D_triangle = create_shader('triangle_2D.glsl')
     batch_2D_triangle = batch_for_shader(shader_2D_triangle, 'TRIS', {'pos': [(1,0), (0,1), (0,0)]})
 
-    Drawing.glCheckError(f'Compiled point, lineseg, circle shaders')
     shaders_initialized = True
 
 
@@ -641,7 +662,7 @@ class CC_DRAW:
     _line_width:float = 1
     _border_width:float = 0
     _border_color:Color = Color((0, 0, 0, 0))
-    _stipple_pattern:List[float] = [1,0]
+    _stipple_pattern:list[float] = [1,0]
     _stipple_offset:float = 0
     _stipple_color:Color = Color((0, 0, 0, 0))
 

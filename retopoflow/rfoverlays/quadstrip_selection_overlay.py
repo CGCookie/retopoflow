@@ -20,7 +20,9 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
-from mathutils import Vector
+from bpy.types import Context
+from mathutils import Matrix, Vector
+from collections.abc import Sequence
 import bmesh
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_location_3d
 
@@ -39,6 +41,8 @@ from ...addon_common.common.utils import iter_pairs
 
 
 def get_label_pos(context, strip):
+    if not context.edit_object:
+        return None
     M = context.edit_object.matrix_world
     rgn, r3d = context.region, context.region_data
 
@@ -76,9 +80,6 @@ def get_quadstrips(bmfs):
     return strips
 
 def create_quadstrip_selection_overlay(opname, rftool_idname, idname, label, only_boundary):
-    paused_update = False
-    paused_overlay = False
-
     overlay_names.add(label)
 
     class RFOperator_QuadStrip_Selection_Overlay(RFOperator_KeymapContext):
@@ -88,20 +89,22 @@ def create_quadstrip_selection_overlay(opname, rftool_idname, idname, label, onl
         bl_options = { 'INTERNAL' }
 
         instance = None
+        paused_update = False
+        paused_overlay = False
         hovering = None  # needed for very first start
 
-        @staticmethod
-        def pause_update(): nonlocal paused_update; paused_update = True
-        @staticmethod
-        def unpause_update(): nonlocal paused_update; paused_update = False
+        @classmethod
+        def pause_update(cls): cls.paused_update = True
+        @classmethod
+        def unpause_update(cls): cls.paused_update = False
 
-        @staticmethod
-        def pause_overlay(): nonlocal paused_overlay; paused_overlay = True
-        @staticmethod
-        def unpause_overlay(): nonlocal paused_overlay; paused_overlay = False
+        @classmethod
+        def pause_overlay(cls): cls.paused_overlay = True
+        @classmethod
+        def unpause_overlay(cls): cls.paused_overlay = False
 
-        @staticmethod
-        def activate():
+        @classmethod
+        def activate(cls):
             op_self = getattr(bpy.ops.retopoflow, idname)
             op_self('INVOKE_DEFAULT')
 
@@ -115,7 +118,7 @@ def create_quadstrip_selection_overlay(opname, rftool_idname, idname, label, onl
         def update(self, context, event):
             is_done = (self.RFCore.selected_RFTool_idname != rftool_idname)
             if is_done: return {'CANCELLED'}
-            if paused_overlay: return {'PASS_THROUGH'}
+            if self.paused_overlay: return {'PASS_THROUGH'}
 
             mouse = mouse_from_event(event)
             was_hovering = self.hovering
@@ -132,17 +135,16 @@ def create_quadstrip_selection_overlay(opname, rftool_idname, idname, label, onl
             return {'PASS_THROUGH'}
 
 
-        def update_data(self):
-            nonlocal paused_update
+        def update_data(self, context):
             if self.depsgraph_version == self.RFCore.depsgraph_version and hasattr(self, 'curves'): return True
-            if paused_update: return False
+            if self.paused_update: return False
 
             # depsgraph changed, so recollect quad details
 
             self.depsgraph_version = self.RFCore.depsgraph_version
 
             # find selected quad strips
-            bm, _ = get_bmesh_emesh(bpy.context, ensure_lookup_tables=True)
+            bm, _ = get_bmesh_emesh(context, ensure_lookup_tables=True)
             # only considering selected quads
             sel_bmfs = [ bmf for bmf in bmops.get_all_selected_bmfaces(bm) if len(bmf.edges) == 4 ]
             if len(sel_bmfs) > 1000:
@@ -150,15 +152,17 @@ def create_quadstrip_selection_overlay(opname, rftool_idname, idname, label, onl
                 self.selected_strips = []
                 self.strips_indices = []
                 self.curves = []
-                return
+                return False
+
             # crawl sel_bmfs to find strips
             strips = get_quadstrips(sel_bmfs)
             self.selected_strips = [
                 [
                     bme_midpoint(quad_bmf_opposite_bme(strip[0], bmfs_shared_bme(strip[0], strip[1])))
                 ] + [
-                    bme_midpoint(bmfs_shared_bme(bmf0, bmf1))
+                    bme_midpoint(bme01)
                     for (bmf0, bmf1) in iter_pairs(strip, False)
+                    if (bme01 := bmfs_shared_bme(bmf0, bmf1))
                 ] + [
                     bme_midpoint(quad_bmf_opposite_bme(strip[-1], bmfs_shared_bme(strip[-1], strip[-2])))
                 ]
@@ -175,40 +179,61 @@ def create_quadstrip_selection_overlay(opname, rftool_idname, idname, label, onl
 
             return True
 
-        def hovered_handle(self, context, mouse, *, distance2D=10):
-            if not self.update_data(): return False
+        def hovered_handle(
+            self,
+            context : Context,
+            mouse : Sequence[float] | Vector,
+            *,
+            distance2D : float = 10,
+        ) -> tuple[int, int, list[Vector]] | None:
+            if not context.edit_object:
+                return None
+            if not self.update_data(context):
+                return None
             rgn, r3d = context.region, context.region_data
-            if not r3d: return False
-            mouse = Vector(mouse)
-            M = context.edit_object.matrix_world
+            if not r3d:
+                return None
+            m = Vector(mouse)
+            M : Matrix = context.edit_object.matrix_world
             d = Drawing.scale(distance2D)
+            if d is None:
+                return None
             for i, curve in enumerate(self.curves):
                 pt0 = location_3d_to_region_2d(rgn, r3d, M @ curve.p0)
                 pt1 = location_3d_to_region_2d(rgn, r3d, M @ curve.p1)
                 pt2 = location_3d_to_region_2d(rgn, r3d, M @ curve.p2)
                 pt3 = location_3d_to_region_2d(rgn, r3d, M @ curve.p3)
+                if not pt0 or not pt1 or not pt2 or not pt3:
+                    continue
                 prev = [curve.p0, curve.p1, curve.p2, curve.p3]
-                if (pt0 - mouse).length < d: return (i, 0, prev)
-                if (pt1 - mouse).length < d: return (i, 1, prev)
-                if (pt2 - mouse).length < d: return (i, 2, prev)
-                if (pt3 - mouse).length < d: return (i, 3, prev)
+                if (pt0 - m).length < d:
+                    return (i, 0, prev)
+                if (pt1 - m).length < d:
+                    return (i, 1, prev)
+                if (pt2 - m).length < d:
+                    return (i, 2, prev)
+                if (pt3 - m).length < d:
+                    return (i, 3, prev)
             return None
 
         def draw_postpixel_overlay(self):
             is_done = (self.RFCore.selected_RFTool_idname != rftool_idname)
             if is_done: return
-            if paused_overlay: return
+            if self.paused_overlay: return
 
-            if not self.update_data(): return
+            context = bpy.context
+            if not context.edit_object:
+                return
+            if not self.update_data(context): return
 
             for strip in self.selected_strips:
-                lbl_pos = get_label_pos(bpy.context, strip)
+                lbl_pos = get_label_pos(context, strip)
                 if not lbl_pos: continue
                 text = f'Strip: {len(strip)-1}'
                 tw, th = Drawing.get_text_width(text), Drawing.get_text_height(text)
                 lbl_pos -= Vector((tw / 2, -th / 2))
                 Drawing.text_draw2D(text, lbl_pos.xy, color=(1,1,0,1), dropshadow=(0,0,0,0.75))
-            context = bpy.context
+
             M = context.edit_object.matrix_world
             rgn, r3d = context.region, context.region_data
             for curve in self.curves:

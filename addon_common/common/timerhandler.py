@@ -25,78 +25,159 @@ from bpy.types import (
     Context,
     Window,
     WindowManager,
+    Timer,
 )
 
-import inspect
 import time
-from functools import wraps
+from functools import wraps, partial
+from contextlib import contextmanager
+from collections.abc import Callable
 
 class TimerHandler:
-    def __init__(self, hz:float, *, context:Context=None, wm:WindowManager=None, win:Window=None, enabled=True):
-        context = context or bpy.context
+    _context : Context
+    _wm : WindowManager
+    _win : Window
+    _hz : float
+    _timer : Timer | None
 
-        self._wm    = wm  or context.window_manager
-        self._win   = win or context.window
-        self._hz    = max(0.1, hz)
+    def __init__(
+        self,
+        hz:float,
+        *,
+        context:Context|None=None,
+        wm:WindowManager|None=None,
+        win:Window|None=None,
+        enabled:bool=True,
+    ):
         self._timer = None
+        self._hz = hz
+        self._context = context or bpy.context
+        self._wm = self._context.window_manager
+        self._win = self._context.window
+        self.enabled = enabled
 
-        self.enable(enabled)
+    @contextmanager
+    def pause(self):
+        was_enabled = self.enabled
+        try:
+            yield None
+            if was_enabled:
+                self.start()
+        except Exception as _:
+            pass
+
+    @property
+    def hz(self) -> float:
+        return self._hz
+    @hz.setter
+    def hz(self, hz : float):
+        with self.pause():
+            self._hz = hz
+
+    @property
+    def context(self) -> Context:
+        return self._context
+    @context.setter
+    def context(self, context : Context):
+        with self.pause():
+            self._context = context
+            self._wm = context.window_manager
+            self._win = context.window
 
     def __del__(self):
-        self.done()
+        self.stop()
 
     def start(self):
-        if self._timer: return
-        self._timer = self._wm.event_timer_add(1.0 / self._hz, window=self._win)
+        if self._timer: return # already started
+        delay = 1.0 / max(0.1, self._hz)
+        self._timer = self._wm.event_timer_add(delay, window=self._win)
 
     def stop(self):
-        if not self._timer: return
+        if not self._timer: return # already stopped
         self._wm.event_timer_remove(self._timer)
         self._timer = None
 
     def done(self):
         self.stop()
 
-    def enable(self, v):
-        if v: self.start()
-        else: self.stop()
+    @property
+    def enabled(self) -> bool:
+        return self._timer is not None
+    @enabled.setter
+    def enabled(self, enable : bool):
+        if enable:
+            self.start()
+        else:
+            self.stop()
 
 
 class StopwatchHandler:
+    MIN_TIME_DELAY : float = 0.00001
+    _fn : Callable[[...], None]
+    fn : Callable[[], None] | None
+    time_delay : float | None
+    fn_delay : Callable[[], float] | None
+
     @staticmethod
-    def delayed(*, time_delay=None, fn_delay=None):
-        def wrap_fn(fn):
+    def delayed(
+        *,
+        time_delay : float | None = None,
+        fn_delay : Callable[[], float] | None = None,
+    ) -> Callable[[Callable[[], None]], Callable[[...], None]]:
+        def wrap_fn(fn : Callable[[], None]) -> Callable[[...], None]:
             sw = StopwatchHandler(fn, time_delay=time_delay, fn_delay=fn_delay)
             @wraps(fn)
-            def wrapper(*args, **kwargs):
+            def wrapper(*args : ..., **kwargs : dict[str, ...]):
                 sw.start(*args, **kwargs)
-            wrapper.is_going = sw.is_going
-            wrapper.cancel = sw.cancel
-            wrapper.reset = sw.reset
+            setattr(wrapper, 'is_going', sw.is_going)
+            setattr(wrapper, 'cancel', sw.cancel)
+            setattr(wrapper, 'reset', sw.reset)
             return wrapper
         return wrap_fn
 
-    def __init__(self, fn, *, time_delay=None, fn_delay=None):
+    def __init__(
+        self,
+        fn : Callable[[...], None],
+        *,
+        time_delay : float | None = None,
+        fn_delay : Callable[[], float] | None = None,
+    ):
         assert time_delay is not None or fn_delay is not None, f'Addon Common: Must specify either time_delay or fn_delay'
-        self.fn  = lambda: fn(*self._args, **self._kwargs)
+        self._fn = fn
+        self.fn = None
         self.time_delay = time_delay
         self.fn_delay = fn_delay
 
     @property
-    def is_going(self):
-        return bpy.app.timers.is_registered(self.fn)
+    def delay(self) -> float:
+        if self.time_delay is not None:
+            return max(self.time_delay, StopwatchHandler.MIN_TIME_DELAY)
 
-    def start(self, *args, **kwargs):
-        self._args = args
-        self._kwargs = kwargs
-        time_delay = self.time_delay or self.fn_delay()
-        bpy.app.timers.register(self.fn, first_interval=time_delay)
+        fn_delay : Callable[[], float] | None
+        if (fn_delay := getattr(self, 'fn_delay', None)) is not None:
+            return fn_delay()
+
+        return StopwatchHandler.MIN_TIME_DELAY
+
+    @property
+    def is_going(self) -> bool:
+        return self.fn and bpy.app.timers.is_registered(self.fn)
+
+    def start(self, *args : ..., **kwargs : dict[str, ...]):
+        if self.is_going:
+            self.cancel()
+
+        self.fn = partial(self._fn, *args, **kwargs)
+        bpy.app.timers.register(self.fn, first_interval=self.delay)
 
     def cancel(self):
-        if self.is_going:
-            bpy.app.timers.unregister(self.fn)
+        if not self.is_going:
+            return
 
-    def reset(self, *args, **kwargs):
+        bpy.app.timers.unregister(self.fn)
+        self.fn = None
+
+    def reset(self, *args: ..., **kwargs: dict[..., ...]):
         self.cancel()
         self.start(*args, **kwargs)
 

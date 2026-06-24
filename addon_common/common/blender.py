@@ -812,7 +812,7 @@ def get_path_from_addon_root(*path_join):
     #     get_path_from_addon_root.root[path_here] = fn_path(modules[0].__file__)
     # return os.path.join(get_path_from_addon_root.root[path_here], *path_join)
 
-def get_path_from_addon_common(*path_join):
+def get_path_from_addon_common(*path_join : str) -> str:
     path_here = os.path.dirname(__file__)
     return os.path.realpath(os.path.join(path_here, '..', *path_join))
 

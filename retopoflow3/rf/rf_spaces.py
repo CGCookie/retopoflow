@@ -33,9 +33,8 @@ from ...config.options import options
 from ...addon_common.common.debug import dprint
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.maths import Point, Vec, Direction, Normal
-from ...addon_common.common.maths import Ray, XForm, Plane
-from ...addon_common.common.maths import Point2D, Vec2D, Direction2D
-from ...addon_common.common.decorators import blender_version_wrapper
+from ...addon_common.common.maths import Ray, Plane
+from ...addon_common.common.maths import Point2D, Vec2D
 
 
 class RetopoFlow_Spaces:

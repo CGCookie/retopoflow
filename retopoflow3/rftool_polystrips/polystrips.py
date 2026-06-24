@@ -30,7 +30,6 @@ from mathutils import Matrix, Vector
 from mathutils.geometry import intersect_point_tri_2d, intersect_point_tri_2d
 
 from ..rftool import RFTool
-from ...addon_common.common.decorators import timed_call
 from ...addon_common.common import gpustate
 
 

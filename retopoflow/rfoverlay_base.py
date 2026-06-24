@@ -19,7 +19,6 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-
-# set of all the overlays
-# this set is added to AutoSave's exclude list so auto saving can happen when any overlay is top-most operator.
-overlay_names : set[str] = set()
+class RFOverlay_Base:
+    @classmethod
+    def activate(cls): pass

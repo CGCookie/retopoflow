@@ -458,7 +458,7 @@ class Relax_Logic:
         for (bmv, co) in self.prev_position.items():
             bmv.co = co
         bmesh.update_edit_mesh(self.em)
-        context.area.tag_redraw()
+        # context.area.tag_redraw()
 
 
     def update(self, context:Context, event:Event, *, debug_print:bool=False):
@@ -1014,7 +1014,7 @@ class Relax_Logic:
             # self.rfcontext.update_verts_faces(displace)
         # print(f'relaxed {len(verts)} ({len(chk_verts)}) in {time.time() - st} with {strength}')
         bmesh.update_edit_mesh(self.em)
-        context.area.tag_redraw()
+        # context.area.tag_redraw()
 
         if debug_print:
             print(f'elapsed: {time.time() - self._time:0.3f}s {1.0/time_delta:0.1f}fps v:{len(verts)} e:{len(edges)} f:{len(faces)}')

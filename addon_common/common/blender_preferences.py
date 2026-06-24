@@ -20,42 +20,44 @@ Created by Jonathan Denning, Jonathan Williamson
 '''
 
 import bpy
+from bpy.types import Context, Preferences
 
 
-def get_preferences(ctx=None):
+def get_preferences(ctx : Context | None = None) -> Preferences:
     return (ctx if ctx else bpy.context).preferences
 
 
-def mouse_doubleclick():
+def mouse_doubleclick() -> float:
     # time/delay (in seconds) for a double click
     return bpy.context.preferences.inputs.mouse_double_click_time / 1000
 
-def mouse_drag():
+def mouse_drag() -> float:
     # number of pixels to drag before tweak/drag event is triggered
     return bpy.context.preferences.inputs.drag_threshold_mouse
 
-def mouse_move():
+def mouse_move() -> float:
     # number of pixels to move before the cursor is considered to have moved
     # (used for cycling selected items on successive clicks)
     return bpy.context.preferences.inputs.move_threshold
 
-def mouse_select():
+def mouse_select() -> str:
     # returns 'LEFT' if LMB is used for selection or 'RIGHT' if RMB is used for selection
 
     user_keyconfigs = bpy.context.window_manager.keyconfigs.user
+    if not user_keyconfigs:
+        return 'LEFT'
+
     map_select_type = {'LEFTMOUSE': 'LEFT', 'RIGHTMOUSE': 'RIGHT'}
 
     try:
         select_type = user_keyconfigs.keymaps['3D View'].keymap_items['view3d.select'].type
         return map_select_type[select_type]
+
     except Exception as e:
-        if hasattr(mouse_select, 'reported'): return  # already reported
-        mouse_select.reported = True
-        print('Addon Common: Exception caught in mouse_select')
-        print('NOTE: only reporting this once')
-        print(f'Exception: {e}')
+        if not hasattr(mouse_select, 'reported'):
+            setattr(mouse_select, 'reported', True)
+            print('Addon Common: Exception caught in mouse_select')
+            print('NOTE: only reporting this once')
+            print(f'Exception: {e}')
 
     return 'LEFT'  # fallback to 'LEFT'
-
-
-

@@ -198,13 +198,17 @@ def plane_normal_from_points(context, p0, p1):
     return d0.cross(d1).normalized()
 
 def is_point_hidden(context, co_edit, *, factor=1.0, use_offset=True):
+    if not context.edit_object:
+        return True
+
     M = context.edit_object.matrix_world
     co_world = M @ point_to_bvec4(co_edit)
     hit = raycast_valid_sources(context, co_world)
     if not hit: return False
     ray_e = hit['ray_world'][0]
     offset = context.space_data.overlay.retopology_offset if use_offset else 0.0
-    return hit['distance'] + offset < (ray_e.xyz - co_world.xyz).length * factor
+    dist = hit['distance']
+    return dist + offset < (ray_e.xyz - co_world.xyz).length * factor
 
 def has_faces(context, obj):
     if obj.type == 'MESH' and bool(obj.data.polygons):

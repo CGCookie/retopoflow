@@ -32,7 +32,7 @@ from bmesh.types import BMVert, BMFace
 from mathutils.geometry import intersect_line_plane, intersect_point_tri, intersect_point_tri_2d
 
 from .colors import colorname_to_color
-from .decorators import stats_wrapper, blender_version_wrapper
+from .decorators import stats_wrapper
 from .profiler import profiler
 
 from ..terminal import term_printer

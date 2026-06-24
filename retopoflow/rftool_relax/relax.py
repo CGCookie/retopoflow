@@ -19,6 +19,8 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+# pyright: reportUninitializedInstanceVariable = false
+
 import blf
 import bmesh
 import bpy
@@ -31,11 +33,6 @@ from bpy.types import Context, UILayout, WorkSpaceTool
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 from mathutils import Vector, Matrix
 from mathutils.bvhtree import BVHTree
-
-import math
-import time
-from typing import List
-from enum import Enum
 
 from ..rftool_base import RFTool_Base
 from ..rfbrush_base import RFBrush_Base
@@ -177,8 +174,10 @@ class RFOperator_Relax(RFOperator):
     )
     algorithm_equalize_faces: bpy.props.BoolProperty(
         name='Algorithm: Equalize Faces',
-        description='Moves vertices of each face to be even distance from and evenly spread around the face center while also averaging the side lengths and overall area. ' \
-            'Slow but useful when other methods collapse faces too much',
+        description=(
+            'Moves vertices of each face to be even distance from and evenly spread around the face center while also averaging the side lengths and overall area. ' \
+            'Slow but useful when other methods collapse faces too much'
+        ),
         default=False,
     )
     # algorithm_average_face_radius: bpy.props.BoolProperty(
@@ -208,8 +207,8 @@ class RFOperator_Relax(RFOperator):
     )
 
 
-    logic : Relax_Logic     # pyright: ignore[reportUninitializedInstanceVariable]
-    timer : TimerHandler    # pyright: ignore[reportUninitializedInstanceVariable]
+    logic : Relax_Logic
+    timer : TimerHandler
 
     def init(self, context, event):
         self.logic = Relax_Logic(
@@ -225,6 +224,9 @@ class RFOperator_Relax(RFOperator):
         # self.logic.reset()
         pass
 
+    def check(self, _context : Context) -> bool: # pyright: ignore[reportIncompatibleMethodOverride]
+        return True
+
     def update(self, context, event):
         self.logic.update(context, event)
 
@@ -237,7 +239,7 @@ class RFOperator_Relax(RFOperator):
             return {'CANCELLED'}
 
         if event.type in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE'}:
-            context.area.tag_redraw()
+            # context.area.tag_redraw()
             return {'PASS_THROUGH'}
 
         return {'RUNNING_MODAL'} # allow other operators, such as UNDO!!!

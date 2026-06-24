@@ -46,9 +46,7 @@ from .fsm import FSM
 
 from .boundvar import BoundVar
 from .colors import colorname_to_color
-from .debug import debugger, dprint, tprint
-from .decorators import debug_test_call, blender_version_wrapper, add_cache
-from .drawing import Drawing
+from .decorators import add_cache
 from .globals import Globals
 from .hasher import Hasher
 from .maths import Vec2D, Color, mid, Box2D, Size1D, Size2D, Point2D, RelPoint2D, Index2D, clamp, NumberUnit

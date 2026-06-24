@@ -19,32 +19,29 @@ Donated to CGCookie and the world
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-'''
-Note: not all of the following code was provided by Plasmasolutions
-TODO: split into separate files?
-'''
-
 import os
 import sys
 import time
 import inspect
 import itertools
-import linecache
 import traceback
 from math import floor
-from hashlib import md5
 from datetime import datetime
-from functools import wraps
+from typing import TextIO, Any
 
-from .blender import show_blender_popup
 from .functools import find_fns
 from .globals import Globals
 from .hasher import Hasher
 
 
+'''
+Note: not all of the following code was provided by Plasmasolutions
+TODO: split into separate files?
+'''
+
 class Debugger:
-    _error_level = 1
-    _exception_count = 0
+    _error_level : int = 1
+    _exception_count : int = 0
 
     def __init__(self):
         pass
@@ -58,24 +55,30 @@ class Debugger:
         return Debugger._error_level
 
     @staticmethod
-    def dprint(*objects, sep=' ', end='\n', file=sys.stdout, flush=True, l=2):
-        if Debugger._error_level < l: return
-        sobjects = sep.join(str(o) for o in objects)
+    def dprint(
+        *objects : object,
+        sep : str = ' ',
+        end : str = '\n',
+        file : TextIO = sys.stdout,
+        flush : bool = True,
+        l : int = 2,
+    ):
+        if Debugger._error_level < l:
+            return
         print(
-            f'DEBUG({l}): {sobjects}',
+            f'DEBUG({l}): {sep.join(map(str, objects))}',
             end=end, file=file, flush=flush
         )
 
     @staticmethod
-    def dcallstack(l=2):
+    def dcallstack(l : int = 2):
         ''' print out the calling stack, skipping the first (call to dcallstack) '''
         Debugger.dprint('Call Stack Dump:', l=l)
-        for i, entry in enumerate(inspect.stack()):
-            if i > 0:
-                Debugger.dprint('  %s' % str(entry), l=l)
+        for entry in enumerate(inspect.stack()[1:]):
+            Debugger.dprint(f'  {entry}', l=l)
 
     @staticmethod
-    def call_stack():
+    def call_stack() -> list[str]:
         return traceback.format_stack()
 
 
@@ -89,7 +92,7 @@ class Debugger:
 
         exc_type, exc_obj, tb = sys.exc_info()
         pathabs, pathdir = os.path.abspath, os.path.dirname
-        pathjoin, pathsplit = os.path.join, os.path.split
+        pathjoin, _pathsplit = os.path.join, os.path.split
         base_path = pathabs(pathjoin(pathdir(__file__), '..'))
 
         hasher = Hasher()

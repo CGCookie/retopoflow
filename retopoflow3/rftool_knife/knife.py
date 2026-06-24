@@ -42,9 +42,6 @@ from ...addon_common.common.globals import Globals
 from ...addon_common.common.fsm import FSM
 from ...addon_common.common.utils import iter_pairs
 from ...addon_common.common.blender import tag_redraw_all
-from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat, BoundString
-from ...addon_common.common.decorators import timed_call
-from ...addon_common.common.drawing import DrawCallbacks
 
 from .knife_insert import Knife_Insert
 

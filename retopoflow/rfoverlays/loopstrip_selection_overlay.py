@@ -22,18 +22,24 @@ Created by Jonathan Denning, Jonathan Lampel
 import bpy
 from mathutils import Vector
 from bpy_extras.view3d_utils import location_3d_to_region_2d
+from bpy.types import Context, Event
+
+from typing import ClassVar
+from collections.abc import Sequence
 
 from .overlays import overlay_names
 
 from ..common.operator import RFOperator
 from ..common.bmesh import get_bmesh_emesh, bme_midpoint, get_boundary_strips_cycles
 from ..common.drawing import Drawing
-from ..common.maths import point_to_bvec4
 from ..common.raycast import is_point_hidden
 from ...addon_common.common import bmesh_ops as bmops
 
 
 def get_label_pos(context, label, mids, corners):
+    if not context.edit_object:
+        return None
+
     M = context.edit_object.matrix_world
     rgn, r3d = context.region, context.region_data
 
@@ -62,15 +68,18 @@ def create_loopstrip_selection_overlay(opname, rftool_idname, idname, label, onl
         bl_description = 'Overlay info about selected loops and strips'
         bl_options = { 'INTERNAL' }
 
-        @staticmethod
-        def activate():
+        @classmethod
+        def activate(cls):
             getattr(bpy.ops.retopoflow, idname)('INVOKE_DEFAULT')
 
         def init(self, context, event):
             self.depsgraph_version = None
 
-        def update(self, context, event):
-            is_done = (self.RFCore.selected_RFTool_idname != rftool_idname)
+        def update(self, _context : Context, _event : Event) -> set[str]:
+            RFCore = self.RFCore
+            if not RFCore:
+                return {'CANCELLED'}
+            is_done = (RFCore.selected_RFTool_idname != rftool_idname)
             return {'CANCELLED'} if is_done else {'PASS_THROUGH'}
 
         def draw_postpixel_overlay(self):
@@ -104,11 +113,13 @@ def create_loopstrip_selection_overlay(opname, rftool_idname, idname, label, onl
             for (lbl, boundaries) in zip(['Strip', 'Loop'], self.selected_boundaries):
                 for (mids, corners) in boundaries:
                     lbl_pos = get_label_pos(bpy.context, lbl, mids, corners)
-                    if not lbl_pos: continue
+                    if not lbl_pos:
+                        continue
                     count = len(mids)
                     if is_vertex_select and lbl != 'Loop':
                         count += 1
-                    if count == 1: continue
+                    if count == 1:
+                        continue
                     text = f'{lbl}: {count}' if lbl == 'Loop' else str(count)
                     tw, th = Drawing.get_text_width(text), Drawing.get_text_height(text)
                     lbl_pos -= Vector((tw / 2, -th / 2))
