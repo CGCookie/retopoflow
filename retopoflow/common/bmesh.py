@@ -144,12 +144,26 @@ def crossed_quad(pt0, pt1, pt2, pt3):
     n3 = v30.cross(-v23)
     return n0.dot(n1) < 0 or n0.dot(n2) < 0 or n0.dot(n3) < 0 or n1.dot(n2) < 0 or n1.dot(n3) < 0 or n2.dot(n3) < 0
 
-def ensure_correct_normals(bm:BMesh, bmfs:list[BMFace], *, check_snap:bool=False):
-    M_local = bpy.context.edit_object.matrix_world
-    Mt_local = M_local.transposed()
+def ensure_correct_normals(bm:BMesh, bmfs:list[BMFace], use_centroid:bool=False, flip:bool=False, check_snap:bool=False):
+    if not bmfs: return
     bmesh.ops.recalc_face_normals(bm, faces=bmfs)
 
+    if use_centroid:
+        # Compare against centroid since object origin can be far away
+        face_centers = [bmf_midpoint(bmf) for bmf in bmfs]
+        centroid = sum(face_centers, Vector((0, 0, 0))) / len(face_centers)
+        outward_count = sum(1 for bmf, fc in zip(bmfs, face_centers) if bmf.normal.dot(fc - centroid) >= 0)
+        if outward_count < len(bmfs) / 2:
+            for bmf in bmfs:
+                bmf.normal_flip()
+
+    if flip:
+        for bmf in bmfs:
+            bmf.normal_flip()
+
     if check_snap:
+        M_local = bpy.context.edit_object.matrix_world
+        Mt_local = M_local.transposed()
         for bmf in bmfs:
             avg_local = Point.average((bmv.co for bmv in bmf.verts))
             pts = []

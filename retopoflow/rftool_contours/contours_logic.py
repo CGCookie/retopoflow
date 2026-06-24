@@ -328,6 +328,7 @@ class Contours_Logic:
     show_loop_count : bool
     loop_count : int
     cyclic : bool
+    flip_normals : bool
     curvature_bias : float
     space_evenly : float
 
@@ -397,6 +398,7 @@ class Contours_Logic:
         self.loop_count = 1
 
         self.cyclic = False
+        self.flip_normals = False
         self.bm, self.em = None, None
         self.matrix_world, self.matrix_world_inv = None, None
 
@@ -765,7 +767,7 @@ class Contours_Logic:
         self.finish_edgering_bridge(context, new_bm_elems, new_bmvs)
         if DEBUG_SKIP_REDISTRIBUTE: return
         self.redistribute_ring(context, new_bmvs)
-        ensure_correct_normals(self.bm, list(new_bm_elems))
+        self.bm.normal_update()
 
         self.action = 'Loop Cut' if self.cyclic else 'Strip Cut'
         self.show_twist = self.cyclic
@@ -828,7 +830,7 @@ class Contours_Logic:
                     bmv.co = co
                 all_new_bmfs = result['faces']
 
-        ensure_correct_normals(self.bm, all_new_bmfs)
+        ensure_correct_normals(self.bm, all_new_bmfs, use_centroid=True, flip=self.flip_normals)
         self.action = 'Extrude Loop' if self.cyclic else 'Extrude Strip'
         self.show_twist = self.cyclic
         self.show_loop_count = True

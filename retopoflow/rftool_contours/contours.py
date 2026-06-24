@@ -290,6 +290,8 @@ def draw_contours_props(context, layout, props, redo):
         layout.prop(props, 'twist', text='Twist')
     layout.prop(props, 'curvature_bias', text='Curvature', slider=True)
     layout.prop(props, 'space_evenly', text='Space Evenly', slider=True)
+    if redo and redo.action in ('Extrude Loop', 'Extrude Strip'):
+        layout.row(heading='Normals').prop(props, 'flip_normals', text='Flip')
     draw_contours_method_options(context, layout, props, redo)
 
 
@@ -315,6 +317,12 @@ class RFOperator_Contours_Insert(
         name='Cyclic Cut',
         description='Force cut to be cyclic or strip',
         default=False,  # will be set on initial cut
+    )
+    flip_normals: bpy.props.BoolProperty(
+        name='Flip Normals',
+        description='Flip the normals of the created faces. '
+                    'Use when retopologizing the inside of a solidified mesh',
+        default=False,
     )
 
     logic : Contours_Logic
@@ -367,6 +375,7 @@ class RFOperator_Contours_Insert(
             sdf_extent_scale=logic.sdf_extent_scale,
             twist=logic.twist,
             is_cycle=logic.cyclic,
+            flip_normals=logic.flip_normals,
             loop_count=logic.loop_count,
             cut_orientation=logic.cut_orientation,
             curvature_bias=logic.curvature_bias,
@@ -393,6 +402,7 @@ class RFOperator_Contours_Insert(
         logic.sdf_extent_scale      = self.sdf_extent_scale
         logic.twist                 = self.twist
         logic.cyclic                = self.is_cycle
+        logic.flip_normals          = self.flip_normals
         logic.loop_count            = self.loop_count
         logic.cut_orientation       = self.cut_orientation
         logic.curvature_bias        = self.curvature_bias
@@ -421,6 +431,7 @@ class RFOperator_Contours_Insert(
         self.sdf_extent_scale      = logic.sdf_extent_scale
         self.twist                 = logic.twist
         self.is_cycle              = logic.cyclic
+        self.flip_normals          = logic.flip_normals
         self.loop_count            = logic.loop_count
         self.curvature_bias        = logic.curvature_bias
         self.space_evenly  = logic.space_evenly
