@@ -23,7 +23,7 @@ import bpy
 import bmesh
 import math
 from mathutils import Vector, Matrix
-from bpy_extras.view3d_utils import location_3d_to_region_2d
+from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_location_3d
 from bpy.types import Context
 
 from ..rfglobals import RFGlobals
@@ -241,7 +241,7 @@ class RFOperator_Contours_Insert_Properties:
     )
 
 
-def draw_contours_method_options(context, layout, props):
+def draw_contours_method_options(context, layout, props, redo):
     layout.use_property_decorate = False
     use_row = context.region.width > 1000 # usually only true for popover, but fine for really wide panel too
     if use_row:
@@ -261,7 +261,8 @@ def draw_contours_method_options(context, layout, props):
         layout.prop(props, 'sdf_refine_steps', text='Refinement')
 
     elif props.process_source_method == 'fast':
-        layout.prop(props, 'sample_width', text='Sample Width')
+        if not redo:
+            layout.prop(props, 'sample_width', text='Sample Width')
         layout.prop(props, 'sample_points', text='Samples')
         layout.prop(props, 'fast_refine_steps', text='Refinement')
         layout.prop(props, 'fast_depth', text='Ray Depth')
@@ -289,7 +290,7 @@ def draw_contours_props(context, layout, props, redo):
         layout.prop(props, 'twist', text='Twist')
     layout.prop(props, 'curvature_bias', text='Curvature', slider=True)
     layout.prop(props, 'space_evenly', text='Space Evenly', slider=True)
-    draw_contours_method_options(context, layout, props)
+    draw_contours_method_options(context, layout, props, redo)
 
 
 class RFOperator_Contours_Insert(
@@ -323,7 +324,7 @@ class RFOperator_Contours_Insert(
     def insert(context, hit, plane, circle_points, span_count, process_source_method, hits, cut_orientation,
                fast_depth=1, sample_points=50, fast_refine_steps=5, sdf_refine_steps=3, skip_step_size=1.0,
                sample_width=0.25, sdf_resolution=20, sdf_subdivisions=0, sdf_extent_scale=1.5,
-               curvature_bias=0.7, space_evenly=1.0, mouse0=None, mouse1=None):
+               curvature_bias=0.7, space_evenly=1.0, sdf_stroke_world_len=0.0):
         RFOperator_Contours_Insert.logic = Contours_Logic(
             context,
             hit,
@@ -344,8 +345,7 @@ class RFOperator_Contours_Insert(
             sdf_extent_scale,
             curvature_bias,
             space_evenly,
-            mouse0=mouse0,
-            mouse1=mouse1,
+            sdf_stroke_world_len=sdf_stroke_world_len,
         )
         RFOperator_Contours_Insert.reinsert(context)
 
@@ -567,11 +567,27 @@ class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
         ))
         circle_points = [pt for pt in points if pt]
 
+        # Pre-compute stroke_world_len now while the viewport state matches the stroke.
+        # Storing the scalar avoids re-projecting screen coords through a rotated view on redo.
+        _sdf_stroke_world_len = 0.0
+        if hit:
+            _sw = self.sample_width
+            _hit_world = Vector(hit['co_world'])
+            _rgn, _rv3d = context.region, context.region_data
+            for _v in (-1.0, 1.0):
+                _vn = (4 * _sw) * (_v / 2) ** 3 + 0.5
+                _p2d = mouse0 + (mouse1 - mouse0) * _vn
+                _p3d = region_2d_to_location_3d(_rgn, _rv3d, _p2d, _hit_world)
+                if _p3d is None:
+                    _sdf_stroke_world_len = 0.0
+                    break
+                _sdf_stroke_world_len += (_p3d - _hit_world).length
+
         RFOperator_Contours_Insert.insert(context, hit, plane, circle_points, self.span_count, self.process_source_method, hits,
                                           self.cut_orientation, self.fast_depth, self.sample_points, self.fast_refine_steps,
                                           self.sdf_refine_steps, self.skip_step_size, self.sample_width, self.sdf_resolution,
                                           self.sdf_subdivisions, self.sdf_extent_scale, self.curvature_bias, self.space_evenly,
-                                          mouse0=mouse0, mouse1=mouse1)
+                                          sdf_stroke_world_len=_sdf_stroke_world_len)
 
     def update(self, context, event):
         RFCore = RFGlobals.RFCore_None

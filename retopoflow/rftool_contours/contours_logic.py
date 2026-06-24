@@ -31,7 +31,7 @@ from math import isclose
 from typing import Literal
 from bmesh.types import BMVert, BMEdge, BMFace, BMesh
 from bpy.types import Context, Mesh
-from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_location_3d
+from bpy_extras.view3d_utils import location_3d_to_region_2d
 from mathutils import Matrix, Vector
 from ..common.bmesh import (
     get_bmesh_emesh, get_object_bmesh,
@@ -73,7 +73,11 @@ def sample_curvature(points: list, cyclic: bool, vertex_count: int, path_length:
     if n < 3 or vertex_count <= 0 or path_length < 1e-10:
         return sample_even(points, cyclic, vertex_count, path_length) or []
     if vertex_count >= n:
-        return [Vector(p) for p in points]
+        if vertex_count == n:
+            return [Vector(p) for p in points]
+        # More verts requested than source points — arc-length interpolation fills the gap.
+        result = sample_even(points, cyclic, vertex_count, path_length)
+        return result if result and len(result) >= vertex_count else [Vector(p) for p in points]
 
     scores = [0.0] * n
 
@@ -287,8 +291,7 @@ class Contours_Logic:
 
     hit : dict[str, ...]
     hits : list[dict[str, ...]]
-    mouse0 : Vector | None
-    mouse1 : Vector | None
+    sdf_stroke_world_len : float
     plane : Plane
     plane_original : Plane
     circle_hit : tuple[float, ...]
@@ -345,11 +348,10 @@ class Contours_Logic:
                  sample_points:int=50, fast_refine_steps:int=5, sdf_refine_steps:int=3, skip_step_size:float=0.5, sample_width:float=0.25,
                  sdf_resolution:int=20, sdf_subdivisions:int=0, sdf_extent_scale:float=1.5,
                  curvature_bias:float=0.7, space_evenly:float=1.0,
-                 mouse0:Vector|None=None, mouse1:Vector|None=None):
+                 sdf_stroke_world_len:float=0.0):
         self.hit = hit
         self.hits = hits
-        self.mouse0 = mouse0
-        self.mouse1 = mouse1
+        self.sdf_stroke_world_len = sdf_stroke_world_len
         self.cut_orientation = cut_orientation
         self.last_cut_orientation = None
         self.plane_original = plane
@@ -824,7 +826,7 @@ class Contours_Logic:
                 # Apply all positions at once.
                 for bmv, co in new_cos.items():
                     bmv.co = co
-                all_new_bmfs += result['faces']
+                all_new_bmfs = result['faces']
 
         ensure_correct_normals(self.bm, all_new_bmfs)
         self.action = 'Extrude Loop' if self.cyclic else 'Extrude Strip'
@@ -1081,8 +1083,12 @@ class Contours_Logic:
             vertex_count = vertex_count // 2 + 1 # update vert count when loop crosses mirror
 
         npts = sample_curvature(points, self.cyclic, vertex_count, path_length, self.curvature_bias)
-        assert npts, f'Could not find enough points!?'
-        assert len(npts) >= vertex_count
+        if not npts:
+            print('CONTOURS: sample_curvature returned no points, skipping cut')
+            return
+        if len(npts) < vertex_count:
+            print(f'CONTOURS: only {len(npts)}/{vertex_count} sample points. Ring may have wrong count')
+            vertex_count = len(npts)
         npts = [
             Mi @ snapped if (snapped := nearest_point_valid_sources(context, M @ pt, world=True, respect_clip_planes=True)) is not None else pt
             for pt in npts
@@ -1137,11 +1143,18 @@ class Contours_Logic:
         # correct jagged path from SDF tracing before subdividing
         if self.process_source_method == 'sdf':
             for _ in range(steps):
+                n_pts = len(pts_w)
+                avg_seg = sum((pts_w[(i+1) % n_pts] - pts_w[i]).length for i in range(n_pts)) / max(1, n_pts)
+                max_corr_sq = (avg_seg * 2.0) ** 2
                 corrected = []
                 for p in pts_w:
                     p_plane = _on_plane(p)
                     npt = nearest_point_valid_sources(context, p_plane, world=True, respect_clip_planes=False)
-                    corrected.append(_on_plane(Vector(npt)) if npt is not None else p_plane)
+                    if npt is not None:
+                        npt_plane = _on_plane(Vector(npt))
+                        corrected.append(npt_plane if (npt_plane - p_plane).length_squared < max_corr_sq else p_plane)
+                    else:
+                        corrected.append(p_plane)
                 pts_w = corrected
 
         # Subdivide the longest edges in the path (inherently the least accurate) and snap again
@@ -1167,7 +1180,11 @@ class Contours_Logic:
                 if self.process_source_method == 'sdf':
                     # Nearest-point avoids unstable 2D normals issues from the jagged grid boundary
                     npt = nearest_point_valid_sources(context, m, world=True, respect_clip_planes=False)
-                    new_pts_w.append(_on_plane(Vector(npt)) if npt is not None else m)
+                    if npt is not None:
+                        npt_plane = _on_plane(Vector(npt))
+                        new_pts_w.append(npt_plane if (npt_plane - m).length_squared < (lengths[i] * 0.75) ** 2 else m)
+                    else:
+                        new_pts_w.append(m)
                 else:
                     # For Fast: raycast since the 2D normals are already facing the proper direction
                     m_snapped = nearest_point_valid_sources(context, m, world=True, respect_clip_planes=False)
@@ -1188,7 +1205,11 @@ class Contours_Logic:
                         if h is None: continue
                         lp = plane_cut.w2l_point(h); lp.z = 0
                         candidates.append(Vector(plane_cut.l2w_point(lp)))
-                    new_pts_w.append(min(candidates, key=lambda h: (h - m).length_squared) if candidates else m)
+                    if candidates:
+                        best = min(candidates, key=lambda h: (h - m).length_squared)
+                        new_pts_w.append(best if (best - m).length_squared < (lengths[i] * 0.75) ** 2 else m)
+                    else:
+                        new_pts_w.append(m)
             pts_w = new_pts_w
 
         return pts_w
@@ -1317,20 +1338,7 @@ class Contours_Logic:
         sx, sy = hit_local.x, hit_local.y  # seed = center of coarse cell (0, 0)
 
         SAMPLE_WIDTH_FACTOR = 1.0
-        stroke_world_len = 0.0
-        if self.mouse0 is not None and self.mouse1 is not None:
-            _sw = self.sample_width
-            _m0, _m1 = Vector(self.mouse0), Vector(self.mouse1)
-            _hit_world = Vector(self.hit['co_world'])
-            _rgn, _rv3d = context.region, context.region_data
-            for _v in (-1.0, 1.0):
-                _vn = (4 * _sw) * (_v / 2) ** 3 + 0.5
-                _p2d = _m0 + (_m1 - _m0) * _vn
-                _p3d = region_2d_to_location_3d(_rgn, _rv3d, _p2d, _hit_world)
-                if _p3d is None:
-                    stroke_world_len = 0.0
-                    break
-                stroke_world_len += (_p3d - _hit_world).length
+        stroke_world_len = self.sdf_stroke_world_len
         if stroke_world_len < 1e-6:
             stroke_world_len = 2.0 * self.circle_hit[2]  # fallback: fitted diameter
         cell_size = self.sample_width * stroke_world_len * SAMPLE_WIDTH_FACTOR
