@@ -312,8 +312,6 @@ class Contours_Logic:
     last_skip_step_size : float | None
     sample_width : float
     last_sample_width : float | None
-    sdf_resolution : int
-    last_sdf_resolution : int | None
     sdf_subdivisions : int
     last_sdf_subdivisions : int | None
     sdf_extent_scale : float
@@ -347,8 +345,7 @@ class Contours_Logic:
     def __init__(self, context:Context, hit:dict[str,...], plane:Plane, circle_points:list[Vector], span_count:int,
                  process_source_method:str, hits:list[dict[str, ...]], cut_orientation:str='stroke', fast_depth:int=1,
                  sample_points:int=50, fast_refine_steps:int=5, sdf_refine_steps:int=3, skip_step_size:float=0.5, sample_width:float=0.25,
-                 sdf_resolution:int=20, sdf_subdivisions:int=0, sdf_extent_scale:float=1.5,
-                 curvature_bias:float=0.7, space_evenly:float=1.0,
+                 sdf_subdivisions:int=0, sdf_extent_scale:float=1.5, curvature_bias:float=0.7, space_evenly:float=1.0,
                  sdf_stroke_world_len:float=0.0):
         self.hit = hit
         self.hits = hits
@@ -376,8 +373,6 @@ class Contours_Logic:
         self.last_skip_step_size = None
         self.sample_width = sample_width
         self.last_sample_width = None
-        self.sdf_resolution = sdf_resolution
-        self.last_sdf_resolution = None
         self.sdf_subdivisions = sdf_subdivisions
         self.last_sdf_subdivisions = None
         self.sdf_extent_scale = sdf_extent_scale
@@ -441,7 +436,6 @@ class Contours_Logic:
             self.last_sdf_refine_steps == self.sdf_refine_steps and
             self.last_skip_step_size == self.skip_step_size and
             self.last_sample_width == self.sample_width and
-            self.last_sdf_resolution == self.sdf_resolution and
             self.last_sdf_subdivisions == self.sdf_subdivisions and
             self.last_sdf_extent_scale == self.sdf_extent_scale and
             self.last_cut_orientation == self.cut_orientation
@@ -455,7 +449,6 @@ class Contours_Logic:
         self.last_sdf_refine_steps = self.sdf_refine_steps
         self.last_skip_step_size = self.skip_step_size
         self.last_sample_width = self.sample_width
-        self.last_sdf_resolution = self.sdf_resolution
         self.last_sdf_subdivisions = self.sdf_subdivisions
         self.last_sdf_extent_scale = self.sdf_extent_scale
         self.last_cut_orientation = self.cut_orientation

@@ -115,7 +115,7 @@ class RFOperator_Contours_Insert_Properties:
     )
     loop_count: bpy.props.IntProperty(
         name='Loop Count',
-        description='Number of loops to create when bridging',
+        description='Number of loops to create when extruding',
         default=1,
         min=1,
         max=20,
@@ -132,13 +132,13 @@ class RFOperator_Contours_Insert_Properties:
             #     '\nWorks best on dense meshes of low complexity.'
             # ),
             ('sdf', 'SDF',
-                'Builds a coarse occupancy grid on the cut plane, traces its boundary, then snaps to the source and refines. \n'
-                'It can process extremely high poly sources fairly quickly. \n'
-                'It works great aross flipped normals, split edges, and overhangs.',
+                'Builds a distance testing grid around the source mesh and iteratively refines it. \n'
+                'This method can process extremely high poly sources fairly quickly '
+                'and can handle flipped normals, split edges, and overhangs. Does not work on thin surfaces.',
             ),
             ('fast', 'Fast',
                 'Raycasts into the mesh to find its volume center, raycasts in a circle to find the surface, then refines that result with... more raycasts. \n'
-                'Very fast but less accurate, especially with thin extrusions and overhangs.',
+                'Very fast but less accurate, especially with smaller extrusions and overhangs. Does not work on thin surfaces.',
             ),
         ],
         default='sdf',
@@ -166,7 +166,7 @@ class RFOperator_Contours_Insert_Properties:
     )
     fast_refine_steps: bpy.props.IntProperty(             # pyright: ignore [reportUninitializedInstanceVariable]
         name='Refinement Steps',
-        description="Number of adaptive subdivision passes and raycasts to refine the cut along the surface.",
+        description="Number of post processing iterations to refine the sampled cut along the surface.",
         default=5,
         min=0,
         max=10,
@@ -180,7 +180,9 @@ class RFOperator_Contours_Insert_Properties:
     )
     sample_width: bpy.props.FloatProperty(               # pyright: ignore [reportUninitializedInstanceVariable]
         name='Sample Width',
-        description='The width of extra 2 sample points along the stroke that help compute the volume center.',
+        description='Fast: The width of extra 2 sample points along the stroke that help triangulate the volume center. ' \
+            'Both points should be over the surface you want to wrap around. \n\n' \
+            'SDF: The initial size of the sampling grid. Smaller is more accurate but slower to compute.',
         default=0.25,
         min=0.10,
         max=1.00,
@@ -188,17 +190,11 @@ class RFOperator_Contours_Insert_Properties:
     )
     skip_step_size: bpy.props.FloatProperty(             # pyright: ignore [reportUninitializedInstanceVariable]
         name='Step Size',
-        description='Multiplier for how far each step travels along the cross-section. Smaller values trace detailed surfaces more accurately but require more steps',
+        description='Multiplier for how far each step travels along the cross-section. ' \
+            'Smaller values trace detailed surfaces more accurately but require more steps',
         default=0.5,
         min=0.1,
         max=1.0,
-    )
-    sdf_resolution: bpy.props.IntProperty(               # pyright: ignore [reportUninitializedInstanceVariable]
-        name='Resolution',
-        description='Number of grid cells along the longest axis of the cross-section. Higher resolves finer detail at more cost',
-        default=50,
-        min=10,
-        max=100,
     )
     sdf_subdivisions: bpy.props.IntProperty(       # pyright: ignore [reportUninitializedInstanceVariable]
         name='Pixel Refine',
@@ -331,7 +327,7 @@ class RFOperator_Contours_Insert(
     @staticmethod
     def insert(context, hit, plane, circle_points, span_count, process_source_method, hits, cut_orientation,
                fast_depth=1, sample_points=50, fast_refine_steps=5, sdf_refine_steps=3, skip_step_size=1.0,
-               sample_width=0.25, sdf_resolution=20, sdf_subdivisions=0, sdf_extent_scale=1.5,
+               sample_width=0.25, sdf_subdivisions=0, sdf_extent_scale=1.5,
                curvature_bias=0.7, space_evenly=1.0, sdf_stroke_world_len=0.0):
         RFOperator_Contours_Insert.logic = Contours_Logic(
             context,
@@ -348,7 +344,6 @@ class RFOperator_Contours_Insert(
             sdf_refine_steps,
             skip_step_size,
             sample_width,
-            sdf_resolution,
             sdf_subdivisions,
             sdf_extent_scale,
             curvature_bias,
@@ -370,7 +365,6 @@ class RFOperator_Contours_Insert(
             sdf_refine_steps=logic.sdf_refine_steps,
             skip_step_size=logic.skip_step_size,
             sample_width=logic.sample_width,
-            sdf_resolution=logic.sdf_resolution,
             sdf_subdivisions=logic.sdf_subdivisions,
             sdf_extent_scale=logic.sdf_extent_scale,
             twist=logic.twist,
@@ -397,7 +391,6 @@ class RFOperator_Contours_Insert(
         logic.sdf_refine_steps      = self.sdf_refine_steps
         logic.skip_step_size        = self.skip_step_size
         logic.sample_width          = self.sample_width
-        logic.sdf_resolution        = self.sdf_resolution
         logic.sdf_subdivisions = self.sdf_subdivisions
         logic.sdf_extent_scale      = self.sdf_extent_scale
         logic.twist                 = self.twist
@@ -426,7 +419,6 @@ class RFOperator_Contours_Insert(
         self.sdf_refine_steps      = logic.sdf_refine_steps
         self.skip_step_size        = logic.skip_step_size
         self.sample_width          = logic.sample_width
-        self.sdf_resolution        = logic.sdf_resolution
         self.sdf_subdivisions = logic.sdf_subdivisions
         self.sdf_extent_scale      = logic.sdf_extent_scale
         self.twist                 = logic.twist
@@ -596,7 +588,7 @@ class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
 
         RFOperator_Contours_Insert.insert(context, hit, plane, circle_points, self.span_count, self.process_source_method, hits,
                                           self.cut_orientation, self.fast_depth, self.sample_points, self.fast_refine_steps,
-                                          self.sdf_refine_steps, self.skip_step_size, self.sample_width, self.sdf_resolution,
+                                          self.sdf_refine_steps, self.skip_step_size, self.sample_width,
                                           self.sdf_subdivisions, self.sdf_extent_scale, self.curvature_bias, self.space_evenly,
                                           sdf_stroke_world_len=_sdf_stroke_world_len)
 
