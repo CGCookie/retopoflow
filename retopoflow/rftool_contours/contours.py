@@ -241,7 +241,7 @@ class RFOperator_Contours_Insert_Properties:
     )
 
 
-def draw_contours_method_options(context, layout, props, redo):
+def draw_contours_method_options(context, layout, props, redo=None):
     layout.use_property_decorate = False
     use_row = context.region.width > 1000 # usually only true for popover, but fine for really wide panel too
     if use_row:
