@@ -180,11 +180,12 @@ class RFBrush_Cut(RFBrush_Base):
             draw.vertex(pm-d01).vertex(p0)
             draw.vertex(pm+d01).vertex(p1)
 
+        dot_color  = RFBrush_Cut.hit_circle_color if self.hit else RFBrush_Cut.miss_circle_color
         with Drawing.draw(context, CC_2D_POINTS) as draw:
             draw.point_size(8)
-            draw.color(RFBrush_Cut.hit_circle_color if self.hit else RFBrush_Cut.miss_circle_color)
+            draw.color(dot_color)
             draw.vertex(pm)
-            if self.operator.process_source_method in ['fast', 'sdf']:
+            if self.operator.process_source_method == 'fast':
                 draw.vertex(self.operator.v_to_point(-1, self.mousedown, self.mouse))
                 draw.vertex(self.operator.v_to_point(+1, self.mousedown, self.mouse))
             elif self.operator.process_source_method == 'skip':
@@ -192,3 +193,12 @@ class RFBrush_Cut(RFBrush_Base):
                 stroke = self.mouse - self.mousedown
                 draw.vertex(self.mousedown + stroke * (0.5 - 0.125 * s))
                 draw.vertex(self.mousedown + stroke * (0.5 + 0.125 * s))
+
+        if self.operator.process_source_method == 'sdf':
+            tick = Vector((-d01.y, d01.x))  # 90° rotation of d01, same length
+            with Drawing.draw(context, CC_2D_LINES) as draw:
+                draw.line_width(2)
+                draw.color(dot_color)
+                for _pt in (self.operator.v_to_point(-1, self.mousedown, self.mouse),
+                             self.operator.v_to_point(+1, self.mousedown, self.mouse)):
+                    draw.vertex(_pt - tick).vertex(_pt + tick)

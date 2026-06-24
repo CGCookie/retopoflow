@@ -38,6 +38,12 @@ class RFOperator_RebuildSourceCache(RFRegisterClass, bpy.types.Operator):
         # Non-blocking: kicks the incremental build (restarting any in-flight one) and returns
         # immediately. Progress shows in the Source Feature Detection panel.
         SourceCache.request_rebuild(context, restart=True, manual=True)
+        # Also rebuild walk topology data when Contours Walk is active
+        tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
+        props = tool.operator_properties('retopoflow.contours') if tool else None
+        if props and props.process_source_method == 'walk':
+            SourceMeshCache.clear()
+            SourceMeshCache.request_warmup(context)
         self.report({'INFO'}, 'Rebuilding source feature cache…')
         return {'FINISHED'}
 

@@ -31,7 +31,7 @@ from math import isclose
 from typing import Literal
 from bmesh.types import BMVert, BMEdge, BMFace, BMesh
 from bpy.types import Context, Mesh
-from bpy_extras.view3d_utils import location_3d_to_region_2d
+from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_location_3d
 from mathutils import Matrix, Vector
 from ..common.bmesh import (
     get_bmesh_emesh, get_object_bmesh,
@@ -59,7 +59,7 @@ from ...addon_common.ext.circle_fit import hyperLSQ
 
 
 DEBUG_CREATE_OBJECTS = False     # For inspecting the cut path and plane. Currently only used for SDF method
-DEBUG_SKIP_BRIDGE_SNAP = True   # Initial transform result before snapping
+DEBUG_SKIP_BRIDGE_SNAP = False   # Initial transform result before snapping
 DEBUG_SKIP_REDISTRIBUTE = False  # Snapping result before any redistribution
 
 DEBUG_PRINT_TIMINGS = False
@@ -287,6 +287,8 @@ class Contours_Logic:
 
     hit : dict[str, ...]
     hits : list[dict[str, ...]]
+    mouse0 : Vector | None
+    mouse1 : Vector | None
     plane : Plane
     plane_original : Plane
     circle_hit : tuple[float, ...]
@@ -305,6 +307,8 @@ class Contours_Logic:
     last_sdf_refine_steps : int | None
     skip_step_size : float
     last_skip_step_size : float | None
+    sample_width : float
+    last_sample_width : float | None
     sdf_resolution : int
     last_sdf_resolution : int | None
     sdf_subdivisions : int
@@ -338,11 +342,14 @@ class Contours_Logic:
 
     def __init__(self, context:Context, hit:dict[str,...], plane:Plane, circle_points:list[Vector], span_count:int,
                  process_source_method:str, hits:list[dict[str, ...]], cut_orientation:str='stroke', fast_depth:int=1,
-                 sample_points:int=50, fast_refine_steps:int=5, sdf_refine_steps:int=3, skip_step_size:float=0.5, sdf_resolution:int=20,
-                 sdf_subdivisions:int=0, sdf_extent_scale:float=1.5,
-                 curvature_bias:float=0.7, space_evenly:float=1.0):
+                 sample_points:int=50, fast_refine_steps:int=5, sdf_refine_steps:int=3, skip_step_size:float=0.5, sample_width:float=0.25,
+                 sdf_resolution:int=20, sdf_subdivisions:int=0, sdf_extent_scale:float=1.5,
+                 curvature_bias:float=0.7, space_evenly:float=1.0,
+                 mouse0:Vector|None=None, mouse1:Vector|None=None):
         self.hit = hit
         self.hits = hits
+        self.mouse0 = mouse0
+        self.mouse1 = mouse1
         self.cut_orientation = cut_orientation
         self.last_cut_orientation = None
         self.plane_original = plane
@@ -364,6 +371,8 @@ class Contours_Logic:
         self.last_sdf_refine_steps = None
         self.skip_step_size = skip_step_size
         self.last_skip_step_size = None
+        self.sample_width = sample_width
+        self.last_sample_width = None
         self.sdf_resolution = sdf_resolution
         self.last_sdf_resolution = None
         self.sdf_subdivisions = sdf_subdivisions
@@ -427,6 +436,7 @@ class Contours_Logic:
             self.last_fast_refine_steps == self.fast_refine_steps and
             self.last_sdf_refine_steps == self.sdf_refine_steps and
             self.last_skip_step_size == self.skip_step_size and
+            self.last_sample_width == self.sample_width and
             self.last_sdf_resolution == self.sdf_resolution and
             self.last_sdf_subdivisions == self.sdf_subdivisions and
             self.last_sdf_extent_scale == self.sdf_extent_scale and
@@ -440,6 +450,7 @@ class Contours_Logic:
         self.last_fast_refine_steps = self.fast_refine_steps
         self.last_sdf_refine_steps = self.sdf_refine_steps
         self.last_skip_step_size = self.skip_step_size
+        self.last_sample_width = self.sample_width
         self.last_sdf_resolution = self.sdf_resolution
         self.last_sdf_subdivisions = self.sdf_subdivisions
         self.last_sdf_extent_scale = self.sdf_extent_scale
@@ -1301,47 +1312,94 @@ class Contours_Logic:
         '''Build a coarse occupancy grid on the cut plane, trace the boundary, then snap and smooth that loop.'''
         if DEBUG_PRINT_TIMINGS: timers = [('start', time.perf_counter())]
         plane_cut = self.plane
-        center_plane, center_world = self.get_volume_center(context, plane_cut)
-
-        if DEBUG_PRINT_TIMINGS: timers.append(('center/depth', time.perf_counter()))
-        nsamples = 25 # Only used to compute grid size, so can be sparse
+        # Walk the occupancy grid outward from the center hitpoint
         hit_local = plane_cut.w2l_point(Vector(self.hit['co_world']))
-        xs = [center_plane.x, hit_local.x]
-        ys = [center_plane.y, hit_local.y]
-        angles = (2 * math.pi * np.arange(nsamples, dtype=np.float64)) / nsamples
-        for c, s in zip(np.cos(angles), np.sin(angles)):
-            dp = Vector((float(c), float(s), 0, 0))
-            dw = plane_cut.l2w_direction(dp)
-            rh = raycast_ray_valid_sources(context, (center_world, dw), world=True, respect_clip_planes=True)
-            if rh is None: continue
-            lp = plane_cut.w2l_point(rh)
-            xs.append(lp.x); ys.append(lp.y)
-        xmin, xmax = min(xs), max(xs)
-        ymin, ymax = min(ys), max(ys)
-        width, height = xmax - xmin, ymax - ymin
-        if width < 1e-6 or height < 1e-6:
-            print('CONTOURS SDF: degenerate extent, falling back to Fast')
-            return self.process_source_fast(context)
-        # scale the bbox since exterior is usually bigger than measured interior
-        _cx, _cy = (xmin + xmax) / 2, (ymin + ymax) / 2
-        _scale = max(0.5, float(self.sdf_extent_scale))
-        xmin, xmax = _cx - width * _scale / 2, _cx + width * _scale / 2
-        ymin, ymax = _cy - height * _scale / 2, _cy + height * _scale / 2
-        width, height = xmax - xmin, ymax - ymin
+        sx, sy = hit_local.x, hit_local.y  # seed = center of coarse cell (0, 0)
 
-        if DEBUG_PRINT_TIMINGS: timers.append((f'extent ({nsamples} rays)', time.perf_counter()))
-        # Grid dimensions. Resolution on the long axis, short axis by aspect ratio
-        res: int = self.sdf_resolution
-        if width >= height:
-            res_x, res_y = res, max(3, round(res * height / width))
-        else:
-            res_y, res_x = res, max(3, round(res * width / height))
+        SAMPLE_WIDTH_FACTOR = 1.0
+        stroke_world_len = 0.0
+        if self.mouse0 is not None and self.mouse1 is not None:
+            _sw = self.sample_width
+            _m0, _m1 = Vector(self.mouse0), Vector(self.mouse1)
+            _hit_world = Vector(self.hit['co_world'])
+            _rgn, _rv3d = context.region, context.region_data
+            for _v in (-1.0, 1.0):
+                _vn = (4 * _sw) * (_v / 2) ** 3 + 0.5
+                _p2d = _m0 + (_m1 - _m0) * _vn
+                _p3d = region_2d_to_location_3d(_rgn, _rv3d, _p2d, _hit_world)
+                if _p3d is None:
+                    stroke_world_len = 0.0
+                    break
+                stroke_world_len += (_p3d - _hit_world).length
+        if stroke_world_len < 1e-6:
+            stroke_world_len = 2.0 * self.circle_hit[2]  # fallback: fitted diameter
+        cell_size = self.sample_width * stroke_world_len * SAMPLE_WIDTH_FACTOR
+        if not math.isfinite(cell_size) or cell_size < 1e-6:
+            print('CONTOURS SDF: degenerate cell size, falling back to Fast')
+            return self.process_source_fast(context)
+
+        if DEBUG_PRINT_TIMINGS: timers.append(('cell size', time.perf_counter()))
+
+        # Walk the coarse grid outward in all directions and test surface proximity
+        base_radius = 0.5 * math.sqrt(2.0) * cell_size
+        def coarse_near(di, dj):
+            cx, cy = sx + di * cell_size, sy + dj * cell_size
+            npt = nearest_point_valid_sources(context, plane_cut.l2w_point(Vector((cx, cy, 0))), world=True, respect_clip_planes=True)
+            if npt is None: return False
+            npt_local = plane_cut.w2l_point(Vector(npt))
+            if abs(npt_local.z) >= base_radius: return False
+            return math.hypot(npt_local.x - cx, npt_local.y - cy) < base_radius
+
+        if not coarse_near(0, 0):
+            print('CONTOURS SDF: seed cell missed the surface, falling back to Fast')
+            return self.process_source_fast(context)
+
+        NEIGHBORS_8 = ((-1, -1), (0, -1), (1, -1), (-1, 0), (1, 0), (-1, 1), (0, 1), (1, 1))
+        max_cell_queries = 1_000_000
+        band   = {(0, 0)}
+        tested = {(0, 0)}
+        stack  = [(0, 0)]
+        total_cell_queries = 1
+        grow_capped = False
+        while stack:
+            di, dj = stack.pop()
+            for ddi, ddj in NEIGHBORS_8:
+                nb = (di + ddi, dj + ddj)
+                if nb in tested: continue
+                total_cell_queries += 1
+                if total_cell_queries > max_cell_queries:
+                    grow_capped = True
+                    break
+                tested.add(nb)
+                if coarse_near(*nb):
+                    band.add(nb)
+                    stack.append(nb)
+            if grow_capped: break
+        if grow_capped:
+            print(f'CONTOURS SDF: region grow exceeded {max_cell_queries} queries, falling back to Fast')
+            return self.process_source_fast(context)
+        if len(band) < 3:
+            print('CONTOURS SDF: region grow found too few cells, falling back to Fast')
+            return self.process_source_fast(context)
+
+        if DEBUG_PRINT_TIMINGS: timers.append((f'region grow ({len(band)} cells, {total_cell_queries} queries)', time.perf_counter()))
+        # Pack the discovered band into the fixed grid the downstream expects, with a 1-cell empty
+        # pad on every side so the exterior flood has a border ring of non-near cells.
+        di_min, di_max = min(d[0] for d in band), max(d[0] for d in band)
+        dj_min, dj_max = min(d[1] for d in band), max(d[1] for d in band)
+        pad = 1
+        res_x = (di_max - di_min + 1) + 2 * pad
+        res_y = (dj_max - dj_min + 1) + 2 * pad
         fine_count: int = 3 ** max(0, int(self.sdf_subdivisions))
         RX, RY = res_x * fine_count, res_y * fine_count
-        fcw, fch = width / RX, height / RY  # fine cell size
-        base_radius = 0.5 * math.hypot(width / res_x, height / res_y) # coarse cell half-diagonal
+        fcw = fch = cell_size / fine_count  # fine cell size
+        # Origin chosen so classify_cell's coarse-block centers coincide with the grow's centers
+        # (relies on fine_count being odd, which 3**k always is).
+        xmin = sx + (di_min - pad - 0.5) * cell_size
+        ymin = sy + (dj_min - pad - 0.5) * cell_size
+        width, height = res_x * cell_size, res_y * cell_size
 
-        # Find cells near the surface
+        # Mark cells near the surface
         near       = np.zeros((RX, RY), dtype=bool)
         block_size = np.full((RX, RY), fine_count, dtype=np.int16) # effective block size per fine cell (for debug)
 
@@ -1359,15 +1417,13 @@ class Contours_Logic:
             near[fi0:fi0 + sz, fj0:fj0 + sz] = n_val
             block_size[fi0:fi0 + sz, fj0:fj0 + sz] = sz
 
-        # Large initial cells first
-        for bi in range(res_x):
-            for bj in range(res_y):
-                n_ = classify_cell(bi * fine_count + fine_count // 2, bj * fine_count + fine_count // 2, base_radius)
-                fill_block_uniform(bi * fine_count, bj * fine_count, fine_count, n_)
+        # Create the initial grid from the coarse cells
+        for (di, dj) in band:
+            bi, bj = (di - di_min + pad), (dj - dj_min + pad)
+            fill_block_uniform(bi * fine_count, bj * fine_count, fine_count, True)
 
+        if DEBUG_PRINT_TIMINGS: timers.append((f'grid pack ({RX}x{RY} cells, {res_x}x{res_y} coarse, fine_count={fine_count})', time.perf_counter()))
         # Iteratively refine by subdividing hit cells and having each smaller cell search again
-        max_cell_queries = 1_000_000
-        total_cell_queries = res_x * res_y  # Phase 1 already classified this many
         cur_size, cur_radius = fine_count, base_radius
         for subdiv_level in range(self.sdf_subdivisions):
             if cur_size < 3: break
@@ -1605,14 +1661,22 @@ class Contours_Logic:
                     # clamp so blocks that reach the grid edge don't go OOB
                     _sz_x = min(_sz, RX - _fi)
                     _sz_y = min(_sz, RY - _fj)
+                    # mark emitted first so empty coarse blocks are skipped in one shot
+                    for _dfi in range(_sz_x):
+                        for _dfj in range(_sz_y):
+                            _emitted[_fi + _dfi, _fj + _dfj] = True
+                    _cx, _cy = _fi + _sz_x // 2, _fj + _sz_y // 2
+                    if _sz >= fine_count and not near[_cx, _cy]:
+                        # coarse empty block — only show if the grow actually tested it
+                        _di = (_fi // fine_count) + di_min - pad
+                        _dj = (_fj // fine_count) + dj_min - pad
+                        if (_di, _dj) not in tested:
+                            continue
                     _v0 = _bm.verts.new(plane_cut.l2w_point(Vector((xmin + _fi           * fcw, ymin + _fj           * fch, 0))))
                     _v1 = _bm.verts.new(plane_cut.l2w_point(Vector((xmin + (_fi + _sz_x) * fcw, ymin + _fj           * fch, 0))))
                     _v2 = _bm.verts.new(plane_cut.l2w_point(Vector((xmin + (_fi + _sz_x) * fcw, ymin + (_fj + _sz_y) * fch, 0))))
                     _v3 = _bm.verts.new(plane_cut.l2w_point(Vector((xmin + _fi           * fcw, ymin + (_fj + _sz_y) * fch, 0))))
-                    _bm.faces.new([_v0, _v1, _v2, _v3]).select = bool(solid[_fi + _sz_x // 2, _fj + _sz_y // 2])
-                    for _dfi in range(_sz_x):
-                        for _dfj in range(_sz_y):
-                            _emitted[_fi + _dfi, _fj + _dfj] = True
+                    _bm.faces.new([_v0, _v1, _v2, _v3]).select = bool(near[_cx, _cy])
             _bm.to_mesh(_gm)
             _bm.free()
             _update_debug_object('SDF_Debug_Grid', _gm)

@@ -25,20 +25,7 @@ import bpy
 from ..common.accel import SourceCache, SourceMeshCache
 
 
-def draw_source_cache_controls(context, layout):
-    feat_names = set(SourceCache.cached_object_names())
-    walk_names = set(SourceMeshCache.cached_object_names())
-    all_names  = sorted(feat_names | walk_names)
-
-    snapping = context.scene.retopoflow.snapping
-    layout.prop(snapping, 'source_feature_auto_rebuild', text='Auto Rebuild')
-    layout.prop(snapping, 'source_feature_batch_power', text='Chunk Size')
-    power = int(getattr(snapping, 'source_feature_batch_power', 3))
-    row = layout.row()
-    row.alignment = 'RIGHT'
-    row.label(text=f'{12 ** power:,} verts per frame')
-
-    layout.separator()
+def draw_source_build_button(layout, cached_names):
     if SourceCache.building:
         row = layout.row(align=True)
         pct = SourceCache.progress * 100.0
@@ -48,32 +35,55 @@ def draw_source_cache_controls(context, layout):
             row.label(text=f'Building cache… {pct:.0f}%')
         row.operator('retopoflow.cancel_source_cache_rebuild', text='', icon='X')
     else:
-        button_text = 'Rebuild Source Cache' if all_names else 'Build Source Cache'
+        button_text = 'Rebuild Source Cache' if cached_names else 'Build Source Cache'
         layout.operator('retopoflow.rebuild_source_cache', text=button_text, icon='FILE_REFRESH')
 
-    if all_names:
-        col = layout.column(align=True)
-        col.separator(type='LINE')
-        col.separator()
-        for obj_name in all_names:
-            row = col.row(align=True)
-            row.use_property_split=False
-            split = row.split(factor=0.4)
-            split.label(text=obj_name, icon='OBJECT_DATA')
-            sub = split.row()
-            tags: list[str] = []
-            if obj_name in feat_names:
-                tags.extend(SourceCache.cached_types_for_object(obj_name))
-            if obj_name in walk_names:
-                tags.append('Contours')
-            if tags:
-                tagline = sub.row()
-                tagline.enabled=False
-                tagline.alignment='RIGHT'
-                tagline.label(text=' · '.join(tags))
-            op = sub.operator('retopoflow.evict_source_cache_object', text='', icon='X')
-            op.obj_name = obj_name
-        col.separator()
+
+def draw_source_cache_controls(context, layout):
+    feat_names = set(SourceCache.cached_object_names())
+    walk_names = set(SourceMeshCache.cached_object_names())
+    all_names  = sorted(feat_names | walk_names)
+    snapping = context.scene.retopoflow.snapping
+
+    header, panel = layout.panel(idname='RF_source_cache', default_closed=True)
+    header.label(text='Source Cache')
+    if not panel:
+        header.operator('retopoflow.rebuild_source_cache', text='', icon='FILE_REFRESH')
+        header.separator()
+    if panel:
+        panel.prop(snapping, 'source_feature_auto_rebuild', text='Auto Rebuild')
+        panel.prop(snapping, 'source_feature_batch_power', text='Chunk Size')
+        row = panel.row()
+        row.alignment = 'RIGHT'
+        power = int(getattr(snapping, 'source_feature_batch_power', 3))
+        row.label(text=f'{12 ** power:,} verts per frame')
+
+        panel.separator()
+        draw_source_build_button(panel, all_names)
+
+        if all_names:
+            col = panel.column(align=True)
+            col.separator(type='LINE')
+            col.separator()
+            for obj_name in all_names:
+                row = col.row(align=True)
+                row.use_property_split=False
+                split = row.split(factor=0.4)
+                split.label(text=obj_name, icon='OBJECT_DATA')
+                sub = split.row()
+                tags: list[str] = []
+                if obj_name in feat_names:
+                    tags.extend(SourceCache.cached_types_for_object(obj_name))
+                if obj_name in walk_names:
+                    tags.append('Contours')
+                if tags:
+                    tagline = sub.row()
+                    tagline.enabled=False
+                    tagline.alignment='RIGHT'
+                    tagline.label(text=' · '.join(tags))
+                op = sub.operator('retopoflow.evict_source_cache_object', text='', icon='X')
+                op.obj_name = obj_name
+            col.separator()
 
 
 def draw_hard_surface_snapping(layout, context, props, guide_loops:bool=False, show_cache_controls:bool=False):
@@ -100,16 +110,8 @@ def draw_hard_surface_snapping(layout, context, props, guide_loops:bool=False, s
     col2.prop(props, 'source_edge_stickiness', text='Stickiness', slider=True)
     if guide_loops:
         col2.prop(props, 'source_edge_guide_loops', text='Guide Loops', slider=True)
-
     if not show_cache_controls: return # For displaying in redo panel for general tools that don't use the cache
-
-    header, panel = layout.panel(idname='RF_source_cache', default_closed=False)
-    header.label(text='Cache')
-    if not panel:
-        header.operator('retopoflow.rebuild_source_cache', text='', icon='FILE_REFRESH')
-        header.separator()
-    if panel:
-        draw_source_cache_controls(context, panel)
+    draw_source_cache_controls(context, layout)
 
 
 def draw_snapping_options(context, layout, *, guide_loops: bool = False):

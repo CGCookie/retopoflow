@@ -65,6 +65,7 @@ from ..rfpanels.rfpanel_snapping import draw_snapping_panel
 from ..rfpanels.mirror_panel import draw_mirror_panel, draw_mirror_popover
 from ..rfpanels.general_panel import draw_general_panel
 from ..rfpanels.help_panel import draw_help_panel
+from ..rfpanels.rfpanel_snapping import draw_source_cache_controls
 from ..common.interface import draw_line_separator
 
 from ..preferences import RF_Prefs
@@ -86,7 +87,7 @@ def warmup_cache_on_change(cls):
         if ((props := tool.operator_properties('retopoflow.contours')) and
             props.process_source_method == 'walk'
         ):
-            SourceAccel.warmup(bpy.context, 3)
+            SourceAccel.warmup(bpy.context, 10)
         # Returns None to unregister itself after first fire
 
     bpy.app.timers.register(warmup_if_walk, first_interval= 0.1)
@@ -140,8 +141,8 @@ class RFOperator_Contours_Insert_Properties:
                 'Very fast but less accurate, especially with thin extrusions and overhangs.',
             ),
         ],
-        default='walk',
-        update=lambda self, ctx: warmup_cache_on_change(self),
+        default='sdf',
+        # update=lambda self, ctx: warmup_cache_on_change(self),
     )
     cut_orientation: bpy.props.EnumProperty(                  # pyright: ignore [reportUninitializedInstanceVariable]
         name='Cut Orientation',
@@ -183,6 +184,7 @@ class RFOperator_Contours_Insert_Properties:
         default=0.25,
         min=0.10,
         max=1.00,
+        subtype='FACTOR',
     )
     skip_step_size: bpy.props.FloatProperty(             # pyright: ignore [reportUninitializedInstanceVariable]
         name='Step Size',
@@ -250,31 +252,22 @@ def draw_contours_method_options(context, layout, props):
         layout.row().prop(props, 'process_source_method', text='Method', expand=True)
     layout.use_property_split = True
 
-    if props.process_source_method in ['fast', 'sdf', 'skip']:
-        header, panel = layout.panel(idname='contours_quality_panel', default_closed=False)
-        header.label(text="Quality")
-        if panel:
-            col = panel.column(align=False)
-            if props.process_source_method == 'fast':
-                col.prop(props, 'sample_points', text='Samples')
-                col.prop(props, 'fast_refine_steps', text='Refinement')
-            elif props.process_source_method == 'sdf':
-                col.prop(props, 'sdf_subdivisions', text='SDF Subdiv')
-                col.prop(props, 'sdf_refine_steps', text='Refinement')
-            elif props.process_source_method == 'skip':
-                panel.prop(props, 'skip_step_size', text='Step Size')
-            col.separator()
+    if props.process_source_method == 'walk':
+        draw_source_cache_controls(context, layout)
 
-    if props.process_source_method in ['fast', 'sdf']:
-        header, panel = layout.panel(idname='contours_source_panel', default_closed=False)
-        header.label(text="Source Detection")
-        if panel:
-            col = panel.column(align=False)
-            col.prop(props, 'sample_width',  text='Sample Width')
-            col.prop(props, 'fast_depth',    text='Ray Depth')
-            if props.process_source_method == 'sdf':
-                col.prop(props, 'sdf_extent_scale', text='Search Scale')
-            col.separator()
+    elif props.process_source_method == 'sdf':
+        layout.prop(props, 'sample_width',  text='Grid Size')
+        layout.prop(props, 'sdf_subdivisions', text='Subdivisions')
+        layout.prop(props, 'sdf_refine_steps', text='Refinement')
+
+    elif props.process_source_method == 'fast':
+        layout.prop(props, 'sample_width', text='Sample Width')
+        layout.prop(props, 'sample_points', text='Samples')
+        layout.prop(props, 'fast_refine_steps', text='Refinement')
+        layout.prop(props, 'fast_depth', text='Ray Depth')
+
+    elif props.process_source_method == 'skip':
+        layout.prop(props, 'skip_step_size', text='Step Size')
 
 
 def draw_contours_props(context, layout, props, redo):
@@ -329,8 +322,8 @@ class RFOperator_Contours_Insert(
     @staticmethod
     def insert(context, hit, plane, circle_points, span_count, process_source_method, hits, cut_orientation,
                fast_depth=1, sample_points=50, fast_refine_steps=5, sdf_refine_steps=3, skip_step_size=1.0,
-               sdf_resolution=20, sdf_subdivisions=0, sdf_extent_scale=1.5,
-               curvature_bias=0.7, space_evenly=1.0):
+               sample_width=0.25, sdf_resolution=20, sdf_subdivisions=0, sdf_extent_scale=1.5,
+               curvature_bias=0.7, space_evenly=1.0, mouse0=None, mouse1=None):
         RFOperator_Contours_Insert.logic = Contours_Logic(
             context,
             hit,
@@ -345,11 +338,14 @@ class RFOperator_Contours_Insert(
             fast_refine_steps,
             sdf_refine_steps,
             skip_step_size,
+            sample_width,
             sdf_resolution,
             sdf_subdivisions,
             sdf_extent_scale,
             curvature_bias,
             space_evenly,
+            mouse0=mouse0,
+            mouse1=mouse1,
         )
         RFOperator_Contours_Insert.reinsert(context)
 
@@ -365,6 +361,7 @@ class RFOperator_Contours_Insert(
             fast_refine_steps=logic.fast_refine_steps,
             sdf_refine_steps=logic.sdf_refine_steps,
             skip_step_size=logic.skip_step_size,
+            sample_width=logic.sample_width,
             sdf_resolution=logic.sdf_resolution,
             sdf_subdivisions=logic.sdf_subdivisions,
             sdf_extent_scale=logic.sdf_extent_scale,
@@ -390,6 +387,7 @@ class RFOperator_Contours_Insert(
         logic.fast_refine_steps     = self.fast_refine_steps
         logic.sdf_refine_steps      = self.sdf_refine_steps
         logic.skip_step_size        = self.skip_step_size
+        logic.sample_width          = self.sample_width
         logic.sdf_resolution        = self.sdf_resolution
         logic.sdf_subdivisions = self.sdf_subdivisions
         logic.sdf_extent_scale      = self.sdf_extent_scale
@@ -417,6 +415,7 @@ class RFOperator_Contours_Insert(
         self.fast_refine_steps     = logic.fast_refine_steps
         self.sdf_refine_steps      = logic.sdf_refine_steps
         self.skip_step_size        = logic.skip_step_size
+        self.sample_width          = logic.sample_width
         self.sdf_resolution        = logic.sdf_resolution
         self.sdf_subdivisions = logic.sdf_subdivisions
         self.sdf_extent_scale      = logic.sdf_extent_scale
@@ -570,8 +569,9 @@ class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
 
         RFOperator_Contours_Insert.insert(context, hit, plane, circle_points, self.span_count, self.process_source_method, hits,
                                           self.cut_orientation, self.fast_depth, self.sample_points, self.fast_refine_steps,
-                                          self.sdf_refine_steps, self.skip_step_size, self.sdf_resolution, self.sdf_subdivisions,
-                                          self.sdf_extent_scale, self.curvature_bias, self.space_evenly)
+                                          self.sdf_refine_steps, self.skip_step_size, self.sample_width, self.sdf_resolution,
+                                          self.sdf_subdivisions, self.sdf_extent_scale, self.curvature_bias, self.space_evenly,
+                                          mouse0=mouse0, mouse1=mouse1)
 
     def update(self, context, event):
         RFCore = RFGlobals.RFCore_None
