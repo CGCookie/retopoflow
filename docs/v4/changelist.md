@@ -9,6 +9,7 @@ This document contains details about what has changed in Retopoflow in version 4
 - Fixed occasional incorrect normals when tweaking without transforms applied
 - Fixed theme not always being reset when exiting Retopoflow
 - Fixed error in add-on preferences Tweaking panel
+- Fixed issue with Contours Walk method when adjusting source object modifier between strokes
 - Fixed status bar hotkey hints not drawing in Blender 4.2
 - Fixed issue with drawing with Apple Pencil when mouse isn't in 3D View
 
