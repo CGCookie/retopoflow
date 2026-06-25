@@ -314,8 +314,9 @@ def draw_rftool_statusbar(statusbar: bpy.types.Header, context: bpy.types.Contex
         if event_type.endswith('MOUSE') and not event_type.startswith(('M', 'W')):
             mouse_button_key: str = event_type[0].upper() # L->'LMB', M->'MMB', R->'RMB'
             icon = f'MOUSE_{mouse_button_key}MB'
-            if event_value == 'DOUBLE_CLICK' and mouse_button_key == 'L':
-                icon += '_2X'
+            if bpy.app.version >= (4, 3, 0):
+                if event_value == 'DOUBLE_CLICK' and mouse_button_key == 'L':
+                    icon += '_2X'
             elif event_value == 'CLICK_DRAG':
                 icon += '_DRAG'
             row.label(text='', icon=icon)
