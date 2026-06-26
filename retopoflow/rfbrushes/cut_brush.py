@@ -42,7 +42,7 @@ from ..common.icons import get_path_to_blender_icon
 from ..common.maths import view_forward_direction, lerp
 from ..common.operator import (
     RFOperator, RFRegisterClass,
-    chain_rf_keymaps, wrap_property,
+    chain_rf_keymaps,
 )
 from ..common.raycast import (
     raycast_valid_sources, mouse_from_event, nearest_point_valid_sources,
@@ -51,7 +51,7 @@ from ..common.raycast import (
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common import gpustate
 from ...addon_common.common.blender_cursors import Cursors
-from ...addon_common.common.maths import Color, Frame, clamp, Direction, Vec, Point, Point2D, Vec2D, Plane
+from ...addon_common.common.maths import Color, clamp, Direction, Vec, Point, Point2D, Vec2D, Plane
 from ...addon_common.common.timerhandler import TimerHandler
 import time
 

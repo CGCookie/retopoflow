@@ -30,8 +30,9 @@ import math
 import numpy as np
 import random
 from collections.abc import Sequence
+from typing import overload
 
-from ...addon_common.common.maths import clamp, Point, Vector, Normal, Plane
+from ...addon_common.common.maths import clamp, Point, Normal, Plane, Direction
 from ...addon_common.common.utils import iter_pairs
 
 def local_to_world(matrix_world: Matrix, co: Vector) -> Vector:
@@ -102,52 +103,132 @@ def closest_point_linesegment(pt:Vector|None, p0:Vector|None, p1:Vector|None) ->
     f = clamp(v01.dot(pt - p0) / l01_squared, 0.0, 1.0)
     return p0 + v01 * f
 
-def bvec_point_to_bvec4(v):
-    return Vector((v[0], v[1], v[2], 1))
-def bvec_vector_to_bvec4(v):
-    return Vector((v[0], v[1], v[2], 0))
-def bvec_to_point(v):
-    return Point((*point_to_bvec3(v), 1.0))
-def point_to_bvec3(pt : Point|Vector|Sequence[float]) -> Vector:
-    if len(pt) == 4:
-        x,y,z,w = pt
-        return Vector((x/w, y/w, z/w))
-    x,y,z = pt
-    return Vector((x,y,z))
-def point_to_bvec4(pt):
-    return Vector((*point_to_bvec3(pt), 1))
-def vector_to_bvec3(v):
-    return v.xyz
-def vector_to_bvec4(v):
-    return Vector((*v.xyz, 0))
-def direction_to_bvec3(v:Vector|Sequence[float]) -> Vector:
-    x,y,z,*_ = v
-    return Vector((x,y,z))
-def direction_to_bvec4(v):
-    return Vector((*v.xyz, 0))
-def normal_to_bvec3(v):
-    return v.xyz
-def normal_to_bvec4(v):
-    return Vector((*v.xyz, 0))
+def bvec_point_to_bvec4(v : Vector | Point | Sequence[float]) -> Vector:
+    x, y, z, *_ = v
+    return Vector((x, y, z, 1))
 
-def map_range(value, from_min, from_max, to_min, to_max):
+def bvec_vector_to_bvec4(v : Vector | Direction | Normal | Sequence[float]) -> Vector:
+    x, y, z, *_ = v
+    return Vector((x, y, z, 0))
+
+def bvec_to_point(v : Point | Vector | Sequence[float]) -> Point:
+    match v:
+        case Point():
+            return v
+        case Vector():
+            match len(v):
+                case 3:
+                    return Point(v)
+                case 4:
+                    x, y, z, w = v
+                    return Point((x / w, y / w, z / w))
+                case _:
+                    assert False, f'Unhandled len of Vector {len(v)} ({v})'
+        case [x, y, z]:
+            return Point((x, y, z))
+        case [x, y, z, w]:
+            return Point((x / w, y / w, z / w))
+        case _:
+            assert False, f'Unhandled type {type(v)} ({v})'
+
+def point_to_bvec3(pt : Point | Vector | Sequence[float]) -> Vector:
+    match pt:
+        case Point():
+            return pt.as_vector()
+        case Vector():
+            match len(pt):
+                case 3:
+                    return pt
+                case 4:
+                    x, y, z, w = pt
+                    return Vector((x / w, y / w, z / w))
+                case _:
+                    assert False, f'Unhandled len of Vector {len(pt)} ({pt})'
+        case [x, y, z]:
+            return Vector((x, y, z))
+        case [x, y, z, w]:
+            return Vector((x / w, y / w, z / w))
+        case _:
+            assert False, f'Unhandled type {type(pt)} ({pt})'
+
+def point_to_bvec4(pt : Point | Vector | Sequence[float]) -> Vector:
+    match pt:
+        case Point():
+            x, y, z = pt
+            return Vector((x, y, z, 1))
+        case Vector():
+            match len(pt):
+                case 3:
+                    x, y, z = pt
+                    return Vector((x, y, z, 1))
+                case 4:
+                    x, y, z, w = pt
+                    return Vector((x / w, y / w, z / w, 1))
+                case _:
+                    assert False, f'Unhandled len of Vector {len(pt)} ({pt})'
+        case [x, y, z]:
+            return Vector((x, y, z, 1))
+        case [x, y, z, w]:
+            return Vector((x / w, y / w, z / w, 1))
+        case _:
+            assert False, f'Unhandled type {type(pt)} ({pt})'
+
+def vector_to_bvec3(v : Vector | Sequence[float]) -> Vector:
+    x, y, z, *_ = v
+    return Vector((x, y, z))
+
+def vector_to_bvec4(v : Vector) -> Vector:
+    x, y, z, *_ = v
+    return Vector((x, y, z, 0))
+
+def direction_to_bvec3(v : Vector | Direction | Sequence[float]) -> Vector:
+    x, y, z, *_ = v
+    return Vector((x, y, z))
+
+def direction_to_bvec4(v : Vector | Direction | Sequence[float]) -> Vector:
+    x, y, z, *_ = v
+    return Vector((x, y, z, 0))
+
+def normal_to_bvec3(v : Normal | Vector | Sequence[float]) -> Vector:
+    x, y, z, *_ = v
+    return Vector((x, y, z))
+
+def normal_to_bvec4(v : Normal | Vector | Sequence[float]) -> Vector:
+    x, y, z, *_ = v
+    return Vector((x, y, z, 0))
+
+def map_range(value : float, from_min : float, from_max : float, to_min : float, to_max : float) -> float:
     from_span = from_max - from_min
     to_span = to_max - to_min
     scale_factor = float(to_span) / float(from_span)
     return to_min + (value - from_min) * scale_factor
 
-def lerp(f, m, M): return m + f * (M - m)
-def lerp_map(v, vm, vM, m, M):
+
+@overload
+def lerp(f : float, m : float, M : float) -> float:
+    ...
+@overload
+def lerp(f : float, m : Vector, M : Vector) -> Vector:
+    ...
+
+def lerp(f : float, m : float | Vector, M : float | Vector) -> float | Vector:
+    return m + f * (M - m)
+
+
+def lerp_map(v : float, vm : float, vM : float, m : float, M : float) -> float:
     f = (v - vm) / (vM - vm)
     return m + f * (M - m)
 
-def xform_point(M : Matrix, p : Vector) -> Vector:
+def xform_point(M : Matrix, p : Point | Vector) -> Vector:
     return point_to_bvec3(M @ bvec_point_to_bvec4(p))
+
 def xform_vector(M : Matrix, v : Vector) -> Vector:
     return vector_to_bvec3(M @ bvec_vector_to_bvec4(v))
-def xform_direction(M : Matrix, d : Vector) -> Vector:
+
+def xform_direction(M : Matrix, d : Direction | Vector) -> Vector:
     return vector_to_bvec3(M @ bvec_vector_to_bvec4(d)).normalized()
-def xform_normal(Mit : Matrix, d : Vector) -> Vector:
+
+def xform_normal(Mit : Matrix, d : Normal | Vector) -> Vector:
     return vector_to_bvec3(Mit @ bvec_vector_to_bvec4(d)).normalized()
 
 

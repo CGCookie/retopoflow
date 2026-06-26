@@ -20,7 +20,7 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
-from bpy.types import Context
+from bpy.types import bpy_struct
 from bpy.app.handlers import persistent
 
 import os
@@ -43,7 +43,8 @@ class AutoSave:
     exclude_modal_ops : set[str] = set()
 
     @staticmethod
-    def enabled_updater(_ : Context, v : bool): AutoSave.enabled = v
+    def property_update_enabled(v : bool):
+        AutoSave.enabled = v
 
     @staticmethod
     def is_enabled() -> bool:
@@ -187,7 +188,7 @@ class AutoSave:
             bpy.app.timers.unregister(AutoSave.second_timer)
 
     @staticmethod
-    def first_timer(*args, **kwargs):
+    def first_timer():
         # print(f'AutoSave: first timer')
         if not AutoSave.is_enabled():
             # autosave is disabled, so simply reset first timer (artist might enable it again)
@@ -196,7 +197,7 @@ class AutoSave:
             AutoSave.register_second_timer(False)
 
     @staticmethod
-    def second_timer(*args, **kwargs):
+    def second_timer():
         # print(f'AutoSave: second timer')
         modal_operators = set(op.name for op in bpy.context.window.modal_operators) - AutoSave.exclude_modal_ops
         if modal_operators:
@@ -213,7 +214,7 @@ class AutoSave:
             AutoSave.actively_saving = True
             # NOTE: this will create .blend1, .blend2, etc. files
             #       not deleting previous versions
-            bpy.ops.wm.save_as_mainfile(
+            _ = bpy.ops.wm.save_as_mainfile(
                 filepath=filepath,
                 check_existing=False,
                 compress=True,
@@ -236,7 +237,7 @@ class AutoSave:
                 'Check terminal / console for more details.',
             ])
             show_blender_popup(message, title='Auto-Save Error', icon="ERROR")
-            print(f'Auto-Save: Hit maximum failed attempts!  disabling auto save for now')
+            print(f'Auto-Save: Hit maximum failed attempts ({AutoSave.MAX_AUTOSAVE_FAILURES})!  disabling auto save for now')
             AutoSave.enabled = False   # this is only temporary; does not update the preferences
         finally:
             AutoSave.actively_saving = False

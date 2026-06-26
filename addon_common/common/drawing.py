@@ -184,7 +184,13 @@ class Drawing:
 
         return fontsize_prev
 
-    def get_text_size_info(self, text : str | list[str] | None, item, fontsize : float | None = None, fontid : str | int | None = None):
+    def get_text_size_info(
+        self,
+        text : str | list[str] | None,
+        item : Literal['width', 'height', 'line height'],
+        fontsize : float | None = None,
+        fontid : str | int | None = None,
+    ):
         fontid_prev : int = self.fontid
         size_prev : float | None = self.set_font_size(fontsize, fontid=fontid) if fontsize else None
 
@@ -216,14 +222,14 @@ class Drawing:
                 d['height'] = get_height(text_)
                 d['line height'] = self.line_height * len(lines)
             self.size_cache[key] = d
-            if False:
-                print('')
-                print('--------------------------------------')
-                print('> computed new size')
-                print('>   key: %s' % str(key))
-                print('>   size: %s' % str(d))
-                print('--------------------------------------')
-                print('')
+            # if False:
+            #     print('')
+            #     print('--------------------------------------')
+            #     print('> computed new size')
+            #     print('>   key: %s' % str(key))
+            #     print('>   size: %s' % str(d))
+            #     print('--------------------------------------')
+            #     print('')
 
         if size_prev is not None:
             _ = self.set_font_size(size_prev, fontid=fontid)
@@ -231,26 +237,72 @@ class Drawing:
 
         return self.size_cache[key][item]
 
-    def get_text_width(self, text, fontsize=None, fontid=None):
+    def get_text_width(
+        self,
+        text : str,
+        fontsize : float | None = None,
+        fontid : str | int | None = None,
+    ):
         return self.get_text_size_info(text, 'width', fontsize=fontsize, fontid=fontid)
-    def get_text_height(self, text, fontsize=None, fontid=None):
+
+    def get_text_height(
+        self,
+        text : str,
+        fontsize : float | None = None,
+        fontid : str | int | None = None,
+    ):
         return self.get_text_size_info(text, 'height', fontsize=fontsize, fontid=fontid)
-    def get_line_height(self, text=None, fontsize=None, fontid=None):
+
+    def get_line_height(
+        self,
+        text : str | None = None,
+        fontsize : float | None = None,
+        fontid : str | int | None = None,
+    ):
         return self.get_text_size_info(text, 'line height', fontsize=fontsize, fontid=fontid)
 
-    def set_clipping(self, xmin, ymin, xmax, ymax, fontid=None):
+    def set_clipping(
+        self,
+        xmin : float,
+        ymin : float,
+        xmax : float,
+        ymax : float,
+        fontid : str | int | None = None,
+    ):
         fm.clipping((xmin, ymin), (xmax, ymax), fontid=fontid)
         # blf.clipping(self.font_id, xmin, ymin, xmax, ymax)
         self.enable_clipping()
-    def enable_clipping(self, fontid=None):
+
+    def enable_clipping(
+        self,
+        fontid : str | int | None = None,
+    ):
         fm.enable_clipping(fontid=fontid)
         # blf.enable(self.font_id, blf.CLIPPING)
-    def disable_clipping(self, fontid=None):
+
+    def disable_clipping(
+        self,
+        fontid : str | int | None = None,
+    ):
         fm.disable_clipping(fontid=fontid)
         # blf.disable(self.font_id, blf.CLIPPING)
 
-    def text_color_set(self, color, fontid):
-        if color is not None: fm.color(color, fontid=fontid)
+    def text_color_set(
+        self,
+        color : Color | Sequence[float] | None,
+        fontid : str | int | None,
+    ):
+        match color:
+            case None:
+                pass
+            case Color():
+                fm.color(tuple(color), fontid=fontid)
+            case [float(), float(), float()]:
+                fm.color(color, fontid=fontid)
+            case [float(), float(), float(), float()]:
+                fm.color(color, fontid=fontid)
+            case _:
+                assert False, f'Unhandled color type {type(color)} ({color})'
 
     def text_draw2D(
         self,
@@ -283,13 +335,20 @@ class Drawing:
             _ = self.set_font_size(size_prev, fontid=fontid)
         self.fontid = fontid_prev
 
-    def text_draw2D_simple(self, text, pos:Point2D):
-        l,t = round(pos[0]),round(pos[1])
+    def text_draw2D_simple(
+        self,
+        text : str,
+        pos : Point2D | Vector | Sequence[float],
+    ):
+        l, t = round(pos[0]), round(pos[1])
         lb = self.line_base
         fm.draw_simple(text, xyz=(l, t - lb, 0))
 
 
-    def get_mvp_matrix(self, view3D : bool = True) -> Matrix | None:
+    def get_mvp_matrix(
+        self,
+        view3D : bool = True,
+    ) -> Matrix | None:
         '''
         if view3D == True: returns MVP for 3D view
         else: returns MVP for pixel view
@@ -315,12 +374,14 @@ class Drawing:
 
         # return mat_model,mat_view,mat_proj
 
-    def get_pixel_matrix_list(self) -> list[list[float]] | None:
+    def get_pixel_matrix_list(
+        self
+    ) -> list[list[float]] | None:
         if not self.rgn or not self.r3d or not self.window:
             return None
-        x,y = self.rgn.x,self.rgn.y
+        # x,y = self.rgn.x,self.rgn.y
         w,h = self.rgn.width,self.rgn.height
-        ww,wh = self.window.width,self.window.height
+        # ww,wh = self.window.width,self.window.height
         return [[2/w,0,0,-1],  [0,2/h,0,-1],  [0,0,1,0],  [0,0,0,1]]
 
     def load_pixel_matrix(self, m : Matrix):
@@ -423,7 +484,7 @@ class Drawing:
 
         radius_scaled = r if (r := self.scale(radius)) is not None else 1
         border_scaled = s if border and (s := self.scale(border)) is not None else 0
-        
+
         if borderColor is None: borderColor = (0,0,0,0)
 
         shader_2D_point.bind()

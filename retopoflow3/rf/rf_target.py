@@ -32,7 +32,7 @@ from mathutils.geometry import intersect_line_line_2d as intersect_segment_segme
 from ...config.options import visualization, options, retopoflow_datablocks
 from ...addon_common.common.profiler import profiler, time_it
 from ...addon_common.common.utils import iter_pairs, Dict
-from ...addon_common.common.maths import Point, Vec, Direction, Normal, Ray, XForm, BBox
+from ...addon_common.common.maths import Point, Vec, Direction, Normal, Ray, BBox
 from ...addon_common.common.maths import Point2D, Vec2D, Direction2D
 from ...addon_common.common.maths_accel import Accel2D
 from ...addon_common.common.text import fix_string

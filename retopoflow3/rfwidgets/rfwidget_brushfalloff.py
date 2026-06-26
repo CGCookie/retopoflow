@@ -292,16 +292,16 @@ class RFWidget_BrushFalloff_Factory:
                 scale = self.rfcontext.size2D_to_size(1.0, depth)
                 if scale is None: return
 
-                rmat = Matrix.Rotation(Direction.Z.angle(n), 4, Direction.Z.cross(n))
+                rmat = Matrix.Rotation(Direction.Z().angle(n), 4, Direction.Z().cross(n))
 
                 self.hit = True
                 self.hit_scale = scale
                 self.hit_p = p
                 self.hit_n = n
                 self.hit_depth = depth
-                self.hit_x = Vec(rmat @ Direction.X)
-                self.hit_y = Vec(rmat @ Direction.Y)
-                self.hit_z = Vec(rmat @ Direction.Z)
+                self.hit_x = Direction(rmat @ Direction.X())
+                self.hit_y = Direction(rmat @ Direction.Y())
+                self.hit_z = Direction(rmat @ Direction.Z())
                 self.hit_rmat = rmat
 
         return RFWidget_BrushFalloff

@@ -133,9 +133,10 @@ def size2D_to_size(context : Context, depth3D : float, *, pt : Vector | Sequence
     # print(f'{d0} {d1} {d2} {d3}')
     return d / scale
 
-def ray_from_mouse(context, event):
+def ray_from_mouse(context : Context, event : Event) -> tuple[Vector, Vector] | tuple[None, None]:
     mouse = (event.mouse_region_x, event.mouse_region_y)
-    if not context.region_data: return (None, None)
+    if not context.region_data:
+        return (None, None)
     return (
         Vector((*region_2d_to_origin_3d(context.region, context.region_data, mouse), 1.0)),
         Vector((*region_2d_to_vector_3d(context.region, context.region_data, mouse).normalized(), 0.0)),
@@ -147,13 +148,17 @@ def direction_from_mouse(context, event) -> Vector:
     v = region_2d_to_vector_3d(context.region, context.region_data, mouse).normalized()
     return Vector(( v.x, v.y, v.z, 0.0 ))
 
-def direction_from_point(context, point_screen_or_world) -> Vector:
-    if not context.region_data: return (None, None)
+def direction_from_point(context : Context, point_screen_or_world : Vector) -> Vector | None:
+    if not context.region_data:
+        return None
+
     if len(point_screen_or_world) > 2:
         point_screen = location_3d_to_region_2d(context.region, context.region_data, point_screen_or_world)
-        if not point_screen: return (None, None)
+        if not point_screen:
+            return None
     else:
         point_screen = point_screen_or_world
+
     v = region_2d_to_vector_3d(context.region, context.region_data, point_screen).normalized()
     return Vector(( v.x, v.y, v.z, 0.0 ))
 
@@ -315,7 +320,9 @@ def make_hidden_tester(context: Context, obj) -> 'Callable[[Vector, Vector, floa
     return hidden_tester
 
 def raycast_valid_sources(
-        context : Context, point : Vector|Sequence[float]|None, respect_clip_planes:bool=False
+    context : Context,
+    point : Vector|Sequence[float]|None,
+    respect_clip_planes : bool = False
 ) -> dict[str,tuple[Vector,Vector]|float|int|object|Vector|Sequence[float]]|None:
     if not point:
         return None

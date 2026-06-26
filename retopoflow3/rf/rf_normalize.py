@@ -35,7 +35,7 @@ from ...config.options import sessionoptions, options
 from ...addon_common.cookiecutter.cookiecutter_blender import CookieCutter_Blender
 from ...addon_common.common.blender import get_view3d_space
 
-from ...addon_common.common.maths import BBox, XForm, Point
+from ...addon_common.common.maths import BBox, Point
 from ...addon_common.common.debug import dprint
 
 class RetopoFlow_Normalize:

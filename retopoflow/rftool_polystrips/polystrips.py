@@ -41,7 +41,7 @@ from ..common.operator import (
     execute_operator,
     RFOperator, RFOperator_Execute, RFKeyMap, RFKeyMaps, BLKeyMaps,
     chain_rf_keymaps,
-    wrap_property, poll_retopoflow,
+    OperatorPropertyWrapper, poll_retopoflow,
 )
 from ...addon_common.common import gpustate
 from ...addon_common.common.blender import event_modifier_check
@@ -595,8 +595,8 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
     }
 
 
-    brush_radius: wrap_property(
-        RFBrush_Strokes, 'stroke_radius', 'int',
+    brush_radius: OperatorPropertyWrapper.int(
+        RFBrush_Strokes, 'stroke_radius',
         name='Radius',
         description='Radius of the brush in Blender UI units before it gets projected onto the mesh',
         min=1,

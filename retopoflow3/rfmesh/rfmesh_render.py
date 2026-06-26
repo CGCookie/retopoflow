@@ -51,7 +51,7 @@ from ...addon_common.common.profiler import profiler
 from ...addon_common.common.maths import (
     Point, Direction, Normal, Frame,
     Point2D, Vec2D, Direction2D,
-    Ray, XForm, BBox, Plane,
+    Ray, BBox, Plane,
 )
 from ...addon_common.common.utils import min_index
 

@@ -27,7 +27,7 @@ from ...config.options import visualization, options
 from ...addon_common.common.maths import BBox
 from ...addon_common.common.profiler import profiler, time_it
 from ...addon_common.common.debug import dprint
-from ...addon_common.common.maths import Point, Vec, Direction, Normal, Ray, XForm, Plane
+from ...addon_common.common.maths import Point, Vec, Direction, Normal, Ray, Plane
 from ...addon_common.common.maths import Point2D
 from ...addon_common.common.maths_accel import Accel2D
 from ...addon_common.common.timerhandler import CallGovernor

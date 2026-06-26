@@ -23,7 +23,7 @@ import bpy
 from bpy.types import Context, Event, Area, SpaceView3D, View3DOverlay
 from mathutils import Vector, Matrix
 
-from typing import Protocol
+from typing import Protocol, cast
 from collections.abc import Sequence, Callable
 
 import math
@@ -76,9 +76,9 @@ def create_falloff_brush(idname : str, label : str, **kwargs):
         hit_n : Vector | None # pyright: ignore[reportUninitializedInstanceVariable]
         hit_scale : float | None # pyright: ignore[reportUninitializedInstanceVariable]
         hit_depth : float | None # pyright: ignore[reportUninitializedInstanceVariable]
-        hit_x : float | None # pyright: ignore[reportUninitializedInstanceVariable]
-        hit_y : float | None # pyright: ignore[reportUninitializedInstanceVariable]
-        hit_z : float | None # pyright: ignore[reportUninitializedInstanceVariable]
+        hit_x : Direction | None # pyright: ignore[reportUninitializedInstanceVariable]
+        hit_y : Direction | None # pyright: ignore[reportUninitializedInstanceVariable]
+        hit_z : Direction | None # pyright: ignore[reportUninitializedInstanceVariable]
         hit_rmat : Matrix | None # pyright: ignore[reportUninitializedInstanceVariable]
         disabled : bool # pyright: ignore[reportUninitializedInstanceVariable]
         offset : float # pyright: ignore[reportUninitializedInstanceVariable]
@@ -217,7 +217,7 @@ def create_falloff_brush(idname : str, label : str, **kwargs):
             if scale is None or scale_offset is None: return
 
             n : Vector = hit['no_local']
-            rmat = Matrix.Rotation(n.angle(Direction.Z), 4, n.cross(Direction.Z))
+            rmat = Matrix.Rotation(Direction.Z().angle(n), 4, Direction.Z().cross(n))
 
             self.hit = True
             self.hit_ray = hit['ray_world']
@@ -226,9 +226,9 @@ def create_falloff_brush(idname : str, label : str, **kwargs):
             self.hit_p = hit['co_world']
             self.hit_n = hit['no_world']
             self.hit_depth = hit['distance']
-            self.hit_x = Vec(rmat @ Direction.X)
-            self.hit_y = Vec(rmat @ Direction.Y)
-            self.hit_z = Vec(rmat @ Direction.Z)
+            self.hit_x = Direction(rmat @ Direction.X())
+            self.hit_y = Direction(rmat @ Direction.Y())
+            self.hit_z = Direction(rmat @ Direction.Z())
             self.hit_rmat = rmat
 
         def draw_postpixel(self, context : Context):

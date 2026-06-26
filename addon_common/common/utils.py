@@ -28,6 +28,7 @@ import inspect
 import operator
 import itertools
 import importlib
+from typing import TypeVar, Generic
 from collections.abc import Sequence, Iterator
 
 import bpy
@@ -36,6 +37,12 @@ from mathutils import Vector, Matrix
 from .blender_preferences import get_preferences
 from .profiler import profiler
 from .debug import dprint, debugger
+
+
+# the following is needed to do Generic types in Python 3.11 (Blender 4.2 and 4.5)
+# Blender 5.2 uses Python 3.13, which has Generic types as part of syntax
+T = TypeVar('T')
+
 
 
 def normalize_triplequote(
@@ -404,7 +411,7 @@ def enumerate_reversed(l : Sequence[...]) -> Iterator[tuple[int, ...]]:
         for i in range(n-1, -1, -1)
     )
 
-def iter_pairs(items : Sequence[...], wrap : bool, repeat : bool = False) -> Iterator[tuple[..., ...]]:
+def iter_pairs(items : Sequence[T], wrap : bool, repeat : bool = False) -> Iterator[tuple[T,T]]:
     if not items:
         return
     while True:

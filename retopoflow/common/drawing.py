@@ -19,16 +19,17 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
+from __future__ import annotations
 import math
-from collections.abc import Sequence
+from collections.abc import Sequence, Generator
 from contextlib import contextmanager
 from math import cos, pi, sin
-from typing import Generator, List, Literal, Self, Tuple, Type, ClassVar
+from typing import Literal, ClassVar
 
 import bmesh
 import bpy
 import gpu
-from bpy.types import Context
+from bpy.types import Context, bpy_prop_array
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 from gpu.types import (
     GPUBatch,
@@ -112,7 +113,7 @@ class CC_DRAW:
     _line_width: float = 1
     _border_width: float = 0
     _border_color: Color4 = Color4((0, 0, 0, 0))
-    _stipple_pattern: List[float] = [1, 0]
+    _stipple_pattern: list[float] = [1, 0]
     _stipple_offset: float = 0
     _stipple_color: Color4 = Color4((0, 0, 0, 0))
 
@@ -182,11 +183,11 @@ class CC_DRAW:
         pass
 
     @classmethod
-    def color(cls, c: Color4 | None):
+    def color(cls, c: Color | Color4 | Sequence[float] | bpy_prop_array[float] | None):
         pass
 
     @classmethod
-    def vertex(cls, p: Vector) -> Type[Self]:
+    def vertex(cls, p: Vector) -> type[CC_DRAW]:
         return cls
 
 
@@ -210,13 +211,13 @@ class CC_2D_POINTS(CC_DRAW):
         ubos_2D_point.options.colorBorder = cls._border_color
 
     @classmethod
-    def color(cls, c: Color4 | None):
+    def color(cls, c: Color | Color4 | Sequence[float] | None):
         if not c:
             return
         ubos_2D_point.options.color = c
 
     @classmethod
-    def vertex(cls, p: Vector) -> Type[Self]:
+    def vertex(cls, p: Vector) -> type[CC_2D_POINTS]:
         if p:
             ubos_2D_point.options.center = (*p, 0, 1)
             ubos_2D_point.options.update_shader()
@@ -246,13 +247,13 @@ class CC_3D_POINTS(CC_DRAW):
         ubos_3D_point.options.colorBorder = cls._border_color
 
     @classmethod
-    def color(cls, c: Color4 | None):
+    def color(cls, c: Color | Color4 | Sequence[float] | None):
         if not c:
             return
         ubos_3D_point.options.color = c
 
     @classmethod
-    def vertex(cls, p: Vector) -> Type[Self]:
+    def vertex(cls, p: Vector) -> type[CC_3D_POINTS]:
         if p:
             ubos_3D_point.options.center = (*p, 1)
             ubos_3D_point.options.update_shader()
@@ -288,7 +289,7 @@ class CC_2D_LINES(CC_DRAW):
         )
 
     @classmethod
-    def color(cls, c: Color4 | None):
+    def color(cls, c: Color | Color4 | Sequence[float] | None):
         if not c:
             return
         ubos_2D_lineseg.options.color0 = c
@@ -305,7 +306,7 @@ class CC_2D_LINES(CC_DRAW):
         return cls
 
     @classmethod
-    def vertices(cls, ps: List[Vector]):
+    def vertices(cls, ps: list[Vector]):
         for p in ps:
             cls.vertex(p)
 
@@ -317,7 +318,7 @@ class CC_2D_LINE_STRIP(CC_2D_LINES):
         cls._last_p = None
 
     @classmethod
-    def vertex(cls, p: Vector) -> Type[Self]:
+    def vertex(cls, p: Vector) -> type[CC_2D_LINE_STRIP]:
         if cls._last_p is None:
             cls._last_p = p
         else:
@@ -338,7 +339,7 @@ class CC_2D_LINE_LOOP(CC_2D_LINES):
         cls._last_p = None
 
     @classmethod
-    def vertex(cls, p: Vector) -> Type[Self]:
+    def vertex(cls, p: Vector) -> type[CC_2D_LINE_LOOP]:
         if cls._first_p is None:
             cls._first_p = cls._last_p = p
         else:
@@ -372,14 +373,14 @@ class CC_2D_TRIANGLES(CC_DRAW):
         cls._last_p1 = None
 
     @classmethod
-    def color(cls, c: Color4 | None):
+    def color(cls, c: Color | Color4 | Sequence[float] | None):
         if c is None:
             return
         ubos_2D_triangle.options.assign(f"color{cls._c}", c)
         cls._last_color = c
 
     @classmethod
-    def vertex(cls, p: Vector) -> Type[Self]:
+    def vertex(cls, p: Vector) -> type[CC_2D_TRIANGLES]:
         if p:
             ubos_2D_triangle.options.assign(f"pos{cls._c}", (*p, 0, 1))
         cls._c = (cls._c + 1) % 3
@@ -404,14 +405,14 @@ class CC_2D_TRIANGLE_FAN(CC_DRAW):
         cls._is_first = True
 
     @classmethod
-    def color(cls, c: Color4 | None):
+    def color(cls, c: Color | Color4 | Sequence[float] | None):
         if c is None:
             return
         ubos_2D_triangle.options.assign(f"color{cls._c}", c)
         cls._last_color = c
 
     @classmethod
-    def vertex(cls, p: Vector) -> Type[Self]:
+    def vertex(cls, p: Vector) -> type[CC_2D_TRIANGLE_FAN]:
         if p:
             ubos_2D_triangle.options.assign(f"pos{cls._c}", (*p, 0, 1))
         cls._c += 1
@@ -440,14 +441,14 @@ class CC_3D_TRIANGLES(CC_DRAW):
         cls._last_p1 = None
 
     @classmethod
-    def color(cls, c: Color4 | None):
+    def color(cls, c: Color | Color4 | Sequence[float] | None):
         if c is None:
             return
         ubos_3D_triangle.options.assign(f"color{cls._c}", c)
         cls._last_color = c
 
     @classmethod
-    def vertex(cls, p: Vector) -> Type[Self]:
+    def vertex(cls, p: Vector) -> type[CC_3D_TRIANGLES]:
         if p:
             ubos_3D_triangle.options.assign(f"pos{cls._c}", p)
         cls._c = (cls._c + 1) % 3
@@ -493,7 +494,7 @@ class Drawing:
 
     @contextmanager
     @staticmethod
-    def draw(context, draw_type: Type[CC_DRAW]) -> Generator[Type[CC_DRAW], None, None]:
+    def draw(context, draw_type: type[CC_DRAW]) -> Generator[type[CC_DRAW], None, None]:
         assert not hasattr(Drawing, "_drawing"), "Cannot nest Drawing.draw calls"
         Drawing._draw = draw_type
         try:
@@ -512,9 +513,9 @@ class Drawing:
         context,
         center: Point2D,
         radius: float,
-        color0: Color,
+        color0: Color | Color4 | Sequence[float],
         *,
-        color1=None,
+        color1 : Color | Color4 | Sequence[float] | None = None,
         width=1,
         stipple=None,
         offset=0,
@@ -543,7 +544,7 @@ class Drawing:
         context,
         center: Point,
         radius: float,
-        color: Color,
+        color: Color | Color4 | Sequence[float],
         *,
         width=1,
         n: Normal | None = None,
@@ -579,7 +580,7 @@ class Drawing:
         context: Context,
         center: Point2D | Vector | tuple[float, float],
         radius: float,
-        color: Color | Sequence[float] | CC_Color,
+        color: Color | Color4 | Sequence[float] | CC_Color,
         *,
         width: float = 0,
         smooth_threshold: float = 1.5,
@@ -792,9 +793,9 @@ class Drawing:
     def draw2D_linestrip(
         context : Context,
         points : Sequence[Vector | None],
-        color0 : Color | tuple[float,float,float] | tuple[float,float,float,float],
+        color0 : Color | Color4 | Sequence[float],
         *,
-        color1 : Color | tuple[float,float,float] | tuple[float,float,float,float] | None = None,
+        color1 : Color | Color4 | Sequence[float] | None = None,
         width : float = 1,
         stipple : Sequence[float] | None = None,
         offset : float = 0,
@@ -842,9 +843,9 @@ class Drawing:
     def draw2D_lines(
         context : Context,
         points : Sequence[Vector | None],
-        color0: Color | tuple[float,float,float] | tuple[float,float,float,float],
+        color0: Color | Color4 | Sequence[float],
         *,
-        color1: Color | tuple[float,float,float] | tuple[float,float,float,float] | None = None,
+        color1: Color | Color4 | Sequence[float] | None = None,
         width: float = 1,
         stipple: Sequence[float] | None = None,
         offset: float = 0,
@@ -892,11 +893,11 @@ class Drawing:
     def draw2D_points(
         context : Context,
         points : Sequence[Vector | Sequence[float] | None],
-        color : Color | tuple[float,float,float] | tuple[float,float,float,float],
+        color : Color | Color4 | Sequence[float],
         *,
         radius : float = 1,
         border : float = 0,
-        borderColor : Color | tuple[float,float,float] | tuple[float,float,float,float] | None = None,
+        borderColor : Color | Color4 | Sequence[float] | None = None,
     ):
         radius_scaled = r if (r := Drawing.scale(radius)) is not None else 1.0
 
@@ -1155,8 +1156,8 @@ class Drawing:
         text : str,
         pos : Sequence[float] | Vector,
         *,
-        color : Color | Sequence[float] | None = None,
-        dropshadow : Color | Sequence[float] | None = None,
+        color : Color | Color4 | Sequence[float] | None = None,
+        dropshadow : Color | Color4 | Sequence[float] | None = None,
         fontsize : float | None = None,
         fontid : int | None = None,
         lineheight : bool = True,

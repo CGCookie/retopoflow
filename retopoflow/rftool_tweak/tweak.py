@@ -28,7 +28,7 @@ from bpy.types import Context, Event, UILayout, WorkSpaceTool
 from ..rfglobals import RFGlobals
 from ..rftool_base import RFTool_Base
 from ..common.icons import get_path_to_blender_icon
-from ..common.operator import RFOperator, wrap_property, chain_rf_keymaps, execute_operator, poll_retopoflow, RFKeyMaps, BLKeyMaps
+from ..common.operator import RFOperator, OperatorPropertyWrapper, chain_rf_keymaps, execute_operator, poll_retopoflow, RFKeyMaps, BLKeyMaps
 from ...addon_common.common.maths import Color
 from ...addon_common.common.resetter import Resetter
 from ...addon_common.common.timerhandler import TimerHandler
@@ -74,10 +74,10 @@ class RFOperator_Tweak(RFOperator):
         (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS', 'alt': True},                 {'km_context': 'init', 'km_label': 'Tweak (Toggle Loops)'}),           # blocks Blender's Alt+LMB Move Camera
         (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS', 'alt': True, 'ctrl': True},   {'km_context': 'init', 'km_label': 'Tweak (Toggle Loops + Invert Pinch/Magnify)'}),
     ]
-    rf_status = ['LMB: Tweak']
+    rf_status : list[str] = ['LMB: Tweak']
 
-    brush_radius: wrap_property(
-        RFBrush_Tweak, 'radius', 'int',
+    brush_radius: OperatorPropertyWrapper.int(
+        RFBrush_Tweak, 'radius',
         name='Radius',
         description='Radius of the brush in Blender UI units before it gets projected onto the mesh',
         subtype='PIXEL',
@@ -85,16 +85,16 @@ class RFOperator_Tweak(RFOperator):
         max=1000,
         default=100,
     )
-    brush_falloff: wrap_property(
-        RFBrush_Tweak, 'falloff', 'float',
+    brush_falloff: OperatorPropertyWrapper.float(
+        RFBrush_Tweak, 'falloff',
         name='Falloff',
         description='How much strength the outside of the brush has as compared to the center',
         min=0.0,
         max=1.00,
         default=1.00,
     )
-    brush_strength: wrap_property(
-        RFBrush_Tweak, 'strength', 'float',
+    brush_strength: OperatorPropertyWrapper.float(
+        RFBrush_Tweak, 'strength',
         name='Strength',
         description='Strength of the brush',
         min=0.01,

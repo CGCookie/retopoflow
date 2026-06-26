@@ -49,7 +49,7 @@ from ..common.drawing import (
     CC_3D_TRIANGLES,
 )
 from ..common.icons import get_path_to_blender_icon
-from ..common.operator import RFOperator, wrap_property, chain_rf_keymaps, execute_operator, poll_retopoflow, RFKeyMaps, BLKeyMaps
+from ..common.operator import RFOperator, OperatorPropertyWrapper, chain_rf_keymaps, execute_operator, poll_retopoflow, RFKeyMaps, BLKeyMaps
 from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, size2D_to_size, vec_forward, mouse_from_event
 from ..common.maths import view_forward_direction, lerp
 from ...addon_common.common import bmesh_ops as bmops
@@ -103,8 +103,8 @@ class RFOperator_Relax(RFOperator):
     ]
     rf_status = ['LMB: Relax']
 
-    brush_radius: wrap_property(
-        RFBrush_Relax, 'radius', 'int',
+    brush_radius: OperatorPropertyWrapper.int(
+        RFBrush_Relax, 'radius',
         name='Radius',
         description='Radius of the brush in Blender UI units before it gets projected onto the mesh',
         subtype='PIXEL',
@@ -112,16 +112,16 @@ class RFOperator_Relax(RFOperator):
         max=1000,
         default=200,
     )
-    brush_falloff: wrap_property(
-        RFBrush_Relax, 'falloff', 'float',
+    brush_falloff: OperatorPropertyWrapper.float(
+        RFBrush_Relax, 'falloff',
         name='Falloff',
         description='How much strength the outside of the brush has as compared to the center',
         min=0.0,
         max=1.00,
         default=1.00,
     )
-    brush_strength: wrap_property(
-        RFBrush_Relax, 'strength', 'float',
+    brush_strength: OperatorPropertyWrapper.float(
+        RFBrush_Relax, 'strength',
         name='Strength',
         description='Strength of Brush',
         min=0.01,

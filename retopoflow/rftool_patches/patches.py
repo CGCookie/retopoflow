@@ -22,19 +22,33 @@ Created by Jonathan Denning, Jonathan Lampel
 # pyright: reportUninitializedInstanceVariable = false
 
 
-import inspect
 import os
 import random
-from math import atan2, cos, sin, pi
+import time
+from itertools import chain
+from functools import partial
+from math import atan2, cos, sin, pi, sqrt
 from enum import Enum
-from typing import ClassVar
+from typing import ClassVar, cast
 from collections.abc import Sequence
+from dataclasses import dataclass
 
 import bpy
 from mathutils import Vector, Matrix
 from bpy_extras.view3d_utils import location_3d_to_region_2d
-from bpy.types import Context, Operator, UILayout, WorkSpaceTool, Event, Mesh, AssetRepresentation, OperatorProperties
-from bmesh.types import BMesh, BMVert
+from bpy.types import (
+    Context,
+    Operator,
+    UILayout,
+    WorkSpaceTool,
+    Event,
+    Mesh,
+    AssetRepresentation,
+    OperatorProperties,
+    SpaceView3D,
+    ThemeView3D,
+)
+from bmesh.types import BMesh, BMVert, BMEdge, BMFace, BMVertSeq
 
 from ..rfglobals import RFGlobals
 from ..rfbrush_base import RFBrush_Base
@@ -44,17 +58,23 @@ from ..rftool_base import RFTool_Base
 from ..preferences import RF_Prefs
 
 from ...addon_common.common import gpustate
+from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.colors import Color4
 from ...addon_common.common.decorators import add_cache
 from ...addon_common.common.maths import Frame, Point, Normal
 from ...addon_common.common.resetter import Resetter
 from ...addon_common.common.useractions import Actions
+from ...addon_common.common.utils import iter_pairs
 
 from ..common.bmesh import get_bmesh_emesh
+
+from ..common.bpy_helper import BPY_Timers
 from ..common.drawing import (
     Drawing,
     CC_2D_LINES,
+    CC_2D_POINTS,
+    CC_2D_TRIANGLES,
 )
 from ..common.icons import get_path_to_blender_icon
 from ..common.operator import (
@@ -63,7 +83,7 @@ from ..common.operator import (
     RFRegisterClass,
     RFKeyMaps,
     RFAssetShelf,
-    wrap_property,
+    OperatorPropertyWrapper,
     chain_rf_keymaps,
     poll_retopoflow,
     BLKeyMaps,
@@ -71,6 +91,7 @@ from ..common.operator import (
 from ..common.maths import (
     direction_to_bvec4,
     view_right_direction,
+    view_up_direction,
     point_to_bvec4,
     normal_to_bvec4,
     point_to_bvec3,
@@ -79,6 +100,8 @@ from ..common.maths import (
 from ..common.raycast import (
     direction_from_point,
     raycast_valid_sources,
+    raycast_ray_valid_sources,
+    ray_from_mouse,
     size2D_to_size,
 )
 
@@ -103,6 +126,52 @@ RFBrush_Patches, RFOperator_PatchesBrush_Adjust = create_stroke_brush(
     radius=50,
     smoothing=0.5,
 )
+
+@dataclass(frozen=True, kw_only=True)
+class OrientationData:
+    frame : Frame
+    mirror_mult : Vector
+    mirror_offset : Vector
+    z_local : Vector
+    dir_right_local : Vector
+    height : float
+    size : float
+    radius_local : float
+    radius_world : float
+    hit : dict[str, ...]
+
+    @property
+    def co_world(self) -> Vector:
+        return self.hit['co_world']
+
+    @property
+    def co_local(self) -> Vector:
+        return self.hit['co_local']
+
+    @property
+    def n_local(self) -> Vector:
+        return self.hit['n_local']
+
+@dataclass(frozen=True, kw_only=True)
+class GrabData:
+    original : OrientationData
+    position : Vector
+    mouse : Vector
+
+@dataclass(frozen=True, kw_only=True)
+class RotateData:
+    original : float
+    position : Vector
+    angle : float
+    mouse : Vector
+
+@dataclass(frozen=True, kw_only=True)
+class ScaleData:
+    original : float
+    position : Vector
+    dist : float
+    mouse : Vector
+
 
 
 class Patches_Orientations:
@@ -184,8 +253,8 @@ class RFOperator_Patches_Insert(RFOperator):
         'insert': ('RMB: Cancel', )
     }
 
-    orientation: wrap_property(
-        Patches_Orientations, 'orientation', 'enum',
+    orientation: OperatorPropertyWrapper.enum(
+        Patches_Orientations, 'orientation',
         name='Orientation',
         description='Orientation for Patches',
         items=Patches_Orientations.orientations,
@@ -239,7 +308,7 @@ class RFOperator_Patches_Insert(RFOperator):
     )
 
     actions : Actions
-    logic : Patches_Logic
+    logic : Patches_Logic | None
     bm : BMesh
     em : Mesh
     M : Matrix
@@ -248,29 +317,19 @@ class RFOperator_Patches_Insert(RFOperator):
     edit_scale : float
     snappable : list[BMVert]
     mode : Mode
+    mouse : Vector
+    orientation_data : OrientationData | None = None
+    grab_data : GrabData | None = None
+    rotate_data : RotateData | None = None
+    scale_data : ScaleData | None = None
 
     def init(self, context : Context, event : Event):
+        assert context.edit_object
+
         self.actions = Actions.get_instance(context)
-
-        print('-'*100)
-        print(self.__dict__.keys())
-        print('-'*100)
-        for name, prop in inspect.getmembers(self):
-            print(f'{name}: {prop} ({type(prop)})')
-        print('-'*100)
-        for name, prop in inspect.getmembers_static(self):
-            print(f'{name}: {prop} ({type(prop)})')
-        print('-'*100)
-        print(self.properties)
-        print(self.properties.bl_system_properties_get())
-        print(dir(self.properties.bl_system_properties_get()))
-        print('-'*100)
-
         self.km_context = 'ready'
-        print(type(self.km_context))
         RFTool_Patches.rf_brush.set_operator(self)
         RFTool_Patches.rf_brush.reset_nearest(context)
-        # RFTool_PolyStrips.rf_overlay.pause_overlay()
         self.logic = Patches_Logic(context)
 
         self.bm, self.em = get_bmesh_emesh(context)
@@ -280,7 +339,9 @@ class RFOperator_Patches_Insert(RFOperator):
         self.edit_scale = max(self.M.to_scale())
 
         self.snappable = [
-            bmv for bmv in self.bm.verts if not bmv.hide and (bmv.is_boundary or bmv.is_wire)
+            bmv
+            for bmv in self.bm.verts
+            if not bmv.hide and (bmv.is_boundary or bmv.is_wire)
         ]
 
         mouse = Vector((event.mouse_region_x, event.mouse_region_y))
@@ -291,49 +352,49 @@ class RFOperator_Patches_Insert(RFOperator):
         context.area.tag_redraw()
 
     def finish(self, context : Context):
-        del self.logic
+        self.logic = None
         self.set_statusbar_override(None)
         self.km_context = 'ready'
         RFTool_Patches.rf_brush.set_operator(None)
         RFTool_Patches.rf_brush.reset_nearest(context)
-        # RFTool_PolyStrips.rf_overlay.unpause_overlay()
 
     def reset(self):
         RFTool_Patches.rf_brush.reset()
-        pass
 
-    def update_orientation(self, context, event, *, point_screen=None):
+    def update_orientation(self, context : Context, _event : Event, *, point_screen : Vector | None = None):
         # force update if we don't have any orientation data
-        update_hit = False
-        update_hit |= not hasattr(self, 'orientation_data')
-        update_hit |= point_screen is not None
+        if not self.orientation_data or point_screen:
+            if not point_screen:
+                return
 
-        if not hasattr(self, 'orientation_data'):
             dir_right_local = (self.Mi @ direction_to_bvec4(view_right_direction(context))).xyz
             size = None
-        else:
-            dir_right_local = self.orientation_data['dir right local']
-            size = self.orientation_data['size']
-
-        if update_hit:
             hit = raycast_valid_sources(context, point_screen, respect_clip_planes=True)
-            if hit is None: return
+            if hit is None:
+                return
+
+            p = Vector((0, 0, 0))
+            z = Vector((0, 0, 0))
+
             match self.orientation:
                 case 'RAYCAST':
-                    ps = []
-                    zs = []
-                    dist_count = 1
-                    dist_sum = hit['distance']
+                    ps : list[Vector] = []
+                    zs : list[Vector] = []
+                    dist_count : int = 1
+                    dist_sum : float = hit['distance']
                     for i in range(100):
                         rad = 2.0 * pi * i / 100
                         p = point_screen + Vector((cos(rad) * self.scale, sin(rad) * self.scale))
                         nhit = raycast_valid_sources(context, p, respect_clip_planes=True)
-                        if not nhit: continue
+                        if not nhit:
+                            continue
                         sz = size2D_to_size(context, nhit['distance'])
-                        delta = nhit['distance'] - dist_sum / dist_count
+                        if sz is None:
+                            continue
+                        delta : float = nhit['distance'] - dist_sum / dist_count
                         toss = 'TOSS' if delta < -self.scale * sz else ''
                         rst = 'RESET' if delta > self.scale * sz else ''
-                        print(f'{nhit["distance"]:0.4f} {dist_sum/dist_count:0.4f} {delta:+0.4f} {self.scale*sz:0.4f} {toss or rst}')
+                        # print(f'{nhit["distance"]:0.4f} {dist_sum/dist_count:0.4f} {delta:+0.4f} {self.scale*sz:0.4f} {toss or rst}')
                         if delta < -self.scale * sz:
                             continue
                         if delta > self.scale * sz:
@@ -345,40 +406,53 @@ class RFOperator_Patches_Insert(RFOperator):
                         dist_sum += nhit['distance']
                         ps.append(nhit['co_world'])
                         zs.append(nhit['no_world'])
-                    if not zs:
+
+                    if not ps or not zs:
                         p = hit['co_world']
                         z = hit['no_world']
                     else:
                         p = sum(ps, Vector((0,0,0))) / len(ps)
                         z = sum(zs, Vector((0,0,0))).normalized()
+
                 case 'SCREEN':
                     p = hit['co_world']
-                    z = -direction_from_point(context, point_screen).xyz
+                    d = direction_from_point(context, point_screen)
+                    if not d:
+                        return
+                    z = -d.xyz
+
                 case _:
-                    warning = f'WARNING: UNHANDLED ORIENTATION: {self.compute_orientation}'
+                    warning = f'WARNING: UNHANDLED ORIENTATION: {self.orientation}'
                     if not hasattr(self, warning):
                         setattr(self, warning, True)
                         print(warning)
                     p = hit['co_world']
                     z = Vector((0,0,1))
+
             p_local = (self.Mi @ point_to_bvec4(p)).xyz
             z_local = (self.Mi @ direction_to_bvec4(z)).xyz
             if size is None:
                 size = size2D_to_size(context, hit['distance'])
+            if size is None:
+                return
         else:
-            hit = self.orientation_data['hit']
-            p_local = self.orientation_data['hit']['co_local']
-            z_local = self.orientation_data['z local']
+            hit = self.orientation_data.hit
+            dir_right_local = self.orientation_data.dir_right_local
+            size = self.orientation_data.size
+            p_local = self.orientation_data.co_local
+            z_local = self.orientation_data.z_local
             point_screen = location_3d_to_region_2d(context.region, context.region_data, hit['co_world'])
+            if not point_screen:
+                return
 
         fo = p_local
         fz = z_local.normalized()
         fy = fz.cross(dir_right_local).normalized()
         fx = fy.cross(fz).normalized()
-        frame = Frame(fo, fx, fy, fz)
+        frame = Frame(fo, x=fx, y=fy, z=fz)
         frame.rotate_about_z(self.rotate)
 
-        height = 0
+        height : float = 0
         for _ in range(100):
             nhit = None
             while not nhit:
@@ -386,58 +460,62 @@ class RFOperator_Patches_Insert(RFOperator):
                     x = random.random() * 2 - 1
                     y = random.random() * 2 - 1
                     if x*x + y*y <= 1: break
-                pt = point_screen + Vector((x, y)) * self.scale
+                pt : Vector = point_screen + Vector((x, y)) * self.scale
                 nhit = raycast_valid_sources(context, pt, respect_clip_planes=True)
             co = frame.w2l_point(nhit['co_local'])
             height = max(height, -co.z) * self.scale * size
-        print(f'{height:0.4f}')
+        # print(f'{height:0.4f}')
 
-        self.orientation_data = {
-            'hit': hit,
-            'frame': frame,
-            'mirror mult': Vector((
+        self.orientation_data = OrientationData(
+            hit = hit,
+            frame = frame,
+            mirror_mult = Vector((
                 1 if not self.mirror_x else -1,
                 1 if not self.mirror_y else -1,
                 1 if not self.mirror_z else -1,
             )),
-            'mirror offset': Vector((
+            mirror_offset = Vector((
                 0,
                 0,
                 0 if not self.mirror_z else Patches_Template.get_active_height()
             )),
-            'z local': z_local,
-            'dir right local': dir_right_local,
-            'height': height,
-            'size':   size,
-            'radius local': self.scale * size / self.edit_scale,
-            'radius world': self.scale * size,
-        }
+            z_local = z_local,
+            dir_right_local = dir_right_local,
+            height = height,
+            size = size,
+            radius_local = self.scale * size / self.edit_scale,
+            radius_world = self.scale * size,
+        )
 
         Patches_Template.update_active(self.xform, self.snap)
         context.area.tag_redraw()
 
-    def xform(self, p:Point, n:Normal) -> tuple[Point, Normal]:
-        if not self.orientation_data: return (p, n)
+    def xform(self, p:Point|Vector, n:Normal|Vector) -> tuple[Point|Vector, Normal|Vector]:
+        if not self.orientation_data:
+            return (p, n)
 
-        frame  = self.orientation_data['frame']
-        mirror = self.orientation_data['mirror mult']
-        offset = self.orientation_data['mirror offset']
-        radius = self.orientation_data['radius local']
-        height = self.orientation_data['height']
+        frame  = self.orientation_data.frame
+        mirror = self.orientation_data.mirror_mult
+        offset = self.orientation_data.mirror_offset
+        radius = self.orientation_data.radius_local
+        # height = self.orientation_data.height
 
-        o = Vector((0, 0, -height))
-        pt_local = frame.l2w_point(((p + o) * mirror + offset) * radius)
+        # o = Vector((0, 0, -height))
+        # pt_local = frame.l2w_point(((p + o) * mirror + offset) * radius)
 
         return (
             point_to_bvec3 (self.M   @ point_to_bvec4 (frame.l2w_point((p * mirror + offset) * radius))),
             normal_to_bvec3(self.Mit @ normal_to_bvec4(frame.l2w_normal(n * mirror))),
         )
 
-    def snap(self, ptnos:list[tuple[Point, Normal]], inds:list[int]):
-        radius = self.orientation_data['radius world']
-        threshold = self.snap_threshold
-        snappable = set(self.snappable)
-        working = set(inds)
+    def snap(self, ptnos:Sequence[tuple[Point|Vector, Normal|Vector]], inds:Sequence[int]):
+        if not self.orientation_data:
+            return
+
+        radius : float = self.orientation_data.radius_world
+        threshold : float = self.snap_threshold
+        snappable : set[BMVert] = set(self.snappable)
+        working : set[int] = set(inds)
         while working and snappable:
             best_dist = threshold  # set minimum distance threshold
             best_match = None
@@ -529,106 +607,133 @@ class RFOperator_Patches_Insert(RFOperator):
 
         return {'RUNNING_MODAL'}
 
-    def switch_to_grab(self, context, event):
+    def switch_to_grab(self, context : Context, event : Event):
+        assert self.orientation_data
+        pos_screen = location_3d_to_region_2d(context.region, context.region_data, self.M @ self.orientation_data.frame.o)
+        if not pos_screen:
+            return
+
         self.mode = Mode.GRAB
-        pos_screen = location_3d_to_region_2d(context.region, context.region_data, self.M @ self.orientation_data['frame'].o)
-        self.grab_data = {
-            'original': self.orientation_data,
-            'position': pos_screen,
-            'mouse': Vector((event.mouse_x, event.mouse_y)),
-        }
+        self.grab_data = GrabData(
+            original = self.orientation_data,
+            position = pos_screen,
+            mouse = Vector((event.mouse_x, event.mouse_y)),
+        )
         Cursors.set('HAND')
 
-    def update_grab(self, context, event) -> set[str]:
+    def update_grab(self, context : Context, event : Event) -> set[str]:
+        if not self.grab_data:
+            return {'CANCELLED'}
+
         if event.type in {'LEFTMOUSE', 'ESC', 'RIGHTMOUSE'}:
             if event.type in {'ESC', 'RIGHTMOUSE'}:
-                self.orientation_data = self.grab_data['original']
-            del self.grab_data
+                self.orientation_data = self.grab_data.original
+            self.grab_data = None
             self.switch_to_no_action(context, event)
             context.area.tag_redraw()
             self.tickle(context)
             return {'RUNNING_MODAL'}
 
         if event.type == 'MOUSEMOVE':
-            delta = Vector((event.mouse_x, event.mouse_y)) - self.grab_data['mouse']
-            pt = self.grab_data['position'] + delta
+            delta = Vector((event.mouse_x, event.mouse_y)) - self.grab_data.mouse
+            pt = self.grab_data.position + delta
             self.update_orientation(context, event, point_screen=pt)
             context.area.tag_redraw()
 
         return {'RUNNING_MODAL'}
 
-    def switch_to_rotate(self, context, event):
+    def switch_to_rotate(self, context : Context, event : Event):
+        assert self.orientation_data
+        pos_screen = location_3d_to_region_2d(context.region, context.region_data, self.M @ self.orientation_data.frame.o)
+        if not pos_screen:
+            return
+
         self.mode = Mode.ROTATE
-        pos_screen = location_3d_to_region_2d(context.region, context.region_data, self.M @ self.orientation_data['frame'].o)
-        self.rotate_data = {
-            'original': self.rotate,
-            'position': pos_screen,
-            'angle': atan2(event.mouse_region_y - pos_screen.y, event.mouse_region_x - pos_screen.x),
-            'mouse': Vector((event.mouse_x, event.mouse_y)),
-        }
+        self.rotate_data = RotateData(
+            original = self.rotate,
+            position = pos_screen,
+            angle = atan2(event.mouse_region_y - pos_screen.y, event.mouse_region_x - pos_screen.x),
+            mouse = Vector((event.mouse_x, event.mouse_y)),
+        )
         Cursors.set('CROSSHAIR')
 
-    def update_rotate(self, context, event) -> set[str]:
+    def update_rotate(self, context : Context, event : Event) -> set[str]:
+        if not self.rotate_data:
+            return {'CANCELLED'}
+
         if event.type in {'LEFTMOUSE', 'RIGHTMOUSE', 'ESC'}:
             if event.type in {'RIGHTMOUSE', 'ESC'}:
-                self.rotate = self.rotate_data['original']
+                self.rotate = self.rotate_data.original
                 self.update_orientation(context, event)
-            del self.rotate_data
+            self.rotate_data = None
             self.switch_to_no_action(context, event)
             context.area.tag_redraw()
             self.tickle(context)
             return {'RUNNING_MODAL'}
 
         if event.type == 'MOUSEMOVE':
-            delta = Vector((event.mouse_region_x, event.mouse_region_y)) - self.rotate_data['position']
+            delta = Vector((event.mouse_region_x, event.mouse_region_y)) - self.rotate_data.position
             cur_ang = atan2(delta.y, delta.x)
-            self.rotate = self.rotate_data['original'] + self.rotate_data['angle'] - cur_ang
+            self.rotate = self.rotate_data.original + self.rotate_data.angle - cur_ang
             self.update_orientation(context, event)
             context.area.tag_redraw()
 
         return {'RUNNING_MODAL'}
 
-    def switch_to_scale(self, context, event):
+    def switch_to_scale(self, context : Context, event : Event):
+        assert self.orientation_data
+        pos_screen = location_3d_to_region_2d(context.region, context.region_data, self.M @ self.orientation_data.frame.o)
+        if not pos_screen:
+            return
+
         self.mode = Mode.SCALE
-        pos_screen = location_3d_to_region_2d(context.region, context.region_data, self.M @ self.orientation_data['frame'].o)
-        self.scale_data = {
-            'original': self.scale,
-            'position': pos_screen,
-            'dist': (self.mouse - pos_screen).length,
-            'mouse': Vector((event.mouse_x, event.mouse_y)),
-        }
+        self.scale_data = ScaleData(
+            original = self.scale,
+            position = pos_screen,
+            dist = (self.mouse - pos_screen).length,
+            mouse = Vector((event.mouse_x, event.mouse_y)),
+        )
         Cursors.set('CROSSHAIR')
 
-    def update_scale(self, context, event) -> set[str]:
+    def update_scale(self, context : Context, event : Event) -> set[str]:
+        if not self.scale_data:
+            return {'CANCELLED'}
+
         if event.type in {'LEFTMOUSE', 'RIGHTMOUSE', 'ESC'}:
             if event.type in {'RIGHTMOUSE', 'ESC'}:
-                self.scale = self.scale_data['original']
+                self.scale = self.scale_data.original
                 self.update_orientation(context, event)
-            del self.scale_data
+            self.scale_data = None
             self.switch_to_no_action(context, event)
             context.area.tag_redraw()
             self.tickle(context)
             return {'RUNNING_MODAL'}
 
         if event.type == 'MOUSEMOVE':
-            delta = (self.mouse - self.scale_data['position']).length
-            self.scale = self.scale_data['original'] + delta - self.scale_data['dist']
+            delta = (self.mouse - self.scale_data.position).length
+            self.scale = self.scale_data.original + delta - self.scale_data.dist
             self.update_orientation(context, event)
             context.area.tag_redraw()
 
         return {'RUNNING_MODAL'}
 
-    def draw_postview(self, context):
-        if not self.orientation_data: return
+    # force RFCore to continue calling draw callbacks even when another operator
+    # is active (ex: orbiting view)
+    def draw_always(self) -> bool:
+        return True
+
+    def draw_postview(self, context : Context):
+        if not self.orientation_data:
+            return
 
         viewport_size = (context.region.width, context.region.height)
-        p = (self.M @ point_to_bvec4(self.orientation_data['frame'].o)).xyz
-        z = (self.M @ direction_to_bvec4(self.orientation_data['frame'].z)).xyz.normalized()
+        p = (self.M @ point_to_bvec4(self.orientation_data.frame.o)).xyz
+        z = (self.M @ direction_to_bvec4(self.orientation_data.frame.z)).xyz.normalized()
 
         # M = context.edit_object.matrix_world
         # edit_scale = max(M.to_scale())
-        height     = Patches_Template.get_active_height() * self.orientation_data['radius world']
-        max_radius = Patches_Template.get_active_radius() * self.orientation_data['radius world']
+        height     = Patches_Template.get_active_height() * self.orientation_data.radius_world
+        max_radius = Patches_Template.get_active_radius() * self.orientation_data.radius_world
 
         gpustate.blend('ALPHA')
         gpustate.depth_mask(False)
@@ -666,33 +771,30 @@ class RFOperator_Patches_Insert(RFOperator):
                 viewport_size=viewport_size,
             )
 
-
-
-
     def draw_postpixel(self, context : Context):
-        if not self.orientation_data: return
+        if not self.orientation_data:
+            return
 
         ####################################
         # draw patch
         props = RF_Prefs.get_prefs(context)
-        highlight = props.highlight_color
+        highlight : Color4 = props.highlight_color
         Patches_Template.draw_active(context, highlight)
 
         ####################################
         # draw mode (rotate / scale)
         if self.mode == Mode.ROTATE or self.mode == Mode.SCALE:
-            pos = location_3d_to_region_2d(context.region, context.region_data, self.M @ self.orientation_data['frame'].o)
+            pos = location_3d_to_region_2d(context.region, context.region_data, self.M @ self.orientation_data.frame.o)
+            if not pos:
+                return
             with Drawing.draw(context, CC_2D_LINES) as draw:
                 draw.color(Color4((1,1,1,1)))
                 draw.line_width(1)
                 draw.stipple(pattern=[5,5], offset=0, color=Color4((1,1,1,0)))
                 draw.vertex(pos).vertex(self.mouse)
 
-    def process_stroke(self, context, radius2D, snap_distance, stroke2D, stroke3D, is_cycle, snapped_geo, snapped_mirror):
-        print('PROCESS!')
 
 
-# @add_cache('active', {'asset identifier': None, 'library identifier': None, 'library type': None})
 @execute_operator('patches_activate_template', 'Patches: Activate Template from Asset Shelf')
 def activate_template(self : Operator, context : Context):
     Patches_Template.activate(
@@ -703,18 +805,18 @@ def activate_template(self : Operator, context : Context):
     )
 
 class RFAssetShelf_Patches(RFAssetShelf):
-    bl_idname = 'VIEW3D_AST_Retopoflow_Patches' #'retopoflow.patches'
-    bl_category = 'Patches Templates'
+    bl_idname : str = 'VIEW3D_AST_Retopoflow_Patches' #'retopoflow.patches'
+    bl_category : str = 'Patches Templates'
 
-    bl_activate_operator = 'retopoflow.patches_activate_template'
-    # bl_drag_operator = "retopoflow.patches_drag_template"
+    bl_activate_operator : str = 'retopoflow.patches_activate_template'
+    bl_drag_operator : str = "retopoflow.patches_drag_template"
 
-    bl_default_preview_size = 128   # show assets fairly large by default
-    filter_object = True            # Filter to only show object assets (asset_poll filters further)
-    show_names = True               # TODO: does not work???
+    bl_default_preview_size : int = 128  # show assets fairly large by default
+    filter_object : bool = True          # Filter to only show object assets (asset_poll filters further)
+    show_names : bool = True             # TODO: does not work???
 
     @classmethod
-    def poll(cls, context : Context):
+    def poll(cls, context : Context) -> bool:
         # active asset is lost when asset shelf is hidden!
         # also, the 3D View jumps if region overlap is False
         # return not RFOperator_Patches_Insert.is_active()
@@ -729,7 +831,8 @@ class RFAssetShelf_Patches(RFAssetShelf):
     @classmethod
     def can_start(cls, context : Context) -> bool:
         RFCore = RFGlobals.RFCore_None
-        if not RFCore: return False
+        if not RFCore:
+            return False
         return RFCore.selected_RFTool_idname == RFTool_Patches.bl_idname
 
 
@@ -750,7 +853,7 @@ class RFTool_Patches(RFTool_Base):
         # RFOperator_PatchesBrush_Adjust,
     )
 
-    rf_brush : RFBrush_Base | None = RFBrush_Patches()
+    rf_brush : RFBrush_Patches = RFBrush_Patches()
 
     @staticmethod
     def draw_settings(context : Context, layout : UILayout, tool : WorkSpaceTool):
@@ -778,40 +881,49 @@ class RFTool_Patches(RFTool_Base):
             draw_help_panel(context, layout)
 
     @classmethod
-    def activate(cls, context):
+    def activate(cls, context : Context):
         cls.resetter = Resetter('Patches')
-        space_data = context.space_data
-        asset_libs = context.preferences.filepaths.asset_libraries
-        def delayed_settings(attempts=3):
-            nonlocal cls, space_data, asset_libs
+
+        attempts = 3
+
+        @BPY_Timers.register(first_interval=0.25)
+        def delayed_settings(): # pyright: ignore[reportUnusedFunction]
+            nonlocal attempts
+
+            assert cls.resetter
+
+            space_data = context.space_data
+            asset_libs = context.preferences.filepaths.asset_libraries
+
             if 'Retopoflow Patches Templates' not in asset_libs:
-                bpy.types.AssetLibraryCollection.new(
+                _ = bpy.types.AssetLibraryCollection.new(
                     name="Retopoflow Patches Templates",
                     directory=ASSETS_PATH,
                 )
                 # asset_libs['Retopoflow Assets'].import_method = 'LINK'
-            if not hasattr(space_data, 'show_region_asset_shelf'):
-                # this can happen if context is not quite right, so find space that we can
-                # ex: after saving
-                return
-            try:
-                assert cls.resetter
-                cls.resetter['space_data.show_region_asset_shelf'] = True
-            except:
-                if attempts > 0:
-                    bpy.app.timers.register(lambda:delayed_settings(attempts-1), first_interval=0.25)
-        bpy.app.timers.register(delayed_settings, first_interval=0.25)
+
+            # this can happen if context is not quite right, so find space that we can
+            # ex: after saving
+            if hasattr(space_data, 'show_region_asset_shelf'):
+                try:
+                    cls.resetter['space_data.show_region_asset_shelf'] = True
+                    return
+                except Exception as _exception:
+                    pass
+
+            attempts -= 1
+            return 0.25 if attempts > 0 else None
+
         Patches_Template.activate(context, None, None, None)  # asset shelf will have nothing selected initially
         #return super().activate(context)
 
     @classmethod
     def deactivate(cls, context : Context):
-        if not cls.resetter:
-            return
-        cls.resetter.reset()
+        if cls.resetter:
+            cls.resetter.reset()
 
 @execute_operator('switch_to_patches', 'RetopoFlow: Switch to Patches', fn_poll=poll_retopoflow)
-def switch_rftool(context):
+def switch_rftool(context : Context):
     RFTool_Patches.activate_tool(context)
 
 
@@ -871,13 +983,22 @@ def switch_rftool(context):
 #         return {'FINISHED'}
 
 
-class RFOperator_Patches_Drag_template(RFOperator):
-    bl_idname = 'retopoflow.patches_drag_template'
-    bl_label = 'Patches: Drag in template'
-    bl_description = 'Add template'
-    bl_options = set()
+class Orientations(Enum):
+    SCREEN = 0
+    NORMAL = 1
+    PERPENDICULAR_Y_POSITIVE = 2
+    PERPENDICULAR_Y_NEGATIVE = 3
+    PERPENDICULAR_X_POSITIVE = 4
+    PERPENDICULAR_X_NEGATIVE = 5
 
-    rf_status = {
+
+class RFOperator_Patches_Drag_template(RFOperator):
+    bl_idname : str = 'retopoflow.patches_drag_template'
+    bl_label : str = 'Patches: Drag in template'
+    bl_description : str = 'Add template'
+    bl_options : set[str] = set()
+
+    rf_status : dict[str,tuple[str,...]] = {
         'ready': ('LMB: Insert', ),
         'insert': ('RMB: Cancel', )
     }
@@ -896,48 +1017,65 @@ class RFOperator_Patches_Drag_template(RFOperator):
     asset_library_identifier: bpy.props.StringProperty() # = 'CUSTOM'
     relative_asset_identifier: bpy.props.StringProperty()
 
-    ORIENTATIONS = [
-        'screen',
-        'normal',
-        'perpendicular_y_positive',
-        'perpendicular_y_negative',
-        'perpendicular_x_positive',
-        'perpendicular_x_negative',
-    ]
+    vc : int
+    ec : int
+    fc : int
+    vps : list[Vector]
+    vns : list[Vector]
+    vcs : list[float]
+    ves : dict[int, dict[int, float]]
+    es : list[tuple[int, ...]]
+    fs : list[tuple[int, ...]]
 
-    def init(self, context, event):
+    mouse : Vector
+    mouse_hit : dict[str,tuple[Vector,Vector]|float|int|object|Vector|Sequence[float]] | None
+    mouse_ray : tuple[Vector, Vector] | tuple[None, None]
+
+    scale : float
+    rotate : float
+    time : float
+    orientation : Orientations
+
+    def init(self, context : Context, event : Event):
         print(f"Dragging asset: {self.relative_asset_identifier}")
         print(f"From library: {self.asset_library_identifier} ({self.asset_library_type})")
-        if self.asset_library_type == 'LOCAL':
-            obj_name = self.relative_asset_identifier.split('/')[1]
-            mesh = bpy.data.objects[obj_name].data
-            # TODO: rescale mesh
-            self.vc, self.ec, self.fc = len(mesh.vertices), len(mesh.edges), len(mesh.polygons)
-            self.vps = [ Vector(v.co) for v in mesh.vertices ]
-            self.vns = [ Vector(v.normal) for v in mesh.vertices ]
-            self.vcs = [ 1.0 for _ in mesh.vertices ]
-            self.es = [ tuple(e.vertices) for e in mesh.edges ]
-            self.fs = [ tuple(f.vertices) for f in mesh.polygons ]
-        else:
-            fn = os.path.split(self.relative_asset_identifier)[1]
-            path = os.path.join(ASSETS_PATH, f'{fn}.template')
-            print(f'PATH: {path}')
 
-            with open(path, 'rt') as f:
-                self.vc, self.ec, self.fc = map(int, f.readline().split(' '))
-                # px,py,pz, nx,ny,nz, outside (crease)
-                verts = [list(map(float, f.readline().split(' '))) for _ in range(self.vc)]
-                self.vps = [ Vector(v[0:3]) for v in verts ]
-                self.vns = [ Vector(v[3:6]) for v in verts ]
-                self.vcs = [ v[6] > 0.001   for v in verts ]
-                self.es = [
-                    tuple(int(v) for v in f.readline().split(' '))
-                    for _ in range(self.ec)
-                ]
-                self.fs = [
-                    tuple(int(v) for v in f.readline().split(' '))
-                    for _ in range(self.fc)
-                ]
+        match str(self.asset_library_type):
+            case 'ALL' | 'ESSENTIALS' | 'CUSTOM':
+                fn = os.path.split(str(self.relative_asset_identifier))[1]
+                path = os.path.join(ASSETS_PATH, f'{fn}.template')
+                print(f'PATH: {path}')
+
+                with open(path, 'rt') as f:
+                    self.vc, self.ec, self.fc = map(int, f.readline().split(' '))
+                    # px,py,pz, nx,ny,nz, outside (crease)
+                    verts = [list(map(float, f.readline().split(' '))) for _ in range(self.vc)]
+                    self.vps = [ Vector(v[0:3]) for v in verts ]
+                    self.vns = [ Vector(v[3:6]) for v in verts ]
+                    self.vcs = [ v[6] > 0.001   for v in verts ]
+                    self.es = [
+                        tuple(int(v) for v in f.readline().split(' '))
+                        for _ in range(self.ec)
+                    ]
+                    self.fs = [
+                        tuple(int(v) for v in f.readline().split(' '))
+                        for _ in range(self.fc)
+                    ]
+
+            case 'LOCAL':
+                obj_name = str(self.relative_asset_identifier).split('/')[1]
+                mesh : Mesh = cast(Mesh, bpy.data.objects[obj_name].data)
+                # TODO: rescale mesh
+                self.vc, self.ec, self.fc = len(mesh.vertices), len(mesh.edges), len(mesh.polygons)
+                self.vps = [ Vector(v.co) for v in mesh.vertices ]
+                self.vns = [ Vector(v.normal) for v in mesh.vertices ]
+                self.vcs = [ 1.0 for _ in mesh.vertices ]
+                self.es = [ tuple(e.vertices) for e in mesh.edges ]
+                self.fs = [ tuple(f.vertices) for f in mesh.polygons ]
+
+            case _:
+                assert False, f'Unhandled asset library type {self.asset_library_type}'
+
 
         self.setup_springs()
 
@@ -946,9 +1084,10 @@ class RFOperator_Patches_Drag_template(RFOperator):
         self.scale = 0.1
         self.rotate = 0.0
         self.time = time.time()
-        self.orientation = self.ORIENTATIONS[0]
+        self.orientation = Orientations.SCREEN
 
-        context.space_data.show_region_asset_shelf = False
+        if isinstance(context.space_data, SpaceView3D):
+            context.space_data.show_region_asset_shelf = False
 
     def setup_springs(self):
         self.ves = { v:{} for v in range(self.vc) }
@@ -981,90 +1120,104 @@ class RFOperator_Patches_Drag_template(RFOperator):
             avg = sum(self.ves[v].values()) / len(self.ves[v])
             self.ves[v] = { ov: d / avg for (ov, d) in self.ves[v].items() }
 
-    def compute_orientation(self, context, *, world=True):
-        if not self.mouse_hit: return None
-        if not self.mouse_ray or not self.mouse_ray[1]: return None
+    def compute_orientation(self, context : Context, *, world : bool = True) -> Vector | None:
+        if not self.mouse_hit:
+            return None
+        if not self.mouse_ray or not self.mouse_ray[1]:
+            return None
+
+        z : Vector
+        back : Vector = self.mouse_hit['no_world']
         match self.orientation:
-            case 'screen':
+            case Orientations.SCREEN:
                 z = -self.mouse_ray[1].xyz
-            case 'normal':
+
+            case Orientations.NORMAL:
                 z = self.mouse_hit['no_world']
-            case 'perpendicular_y_positive':
+
+            case Orientations.PERPENDICULAR_Y_POSITIVE:
                 up = view_up_direction(context)
-                back = self.mouse_hit['no_world']
                 z = up.cross(back).normalized()
-            case 'perpendicular_y_negative':
+
+            case Orientations.PERPENDICULAR_Y_NEGATIVE:
                 up = view_up_direction(context)
-                back = self.mouse_hit['no_world']
                 z = back.cross(up).normalized()
-            case 'perpendicular_x_positive':
+
+            case Orientations.PERPENDICULAR_X_POSITIVE:
                 right = view_right_direction(context)
-                back = self.mouse_hit['no_world']
                 z = right.cross(back).normalized()
-            case 'perpendicular_x_negative':
+
+            case Orientations.PERPENDICULAR_X_NEGATIVE:
                 right = view_right_direction(context)
-                back = self.mouse_hit['no_world']
                 z = back.cross(right).normalized()
+
             case _:
                 assert False, f'Unhandled orientation: {self.orientation}'
+
         if not world:
             Mi = context.edit_object.matrix_world.inverted_safe()
             return (Mi @ direction_to_bvec4(z)).xyz
+
         return z
 
-    def compute_points(self, context):
-        if not self.mouse_hit: return [ [None, None] for v in self.vps ]
+    def compute_points(self, context : Context) -> list[list[Vector|None]]:
+        if not self.mouse_hit:
+            return [ [None, None] for _v in self.vps ]
+        if not context.edit_object:
+            return [ [None, None] for _v in self.vps ]
 
         M = context.edit_object.matrix_world
         Mi = M.inverted_safe()
         Mit = Mi.transposed()
-        Mt = M.transposed()
+        # Mt = M.transposed()
 
-        fo = self.mouse_hit['co_local']
+        fo : Vector = self.mouse_hit['co_local']
         fz = self.compute_orientation(context)
+        if not fz:
+            return [ [None, None] for _v in self.vps ]
         fz = (M @ direction_to_bvec4(fz)).xyz
 
         fx = view_up_direction(context).cross(fz).normalized()
         fy = fz.cross(fx).normalized()
-        f = Frame(fo, fx, fy, fz)
+        f = Frame(fo, x=fx, y=fy, z=fz)
         f.rotate_about_z(self.rotate)
 
-        def xform(f, p, n, c):
+        def xform(f : Frame, p : Vector, n : Vector, _c : float) -> list[Vector|None]:
             # transform v
             p = M @ f.l2w_point(p * self.scale)
             n = Mit @ f.l2w_normal(n)
             return [p,n]
 
-            # raycast to surface
-            if not c:
-                pt, no = p, n
-            else:
-                pt, no = None, None
-                p2d = location_3d_to_region_2d(context.region, context.region_data, p)
-                if p2d:
-                    hit = raycast_valid_sources(context, p2d, respect_clip_planes=True)
-                    if hit:
-                        pt, no = hit['co_local'], hit['no_local']
-                    else:
-                        pt, no = None, None
-                if not pt or not no:
-                    pt, no = nearest_point_normal_valid_sources(context, p)
+            # # raycast to surface
+            # if not c:
+            #     pt, no = p, n
+            # else:
+            #     pt, no = None, None
+            #     p2d = location_3d_to_region_2d(context.region, context.region_data, p)
+            #     if p2d:
+            #         hit = raycast_valid_sources(context, p2d, respect_clip_planes=True)
+            #         if hit:
+            #             pt, no = hit['co_local'], hit['no_local']
+            #         else:
+            #             pt, no = None, None
+            #     if not pt or not no:
+            #         pt, no = nearest_point_normal_valid_sources(context, p)
 
-            return [point_to_bvec4(pt), normal_to_bvec4(no)]
+            # return [point_to_bvec4(pt), normal_to_bvec4(no)]
 
-        def nearest(pt, no):
+        def nearest(pt : Vector, _no : Vector) -> Vector | None:
             return pt
-            closest_dist = float('inf')
-            closest_pt = None
-            for m in [-1.0, -0.5, -0.25, -0.1, 0, 0.1, 0.25, 0.5, 1.0]:
-                p = pt.xyz + no.xyz * (self.scale * m)
-                npt, nno = nearest_point_normal_valid_sources(context, p)
-                dot = no.xyz.dot(nno)
-                dist = (pt.xyz - npt.xyz).length * abs(dot)
-                if dot < 0: dist += 1.0
-                if dist < closest_dist:
-                    closest_pt, closest_dist = npt, dist
-            return closest_pt
+            # closest_dist = float('inf')
+            # closest_pt = None
+            # for m in [-1.0, -0.5, -0.25, -0.1, 0, 0.1, 0.25, 0.5, 1.0]:
+            #     p = pt.xyz + no.xyz * (self.scale * m)
+            #     npt, nno = nearest_point_normal_valid_sources(context, p)
+            #     dot = no.xyz.dot(nno)
+            #     dist = (pt.xyz - npt.xyz).length * abs(dot)
+            #     if dot < 0: dist += 1.0
+            #     if dist < closest_dist:
+            #         closest_pt, closest_dist = npt, dist
+            # return closest_pt
 
 
         # transform points
@@ -1092,44 +1245,44 @@ class RFOperator_Patches_Drag_template(RFOperator):
 
         return ptnos
 
-        # relax
-        iterations = 100
-        time_step  = 0.01
-        spring_k = 0.05     # spring stiffness
-        spring_b = 0.95     # spring restitution
-        vel = [ Vector((0,0,0)) for v in self.ves ]
-        for iloop in range(iterations):
-            acc = [ Vector((0,0,0)) for v in self.ves ]
-            for v in self.ves:
-                if not self.ves[v]: continue
-                if self.vcs[v]: continue
-                if ptnos[v][0] is None: continue
-                good = { o:r for (o,r) in self.ves[v].items() if ptnos[o][0] is not None }
-                avg = sum((ptnos[v][0] - ptnos[o][0]).length for o in good) / len(good)
-                if avg < 0.00001: continue
-                for (o, rest_dist) in good.items():
-                    if ptnos[o][0] is None: continue
-                    delta_pos = (ptnos[o][0] - ptnos[v][0]).xyz
-                    delta_dist = delta_pos.length / avg - rest_dist
-                    delta_dir = delta_pos.normalized()
-                    delta_vel = delta_dir.dot(vel[o] - vel[v])
-                    force_magnitude = delta_dist * spring_k - delta_vel * spring_b
-                    force_vector = delta_dir * force_magnitude
-                    acc[v] += force_vector
-                    acc[o] -= force_vector
-            for v in self.ves:
-                vel[v] += acc[v] * time_step
-                ppt = ptnos[v][0]
-                npt = ppt + vector_to_bvec4(vel[v] * time_step) + vector_to_bvec4(acc[v] * (0.5 * time_step * time_step))
-                if self.vcs[v] or True:
-                    npt = nearest(npt, ptnos[v][1]) # nearest_point_valid_sources(context, npt.xyz)
-                    npt = ppt.xyz + (npt.xyz - ppt.xyz) * (iloop / (iterations-1))
-                ptnos[v][0] = point_to_bvec4(npt)
-                vel[v] = npt.xyz - ppt.xyz
+        # # relax
+        # iterations = 100
+        # time_step  = 0.01
+        # spring_k = 0.05     # spring stiffness
+        # spring_b = 0.95     # spring restitution
+        # vel = [ Vector((0,0,0)) for v in self.ves ]
+        # for iloop in range(iterations):
+        #     acc = [ Vector((0,0,0)) for v in self.ves ]
+        #     for v in self.ves:
+        #         if not self.ves[v]: continue
+        #         if self.vcs[v]: continue
+        #         if ptnos[v][0] is None: continue
+        #         good = { o:r for (o,r) in self.ves[v].items() if ptnos[o][0] is not None }
+        #         avg = sum((ptnos[v][0] - ptnos[o][0]).length for o in good) / len(good)
+        #         if avg < 0.00001: continue
+        #         for (o, rest_dist) in good.items():
+        #             if ptnos[o][0] is None: continue
+        #             delta_pos = (ptnos[o][0] - ptnos[v][0]).xyz
+        #             delta_dist = delta_pos.length / avg - rest_dist
+        #             delta_dir = delta_pos.normalized()
+        #             delta_vel = delta_dir.dot(vel[o] - vel[v])
+        #             force_magnitude = delta_dist * spring_k - delta_vel * spring_b
+        #             force_vector = delta_dir * force_magnitude
+        #             acc[v] += force_vector
+        #             acc[o] -= force_vector
+        #     for v in self.ves:
+        #         vel[v] += acc[v] * time_step
+        #         ppt = ptnos[v][0]
+        #         npt = ppt + vector_to_bvec4(vel[v] * time_step) + vector_to_bvec4(acc[v] * (0.5 * time_step * time_step))
+        #         if self.vcs[v] or True:
+        #             npt = nearest(npt, ptnos[v][1]) # nearest_point_valid_sources(context, npt.xyz)
+        #             npt = ppt.xyz + (npt.xyz - ppt.xyz) * (iloop / (iterations-1))
+        #         ptnos[v][0] = point_to_bvec4(npt)
+        #         vel[v] = npt.xyz - ppt.xyz
 
-        return ptnos
+        # return ptnos
 
-    def draw_postview(self, context):
+    def draw_postview(self, context : Context):
         if not self.mouse_hit or not self.mouse_ray[1]: return
 
         viewport_size = (context.region.width, context.region.height)
@@ -1190,24 +1343,24 @@ class RFOperator_Patches_Drag_template(RFOperator):
         # project to screen
         pts = [ location_3d_to_region_2d(context.region, context.region_data, pt) if pt else None for (pt,no) in ptnos ]
 
-        theme = context.preferences.themes[0].view_3d
+        theme : ThemeView3D = context.preferences.themes[0].view_3d
         props = RF_Prefs.get_prefs(context)
-        highlight = props.highlight_color
+        highlight : Color4 = props.highlight_color
 
         color_point =               Color4((highlight[0], highlight[1], highlight[2], 1))
         color_border_transparent =  Color4((highlight[0], highlight[1], highlight[2], 0))
         color_border_mesh =         Color4((theme.edge_select[0], theme.edge_select[1], theme.edge_select[2], 1))
         color_border_open =         Color4((highlight[0], highlight[1], highlight[2], 1.0))
         color_stipple =             Color4((theme.face_select[0], theme.face_select[1], theme.face_select[2], 0))
-        color_mesh = theme.face_select
+        color_mesh  = theme.face_select
         vertex_size = theme.vertex_size
 
         with Drawing.draw(context, CC_2D_POINTS) as draw:
             draw.point_size(vertex_size + 4)
             draw.color(color_point)
             for pt in pts:
-                if not pt: continue
-                draw.vertex(pt)
+                if pt:
+                    _ = draw.vertex(pt)
 
         with Drawing.draw(context, CC_2D_LINES) as draw:
             draw.line_width(2)
@@ -1215,26 +1368,26 @@ class RFOperator_Patches_Drag_template(RFOperator):
             draw.color(color_border_mesh)
             for (e0,e1) in self.es:
                 pt0, pt1 = pts[e0], pts[e1]
-                if not pt0 or not pt1: continue
-                draw.vertex(pt0).vertex(pt1)
+                if pt0 and pt1:
+                    _ = draw.vertex(pt0).vertex(pt1)
             draw.line_width(1)
             draw.stipple(pattern=[5,0], offset=0, color=color_stipple)
             for f in self.fs:
                 if not all(pts[i] for i in f): continue
                 for (e0, e1) in iter_pairs(f, True):
                     pt0, pt1 = pts[e0], pts[e1]
-                    if not pt0 or not pt1: continue
-                    draw.vertex(pt0).vertex(pt1)
+                    if pt0 and pt1:
+                        _ = draw.vertex(pt0).vertex(pt1)
 
         with Drawing.draw(context, CC_2D_TRIANGLES) as draw:
             draw.color(color_mesh)
             for f in self.fs:
-                if not all(pts[i] for i in f): continue
                 v0 = f[0]
                 pt0 = pts[v0]
                 for (v1, v2) in iter_pairs(f[1:], False):
                     pt1, pt2 = pts[v1], pts[v2]
-                    draw.vertex(pt0).vertex(pt1).vertex(pt2)
+                    if pt0 and pt1 and pt2:
+                        _ = draw.vertex(pt0).vertex(pt1).vertex(pt2)
 
         gpustate.blend('ALPHA')
         Drawing.draw2D_smooth_circle(context, self.mouse, self.scale, Color4((1,1,0,1)), width=3)
@@ -1242,32 +1395,33 @@ class RFOperator_Patches_Drag_template(RFOperator):
         gpustate.blend('NONE')
 
 
-    def update(self, context, event):
+    def update(self, context : Context, event : Event):
         self.mouse = Vector((event.mouse_region_x, event.mouse_region_y))
         self.mouse_hit = raycast_valid_sources(context, self.mouse, respect_clip_planes=True)
         self.mouse_ray = ray_from_mouse(context, event)
 
         if event.type == 'ESC' and event.value == 'PRESS':
-            context.space_data.show_region_asset_shelf = True
+            if isinstance(context.space_data, SpaceView3D):
+                context.space_data.show_region_asset_shelf = True
             return {'CANCELLED'}
 
         if event.type == 'LEFTMOUSE' and event.value == 'RELEASE':
-            print(f'DONE!')
+            print('DONE!')
 
             if self.mouse_hit is not None:
                 ptnos = self.compute_points(context)
                 bm, em = get_bmesh_emesh(context, ensure_lookup_tables=True)
-                bmvs = [ bm.verts.new(pt.xyz) if pt else None for (pt, _) in ptnos ]
-                bmes = [
-                    bm.edges.new((bmvs[i0],bmvs[i1]))
-                    for (i0,i1) in self.es
-                    if all([bmvs[i0] is not None, bmvs[i1] is not None])
+                bmvs : list[BMVert | None] = [
+                    bm.verts.new(pt.xyz) if pt else None for (pt, _) in ptnos
                 ]
-                bmfs = [
-                    bm.faces.new((bmvs[i] for i in f))
-                    for f in self.fs
-                    if all(bmvs[i] is not None for i in f)
-                ]
+                for (i0, i1) in self.es:
+                    bmv0, bmv1 = bmvs[i0], bmvs[i1]
+                    if bmv0 and bmv1:
+                        _ = bm.edges.new((bmv0, bmv1))
+                for inds in self.fs:
+                    bmf_bmvs : list[BMVert] = [ bmv for i in inds if (bmv := bmvs[i]) ]
+                    if len(inds) == len(bmf_bmvs):
+                        _ = bm.faces.new(bmf_bmvs)
                 bmops.deselect_all(bm)
                 for v in bmvs:
                     if v is not None: bmops.select(bm, v)
@@ -1286,10 +1440,11 @@ class RFOperator_Patches_Drag_template(RFOperator):
             if event.type == 'TWO':
                 self.rotate -= 0.1
             if event.type == 'O':
-                n = len(self.ORIENTATIONS)
-                i = self.ORIENTATIONS.index(self.orientation)
+                orientations = list(Orientations)
+                n = len(orientations)
+                i = orientations.index(self.orientation)
                 o = 1 if not event.shift else n - 1
-                self.orientation = self.ORIENTATIONS[(i + o) % n]
+                self.orientation = orientations[(i + o) % n]
 
         context.area.tag_redraw()
         return {'RUNNING_MODAL'}

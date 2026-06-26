@@ -1,5 +1,5 @@
 import bpy
-
+from bpy.types import Context, bpy_struct
 
 def draw_keymap_options(layout, keymap_item):
     if not keymap_item:
@@ -66,7 +66,7 @@ def show_message(message: str, title: str, icon: str = "INFO"):
     bpy.context.window_manager.popup_menu(popup_handler, title=title, icon=icon)
 
 
-def update_toolbar(self, context):
+def update_toolbar():
     from ..rftool_base import RFTool_Base
     RFTool_Base.unregister_all()
     RFTool_Base.register_all()

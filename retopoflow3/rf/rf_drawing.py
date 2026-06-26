@@ -38,7 +38,7 @@ from ...addon_common.common.profiler import profiler
 from ...addon_common.common.debug import tprint
 from ...addon_common.common.fsm import FSM
 from ...addon_common.common.hasher import Hasher
-from ...addon_common.common.maths import Point, Point2D, Vec2D, XForm, clamp
+from ...addon_common.common.maths import Point, Point2D, Vec2D, clamp
 from ...addon_common.common.maths import matrix_normal, Direction
 from ...addon_common.terminal.term_printer import sprint
 from ...config.options import options, visualization

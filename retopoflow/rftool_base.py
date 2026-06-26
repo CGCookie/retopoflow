@@ -37,10 +37,12 @@ class RFTool_Base(WorkSpaceTool):
     bl_space_type : str = 'VIEW_3D'
     bl_context_mode : str = 'EDIT_MESH'
     bl_keymap : BLKeyMaps = ()
+
     rf_idname : str = 'unlabeled'
     rf_brush : RFBrush_Base | None = None
     rf_overlay : type[RFOverlay_Base] | None = None
-    resetter : Resetter | None = None
+
+    resetter : ClassVar[Resetter | None] = None
 
     _subclasses : list[type[RFTool_Base]] = []
     def __init_subclass__(cls, **kwargs):

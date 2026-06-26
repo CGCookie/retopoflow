@@ -30,9 +30,9 @@ from bmesh.types import BMesh
 from mathutils import Vector, Matrix
 
 from .maths import (
-    Point, Direction, Normal, Frame,
+    Point, Direction, Normal,
     Point2D, Vec2D, Direction2D,
-    Ray, XForm, BBox, Plane,
+    Ray, BBox, Plane,
     Color
 )
 

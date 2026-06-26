@@ -426,7 +426,7 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
         bmverts = self.get_selected_verts()
         opts = {}
         opts['bmverts'] = [(bmv, self.Point_to_Point2D(bmv.co)) for bmv in bmverts]
-        opts['center'] = RelPoint2D.average(co for _,co in opts['bmverts'])
+        opts['center'] = Point2D.average(co for _,co in opts['bmverts'])
         opts['rotate_x'] = Direction2D(self.actions.mouse - opts['center'])
         opts['rotate_y'] = Direction2D((-opts['rotate_x'].y, opts['rotate_x'].x))
         opts['move_done_pressed'] = 'confirm'
@@ -521,7 +521,7 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
         bmverts = self.get_selected_verts()
         opts = {}
         opts['bmverts'] = [(bmv, self.Point_to_Point2D(bmv.co)) for bmv in bmverts]
-        opts['center'] = RelPoint2D.average(co for _,co in opts['bmverts'])
+        opts['center'] = Point2D.average(co for _,co in opts['bmverts'])
         opts['start_dist'] = (self.actions.mouse - opts['center']).length
         opts['move_done_pressed'] = 'confirm'
         opts['move_done_released'] = None

@@ -39,7 +39,7 @@ from ..common.maths import view_forward_direction
 from ..common.operator import (
     execute_operator,
     RFOperator, RFRegisterClass, RFOperator_Execute, RFKeyMaps, BLKeyMaps,
-    chain_rf_keymaps, wrap_property, poll_retopoflow,
+    chain_rf_keymaps, poll_retopoflow,
 )
 from ..common.raycast import (
     raycast_valid_sources,

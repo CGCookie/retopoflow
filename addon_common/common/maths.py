@@ -24,20 +24,19 @@ from __future__ import annotations
 import re
 import random
 import numpy as np
-from math import sqrt, acos, cos, sin, floor, ceil, isinf, sqrt, pi, isnan
-from typing import List, ClassVar
+from math import sqrt, acos, cos, sin, floor, ceil, isinf, pi
+from typing import ClassVar, Self, Final, cast
+from collections.abc import Sequence, Iterator
 from itertools import combinations
+from functools import singledispatchmethod
 
 import gpu
 from mathutils import Matrix, Vector, Quaternion
-from bmesh.types import BMVert, BMFace
-from mathutils.geometry import intersect_line_plane, intersect_point_tri, intersect_point_tri_2d
+from bmesh.types import BMVert, BMEdge, BMFace
+from mathutils.geometry import intersect_point_tri, intersect_point_tri_2d
 
 from .colors import colorname_to_color
-from .decorators import stats_wrapper
 from .profiler import profiler
-
-from ..terminal import term_printer
 
 '''
 The types below wrap the mathutils.Vector class, distinguishing among the
@@ -51,19 +50,12 @@ zero_threshold = 0.0000001
 
 
 class Entity2D:
-    def is_2D(self):
-        return True
-
-    def is_3D(self):
-        return False
-
+    def is_2D(self): return True
+    def is_3D(self): return False
 
 class Entity3D:
-    def is_2D(self):
-        return False
-
-    def is_3D(self):
-        return True
+    def is_2D(self): return False
+    def is_3D(self): return True
 
 
 class VecUtils(Vector):
@@ -71,47 +63,48 @@ class VecUtils(Vector):
     def new_from_vector(cls, v):
         return cls(v) if v else None
 
-    def normalize(self):
+    def normalize(self) -> Vector:
         super().normalize()
         return self
 
     def as_vector(self):
         return Vector(self)
 
-    def from_vector(self, v):
-        self.x, self.y, self.z = v
+    def from_vector(self, v : Vector | Sequence[float]):
+        x, y, z, *_ = v
+        self.x = x
+        self.y = y
+        self.z = z
 
     def perpendicular_direction(self):
         q0 = Quaternion(Vector((42, 1.618034, 2.71828)), 1.5707963)
         q1 = Quaternion(Vector((1.41421, 2, 1.73205)), -1.5707963)
-        v = q1 * q0 * self
+        v = q1 @ q0 @ self
         return Direction(self.cross(v))
 
-    def cross(self, other):
-        t = type(other)
-        if t is Vector:
-            return Vec(super().cross(other))
-        if t is Vec or t is Direction or t is Normal:
-            return Vec(super().cross(Vector(other)))
-        assert False, 'unhandled type of other: %s (%s)' % (str(other), str(t))
+    def cross(self, other : Vec | Direction | Normal | Vector | Sequence[float]) -> Vec:
+        match other:
+            case Vec() | Direction() | Normal():
+                return Vec(cast(Vector, super().cross(Vector(other))))
+            case Vector():
+                return Vec(cast(Vector, super().cross(other)))
+            case list() | tuple():
+                return Vec(cast(Vector, super().cross(Vector(other))))
+            case _:
+                assert False, f'Unhandled type {type(other)} ({type(other)})'
 
 
 class Vec2D(Vector, Entity2D):
-    @stats_wrapper
-    def __init__(self, *args, **kwargs):
-        Vector.__init__(*args, **kwargs)
-
-    def __str__(self):
-        return '<Vec2D (%0.4f, %0.4f)>' % (self.x, self.y)
-
-    def __repr__(self):
-        return self.__str__()
+    def __str__(self) -> str:  return f'<Vec2D ({self.x:0.4f}, {self.y:0.4f})>'
+    def __repr__(self) -> str: return f'<Vec2D ({self.x}, {self.y})>'
 
     def as_vector(self):
         return Vector(self)
 
-    def from_vector(self, v):
-        self.x, self.y = v
+    def from_vector(self, v : Vector | Sequence[float]):
+        x, y, *_ = v
+        self.x = x
+        self.y = y
 
     def project(self, other):
         ''' returns the projection of self onto other '''
@@ -121,15 +114,8 @@ class Vec2D(Vector, Entity2D):
 
 
 class Vec(VecUtils, Entity3D):
-    @stats_wrapper
-    def __init__(self, *args, **kwargs):
-        Vector.__init__(*args, **kwargs)
-
-    def __str__(self):
-        return '<Vec (%0.4f, %0.4f, %0.4f)>' % (self.x, self.y, self.z)
-
-    def __repr__(self):
-        return self.__str__()
+    def __str__(self):  return f'<Vec ({self.x:0.4f}, {self.y:0.4f}, {self.z:0.4f})>'
+    def __repr__(self): return f'<Vec ({self.x}, {self.y}, {self.z})>'
 
     def project(self, other):
         ''' returns the projection of self onto other '''
@@ -147,77 +133,92 @@ class Vec(VecUtils, Entity3D):
 
 
 class Index2D:
-    def __init__(self, i, j):
+    _i : int
+    _j : int
+
+    def __init__(self, i : int, j : int):
         self._i = i
         self._j = j
-    def __iter__(self): yield from (self._i, self._j)
+
+    def __iter__(self) -> Iterator[int]:
+        yield self._i
+        yield self._j
+
     @property
-    def i(self): return self._i
+    def i(self) -> int:
+        return self._i
     @i.setter
-    def i(self, i): self._i = i
+    def i(self, i : int):
+        self._i = i
+
     @property
-    def j(self): return self._j
+    def j(self) -> int:
+        return self._j
     @j.setter
-    def j(self, j): self._j = j
-    def update(self, i=None, j=None, i_off=None, j_off=None):
-        if i is not None: self._i = i
-        if j is not None: self._j = j
-        if i_off is not None: self._i += i_off
-        if j_off is not None: self._j += j_off
-    def to_tuple(self): return (self._i, self._j)
+    def j(self, j : int):
+        self._j = j
+
+    def update(self, i:int|None=None, j:int|None=None, i_off:int|None=None, j_off:int|None=None):
+        if i is not None:
+            self._i = i
+        if j is not None:
+            self._j = j
+        if i_off is not None:
+            self._i += i_off
+        if j_off is not None:
+            self._j += j_off
+
+    def to_tuple(self) -> tuple[int, int]:
+        return (self._i, self._j)
 
 
 class Point2D(Vector, Entity2D):
-    @stats_wrapper
-    def __init__(self, *args, **kwargs):
-        Vector.__init__(*args, **kwargs)
+    def __str__(self):  return f'<Point2D ({self.x:0.4f}, {self.y:0.4f})>'
+    def __repr__(self): return f'<Point2D ({self.x}, {self.y})>'
 
-    def __str__(self):
-        return '<Point2D (%0.4f, %0.4f)>' % (self.x, self.y)
+    def __iter__(self) -> Iterator[float]:
+        yield self.x
+        yield self.y
 
-    def __repr__(self):
-        return self.__str__()
+    @singledispatchmethod
+    def __add__(  # pyright: ignore[reportIncompatibleMethodOverride]
+        self,
+        _other : Direction2D | Vec2D | Vector | RelPoint2D,
+    ) -> Point2D:
+        '''
+        dispatch methods are defined below, because Point2D, Direction2D, RelPoint2D are not defined at this point...
+        '''
+        return NotImplemented
 
-    def __iter__(self):
-        return iter([self.x, self.y])
-
-    def __add__(self, other):
-        t = type(other)
-        if t is Direction2D:
-            return Point2D((self.x + other.x, self.y + other.y))
-        if t is Vector or t is Vec2D:
-            return Point2D((self.x + other.x, self.y + other.y))
-        if t is RelPoint2D:
-            return Point2D((self.x + other.x, self.y + other.y))
-        assert False, "unhandled type of other: %s (%s)" % (str(other), str(t))
-
-    def __radd__(self, other):
+    def __radd__(self, other : Direction2D | Vec2D | Vector | RelPoint2D) -> Point2D:
         return self.__add__(other)
 
-    def __sub__(self, other):
-        t = type(other)
-        if t is Vector or t is Vec2D:
-            return Point2D((self.x - other.x, self.y - other.y))
-        elif t is Point2D:
-            return Vec2D((self.x - other.x, self.y - other.y))
-        elif t is RelPoint2D:
-            return Point2D((self.x - other.x, self.y - other.y))
-        assert False, "unhandled type of other: %s (%s)" % (str(other), str(t))
+    @singledispatchmethod
+    def __sub__(  # pyright: ignore[reportIncompatibleMethodOverride]
+        self,
+        _other : Point2D | Vec2D | Vector | RelPoint2D,
+    ) -> Point2D | Vec2D:
+        '''
+        dispatch methods are defined below, because Point2D and RelPoint2D are not defined at this point...
+        '''
+        return NotImplemented
 
-    def distance_squared_to(self, other) -> float:
+    def distance_squared_to(self, other : Point2D) -> float:
         return (self.x - other.x)**2 + (self.y - other.y)**2
 
-    def distance_to(self, other) -> float:
+    def distance_to(self, other : Point2D) -> float:
         return sqrt((self.x - other.x)**2 + (self.y - other.y)**2)
 
     def as_vector(self):
         return Vector(self)
 
-    def from_vector(self, v):
-        self.x, self.y = v
+    def from_vector(self, v : Vector | Vec2D | Direction2D | Sequence[float]):
+        x, y, *_ = v
+        self.x = x
+        self.y = y
 
     @staticmethod
-    def average(points):
+    def average(points : list[Point2D]):
         x, y, c = 0, 0, 0
         for p in points:
             x += p.x
@@ -226,7 +227,7 @@ class Point2D(Vector, Entity2D):
         return Point2D((x / c, y / c)) if c else Point2D((0, 0))
 
     @staticmethod
-    def weighted_average(weight_points):
+    def weighted_average(weight_points : list[tuple[float, Point2D]]):
         x, y, c = 0, 0, 0
         for w, p in weight_points:
             x += p.x * w
@@ -236,9 +237,9 @@ class Point2D(Vector, Entity2D):
 
 
 class RelPoint2D(Vector, Entity2D):
-    @stats_wrapper
-    def __init__(self, *args, **kwargs):
-        Vector.__init__(*args, **kwargs)
+    @staticmethod
+    def Zero() -> RelPoint2D:
+        return RelPoint2D((0, 0))
 
     def __str__(self):
         return '<RelPoint2D (%0.4f, %0.4f)>' % (self.x, self.y)
@@ -272,36 +273,74 @@ class RelPoint2D(Vector, Entity2D):
             return Vec2D((self.x - other.x, self.y - other.y))
         assert False, "unhandled type of other: %s (%s)" % (str(other), str(t))
 
-    def distance_squared_to(self, other) -> float:
-        return (self.x - other.x)**2 + (self.y - other.y)**2
+    def as_vector(self) -> Vector:
+        return Vector(self)
 
-    def distance_to(self, other) -> float:
-        return sqrt((self.x - other.x)**2 + (self.y - other.y)**2)
+    def from_vector(self, v : Vector | Vec2D | Direction2D | Sequence[float]):
+        x, y, *_ = v
+        self.x = x
+        self.y = y
+
+
+class Direction2D(Vector, Entity2D):
+    def __init__(self, t=None):
+        if t is not None:
+            self.from_vector(t)
+
+    def __str__(self):
+        return '<Direction2D (%0.4f, %0.4f)>' % (self.x, self.y)
+
+    def __repr__(self):
+        return self.__str__()
+
+    def __mul__(self, other):
+        t = type(other)
+        if t is float or t is int:
+            return Vec2D((other * self.x, other * self.y))
+        assert False, "unhandled type of other: %s (%s)" % (str(other), str(t))
+
+    def __rmul__(self, other):
+        return self.__mul__(other)
+
+    def reverse(self):
+        self.x *= -1
+        self.y *= -1
+        return self
+
+    def normalize(self) -> Direction2D:
+        super().normalize()
+        return self
 
     def as_vector(self):
         return Vector(self)
 
     def from_vector(self, v):
         self.x, self.y = v
+        _ = self.normalize()
 
-    @staticmethod
-    def average(points):
-        x, y, c = 0, 0, 0
-        for p in points:
-            x += p.x
-            y += p.y
-            c += 1
-        return RelPoint2D((x / c, y / c)) if c else RelPoint2D((0, 0))
 
-    @staticmethod
-    def weighted_average(weight_points):
-        x, y, c = 0, 0, 0
-        for w, p in weight_points:
-            x += p.x * w
-            y += p.y * w
-            c += w
-        return RelPoint2D((x / c, y / c)) if c else RelPoint2D((0, 0))
-RelPoint2D.ZERO = RelPoint2D((0,0))
+@Point2D.__add__.register(Direction2D) # pyright: ignore[reportFunctionMemberAccess, reportAny]
+def _(self : Point2D, other : Direction2D) -> Point2D:
+    return Point2D((self.x + other.x, self.y + other.y))
+@Point2D.__add__.register(RelPoint2D) # pyright: ignore[reportFunctionMemberAccess, reportAny]
+def _(self : Point2D, other : RelPoint2D) -> Point2D:
+    return Point2D((self.x + other.x, self.y + other.y))
+@Point2D.__add__.register(Vec2D | Vector) # pyright: ignore[reportFunctionMemberAccess, reportAny]
+def _(self : Point2D, other : Vec2D | Vector) -> Point2D:
+    return Point2D((self.x + other.x, self.y + other.y))
+
+
+@Point2D.__sub__.register(Point2D) # pyright: ignore[reportFunctionMemberAccess, reportAny]
+def _(self : Point2D, other : Point2D) -> Vec2D:
+    return Vec2D((self.x - other.x, self.y - other.y))
+@Point2D.__sub__.register(RelPoint2D) # pyright: ignore[reportFunctionMemberAccess, reportAny]
+def _(self : Point2D, other:RelPoint2D) -> Point2D:
+    return Point2D((self.x - other.x, self.y - other.y))
+@Point2D.__sub__.register(Vec2D | Vector) # pyright: ignore[reportFunctionMemberAccess, reportAny]
+def _(self : Point2D, other : Vec2D | Vector) -> Point2D:
+    return Point2D((self.x - other.x, self.y - other.y))
+
+
 
 
 class Point(Vector, Entity3D):
@@ -309,7 +348,6 @@ class Point(Vector, Entity3D):
     def new_from_vector(cls, v):
         return cls(v) if v else None
 
-    @stats_wrapper
     def __init__(self, *args, **kwargs):
         Vector.__init__(*args, **kwargs)
 
@@ -361,7 +399,7 @@ class Point(Vector, Entity3D):
         self.x, self.y, self.z = v
 
     @staticmethod
-    def average(points):
+    def average(points : Sequence[Point | Vector]) -> Point:
         x, y, z, c = 0, 0, 0, 0
         for p in points:
             x += p.x
@@ -380,50 +418,15 @@ class Point(Vector, Entity3D):
             c += w
         return Point((x / c, y / c, z / c)) if c else Point((0, 0, 0))
 
-class Direction2D(Vector, Entity2D):
-    @stats_wrapper
-    def __init__(self, t=None):
-        if t is not None:
-            self.from_vector(t)
-
-    def __str__(self):
-        return '<Direction2D (%0.4f, %0.4f)>' % (self.x, self.y)
-
-    def __repr__(self):
-        return self.__str__()
-
-    def __mul__(self, other):
-        t = type(other)
-        if t is float or t is int:
-            return Vec2D((other * self.x, other * self.y))
-        assert False, "unhandled type of other: %s (%s)" % (str(other), str(t))
-
-    def __rmul__(self, other):
-        return self.__mul__(other)
-
-    def reverse(self):
-        self.x *= -1
-        self.y *= -1
-        return self
-
-    def normalize(self):
-        super().normalize()
-        return self
-
-    def as_vector(self):
-        return Vector(self)
-
-    def from_vector(self, v):
-        self.x, self.y = v
-        self.normalize()
-
 
 class Direction(VecUtils, Entity3D):
-    X : ClassVar[Direction]
-    Y : ClassVar[Direction]
-    Z : ClassVar[Direction]
+    @staticmethod
+    def X() -> Direction: return Direction((1, 0, 0))
+    @staticmethod
+    def Y() -> Direction: return Direction((0, 1, 0))
+    @staticmethod
+    def Z() -> Direction: return Direction((0, 0, 1))
 
-    @stats_wrapper
     def __init__(self, t=None):
         if t is not None:
             self.from_vector(t)
@@ -457,9 +460,9 @@ class Direction(VecUtils, Entity3D):
         cross = self.cross(other).dot(up)
         return angle * sign(cross)
 
-    def from_vector(self, v):
+    def from_vector(self, v : Vector | Sequence[float]):
         super().from_vector(v)
-        self.normalize()
+        _ = self.normalize()
 
     @classmethod
     def uniform(cls):
@@ -470,13 +473,9 @@ class Direction(VecUtils, Entity3D):
         y = sin(phi) * sin(theta)
         z = cos(phi)
         return cls((x,y,z))
-Direction.X = Direction((1,0,0))
-Direction.Y = Direction((0,1,0))
-Direction.Z = Direction((0,0,1))
 
 
 class Normal(VecUtils, Entity3D):
-    @stats_wrapper
     def __init__(self, t=None):
         if t is not None:
             self.from_vector(t)
@@ -630,7 +629,6 @@ class Ray(Entity3D):
         dist = v.length
         return Ray(a, v / dist, max_dist=dist)
 
-    @stats_wrapper
     def __init__(
         self,
         o: Point,
@@ -668,8 +666,13 @@ class Ray(Entity3D):
 
 
 class Plane(Entity3D):
+    o : Point
+    n : Normal
+    d : float
+    frame : Frame
+
     @classmethod
-    def from_points(cls, p0: Point, p1: Point, p2: Point):
+    def from_points(cls, p0: Point|Vector, p1: Point|Vector, p2: Point|Vector):
         o = Point((
             (p0.x + p1.x + p2.x) / 3,
             (p0.y + p1.y + p2.y) / 3,
@@ -679,9 +682,9 @@ class Plane(Entity3D):
         return cls(o, n)
 
     @classmethod
-    def fit_to_points(cls, points: List[Point]):
+    def fit_to_points(cls, points: list[Point]):
         center = Point.average(points)
-        lpoints = np.matrix([co - center for co in points]).T
+        lpoints = np.matrix([list(co - center) for co in points]).T
         svd = np.linalg.svd(lpoints)
         left = svd[0]
         x = Direction(np.array(left[:,0]).flatten())
@@ -689,16 +692,23 @@ class Plane(Entity3D):
         z = Direction(np.array(left[:,2]).flatten())
         return Plane(center, x=x, y=y, z=z)
 
-    def __init__(self, o:Point, n:Normal=None, x:Direction=None, y:Direction=None, z:Direction=None):
+    def __init__(
+        self,
+        o : Point,
+        n : Normal | None = None,
+        x : Direction | None = None,
+        y : Direction | None = None,
+        z : Direction | None = None,
+    ):
         self.o = o
         self.frame = Frame(self.o, x=x, y=y, z=z or n)
         self.n = Normal(self.frame.z)
         self.d = o.dot(self.n)
 
-    def __str__(self):  return f'<Plane {self.o}, {self.n}>'
-    def __repr__(self): return self.__str__()
+    def __str__(self) -> str:  return f'<Plane {self.o}, {self.n}>'
+    def __repr__(self) -> str: return self.__str__()
 
-    def side(self, p: Point, threshold=zero_threshold):
+    def side(self, p: Point|Vector, threshold : float = zero_threshold) -> int:
         d = (p - self.o).dot(self.n)
         if abs(d) < threshold:
             return 0
@@ -713,23 +723,22 @@ class Plane(Entity3D):
     def project(self, p: Point|Vector) -> Vector:
         return p + self.n * (self.o - p).dot(self.n)
 
-    def w2l_point(self, p: Point|Vector) -> Vector:
+    def w2l_point(self, p: Point|Vector) -> Point:
         return self.frame.w2l_point(p)
-    def l2w_point(self, p: Point|Vector) -> Vector:
+    def l2w_point(self, p: Point|Vector) -> Point:
         return self.frame.l2w_point(p)
-    def w2l_direction(self, d: Direction|Vector) -> Vector:
+    def w2l_direction(self, d: Direction|Vector) -> Direction:
         return self.frame.w2l_direction(d)
-    def l2w_direction(self, d: Direction|Vector) -> Vector:
+    def l2w_direction(self, d: Direction|Vector) -> Direction:
         return self.frame.l2w_direction(d)
 
-    def polygon_intersects(self, points: List[Point]):
+    def polygon_intersects(self, points: Sequence[Point]) -> bool:
         return abs(sum(self.side(p) for p in points)) != len(points)
 
-    @stats_wrapper
-    def triangle_intersect(self, points: List[Point]):
+    def triangle_intersect(self, points: Sequence[Point]) -> bool:
         return abs(sum(self.side(p) for p in points)) != 3
 
-    def line_intersection(self, p0:Point, p1:Point):
+    def line_intersection(self, p0:Point, p1:Point) -> Point | None:
         v01 = p1 - p0
         if v01.dot(self.n) == 0: return None
         l = Direction(v01)
@@ -738,7 +747,7 @@ class Plane(Entity3D):
         #return intersect_line_plane(p0, p1, self.o, self.n)
 
     @profiler.function
-    def triangle_intersection(self, points: List[Point]):
+    def triangle_intersection(self, points: Sequence[Point]) -> list[tuple[Point, Point]]:
         assert len(points) == 3, f'triangle intersection on non triangle ({len(points)=})'
         s0, s1, s2 = map(self.side, points)
         if abs(s0 + s1 + s2) == 3:
@@ -768,11 +777,11 @@ class Plane(Entity3D):
         p01 = self.line_intersection(p0, p1)
         p12 = self.line_intersection(p1, p2)
         p20 = self.line_intersection(p2, p0)
-        if s0 == 0:
+        if s0 == 0 and p12:
             return [(p0, p12)]
-        if s1 == 0:
+        if s1 == 0 and p20:
             return [(p1, p20)]
-        if s2 == 0:
+        if s2 == 0 and p01:
             return [(p2, p01)]
         if s0 != s1 and s0 != s2 and p01 and p20:
             return [(p01, p20)]
@@ -787,12 +796,13 @@ class Plane(Entity3D):
         print(f'{p01=} {p12=} {p20=}')
         assert False
 
-    @stats_wrapper
-    def edge_intersect(self, points: List[Point]):
-        return abs(sum(self.side(p) for p in points)) != 2
+    def edge_intersect(self, points: list[Point]) -> bool:
+        p0, p1, *_ = points
+        s0, s1 = self.side(p0), self.side(p1)
+        return s0 + s1 != 2
 
     @profiler.function
-    def edge_clamp(self, points: List[Point]):
+    def edge_clamp(self, points: list[Point]) -> list[tuple[Point, Point]]:
         s0, s1 = map(self.side, points)
         if abs(s0 + s1) == 2:
             return []   # points on same side
@@ -804,9 +814,11 @@ class Plane(Entity3D):
         if s1 == 0:
             return [(p1, p1)]
         p01 = self.line_intersection(p0, p1)
-        return [(p01, p01)]
+        if p01:
+            return [(p01, p01)]
+        assert False
 
-    def edge_intersection(self, p0:Point, p1:Point, threshold=zero_threshold):
+    def edge_intersection(self, p0:Point, p1:Point, threshold:float=zero_threshold) -> Point|None:
         s0, s1 = self.side(p0,threshold=threshold), self.side(p1,threshold=threshold)
         if s0 == 0: return Point(p0)    # p0 is on plane
         if s1 == 0: return Point(p1)    # p1 is on plane
@@ -814,96 +826,95 @@ class Plane(Entity3D):
         # points on opposite sides of plane, might be parallel to plane...
         return self.line_intersection(p0, p1)
 
-    def bme_crosses(self, bme):
+    def bme_crosses(self, bme : BMEdge) -> bool:
         bmv0, bmv1 = bme.verts
         return self.edge_crosses((bmv0.co, bmv1.co))
 
-    def edge_crosses(self, points):
-        p0, p1 = points
+    def edge_crosses(self, points : Sequence[Point|Vector]) -> bool:
+        p0, p1, *_ = points
         s0, s1 = self.side(p0), self.side(p1)
         return (s0 == 0 and s1 == 0) or s0 != s1
 
-    def edge_coplanar(self, points):
-        p0, p1 = points
+    def edge_coplanar(self, points : Sequence[Point|Vector]) -> bool:
+        p0, p1, *_ = points
         return self.side(p0) == 0 and self.side(p1) == 0
 
 
 class Frame:
+    o : Point
+    x : Direction
+    y : Direction
+    z : Direction
+
+    XFORM_INPUT_TYPES : Final = Vec | Point | Normal | Vector | Direction | Ray | Plane | BMVert
+    XFORM_OUTPUT_TYPES : Final = Vec | Point | Normal | Vector | Direction | Ray | Plane
+
     @staticmethod
-    def from_plane(plane: Plane, x: Direction=None, y: Direction=None):
+    def from_plane(plane: Plane, x: Direction|None=None, y: Direction|None=None):
         return Frame(plane.o, x=x, y=y, z=Direction(plane.n))
 
-    @stats_wrapper
     def __init__(
         self,
-        o: Point,
-        x: Direction=None,
-        y: Direction=None,
-        z: Direction=None
+        o: Point | Vector,
+        *,
+        x: Direction | Vector | None = None,
+        y: Direction | Vector | None = None,
+        z: Direction | Vector | Normal | None = None
     ):
-        c = (1 if x else 0) + (1 if y else 0) + (1 if z else 0)
-        assert c != 0, "Must specify at least one direction"
-        if c == 1:
-            if x:
-                y = Direction((-x.x + 3.14, x.y + 42, x.z - 1.61))
-                z = Direction(x.cross(y))
-                y = Direction(z.cross(x))
-            elif y:
-                x = Direction((-y.x + 3.14, y.y + 42, y.z - 1.61))
-                z = Direction(x.cross(y))
-                x = Direction(y.cross(z))
-            else:
-                x = Direction((-z.x + 3.14, z.y + 42, z.z - 1.61))
-                y = Direction(-x.cross(z))
-                x = Direction(y.cross(z))
-        elif c >= 2:
-            if x and y:
-                z = Direction(x.cross(y))
-                y = Direction(z.cross(x))
-                x = Direction(y.cross(z))
-            elif x and z:
-                y = Direction(z.cross(x))
-                x = Direction(y.cross(z))
-                z = Direction(x.cross(y))
-            else:
-                x = Direction(y.cross(z))
-                y = Direction(z.cross(x))
-                z = Direction(z)
+        if x and y and z:
+            y = Direction(z.cross(x)) # ignoring y
+            x = Direction(y.cross(z))
+            z = Direction(x.cross(y))
+        elif x and y:
+            z = Direction(x.cross(y))
+            y = Direction(z.cross(x))
+            x = Direction(y.cross(z))
+        elif x and z:
+            y = Direction(z.cross(x))
+            x = Direction(y.cross(z))
+            z = Direction(x.cross(y))
+        elif y and z:
+            z = Direction(z)
+            x = Direction(y.cross(z))
+            y = Direction(z.cross(x))
+        elif x:
+            y = Direction((-x.x + 3.14, x.y + 42, x.z - 1.61)) # choose some arbitrary direction
+            z = Direction(x.cross(y))
+            y = Direction(z.cross(x))
+            x = Direction(x)
+        elif y:
+            x = Direction((-y.x + 3.14, y.y + 42, y.z - 1.61)) # choose some arbitrary direction
+            z = Direction(x.cross(y))
+            x = Direction(y.cross(z))
+            y = Direction(y)
+        elif z:
+            z = Direction(z)
+            x = Direction((-z.x + 3.14, z.y + 42, z.z - 1.61)) # choose some arbitrary direction
+            y = Direction(-x.cross(z))
+            x = Direction(y.cross(z))
+        else:
+            assert False, "Must specify at least one of x,y,z"
 
         self.o = Point(o)
         self.x = x
         self.y = y
         self.z = z
 
-        self.fn_l2w_typed = {
-            Vec: self.l2w_vector,
-            Point: self.l2w_point,
-            Normal: self.l2w_normal,
-            Vector: self.l2w_vector,
-            Direction: self.l2w_direction,
-            # Ray:        self.l2w_ray,
-            # Plane:      self.l2w_plane,
-            # BMVert:     self.l2w_bmvert,
-        }
-        self.fn_w2l_typed = {
-            Vec: self.w2l_vector,
-            Point: self.w2l_point,
-            Normal: self.w2l_normal,
-            Vector: self.w2l_vector,
-            Direction: self.w2l_direction,
-            # Ray:        self.w2l_ray,
-            # Plane:      self.w2l_plane,
-            # BMVert:     self.w2l_bmvert,
-        }
+    def __str__(self) -> str:
+        return ('<Frame '
+            f'({self.o.x:0.4f}, {self.o.y:0.4f}, {self.o.z:0.4f}), '
+            f'({self.x.x:0.4f}, {self.x.y:0.4f}, {self.x.z:0.4f}), '
+            f'({self.y.x:0.4f}, {self.y.y:0.4f}, {self.y.z:0.4f}), '
+            f'({self.z.x:0.4f}, {self.z.y:0.4f}, {self.z.z:0.4f})'
+        '>')
 
-    def __str__(self):
-        s = '(%0.4f, %0.4f, %0.4f)'
-        return '<Frame %s, %s, %s, %s>' % (
-            s % (self.o.x, self.o.y, self.o.z),
-            s % (self.x.x, self.x.y, self.x.z),
-            s % (self.y.x, self.y.y, self.y.z),
-            s % (self.z.x, self.z.y, self.z.z)
-        )
+    def __repr__(self) -> str:
+        return ('<Frame '
+            f'({self.o.x}, {self.o.y}, {self.o.z}), '
+            f'({self.x.x}, {self.x.y}, {self.x.z}), '
+            f'({self.y.x}, {self.y.y}, {self.y.z}), '
+            f'({self.z.x}, {self.z.y}, {self.z.z})'
+        '>')
 
     def _dot_fns(self):
         return self.x.dot, self.y.dot, self.z.dot
@@ -911,33 +922,65 @@ class Frame:
     def _dots(self, v):
         return (self.x.dot(v), self.y.dot(v), self.z.dot(v))
 
-    def _mults(self, v):
+    def _mults(self, v : Vector) -> Vector:
         return self.x * v.x + self.y * v.y + self.z * v.z
 
     def clone(self):
         return Frame(o=self.o, x=self.x, y=self.y, z=self.z)
 
-    def l2w_typed(self, data):
-        ''' dispatched conversion '''
-        t = type(data)
-        assert t in self.fn_l2w_typed, "unhandled type of data: %s (%s)" % (
-            str(data), str(type(data))
-        )
-        return self.fn_l2w_typed[t](data)
+    @singledispatchmethod
+    def l2w_typed(self, _data : XFORM_INPUT_TYPES) -> XFORM_OUTPUT_TYPES:
+        return NotImplemented
+    @l2w_typed.register
+    def _(self, data : Point) -> Point:
+        return self.l2w_point(data)
+    @l2w_typed.register
+    def _(self, data : Direction) -> Direction:
+        return self.l2w_direction(data)
+    @l2w_typed.register
+    def _(self, data : Normal) -> Normal:
+        return self.l2w_normal(data)
+    @l2w_typed.register
+    def _(self, data : Vec | Vector) -> Vector:
+        return self.l2w_vector(data)
+    @l2w_typed.register
+    def _(self, data : Ray) -> Ray:
+        return self.l2w_ray(data)
+    @l2w_typed.register
+    def _(self, data : Plane) -> Plane:
+        return self.l2w_plane(data)
 
-    def w2l_typed(self, data):
-        ''' dispatched conversion '''
-        t = type(data)
-        assert t in self.fn_w2l_typed, "unhandled type of data: %s (%s)" % (
-            str(data), str(type(data))
-        )
-        return self.fn_w2l_typed[t](data)
+    @singledispatchmethod
+    def w2l_typed(self, _data : XFORM_INPUT_TYPES) -> XFORM_OUTPUT_TYPES:
+        return NotImplemented
+    @w2l_typed.register
+    def _(self, data : Point) -> Point:
+        return self.w2l_point(data)
+    @w2l_typed.register
+    def _(self, data : Direction) -> Direction:
+        return self.w2l_direction(data)
+    @w2l_typed.register
+    def _(self, data : Normal) -> Normal:
+        return self.w2l_normal(data)
+    @w2l_typed.register
+    def _(self, data : Vec | Vector) -> Vector:
+        return self.w2l_vector(data)
+    @w2l_typed.register
+    def _(self, data : Ray) -> Ray:
+        return self.w2l_ray(data)
 
-    def w2l_point(self, p: Point|Vector) -> Point|Vector:
+
+    def w2l_point(self, p: Point|Vector) -> Point:
         return Point(self._dots(p - self.o))
 
-    def l2w_point(self, p: Point|Vector) -> Point|Vector:
+    def l2w_point(self, p: Point|Vector) -> Point:
         return Point(self.o + self._mults(p))
+
+    def w2l_bmvert(self, bmv: BMVert) -> Point:
+        return self.w2l_point(bmv.co)
+
+    def l2w_bmvert(self, bmv: BMVert) -> Point:
+        return self.l2w_point(bmv.co)
 
     def w2l_vector(self, v: Vector) -> Vec:
         return Vec(self._dots(v))
@@ -945,156 +988,192 @@ class Frame:
     def l2w_vector(self, v: Vector) -> Vec:
         return Vec(self._mults(v))
 
-    def w2l_direction(self, d: Direction) -> Direction:
+    def w2l_direction(self, d: Direction | Vector) -> Direction:
         return Direction(self._dots(d)).normalize()
 
-    def l2w_direction(self, d: Direction) -> Direction:
+    def l2w_direction(self, d: Direction | Vector) -> Direction:
         return Direction(self._mults(d)).normalize()
 
-    def w2l_normal(self, n: Normal) -> Normal:
+    def w2l_normal(self, n: Normal | Vector) -> Normal:
         return Normal(self._dots(n)).normalize()
 
-    def l2w_normal(self, n: Normal) -> Normal:
+    def l2w_normal(self, n: Normal | Vector) -> Normal:
         return Normal(self._mults(n)).normalize()
 
-    def w2l_frame(self, f):
+    def l2w_ray(self, r : Ray) -> Ray:
+        return Ray(
+            self.l2w_point(r.o),
+            self.l2w_direction(r.d),
+            r.max,
+        )
+
+    def w2l_ray(self, r : Ray) -> Ray:
+        return Ray(
+            self.w2l_point(r.o),
+            self.w2l_direction(r.d),
+            r.max,
+        )
+
+    def l2w_plane(self, p : Plane) -> Plane:
+        return Plane(
+            self.l2w_point(p.o),
+            x=self.l2w_direction(p.frame.x),
+            y=self.l2w_direction(p.frame.y),
+            z=self.l2w_direction(p.frame.z),
+        )
+
+    def w2l_plane(self, p : Plane) -> Plane:
+        return Plane(
+            self.w2l_point(p.o),
+            x=self.w2l_direction(p.frame.x),
+            y=self.w2l_direction(p.frame.y),
+            z=self.w2l_direction(p.frame.z),
+        )
+
+    def w2l_frame(self, f : Frame) -> Frame:
         o = self.w2l_point(f.o)
         x = self.w2l_direction(f.x)
         y = self.w2l_direction(f.y)
         z = self.w2l_direction(f.z)
         return Frame(o=o, x=x, y=y, z=z)
 
-    def l2w_frame(self, f):
+    def l2w_frame(self, f : Frame) -> Frame:
         o = self.l2w_point(f.o)
         x = self.l2w_direction(f.x)
         y = self.l2w_direction(f.y)
         z = self.l2w_direction(f.z)
         return Frame(o=o, x=x, y=y, z=z)
 
+
+
     def rotate_about_x(self, radians: float):
         c, s = cos(radians), sin(radians)
         y, z = self.y, self.z
-        self.y = y * c - z * s
-        self.z = y * s + z * c
+        self.y = Direction(y * c - z * s)
+        self.z = Direction(y * s + z * c)
+
     def rotate_about_y(self, radians: float):
         c, s = cos(radians), sin(radians)
         x, z = self.x, self.z
-        self.x = x * c + z * s
-        self.z = -x * s + z * c
+        self.x = Direction(x * c + z * s)
+        self.z = Direction(-x * s + z * c)
+
     def rotate_about_z(self, radians: float):
         c, s = cos(radians), sin(radians)
         x, y = self.x, self.y
-        self.x = x * c - y * s
-        self.y = x * s + y * c
+        self.x = Direction(x * c - y * s)
+        self.y = Direction(x * s + y * c)
 
 
 class XForm:
+    mx_p  : Matrix
+    imx_p : Matrix
+    mx_d  : Matrix
+    imx_d : Matrix
+    mx_n  : Matrix
+    imx_n : Matrix
+    mx_t  : Matrix
+
+    XFORM_INPUT_TYPES : Final = Vec | Point | Normal | Vector | Direction | Ray | Plane | BMVert | Matrix | Self
+    XFORM_OUTPUT_TYPES : Final = Vec | Point | Normal | Vector | Direction | Ray | Plane | Matrix | Self
+
     @staticmethod
-    def Scale(factor):
-        if type(factor) in {int, float}:
-            x = y = z = factor
-        else:
-            x, y, z = factor
-        return XForm(rows=((
+    def Scale(factor : float | Vector | Sequence[float]):
+        match factor:
+            case float():
+                x = y = z = factor
+            case Vector():
+                x, y, z, *_ = factor
+            case list() | tuple():
+                x, y, z, *_ = factor
+            case _:
+                assert False, f'Unhandled type {type(factor)} ({factor})'
+
+        return XForm((
             (x, 0, 0, 0),
             (0, y, 0, 0),
             (0, 0, z, 0),
             (0, 0, 0, 1),
-            )))
+        ))
 
-    @staticmethod
-    def get_mats(mx: Matrix):
-        smat, d = str(mx), XForm.get_mats.__dict__
+    get_mats_cache : ClassVar[dict[str, dict[str, Matrix]]] = {}
+    @classmethod
+    def get_mats(cls, val: Matrix | XForm | Sequence[Sequence[float]] | None) -> dict[str, Matrix]:
+        match val:
+            case None:
+                mx = Matrix()
+            case Matrix():
+                mx = val
+            case XForm():
+                mx = val.mx_p
+            case _:
+                mx = Matrix(val)
+
+        smat = str(mx)
+        d = cls.get_mats_cache
         if smat not in d:
-            m = {
-                'mx_p': None, 'imx_p': None,
-                'mx_d': None, 'imx_d': None,
-                'mx_n': None, 'imx_n': None
-            }
-            m[ 'mx_p'] = Matrix(mx)
-            m[ 'mx_t'] = mx.transposed()
+            m : dict[str, Matrix] = {}
+            m['mx_p']  = mx
             m['imx_p'] = mx.inverted_safe()
-            m[ 'mx_d'] = mx.to_3x3()
+            m['mx_d']  = mx.to_3x3()
             m['imx_d'] = m['mx_d'].inverted_safe()
-            m[ 'mx_n'] = m['imx_d'].transposed()
+            m['mx_n']  = m['imx_d'].transposed()
             m['imx_n'] = m['mx_d'].transposed()
+            m['mx_t']  = mx.transposed()
             d[smat] = m
+
         return d[smat]
 
-    @stats_wrapper
-    def __init__(self, mx: Matrix=None, *, rows=None):
-        if mx is None:
-            mx = Matrix()
-        elif type(mx) is not Matrix:
-            mx = Matrix(rows)
-        self.assign(mx)
-
-    def assign(self, mx):
-        if type(mx) is XForm:
-            return self.assign(mx.mx_p)
-
-        mats = XForm.get_mats(mx)
-        self.mx_p, self.imx_p = mats['mx_p'], mats['imx_p']
-        self.mx_d, self.imx_d = mats['mx_d'], mats['imx_d']
-        self.mx_n, self.imx_n = mats['mx_n'], mats['imx_n']
+    def __init__(self, val : XForm | Matrix | Sequence[Sequence[float]] | None = None):
+        mats = XForm.get_mats(val)
+        self.mx_p = mats['mx_p']
+        self.imx_p = mats['imx_p']
+        self.mx_d = mats['mx_d']
+        self.imx_d = mats['imx_d']
+        self.mx_n = mats['mx_n']
+        self.imx_n = mats['imx_n']
         self.mx_t = mats['mx_t']
 
-        self.fn_l2w_typed = {
-            Ray: self.l2w_ray,
-            Vec: self.l2w_vector,
-            Plane: self.l2w_plane,
-            Point: self.l2w_point,
-            BMVert: self.l2w_bmvert,
-            Normal: self.l2w_normal,
-            Vector: self.l2w_vector,
-            Direction: self.l2w_direction,
-        }
-        self.fn_w2l_typed = {
-            Ray: self.w2l_ray,
-            Vec: self.w2l_vector,
-            Plane: self.w2l_plane,
-            Point: self.w2l_point,
-            BMVert: self.w2l_bmvert,
-            Normal: self.w2l_normal,
-            Vector: self.w2l_vector,
-            Direction: self.w2l_direction,
-        }
+    def assign(self, val : XForm | Matrix | Sequence[Sequence[float]] | None = None) -> XForm:
+        mats = XForm.get_mats(val)
+        self.mx_p = mats['mx_p']
+        self.imx_p = mats['imx_p']
+        self.mx_d = mats['mx_d']
+        self.imx_d = mats['imx_d']
+        self.mx_n = mats['mx_n']
+        self.imx_n = mats['imx_n']
+        self.mx_t = mats['mx_t']
         return self
 
-    def __str__(self):
-        v = tuple(x for r in self.mx_p for x in r)
-        return '<XForm (%0.4f, %0.4f, %0.4f, %0.4f)\n' \
-               '       (%0.4f, %0.4f, %0.4f, %0.4f)\n' \
-               '       (%0.4f, %0.4f, %0.4f, %0.4f)\n' \
-               '       (%0.4f, %0.4f, %0.4f, %0.4f)>' % v
+    def __str__(self) -> str:
+        mx_p = self.mx_p
+        return ('<XForm '
+            f'({mx_p[0][0]:0.4f}, {mx_p[0][1]:0.4f}, {mx_p[0][2]:0.4f}, {mx_p[0][3]:0.4f}), '
+            f'({mx_p[1][0]:0.4f}, {mx_p[1][1]:0.4f}, {mx_p[1][2]:0.4f}, {mx_p[1][3]:0.4f}), '
+            f'({mx_p[2][0]:0.4f}, {mx_p[2][1]:0.4f}, {mx_p[2][2]:0.4f}, {mx_p[2][3]:0.4f}), '
+            f'({mx_p[3][0]:0.4f}, {mx_p[3][1]:0.4f}, {mx_p[3][2]:0.4f}, {mx_p[3][3]:0.4f})'
+        '>')
 
-    def __repr__(self):
-        v = tuple(x for r in self.mx_p for x in r)
-        return 'XForm(((%f, %f, %f, %f),\n' \
-               '       (%f, %f, %f, %f),\n' \
-               '       (%f, %f, %f, %f),\n' \
-               '       (%f, %f, %f, %f)))' % v
+    def __repr__(self) -> str:
+        mx_p = self.mx_p
+        return ('<XForm '
+            f'({mx_p[0][0]}, {mx_p[0][1]}, {mx_p[0][2]}, {mx_p[0][3]}), '
+            f'({mx_p[1][0]}, {mx_p[1][1]}, {mx_p[1][2]}, {mx_p[1][3]}), '
+            f'({mx_p[2][0]}, {mx_p[2][1]}, {mx_p[2][2]}, {mx_p[2][3]}), '
+            f'({mx_p[3][0]}, {mx_p[3][1]}, {mx_p[3][2]}, {mx_p[3][3]})'
+        '>')
 
     @property
-    def matrix(self):
+    def matrix(self) -> Matrix:
         return Matrix(self.mx_p)
     @matrix.setter
-    def matrix(self, mx):
-        self.assign(mx)
+    def matrix(self, mx : Matrix):
+        _ = self.assign(mx)
 
-    def __mul__(self, other):
-        t = type(other)
-        if t is XForm:
-            return XForm(self.mx_p * other.mx_p)
-        if t is Matrix:
-            return XForm(self.mx_p * other)
+    def __mul__(self, other : XFORM_INPUT_TYPES) -> XFORM_OUTPUT_TYPES:
         return self.l2w_typed(other)
 
-    def __imul__(self, other):
-        other_mx = other.mx_p if type(other) is XForm else other
-        self.assign(self.mx_p * other_mx)
-
-    def __truediv__(self, other):
+    def __truediv__(self, other : XFORM_INPUT_TYPES) -> XFORM_OUTPUT_TYPES:
         return self.w2l_typed(other)
 
     def __iter__(self):
@@ -1108,38 +1187,95 @@ class XForm:
         z = Direction(self.mx_d @ Direction((0, 0, 1)))
         return Frame(o=o, x=x, y=y, z=z)
 
-    def l2w_typed(self, data):
-        ''' dispatched conversion '''
-        t = type(data)
-        assert t in self.fn_l2w_typed, "unhandled type of data: %s (%s)" % (
-            str(data), str(type(data))
-        )
-        return self.fn_l2w_typed[t](data)
 
-    def w2l_typed(self, data):
-        ''' dispatched conversion '''
-        t = type(data)
-        assert t in self.fn_w2l_typed, "unhandled type of data: %s (%s)" % (
-            str(data), str(type(data))
-        )
-        return self.fn_w2l_typed[t](data)
+    @singledispatchmethod
+    def l2w_typed(self, _data : XFORM_INPUT_TYPES) -> XFORM_OUTPUT_TYPES:
+        return NotImplemented
+    @l2w_typed.register
+    def _(self, data : Point) -> Point:
+        return self.l2w_point(data)
+    @l2w_typed.register
+    def _(self, data : Direction) -> Direction:
+        return self.l2w_direction(data)
+    @l2w_typed.register
+    def _(self, data : Normal) -> Normal:
+        return self.l2w_normal(data)
+    @l2w_typed.register
+    def _(self, data : Vec | Vector) -> Vector:
+        return self.l2w_vector(data)
+    @l2w_typed.register
+    def _(self, data : Ray) -> Ray:
+        return self.l2w_ray(data)
+    @l2w_typed.register
+    def _(self, data : Plane) -> Plane:
+        return self.l2w_plane(data)
+    @l2w_typed.register
+    def _(self, data : BMVert) -> Point:
+        return self.l2w_bmvert(data)
+    @l2w_typed.register
+    def _(self, data : Matrix) -> Matrix:
+        return self.mx_p @ data
+    ##### NOTE: The following method is defined below (after XForm class), because XForm is not defined at this point...
+    # @l2w_typed.register
+    # def _(self, data : XForm) -> XForm:
+    #     return XForm(self.mx_p @ data.mx_p)
+
+    @singledispatchmethod
+    def w2l_typed(self, _data : XFORM_INPUT_TYPES) -> XFORM_OUTPUT_TYPES:
+        return NotImplemented
+    @w2l_typed.register
+    def _(self, data : Point) -> Point:
+        return self.w2l_point(data)
+    @w2l_typed.register
+    def _(self, data : Direction) -> Direction:
+        return self.w2l_direction(data)
+    @w2l_typed.register
+    def _(self, data : Normal) -> Normal:
+        return self.w2l_normal(data)
+    @w2l_typed.register
+    def _(self, data : Vec | Vector) -> Vector:
+        return self.w2l_vector(data)
+    @w2l_typed.register
+    def _(self, data : Ray) -> Ray:
+        return self.w2l_ray(data)
+    @w2l_typed.register
+    def _(self, data : Plane) -> Plane:
+        return self.w2l_plane(data)
+    @w2l_typed.register
+    def _(self, data : BMVert) -> Point:
+        return self.w2l_bmvert(data)
+    @w2l_typed.register
+    def _(self, data : Matrix) -> Matrix:
+        return self.imx_p @ data
+    ##### NOTE: The following method is defined below (after XForm class), because XForm is not defined at this point...
+    # @w2l_typed.register
+    # def _(self, data : XForm) -> XForm:
+    #     return XForm(self.imx_p @ data.mx_p)
+
 
     def l2w_point(self, p: Point) -> Point:
         #return Point(self.mx_p @ p)
         v = self.mx_p @ Vector((p.x, p.y, p.z, 1.0))
         return Point(v.xyz / v.w)
-
     def w2l_point(self, p: Point) -> Point:
         # return Point(self.imx_p @ p)
         v = self.imx_p @ Vector((p.x, p.y, p.z, 1.0))
         return Point(v.xyz / v.w)
 
-    def l2w_direction(self, d: Direction) -> Direction: return Direction(self.mx_d.to_3x3() @ d)
-    def w2l_direction(self, d: Direction) -> Direction: return Direction(self.imx_d.to_3x3() @ d)
-    def l2w_normal(self, n: Normal) -> Normal: return Normal(self.mx_n.to_3x3() @ n)
-    def w2l_normal(self, n: Normal) -> Normal: return Normal(self.imx_n.to_3x3() @ n)
-    def l2w_vector(self, v: Vector) -> Vec: return Vec(self.mx_d.to_3x3() @ v)
-    def w2l_vector(self, v: Vector) -> Vec: return Vec(self.imx_d.to_3x3() @ v)
+    def l2w_direction(self, d: Direction) -> Direction:
+        return Direction(self.mx_d.to_3x3() @ d)
+    def w2l_direction(self, d: Direction) -> Direction:
+        return Direction(self.imx_d.to_3x3() @ d)
+
+    def l2w_normal(self, n: Normal) -> Normal:
+        return Normal(self.mx_n.to_3x3() @ n)
+    def w2l_normal(self, n: Normal) -> Normal:
+        return Normal(self.imx_n.to_3x3() @ n)
+
+    def l2w_vector(self, v: Vector) -> Vec:
+        return Vec(self.mx_d.to_3x3() @ v)
+    def w2l_vector(self, v: Vector) -> Vec:
+        return Vec(self.imx_d.to_3x3() @ v)
 
     def l2w_ray(self, ray: Ray) -> Ray:
         o = self.l2w_point(ray.o)
@@ -1149,7 +1285,6 @@ class XForm:
         else:
             l1 = (o - self.l2w_point(ray.o + ray.max * ray.d)).length
         return Ray(o=o, d=d, max_dist=l1)
-
     def w2l_ray(self, ray: Ray) -> Ray:
         o = self.w2l_point(ray.o)
         d = self.w2l_direction(ray.d)
@@ -1161,16 +1296,21 @@ class XForm:
 
     def l2w_plane(self, plane: Plane) -> Plane:
         return Plane(o=self.l2w_point(plane.o), n=self.l2w_normal(plane.n))
-
     def w2l_plane(self, plane: Plane) -> Plane:
         return Plane(o=self.w2l_point(plane.o), n=self.w2l_normal(plane.n))
 
-    def l2w_bmvert(self, bmv: BMVert) -> Point: return Point(self.mx_p @ bmv.co)
-    def w2l_bmvert(self, bmv: BMVert) -> Point: return Point(self.imx_p @ bmv.co)
+    def l2w_bmvert(self, bmv: BMVert) -> Point:
+        return Point(self.mx_p @ bmv.co)
+    def w2l_bmvert(self, bmv: BMVert) -> Point:
+        return Point(self.imx_p @ bmv.co)
 
     @staticmethod
-    def to_gpubuffer(mat):
-        return gpu.types.Buffer('FLOAT', [len(mat), len(mat)], mat)
+    def to_gpubuffer(mat : Matrix):
+        return gpu.types.Buffer(
+            'FLOAT',
+            [len(mat), len(mat[0])],
+            [val for row in mat for val in row]
+        )
 
     def to_gpubuffer_Model(self):
         return self.to_gpubuffer(self.mx_p)
@@ -1181,9 +1321,16 @@ class XForm:
     def to_gpubuffer_Normal(self):
         return self.to_gpubuffer(self.mx_n)
 
+@XForm.l2w_typed.register(XForm) # pyright: ignore[reportFunctionMemberAccess, reportAny]
+def _(self : XForm, other : XForm) -> XForm:
+    return XForm(self.mx_p @ other.mx_p)
+
+@XForm.w2l_typed.register(XForm) # pyright: ignore[reportFunctionMemberAccess, reportAny]
+def _(self : XForm, other : XForm) -> XForm:
+    return XForm(self.imx_p @ other.mx_p)
+
 
 class BBox:
-    @stats_wrapper
     def __init__(self, from_object=None, from_bmverts=None, from_coords=None, xform_point=None):
         if not any([from_object, from_bmverts, from_coords]):
             nan = float('nan')
