@@ -25,6 +25,17 @@ This document contains details about what has changed in Retopoflow in version 4
 - Tools statusbar now shows the result of Blender operations such as Merge by Distance
 - Fixed proportional editing circle size and location
 
+## 4.1.9
+
+- Added 5.2 compatibility
+- Fixed occasional incorrect normals when tweaking without transforms applied
+- Fixed theme not always being reset when exiting Retopoflow
+- Fixed error in add-on preferences Tweaking panel
+- Fixed issue with Contours Walk method when adjusting source object modifier between strokes
+- Fixed status bar hotkey hints not drawing in Blender 4.2
+- Fixed issue with drawing with Apple Pencil when mouse isn't in 3D View
+
+
 ### 4.1.8
 
 - Fixed issue with Relax brush with mirror boundary clipping

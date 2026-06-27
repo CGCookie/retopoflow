@@ -623,6 +623,8 @@ class RFCore:
 
         RFCore.running_in_areas.clear()
 
+        get_object_bmesh.cache.clear()
+
         if not getattr(RFCore, 'is_saving', False):
             bpy.context.scene.retopoflow.saved_tool = ''
 

@@ -267,7 +267,7 @@ def generate_point_inside_bmf(bmf):
             elif y1 == 0 and x1 > 0:  # v1 is on positive x-axis
                 if y0 < 0: crossings += 0.5
                 else:      crossings -= 0.5
-        print(crossings)
+        # print(crossings)
         return (crossings % 2) == 1
 
         # https://ics.uci.edu/~eppstein/161/960307.html
