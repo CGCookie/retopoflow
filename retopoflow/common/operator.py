@@ -56,32 +56,41 @@ def poll_retopoflow(context : Context) -> bool:
 
 
 class RFRegisterClass:
-    @classmethod
-    def register(cls): pass
-    @classmethod
-    def unregister(cls): pass
+    _subclasses : ClassVar[list[type[RFRegisterClass]]] = []
+    _registered_classes : ClassVar[set[type[RFRegisterClass]]] = set()
 
-    _subclasses : list[type[RFRegisterClass]] = []
-
-    def __init_subclass__(cls, **kwargs : Any): # pyright: ignore[reportExplicitAny, reportAny]
+    def __init_subclass__(cls, *args : ..., **kwargs : ...): # pyright: ignore[reportAny]
         RFRegisterClass._subclasses.append(cls)
-        super().__init_subclass__(**kwargs)
+        super().__init_subclass__(*args, **kwargs)
 
     @staticmethod
     def get_all_classes() -> list[type[RFRegisterClass]]:
         return RFRegisterClass._subclasses
         # return RFRegisterClass.__subclasses__()  # this only works if the subclass is still in scope!!!!!
+
+    @classmethod
+    def is_registered(cls) -> bool:
+        return cls in RFRegisterClass._registered_classes
+
     @staticmethod
     def register_all():
-        for op in RFRegisterClass.get_all_classes():
+        for op in RFRegisterClass._subclasses:
             bpy.utils.register_class(op) # pyright: ignore[reportArgumentType]
+            RFRegisterClass._registered_classes.add(op)
             op.register()
         print(f'RF registered {len(RFRegisterClass.get_all_classes())} RFRegisterClasses')
+
     @staticmethod
     def unregister_all():
         for op in reversed(RFRegisterClass.get_all_classes()):
             op.unregister()
+            RFRegisterClass._registered_classes.discard(op)
             bpy.utils.unregister_class(op) # pyright: ignore[reportArgumentType]
+
+    @classmethod
+    def register(cls): pass
+    @classmethod
+    def unregister(cls): pass
 
 
 RFKeyMap = tuple[
@@ -101,7 +110,7 @@ class RFOperator_Base(Operator):
     rf_idname : ClassVar[str]
     rf_keymaps : RFKeyMaps = []
 
-    def __init_subclass__(cls, *args : ..., **kwargs : dict[..., ...]): # pyright: ignore[reportAny]
+    def __init_subclass__(cls, *args : ..., **kwargs : ...): # pyright: ignore[reportAny]
         if not hasattr(cls, 'bl_idname'):
             # RFOperator and RFOperator_Execute should not go on _subclasses list.
             # they will not have bl_idname specified, but all subclasses should, so

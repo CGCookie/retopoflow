@@ -279,7 +279,7 @@ def create_stroke_brush(
 
             try:
                 if self.operator: self.operator.is_active()
-            except ReferenceError as referr:
+            except ReferenceError as _referr:
                 # seems we lost our operator!
                 self.operator = None
 

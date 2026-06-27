@@ -20,57 +20,65 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
-import re
+from bpy.types import Context, Operator
 from ..rfglobals import RFGlobals
 from ..common.operator import RFRegisterClass
 
 
 class RFOperator_Launch_Help(RFRegisterClass, bpy.types.Operator):
-    bl_idname = "retopoflow.launch_help"
-    bl_label = 'Launch Retopoflow Docs'
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "TOOLS"
-    bl_options = set()
+    bl_idname      : str = "retopoflow.launch_help"
+    bl_label       : str = 'Launch Retopoflow Docs'
+    bl_space_type  : str = "VIEW_3D"
+    bl_region_type : str = "TOOLS"
+    bl_options : set[str] = set()
 
     @classmethod
-    def poll(self, context):
-        from ..rfcore import RFCore
-        return RFCore.is_running
-
-    def execute(self, context):
+    def poll(cls, context : Context) -> bool:
         RFCore = RFGlobals.RFCore_None
-        if not RFCore: return {'CANCELLED'}
+        return RFCore is not None and RFCore.is_running
+
+    def execute(self, context : Context) -> set[str]:
+        RFCore = RFGlobals.RFCore_None
+        if not RFCore:
+            return {'CANCELLED'}
 
         active_tool = RFCore.selected_RFTool_idname
-        help = {
-            'retopoflow.polypen': 'https://docs.retopoflow.com/v4/polypen.html',
-            'retopoflow.polystrips': 'https://docs.retopoflow.com/v4/polystrips.html',
-            'retopoflow.strokes': 'https://docs.retopoflow.com/v4/strokes.html',
-            'retopoflow.contours': 'https://docs.retopoflow.com/v4/contours.html',
-            'retopoflow.tweak': 'https://docs.retopoflow.com/v4/tweak.html',
-            'retopoflow.relax': 'https://docs.retopoflow.com/v4/relax.html',
+        if not active_tool:
+            return {'CANCELLED'}
+
+        tool_help_urls = {
+            f'retopoflow.{tool}': f'https://docs.retopoflow.com/v4/{tool}.html'
+            for tool in [
+                'polypen', 'polystrips',
+                'strokes', 'contours',
+                'tweak', 'relax',
+            ]
         }
-        if 'retopoflow' in active_tool:
-            bpy.ops.wm.url_open(url=help[active_tool])
-        else:
-            bpy.ops.wm.url_open(url='https://docs.retopoflow.com/index.html')
+        fallback_url = 'https://docs.retopoflow.com/index.html'
+
+        _ = bpy.ops.wm.url_open(
+            url=tool_help_urls.get(active_tool, fallback_url)
+        )
+
         return {'FINISHED'}
 
 
-class RFOperator_Launch_NewIssue(RFRegisterClass, bpy.types.Operator):
-    bl_idname = "retopoflow.launch_newissue"
-    bl_label = 'Report Retopoflow Issue'
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "TOOLS"
-    bl_options = set()
+class RFOperator_Launch_NewIssue(RFRegisterClass, Operator):
+    bl_idname      : str = "retopoflow.launch_newissue"
+    bl_label       : str = 'Report Retopoflow Issue'
+    bl_space_type  : str = "VIEW_3D"
+    bl_region_type : str = "TOOLS"
+    bl_options : set[str] = set()
 
     @classmethod
-    def poll(self, context):
+    def poll(cls, context : Context) -> bool:
         RFCore = RFGlobals.RFCore_None
-        return RFCore and RFCore.is_running
+        return RFCore is not None and RFCore.is_running
 
-    def execute(self, context):
-        bpy.ops.wm.url_open(url='https://github.com/CGCookie/retopoflow/issues/new/choose')
+    def execute(self, context : Context) -> set[str]:
+        _ = bpy.ops.wm.url_open(
+            url='https://github.com/CGCookie/retopoflow/issues/new/choose'
+        )
         return {'FINISHED'}
 
 
@@ -93,87 +101,3 @@ def unregister():
     keymaps.clear()
 
 
-# Previous operator was generated to be unique to every tool
-r"""
-from ..common.operator import create_operator
-
-def key_type(k): return re.sub(r'(ctrl|shift|alt|oskey)\+', '', k, flags=re.IGNORECASE)
-def ctrl(k):     return 1 if 'ctrl+'  in k.lower() else 0
-def shift(k):    return 1 if 'shift+' in k.lower() else 0
-def alt(k):      return 1 if 'alt+'   in k.lower() else 0
-def oskey(k):    return 1 if 'oskey+' in k.lower() else 0
-
-
-def create_launch_browser_operator(name, idname, label, url, *, fn_poll=None, fn_launch=None, rf_keymaps=None, rf_keymap_press=None, **kwargs):
-    def launch_browser(context):
-        bpy.ops.wm.url_open(url=url)
-        return {'FINISHED'}
-
-    if fn_launch == None:
-        fn_launch = launch_browser
-
-    op = create_operator(name, idname, label, fn_poll=fn_poll, fn_exec=fn_launch, **kwargs)
-
-    op.rf_keymaps = rf_keymaps or []
-    if rf_keymap_press:
-        op.rf_keymaps.append((
-            idname, {
-                'type':  key_type(rf_keymap_press),
-                'value': 'PRESS',
-                'ctrl':  ctrl(rf_keymap_press),
-                'shift': shift(rf_keymap_press),
-                'alt':   alt(rf_keymap_press),
-                'oskey': oskey(rf_keymap_press),
-            },
-            None,
-        ))
-
-    return op
-
-
-def poll_report_issue(context):
-    from ..preferences import RF_Prefs
-    return RF_Prefs.get_prefs(context).enable_issue_hotkey
-
-RFOperator_Launch_NewIssue = create_launch_browser_operator(
-    'RFOperator_Launch_NewIssue',
-    'retopoflow.launch_newissue',
-    'Report a new issue with RetopoFlow',
-    'https://github.com/CGCookie/retopoflow/issues/new/choose',
-    rf_keymap_press='F2',
-    fn_poll=poll_report_issue,
-)
-
-
-def poll_help(context):
-    from ..preferences import RF_Prefs
-    return RF_Prefs.get_prefs(context).enable_help_hotkey
-
-def launch_help(context):
-    RFCore = RFGlobals.RFCore
-    if not RFCore: return {'CANCELLED}
-    active_tool = RFCore.selected_RFTool_idname
-    help = {
-        'retopoflow.polypen': 'https://docs.retopoflow.com/v4/polypen.html',
-        'retopoflow.polystrips': 'https://docs.retopoflow.com/v4/polystrips.html',
-        'retopoflow.strokes': 'https://docs.retopoflow.com/v4/strokes.html',
-        'retopoflow.contours': 'https://docs.retopoflow.com/v4/contours.html',
-        'retopoflow.tweak': 'https://docs.retopoflow.com/v4/tweak.html',
-        'retopoflow.relax': 'https://docs.retopoflow.com/v4/relax.html',
-    }
-    if 'retopoflow' in active_tool:
-        bpy.ops.wm.url_open(url=help[active_tool])
-    else:
-        bpy.ops.wm.url_open(url='https://docs.retopoflow.com/index.html')
-    return {'FINISHED'}
-
-RFOperator_Launch_Help = create_launch_browser_operator(
-    'RFOperator_Launch_Help',
-    'retopoflow.launch_help',
-    'Launch Help Docs',
-    'https://docs.retopoflow.com/index.html',
-    fn_poll=poll_help,
-    fn_launch=launch_help,
-    rf_keymap_press='F1',
-)
-"""

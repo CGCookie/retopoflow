@@ -245,7 +245,7 @@ class RFTool_PolyPen(RFTool_Base):
     bl_description = "Create complex topology on vertex-by-vertex basis"
     bl_icon = get_path_to_blender_icon('polypen')
     bl_widget = None
-    bl_operator = 'retopoflow.polypen'
+    rf_operator_idname : str | None = 'retopoflow.polypen'
 
     props = None  # needed to reset properties
 

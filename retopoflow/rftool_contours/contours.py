@@ -664,7 +664,7 @@ class RFTool_Contours(RFTool_Base):
     bl_description = "Retopologize cylindrical forms, like arms and legs"
     bl_icon = get_path_to_blender_icon('contours')
     bl_widget = None
-    bl_operator = 'retopoflow.contours'
+    rf_operator_idname : str | None = 'retopoflow.contours'
 
     rf_brush = RFBrush_Cut()
     rf_overlay = RFOperator_Contours_Overlay

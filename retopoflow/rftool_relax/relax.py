@@ -267,7 +267,7 @@ class RFTool_Relax(RFTool_Base):
     bl_description = "Relax the vertex positions to smooth out topology"
     bl_icon = get_path_to_blender_icon('relax')
     bl_widget = None
-    bl_operator = 'retopoflow.relax'
+    rf_operator_idname : str | None = 'retopoflow.relax'
 
     rf_brush = RFBrush_Relax()
 

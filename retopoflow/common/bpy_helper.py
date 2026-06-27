@@ -106,3 +106,43 @@ class BPY_Timers:
     @staticmethod
     def unregister(fn : Callable[[], float | None]):
         bpy.app.timers.unregister(fn)
+
+BL_SPACE_TYPES = Literal[
+    "EMPTY",
+    "VIEW_3D",
+    "IMAGE_EDITOR",
+    "NODE_EDITOR",
+    "SEQUENCE_EDITOR",
+    "CLIP_EDITOR",
+    "DOPESHEET_EDITOR",
+    "GRAPH_EDITOR",
+    "NLA_EDITOR",
+    "TEXT_EDITOR",
+    "CONSOLE",
+    "INFO",
+    "TOPBAR",
+    "STATUSBAR",
+    "OUTLINER",
+    "PROPERTIES",
+    "FILE_BROWSER",
+    "SPREADSHEET",
+    "PREFERENCES",
+]
+BL_REGION_TYPES = Literal[
+    "WINDOW",
+    "HEADER",
+    "CHANNELS",
+    "TEMPORARY",
+    "UI",
+    "TOOLS",
+    "TOOL_PROPS",
+    "ASSET_SHELF",
+    "ASSET_SHELF_HEADER",
+    "PREVIEW",
+    "HUD",
+    "NAVIGATION_BAR",
+    "EXECUTE",
+    "FOOTER",
+    "TOOL_HEADER",
+    "XR",
+]

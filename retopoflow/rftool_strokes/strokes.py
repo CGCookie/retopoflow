@@ -519,7 +519,7 @@ class RFTool_Strokes(RFTool_Base):
     bl_description = "Insert edge strips and extrude edges into a patch"
     bl_icon = get_path_to_blender_icon('strokes')
     bl_widget = None
-    bl_operator = 'retopoflow.strokes'
+    rf_operator_idname : str | None = 'retopoflow.strokes'
 
     rf_brush = RFBrush_Strokes()
     rf_overlay = RFOperator_Strokes_Overlay

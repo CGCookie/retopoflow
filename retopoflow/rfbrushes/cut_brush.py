@@ -41,7 +41,7 @@ from ..common.drawing import (
 from ..common.icons import get_path_to_blender_icon
 from ..common.maths import view_forward_direction, lerp
 from ..common.operator import (
-    RFOperator, RFRegisterClass,
+    RFOperator,
     chain_rf_keymaps,
 )
 from ..common.raycast import (

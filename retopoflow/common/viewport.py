@@ -19,8 +19,9 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+from bpy.types import Context
 from ..rfoperators.mirror import update_nodes_preview
 
-def update_retopo_overlay(context):
+def update_retopo_overlay(context : Context):
     context.space_data.overlay.retopology_offset = context.scene.retopoflow.retopo_offset
     update_nodes_preview(context)

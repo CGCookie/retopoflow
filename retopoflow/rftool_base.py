@@ -38,17 +38,25 @@ class RFTool_Base(WorkSpaceTool):
     bl_context_mode : str = 'EDIT_MESH'
     bl_keymap : BLKeyMaps = ()
 
-    rf_idname : str = 'unlabeled'
+    rf_idname : str = 'unlabeled'  # copy of bl_idname (TODO: NOT SURE WHY THIS IS STILL HERE...)
     rf_brush : RFBrush_Base | None = None
     rf_overlay : type[RFOverlay_Base] | None = None
+    rf_operator_idname : str | None = None  # bl_idname of main operator for this RFTool
 
     resetter : ClassVar[Resetter | None] = None
 
-    _subclasses : list[type[RFTool_Base]] = []
+    _subclasses : ClassVar[list[type[RFTool_Base]]] = []
+    _subclasses_by_name : ClassVar[dict[str, type[RFTool_Base]]] = {}
     def __init_subclass__(cls, **kwargs):
         RFTool_Base._subclasses.append(cls)
+        RFTool_Base._subclasses_by_name[cls.bl_idname] = cls
         super().__init_subclass__(**kwargs)
         cls.rf_idname = cls.bl_idname
+        print(cls.bl_idname)
+
+    @staticmethod
+    def get_rftool_by_workspacetool(tool : WorkSpaceTool) -> type[RFTool_Base] | None:
+        return RFTool_Base._subclasses_by_name.get(tool.idname, None)
 
     @classmethod
     def activate_tool(cls, context : Context):

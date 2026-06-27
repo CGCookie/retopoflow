@@ -20,6 +20,7 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
+from bpy.types import Context, KeyMapItem
 
 '''
 Standard US 101 QWERTY Keyboard
@@ -73,17 +74,21 @@ def is_keymap_item_matching(km_item, saved_item):
 
 # Returns the first matching keymap item. There could be multiple!
 # Add arguments to further filter if needed
-def get_user_keymap_item(context, idname):
+def get_user_keymap_item(context : Context, idname : str) -> KeyMapItem | None:
+    user = context.window_manager.keyconfigs.user
+    if not user:
+        return None
     is_menu = '_MT_' in idname
     menu_idnames = ['wm.call_menu', 'wm.call_menu_pie']
-    for keymap in context.window_manager.keyconfigs.user.keymaps:
+    for keymap in user.keymaps:
         for km_item in keymap.keymap_items:
             if is_menu:
-                if km_item.idname in menu_idnames and km_item.properties['name'] == idname:
+                if km_item.idname in menu_idnames and km_item.properties and km_item.properties['name'] == idname:
                     return km_item
             else:
                 if km_item.idname == idname:
                     return km_item
+    return None
 
 
 def alter_user_keymaps(context):

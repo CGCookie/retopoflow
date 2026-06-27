@@ -265,7 +265,7 @@ class RFTool_Tweak(RFTool_Base):
     bl_description : str = "Tweak the vertex positions"
     bl_icon : str = get_path_to_blender_icon('tweak')
     bl_widget : str | None = None
-    bl_operator : str = 'retopoflow.tweak'
+    rf_operator_idname : str | None = 'retopoflow.tweak'
 
     rf_brush : RFBrush_Tweak = RFBrush_Tweak()
 

@@ -708,7 +708,7 @@ class RFTool_PolyStrips(RFTool_Base):
     bl_description : str = "Insert quad strip"
     bl_icon : str = get_path_to_blender_icon('polystrips')
     bl_widget : str | None = None
-    bl_operator : str = 'retopoflow.polystrips'
+    rf_operator_idname : str | None = 'retopoflow.polystrips'
 
     rf_brush = RFBrush_Strokes()
     rf_overlay : type[RFOverlay_Base] | None = create_quadstrip_selection_overlay(
