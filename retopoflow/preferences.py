@@ -22,6 +22,7 @@ Created by Jonathan Denning, Jonathan Lampel
 import platform
 
 import bpy
+from bpy.types import Context, AddonPreferences, UILayout
 from .common.interface import update_toolbar, draw_section_header, draw_section_indent, draw_keymap_options
 from .rfoperators.pinning import toggle_pinning
 from ..config.theme import Theme
@@ -31,14 +32,17 @@ from ..addon_common.autosave.autosave import AutoSave
 assert __package__, 'Do not run this Python file directly'
 addon_name = __package__.rsplit('.', 1)[0]
 
-class RF_Prefs(bpy.types.AddonPreferences):
+class RF_Prefs(AddonPreferences):
     # Grabs the full extension name regardless of which library it is in
     # Since this file is in a subfolder, it needs the last folder name removed
-    bl_idname = addon_name
+    bl_idname : str = addon_name
 
     @staticmethod
-    def get_prefs(context):
-        return context.preferences.addons[addon_name].preferences
+    def get_prefs(context : Context) -> AddonPreferences:
+        addon = context.preferences.addons[addon_name]
+        addon_prefs = addon.preferences
+        assert addon_prefs
+        return addon_prefs
 
     """ RF AutoSave """
     enable_autosave: bpy.props.BoolProperty(
@@ -51,7 +55,8 @@ class RF_Prefs(bpy.types.AddonPreferences):
             "significant slow down and do not want to auto save while working in Edit Mode."
         ),
         default=True,
-        update=AutoSave.enabled_updater,
+        update=lambda self, _context: AutoSave.property_update_enabled(self.enable_autosave)
+        # do not use set and get, otherwise value of property is not stored in Blender's preferences
     )
 
     """ Display """
@@ -77,13 +82,13 @@ class RF_Prefs(bpy.types.AddonPreferences):
             'Shows all tools in the toolbar, which takes up more space but makes them more accessible'
         ),
         default=True,
-        update=update_toolbar
+        update=lambda self, context: update_toolbar()
     )
     expand_offset: bpy.props.BoolProperty(
         name='Expand Overlay Offset',
         description=('Displays the retopology overlay offset in the tool header'),
         default=True,
-        update=update_toolbar
+        update=lambda self, context: update_toolbar()
     )
     highlight_color: bpy.props.FloatVectorProperty(
         name='Highlight Color',
@@ -254,8 +259,8 @@ class RF_Prefs(bpy.types.AddonPreferences):
         default=True,
     )
 
-    def draw(self, context):
-        layout = self.layout
+    def draw(self, context : Context):
+        layout : UILayout = self.layout
 
         from .rfpanels.autosave_panel import draw_autosave
         header, panel = layout.panel(idname='autosave_prefs', default_closed=True)

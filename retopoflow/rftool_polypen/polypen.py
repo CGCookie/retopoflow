@@ -24,7 +24,7 @@ import bpy
 from ..rfglobals import RFGlobals
 from ..rftool_base import RFTool_Base
 from ..common.icons import get_path_to_blender_icon
-from ..common.operator import execute_operator, RFOperator, RFRegisterClass, chain_rf_keymaps, wrap_property, poll_retopoflow, RFKeyMaps, BLKeyMaps
+from ..common.operator import execute_operator, RFOperator, RFRegisterClass, chain_rf_keymaps, OperatorPropertyWrapper, poll_retopoflow, RFKeyMaps, BLKeyMaps
 from ...addon_common.common.resetter import Resetter
 from ...addon_common.common.blender import event_modifier_check
 
@@ -148,15 +148,15 @@ class RFOperator_PolyPen(RFOperator):
         'ready': ('LMB: Insert', ),
     }
 
-    insert_mode: wrap_property(
-        PolyPen_Insert_Modes, 'insert_mode', 'enum',
+    insert_mode: OperatorPropertyWrapper.enum(
+        PolyPen_Insert_Modes, 'insert_mode',
         name='Insert Mode',
         description='Insertion mode for PolyPen',
         items=PolyPen_Insert_Modes.insert_modes,
         default="TRI/QUAD",
     )
-    quad_stability: wrap_property(
-        PolyPen_Quad_Stability, 'quad_stability', 'float',
+    quad_stability: OperatorPropertyWrapper.float(
+        PolyPen_Quad_Stability, 'quad_stability',
         name='Quad Stability',
         description='Stability of parallel edges',
         min=0.00,
@@ -245,7 +245,7 @@ class RFTool_PolyPen(RFTool_Base):
     bl_description = "Create complex topology on vertex-by-vertex basis"
     bl_icon = get_path_to_blender_icon('polypen')
     bl_widget = None
-    bl_operator = 'retopoflow.polypen'
+    rf_operator_idname : str | None = 'retopoflow.polypen'
 
     props = None  # needed to reset properties
 

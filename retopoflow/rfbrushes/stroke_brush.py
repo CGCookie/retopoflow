@@ -279,7 +279,7 @@ def create_stroke_brush(
 
             try:
                 if self.operator: self.operator.is_active()
-            except ReferenceError as referr:
+            except ReferenceError as _referr:
                 # seems we lost our operator!
                 self.operator = None
 
@@ -881,7 +881,7 @@ def create_stroke_brush(
             if not scale_below or not scale_above: return
 
             n = hit['no_local']
-            rmat = Matrix.Rotation(Direction.Z.angle(n), 4, Direction.Z.cross(n))
+            rmat = Matrix.Rotation(Direction.Z().angle(n), 4, Direction.Z().cross(n))
 
             self.hit = True
             self.hit_ray = hit['ray_world']
@@ -892,9 +892,9 @@ def create_stroke_brush(
             self.hit_pl = hit['co_local']
             self.hit_nl = hit['no_local']
             self.hit_depth = hit['distance']
-            self.hit_x = Vec(rmat @ Direction.X)
-            self.hit_y = Vec(rmat @ Direction.Y)
-            self.hit_z = Vec(rmat @ Direction.Z)
+            self.hit_x = Vec(rmat @ Direction.X())
+            self.hit_y = Vec(rmat @ Direction.Y())
+            self.hit_z = Vec(rmat @ Direction.Z())
             self.hit_rmat = rmat
 
         def draw_adjust(self, context):

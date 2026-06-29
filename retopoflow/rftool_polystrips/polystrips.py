@@ -41,7 +41,7 @@ from ..common.operator import (
     execute_operator,
     RFOperator, RFOperator_Execute, RFKeyMap, RFKeyMaps, BLKeyMaps,
     chain_rf_keymaps,
-    wrap_property, poll_retopoflow,
+    OperatorPropertyWrapper, poll_retopoflow,
 )
 from ...addon_common.common import gpustate
 from ...addon_common.common.blender import event_modifier_check
@@ -595,8 +595,8 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
     }
 
 
-    brush_radius: wrap_property(
-        RFBrush_Strokes, 'stroke_radius', 'int',
+    brush_radius: OperatorPropertyWrapper.int(
+        RFBrush_Strokes, 'stroke_radius',
         name='Radius',
         description='Radius of the brush in Blender UI units before it gets projected onto the mesh',
         min=1,
@@ -708,8 +708,8 @@ class RFTool_PolyStrips(RFTool_Base):
     bl_description : str = "Insert quad strip"
     bl_icon : str = get_path_to_blender_icon('polystrips')
     bl_widget : str | None = None
-    bl_operator : str = 'retopoflow.polystrips'
 
+    rf_operator_idname : str | None = 'retopoflow.polystrips'
     rf_brush = RFBrush_Strokes()
     rf_overlay : type[RFOverlay_Base] | None = create_quadstrip_selection_overlay(
         'RFOperator_PolyStrips_Selection_Overlay',

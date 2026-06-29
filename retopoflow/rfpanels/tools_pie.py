@@ -3,7 +3,7 @@ from bpy.types import Menu
 from bpy.utils import previews
 
 from ..rftool_polypen.polypen import PolyPen_Insert_Modes
-from ..rftool_patches.patches import Patches_Orientations
+# from ..rftool_patches.patches import Patches_Orientations
 
 
 

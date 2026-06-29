@@ -1,7 +1,7 @@
 import bpy
+from bpy.types import Context, UILayout, OperatorProperties, KeyMapItem
 
-
-def draw_keymap_options(layout, keymap_item):
+def draw_keymap_options(layout : UILayout, keymap_item : KeyMapItem | None):
     if not keymap_item:
         return
     row = layout.row(align=True)
@@ -16,7 +16,7 @@ def draw_keymap_options(layout, keymap_item):
     modifiers.prop(keymap_item, 'alt_ui', toggle=True)
 
 
-def draw_expandable_enum(context, layout, props, prop_name:str, breakpoint:int=600, text:str|None=None):
+def draw_expandable_enum(context : Context, layout : UILayout, props : OperatorProperties, prop_name:str, breakpoint:int=600, text:str|None=None):
     if text == None:
         text = props.bl_rna.properties[prop_name].name
 
@@ -33,7 +33,7 @@ def draw_line_separator(layout):
         return layout.separator()
 
 
-def draw_section_indent(context, layout):
+def draw_section_indent(context : Context, layout : UILayout):
     if context.region.type != 'TOOL_HEADER':
         if context.region.width > 600:
             layout.label(icon='BLANK1')
@@ -66,7 +66,7 @@ def show_message(message: str, title: str, icon: str = "INFO"):
     bpy.context.window_manager.popup_menu(popup_handler, title=title, icon=icon)
 
 
-def update_toolbar(self, context):
+def update_toolbar():
     from ..rftool_base import RFTool_Base
     RFTool_Base.unregister_all()
     RFTool_Base.register_all()

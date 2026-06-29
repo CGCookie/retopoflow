@@ -21,21 +21,37 @@ Created by Jonathan Denning, Jonathan Lampel
 
 
 import bpy
+from bpy.types import Context, UILayout
+from typing import cast
 from ..preferences import RF_Prefs
 from ..common.interface import draw_section_header
+from ..rftool_base import RFTool_Base
 
 
-def draw_tweaking_options(context, layout):
+def draw_tweaking_options(context : Context, layout : UILayout):
+    if not context.space_data:
+        return
+
     props = RF_Prefs.get_prefs(context)
 
     if context.space_data.type != 'PREFERENCES':
         tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
         if 'retopoflow' in tool.idname:
-            tool_props = tool.operator_properties(tool.idname)
-            if hasattr(tool_props, 'select_loops'):
-                col = layout.column()
-                draw_section_header(context, col, tool_props.bl_rna.name)
-                col.prop(tool_props, 'select_loops', text='Loops Mode')
+            # get RFTool_Base class corresponding to Blender WorkSpaceTool
+            # NOTE: tool.idname might not match an operator, so using rf_operator_idname
+            rftool = RFTool_Base.get_rftool_by_workspacetool(tool)
+            if rftool and rftool.rf_operator_idname:
+                try:
+                    # WorkSpaceTool.operator_properties throws a RunTime Exception if
+                    # the specified tool does not have any properties (2026.06.28)
+                    tool_props = tool.operator_properties(rftool.rf_operator_idname)
+                except Exception as _exception:
+                    tool_props = None
+
+                if tool_props and hasattr(tool_props, 'select_loops'):
+                    col = layout.column()
+                    draw_section_header(context, col, tool_props.bl_rna.name)
+                    col.prop(tool_props, 'select_loops', text='Loops Mode')
 
     grid = layout.grid_flow(even_columns=True, even_rows=False)
     grid.use_property_split = True
@@ -75,7 +91,7 @@ def draw_tweaking_options(context, layout):
         col.prop(tool_props, 'select_loops', text='Select Loops')
 
 
-def draw_tweaking_panel(context, layout):
+def draw_tweaking_panel(context : Context, layout : UILayout):
     header, panel = layout.panel(idname='tweak_panel_common', default_closed=True)
     header.label(text="Tweaking")
     if panel:
@@ -89,7 +105,7 @@ class RFMenu_PT_TweakCommon(bpy.types.Panel):
     bl_region_type = 'HEADER'
     bl_ui_units_x = 12
 
-    def draw(self, context):
+    def draw(self, context : Context):
         draw_tweaking_options(context, self.layout)
 
 

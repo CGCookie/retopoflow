@@ -20,15 +20,16 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 from __future__ import annotations
-from typing import Self, ClassVar, Protocol, Any, cast, ParamSpec, TypeVar, Literal
-from collections.abc import Sequence, Callable
+from functools import singledispatch
+from typing import Self, ClassVar, Protocol, Any, cast, Literal, ParamSpec, TypeVar
+from collections.abc import Sequence, Callable, Iterable
 from inspect import signature
 
 import bpy
 from bpy.types import (
     Context, Event,
     Area, Window, WindowManager, SpaceView3D,
-    Operator,  OperatorProperties,
+    Operator,
     KeyMapItem,
     Timer,
     bpy_struct,
@@ -55,32 +56,41 @@ def poll_retopoflow(context : Context) -> bool:
 
 
 class RFRegisterClass:
-    @classmethod
-    def register(cls): pass
-    @classmethod
-    def unregister(cls): pass
+    _subclasses : ClassVar[list[type[RFRegisterClass]]] = []
+    _registered_classes : ClassVar[set[type[RFRegisterClass]]] = set()
 
-    _subclasses : list[type[RFRegisterClass]] = []
-
-    def __init_subclass__(cls, **kwargs : Any): # pyright: ignore[reportExplicitAny, reportAny]
+    def __init_subclass__(cls, *args : ..., **kwargs : ...): # pyright: ignore[reportAny]
         RFRegisterClass._subclasses.append(cls)
-        super().__init_subclass__(**kwargs)
+        super().__init_subclass__(*args, **kwargs)
 
     @staticmethod
     def get_all_classes() -> list[type[RFRegisterClass]]:
         return RFRegisterClass._subclasses
         # return RFRegisterClass.__subclasses__()  # this only works if the subclass is still in scope!!!!!
+
+    @classmethod
+    def is_registered(cls) -> bool:
+        return cls in RFRegisterClass._registered_classes
+
     @staticmethod
     def register_all():
-        for op in RFRegisterClass.get_all_classes():
+        for op in RFRegisterClass._subclasses:
             bpy.utils.register_class(op) # pyright: ignore[reportArgumentType]
+            RFRegisterClass._registered_classes.add(op)
             op.register()
         print(f'RF registered {len(RFRegisterClass.get_all_classes())} RFRegisterClasses')
+
     @staticmethod
     def unregister_all():
         for op in reversed(RFRegisterClass.get_all_classes()):
             op.unregister()
+            RFRegisterClass._registered_classes.discard(op)
             bpy.utils.unregister_class(op) # pyright: ignore[reportArgumentType]
+
+    @classmethod
+    def register(cls): pass
+    @classmethod
+    def unregister(cls): pass
 
 
 RFKeyMap = tuple[
@@ -100,7 +110,7 @@ class RFOperator_Base(Operator):
     rf_idname : ClassVar[str]
     rf_keymaps : RFKeyMaps = []
 
-    def __init_subclass__(cls, *args : ..., **kwargs : dict[..., ...]): # pyright: ignore[reportAny]
+    def __init_subclass__(cls, *args : ..., **kwargs : ...): # pyright: ignore[reportAny]
         if not hasattr(cls, 'bl_idname'):
             # RFOperator and RFOperator_Execute should not go on _subclasses list.
             # they will not have bl_idname specified, but all subclasses should, so
@@ -159,6 +169,7 @@ class RFOperator_Base(Operator):
         if not exceptions:
             return
 
+        # Exceptions were thrown and caught!
         print()
         term_printer.boxed(
             *[ f'{rf_idname}, {action}: {e}\n' for (rf_idname, action, e) in exceptions ],
@@ -174,9 +185,10 @@ class RFOperator_Base(Operator):
 
 
 
-class RFOperator_KeymapContext(RFOperator_Base):
+
+class RFOperator_KeymapContext_Helper:
     @staticmethod
-    def update_km_context(props : OperatorProperties, _context : Context):
+    def update_km_context(props : bpy_struct, _context : Context):
         # technically, self is a bpy_struct type that "wraps" RFOperator_KeymapContext
         RFCore = RFGlobals.RFCore_None
         if not RFCore:
@@ -184,7 +196,7 @@ class RFOperator_KeymapContext(RFOperator_Base):
         if not hasattr(props, 'km_context'):
             return
 
-        km_context : str = getattr(props, 'km_context')
+        km_context = str(getattr(props, 'km_context')) # pyright: ignore[reportAny]
 
         if km_context == 'OVERRIDE':
             # NOTE: 'km_status_override' is set by caller ('set_statusbar_override')
@@ -195,11 +207,11 @@ class RFOperator_KeymapContext(RFOperator_Base):
             RFCore.km_status_override = None
             RFCore.km_context = km_context if km_context else None
 
+class RFOperator_KeymapContext(RFOperator_KeymapContext_Helper, RFOperator_Base):
     km_context: StringProperty( # pyright: ignore[reportUninitializedInstanceVariable]
         name='Keymap Context',
         description='Context for the tool keymap',
-        # cast update_km_context so type hinting matches (looks like blender abuses type system)
-        update=cast(Callable[[bpy_struct, Context], None], update_km_context.__func__),
+        update=RFOperator_KeymapContext_Helper.update_km_context,
     )
 
     def set_statusbar_override(self, status: str | Sequence[str] | None):
@@ -313,29 +325,18 @@ class TickledCallback(Protocol):
     def __call__(self): pass
 
 class RFOperator(RFOperator_KeymapContext):
-    active_operators : list[Self] = []
+    active_operators : ClassVar[list[Self]] = []
 
     tickled : TickledCallback | None = None
 
-    _is_running : ClassVar[bool]
+    _is_running : ClassVar[bool] = False
 
-    working_area : Area | None
-    working_window : Window | None
-    last_op : Operator | None
-    _stop : bool
-    fullscreen_keymaps : list[KeyMapItem]
-    _draw_postpixel_overlay : object | None
-
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        type(self)._is_running = False
-        self.working_area = None
-        self.working_window = None
-        self.last_op = None
-        self._stop = False
-        self.fullscreen_keymaps = []
-        self._draw_postpixel_overlay = None
+    working_area : Area | None = None
+    working_window : Window | None = None
+    last_op : Operator | None = None
+    _stop : bool = False
+    fullscreen_keymaps : list[KeyMapItem] = []
+    _draw_postpixel_overlay : object | None = None
 
     @staticmethod
     def handle_tickle():
@@ -439,7 +440,8 @@ class RFOperator(RFOperator_KeymapContext):
             self._draw_postpixel_overlay = None
         bpy.context.workspace.status_text_set(None)
 
-        if self in RFOperator.active_operators: RFOperator.active_operators.remove(self)
+        if self in RFOperator.active_operators:
+            RFOperator.active_operators.remove(self)
         type(self)._is_running = False
 
     def modal(self, context : Context, event : Event) -> set[str]:
@@ -567,7 +569,8 @@ class RFOperator(RFOperator_KeymapContext):
     def reset(self): pass
     def update(self, _context : Context, _event : Event) -> set[str]: return {'FINISHED'}
     def finish(self, _context : Context): pass
-    def draw_postpixel_overlay(self, _context : Context): pass
+    def draw_always(self) -> bool: return False
+    def draw_postpixel_overlay(self): pass
     def draw_preview(self, _context : Context): pass
     def draw_postview(self, _context : Context): pass
     def draw_postpixel(self, _context : Context): pass
@@ -597,9 +600,10 @@ def idname_to_retopoflow_bl_idname(idname : str) -> str:
     # idname = idname.replace(' ', '_')
     return f'retopoflow.{idname}'
 
-# Blender 4.2 uses Python 3.11, so we cannot use modern (Python 3.12+) generic types with square brackets
-Param = ParamSpec('Param')
-RetType = TypeVar('RetType')
+Operator_Poll_Function    = Callable[[Context], bool]
+Operator_Invoke_Function  = Callable[[Operator, Context, Event], set[str] | None] | Callable[[Context, Event], set[str] | None]
+Operator_Execute_Function = Callable[[Operator, Context],        set[str] | None] | Callable[[Context],        set[str] | None]
+Operator_Modal_Function   = Callable[[Operator, Context, Event], set[str] | None] | Callable[[Context, Event], set[str] | None]
 
 def create_operator(
     name   : str,
@@ -607,10 +611,10 @@ def create_operator(
     label  : str,
     *,
     description : str | None = None,
-    fn_poll     : Callable[[Context], bool] | None = None,
-    fn_invoke   : Callable[[Operator, Context, Event], set[str] | None] | Callable[[Context, Event], set[str] | None] | None = None,
-    fn_exec     : Callable[[Operator, Context],        set[str] | None] | Callable[[Context],        set[str] | None] | None = None,
-    fn_modal    : Callable[[Operator, Context, Event], set[str] | None] | Callable[[Context, Event], set[str] | None] | None = None,
+    fn_poll     : Operator_Poll_Function | None = None,
+    fn_invoke   : Operator_Invoke_Function | None = None,
+    fn_exec     : Operator_Execute_Function | None = None,
+    fn_modal    : Operator_Modal_Function | None = None,
     options     : set[str] | None = None,
 ) -> RFOperator:
 
@@ -690,94 +694,156 @@ def create_operator(
 
     return type(opname, (RFOp, RF_AssetShelfOperator, RFOperator), {}) # pyright: ignore[reportReturnType]
 
-
 def invoke_operator(
     name : str,
     label : str,
-    **kwargs : Any # pyright: ignore[reportExplicitAny, reportAny]
-) -> Callable[[Callable[Param, RetType]], Callable[Param, RetType]]:
+    *,
+    description : str | None = None,
+    options     : set[str] | None = None,
+    fn_poll     : Operator_Poll_Function    | None = None,
+    fn_exec     : Operator_Execute_Function | None = None,
+    fn_modal    : Operator_Modal_Function   | None = None,
+) -> Callable[[Operator_Invoke_Function], Operator_Invoke_Function]:
     idname = name.lower().removeprefix('retpoflow.')
-    def get(fn : Callable[Param, RetType]) -> Callable[Param,RetType]:
-        _op = create_operator(
+    def get(fn : Operator_Invoke_Function) -> Operator_Invoke_Function:
+        _ = create_operator(
             name,
             idname,
             label,
-            fn_invoke=fn, # pyright: ignore[reportArgumentType]
-            **kwargs # pyright: ignore[reportAny]
+            fn_invoke=fn,
+            description=description,
+            fn_poll=fn_poll,
+            fn_exec=fn_exec,
+            fn_modal=fn_modal,
+            options=options,
         )
         # add bl_idname attribute to function
-        fn.bl_idname = idname_to_retopoflow_bl_idname(idname) # pyright: ignore[reportFunctionMemberAccess]
+        setattr(fn, 'bl_idname', idname_to_retopoflow_bl_idname(idname))
         return fn
     return get
 
 def execute_operator(
     name : str,
     label : str,
-    **kwargs : Any # pyright: ignore[reportExplicitAny, reportAny]
-) -> Callable[[Callable[Param, RetType]], Callable[Param, RetType]]:
+    *,
+    description : str | None = None,
+    options     : set[str] | None = None,
+    fn_poll     : Operator_Poll_Function | None = None,
+    fn_invoke   : Operator_Invoke_Function | None = None,
+    fn_modal    : Operator_Modal_Function | None = None,
+) -> Callable[[Operator_Execute_Function], Operator_Execute_Function]:
     idname = name.lower().removeprefix('retopoflow.')
-    def get(fn : Callable[Param, RetType]) -> Callable[Param, RetType]:
+    def get(fn : Operator_Execute_Function) -> Operator_Execute_Function:
         _op = create_operator(
             name,
             idname,
             label,
-            fn_exec=fn, # pyright: ignore[reportArgumentType]
-            **kwargs # pyright: ignore[reportAny]
+            fn_exec=fn,
+            description=description,
+            fn_poll=fn_poll,
+            fn_invoke=fn_invoke,
+            fn_modal=fn_modal,
+            options=options,
         )
         # add bl_idname attribute to function
-        fn.bl_idname = idname_to_retopoflow_bl_idname(idname) # pyright: ignore[reportFunctionMemberAccess]
+        setattr(fn, 'bl_idname', idname_to_retopoflow_bl_idname(idname))
         return fn
     return get
 
 def modal_operator(
     name : str,
     label : str,
-    **kwargs : Any # pyright: ignore[reportExplicitAny, reportAny]
-) -> Callable[[Callable[Param,RetType]], Callable[Param,RetType]]:
+    *,
+    description : str | None = None,
+    options     : set[str] | None = None,
+    fn_poll     : Operator_Poll_Function | None = None,
+    fn_invoke   : Operator_Invoke_Function | None = None,
+) -> Callable[[Operator_Modal_Function], Operator_Modal_Function]:
     idname = name.lower().removeprefix('retopoflow.')
     def fn_execute(self : Operator, context : Context) -> set[str]:
-        wm : WindowManager = context.window_manager # pyright: ignore[reportAny]
+        wm : WindowManager = context.window_manager
         _ = wm.modal_handler_add(self)
         return {'RUNNING_MODAL'}
-    def get(fn : Callable[Param,RetType]) -> Callable[Param,RetType]:
+    def get(fn : Operator_Modal_Function) -> Operator_Modal_Function:
         _op = create_operator(
             name,
             idname,
             label,
             fn_exec=fn_execute,
-            fn_modal=fn, # pyright: ignore[reportArgumentType]
-            **kwargs # pyright: ignore[reportAny]
+            fn_modal=fn,
+            description=description,
+            fn_poll=fn_poll,
+            fn_invoke=fn_invoke,
+            options=options,
         )
         # add bl_idname attribute to function
-        fn.bl_idname = idname_to_retopoflow_bl_idname(idname) # pyright: ignore[reportFunctionMemberAccess]
+        setattr(fn, 'bl_idname', idname_to_retopoflow_bl_idname(idname))
         return fn
     return get
 
-PropTypes : dict[str | Property, Property] = { # pyright: ignore[reportAssignmentType]
-    'int':   IntProperty,
-    'float': FloatProperty,
-    'enum':  EnumProperty,
-    IntProperty:   IntProperty,
-    FloatProperty: FloatProperty,
-    EnumProperty:  EnumProperty,
-}
 
-def wrap_property(
-    cls : type,
-    propname : str,
-    proptype : str | Property,
-    **kwargs: Any # pyright: ignore[reportExplicitAny, reportAny]
-) -> Property:
-    def getter(_ : Any) -> Any: # pyright: ignore[reportExplicitAny, reportAny]
-        return getattr(cls, propname) # pyright: ignore[reportAny]
+EnumPropertyItem = (
+      tuple[str, str, str]
+    | tuple[str, str, str, int]
+    | tuple[str, str, str, str | int, int]
+    | None
+)
+EnumPropertyItems = (
+      Iterable[EnumPropertyItem]
+    | Callable[[bpy_struct, Context | None], Iterable[EnumPropertyItem]]
+)
 
-    def setter(_ : Any, v : Any): # pyright: ignore[reportExplicitAny, reportAny]
-        setattr(cls, propname, v)
+class OperatorPropertyWrapper:
+    @staticmethod
+    def int(
+        wrap_cls : type,
+        propname : str,
+        **kwargs : ... # pyright: ignore[reportAny]
+    ) -> Property:
+        def getter(_self : bpy_struct) -> int:
+            return int(getattr(wrap_cls, propname)) # pyright: ignore[reportAny]
+        def setter(_self : bpy_struct, v : int):
+            setattr(wrap_cls, propname, v)
+        return IntProperty(
+            get=getter,
+            set=setter,
+            **kwargs # pyright: ignore[reportAny]
+        )
 
-    assert proptype in PropTypes, f'Unhandled property type {proptype} for {cls}.{propname}'
-    Prop = PropTypes[proptype]
+    @staticmethod
+    def float(
+        wrap_cls : type,
+        propname : str,
+        **kwargs : ... # pyright: ignore[reportAny]
+    ) -> Property:
+        def getter(_self : bpy_struct) -> float:
+            return float(getattr(wrap_cls, propname)) # pyright: ignore[reportAny]
+        def setter(_self : bpy_struct, v : float):
+            setattr(wrap_cls, propname, v)
+        return FloatProperty(
+            get=getter,
+            set=setter,
+            **kwargs # pyright: ignore[reportAny]
+        )
 
-    return Prop(get=getter, set=setter, **kwargs) # pyright: ignore[reportCallIssue, reportUnknownVariableType]
+    @staticmethod
+    def enum(
+        wrap_cls : type,
+        propname : str,
+        *,
+        items: EnumPropertyItems,
+        **kwargs : ... # pyright: ignore[reportAny]
+    ) -> Property:
+        def getter(_self : bpy_struct) -> int:
+            return int(getattr(wrap_cls, propname)) # pyright: ignore[reportAny]
+        def setter(_self : bpy_struct, v : int):
+            setattr(wrap_cls, propname, v)
+        return EnumProperty(
+            items=items,
+            get=getter,
+            set=setter,
+            **kwargs # pyright: ignore[reportAny]
+        )
 
 
 def chain_rf_keymaps(*classes : type[RFOperator_Base], extra : RFKeyMaps | None = None) -> BLKeyMaps:

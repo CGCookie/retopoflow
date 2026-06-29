@@ -20,18 +20,35 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
-from typing import Protocol, Any
+from typing import Protocol, Literal
+from collections.abc import Callable
 from types import ModuleType
 
+BPY_OP_RETURN = set[Literal['RUNNING_MODAL', 'CANCELLED', 'FINISHED', 'PASS_THROUGH']]
+BPY_OP_EXECUTION_CONTEXT = Literal[
+    "INVOKE_DEFAULT",
+    "INVOKE_REGION_WIN",
+    "INVOKE_REGION_CHANNELS",
+    "INVOKE_REGION_PREVIEW",
+    "INVOKE_AREA",
+    "INVOKE_SCREEN",
+    "EXEC_DEFAULT",
+    "EXEC_REGION_WIN",
+    "EXEC_REGION_CHANNELS",
+    "EXEC_REGION_PREVIEW",
+    "EXEC_AREA",
+    "EXEC_SCREEN",
+]
 
 class BpyOperatorCallable(Protocol):
     def __call__(
         self,
         /,
-        km_context : str = 'EXEC_DEFAULT',
-        *args : Any, **kwargs : Any # pyright:ignore[reportExplicitAny, reportAny]
-    ) -> None:
-        pass
+        execution_context : BPY_OP_EXECUTION_CONTEXT = 'EXEC_DEFAULT',
+        *args : ..., # pyright:ignore[reportAny]
+        **kwargs : ..., # pyright:ignore[reportAny]
+    ) -> BPY_OP_RETURN:
+        return set()
 
 def get_bpy_op(category_name : str, operator_name : str) -> BpyOperatorCallable:
     category : ModuleType | None = getattr(bpy.ops, category_name, None)
@@ -43,16 +60,92 @@ def get_bpy_op(category_name : str, operator_name : str) -> BpyOperatorCallable:
 def call_bpy_op(
     category_name : str, operator_name : str,
     /,
-    km_context : str = 'EXEC_DEFAULT',
-    *args : Any, **kwargs : Any  # pyright:ignore[reportExplicitAny, reportAny]
-) -> None:
+    execution_context : BPY_OP_EXECUTION_CONTEXT = 'EXEC_DEFAULT',
+    *args : ...,  # pyright:ignore[reportAny]
+    **kwargs : ..., # pyright:ignore[reportAny]
+) -> BPY_OP_RETURN:
     op = get_bpy_op(category_name, operator_name)
-    op(km_context, *args, **kwargs)
+    return op(execution_context, *args, **kwargs)
 
 def bpy_ops_retopoflow(
     operator_name : str,
     /,
-    km_context : str = 'EXEC_DEFAULT',
-    *args : Any, **kwargs : Any # pyright:ignore[reportExplicitAny, reportAny]
-) -> None:
-    call_bpy_op('retopoflow', operator_name, km_context, *args, **kwargs)
+    execution_context : BPY_OP_EXECUTION_CONTEXT = 'EXEC_DEFAULT',
+    *args : ..., # pyright:ignore[reportAny]
+    **kwargs : ..., # pyright:ignore[reportAny]
+) -> BPY_OP_RETURN:
+    return call_bpy_op('retopoflow', operator_name, execution_context, *args, **kwargs)
+
+
+# TimerCallback should actually take no args, but pyright complains
+# about "Expected 0 positional arguments" for some reason...
+# TimerCallback = Callable[[], float|None]
+TimerCallback = Callable[..., float|None]
+
+class BPY_Timers:
+    @staticmethod
+    def register(
+        fn : TimerCallback | None = None,
+        first_interval : float = 0.0,
+        persistent : bool = False,
+    ) -> TimerCallback | Callable[[TimerCallback], TimerCallback]:
+        def decorator(fn : TimerCallback) -> TimerCallback:
+            bpy.app.timers.register(
+                fn,
+                first_interval=first_interval,
+                persistent=persistent,
+            )
+            return fn
+        return decorator if fn is None else decorator(fn)
+
+    # @staticmethod
+    # def register(fn : Callable[[], float | None], *, first_interval : float = 0, persistent : bool = False):
+    #     bpy.app.timers.register(fn, first_interval=first_interval, persistent=persistent)
+
+    @staticmethod
+    def is_registered(fn : Callable[[], float | None]) -> bool:
+        return bpy.app.timers.is_registered(fn)
+
+    @staticmethod
+    def unregister(fn : Callable[[], float | None]):
+        bpy.app.timers.unregister(fn)
+
+BL_SPACE_TYPES = Literal[
+    "EMPTY",
+    "VIEW_3D",
+    "IMAGE_EDITOR",
+    "NODE_EDITOR",
+    "SEQUENCE_EDITOR",
+    "CLIP_EDITOR",
+    "DOPESHEET_EDITOR",
+    "GRAPH_EDITOR",
+    "NLA_EDITOR",
+    "TEXT_EDITOR",
+    "CONSOLE",
+    "INFO",
+    "TOPBAR",
+    "STATUSBAR",
+    "OUTLINER",
+    "PROPERTIES",
+    "FILE_BROWSER",
+    "SPREADSHEET",
+    "PREFERENCES",
+]
+BL_REGION_TYPES = Literal[
+    "WINDOW",
+    "HEADER",
+    "CHANNELS",
+    "TEMPORARY",
+    "UI",
+    "TOOLS",
+    "TOOL_PROPS",
+    "ASSET_SHELF",
+    "ASSET_SHELF_HEADER",
+    "PREVIEW",
+    "HUD",
+    "NAVIGATION_BAR",
+    "EXECUTE",
+    "FOOTER",
+    "TOOL_HEADER",
+    "XR",
+]

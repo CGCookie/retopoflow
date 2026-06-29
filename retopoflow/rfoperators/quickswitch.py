@@ -19,19 +19,21 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 import importlib
+from typing import cast
 
 import bpy
 from bpy.types import Context, Event
 
 from ..rfglobals import RFGlobals
 from ..common.operator import RFOperator, RFKeyMaps
+from ..common.bpy_helper import BpyOperatorCallable
 
 
 _op_prop_names_cache: dict[str, list[str]] = {}
 
 
 
-def _get_operator_properties_from_current_tool(tool_name: str, op_idname: str) -> dict:
+def _get_operator_properties_from_current_tool(tool_name: str, op_idname: str) -> dict[str, ...]:
     try:
         # Get current tool.
         current_tool = bpy.context.workspace.tools.from_space_view3d_mode('EDIT_MESH')
@@ -54,49 +56,58 @@ def _get_operator_properties_from_current_tool(tool_name: str, op_idname: str) -
 
             # Get all property names from the target operator class
             if hasattr(target_op_class, '__annotations__'):
-                property_names = [name for name in target_op_class.__annotations__.keys() if name not in {'rna_type'} and not name.startswith('_')]
+                property_names = [
+                    name
+                    for name in target_op_class.__annotations__.keys()
+                    if name not in {'rna_type'} and not name.startswith('_')
+                ]
             else:
                 property_names = []
 
             _op_prop_names_cache[tool_name] = property_names
 
         # Build kwargs dict with current property values
-        kwargs = {}
+        kwargs : dict[str, ...] = {}
         for prop_name in property_names:
             if hasattr(current_props, prop_name):
                 kwargs[prop_name] = getattr(current_props, prop_name)
 
         return kwargs
-    except:
+    except Exception as _exception:
         pass
     return {}
+
 
 def quick_switch_tool(tool_name: str):
     """Get all properties from the currently active tool that can be applied to the target operator."""
     op_idname = f'retopoflow.{tool_name}'
-    bpy.ops.wm.tool_set_by_id(name=op_idname)
-    getattr(bpy.ops.retopoflow, tool_name)('INVOKE_DEFAULT', **_get_operator_properties_from_current_tool(tool_name, op_idname))
+    _ = bpy.ops.wm.tool_set_by_id(name=op_idname)
+    tool = cast(BpyOperatorCallable, getattr(bpy.ops.retopoflow, tool_name))
+    tool('INVOKE_DEFAULT', **_get_operator_properties_from_current_tool(tool_name, op_idname))
 
 
 class RFOperator_Relax_QuickSwitch(RFOperator):
-    bl_idname      = f'retopoflow.quickswitch_to_relax'
-    bl_label       = f'Retopoflow: Quick switch to Relax'
-    bl_description = f'Quick switch to Relax'
-    bl_space_type  = 'VIEW_3D'
-    bl_space_type  = 'TOOLS'
-    bl_options     = {'INTERNAL'}
+    bl_idname      : str = 'retopoflow.quickswitch_to_relax'
+    bl_label       : str = 'Retopoflow: Quick switch to Relax'
+    bl_description : str = 'Quick switch to Relax'
+    bl_space_type  : str = 'VIEW_3D'
+    bl_region_type : str = 'TOOLS'
+    bl_options : set[str] = {'INTERNAL'}
 
     rf_keymaps : RFKeyMaps = [
         (bl_idname, {'type': 'LEFTMOUSE', 'value': 'CLICK_DRAG', 'ctrl': 0, 'shift': 1}, None),
     ]
 
-    def init(self, context, event):
+    running : bool # pyright: ignore[reportUninitializedInstanceVariable]
+    prev_tool : str | None # pyright: ignore[reportUninitializedInstanceVariable]
+
+    def init(self, context : Context, event : Event):
         RFCore = RFGlobals.RFCore
 
         self.running = False
         self.prev_tool = RFCore.selected_RFTool_idname
 
-    def update(self, context, event):
+    def update(self, context : Context, event : Event) -> set[str]:
         RFCore = RFGlobals.RFCore
 
         if not self.running:
@@ -104,6 +115,8 @@ class RFOperator_Relax_QuickSwitch(RFOperator):
             quick_switch_tool('relax')
             return {'PASS_THROUGH'}
 
+        # since RFCore is running (above test), then there _should_ be
+        # at least one modal operator active
         op = context.window.modal_operators[0]
         if 'quickswitch_to_relax' not in op.bl_idname:
             # still relaxing
@@ -115,12 +128,12 @@ class RFOperator_Relax_QuickSwitch(RFOperator):
         return {'FINISHED'}
 
 class RFOperator_Tweak_QuickSwitch(RFOperator):
-    bl_idname      = f'retopoflow.quickswitch_to_tweak'
-    bl_label       = f'Retopoflow: Quick switch to Tweak'
-    bl_description = f'Quick switch to Tweak'
-    bl_space_type  = 'VIEW_3D'
-    bl_space_type  = 'TOOLS'
-    bl_options     = {'INTERNAL'}
+    bl_idname      : str = 'retopoflow.quickswitch_to_tweak'
+    bl_label       : str = 'Retopoflow: Quick switch to Tweak'
+    bl_description : str = 'Quick switch to Tweak'
+    bl_space_type  : str = 'VIEW_3D'
+    bl_region_type : str = 'TOOLS'
+    bl_options : set[str] = {'INTERNAL'}
 
     rf_keymaps : RFKeyMaps = [
         (bl_idname, {'type': 'LEFTMOUSE', 'value': 'CLICK_DRAG', 'ctrl': 1, 'shift': 1}, None),

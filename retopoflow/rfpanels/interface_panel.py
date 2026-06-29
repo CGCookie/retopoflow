@@ -31,6 +31,7 @@ def draw_ui_options(context, layout):
     grid.use_property_split = True
     grid.use_property_decorate = False
 
+
     col = grid.column()
     if context.space_data.type == 'VIEW_3D':
         col.prop(props_scene, 'retopo_offset', text='Overlay Offset')

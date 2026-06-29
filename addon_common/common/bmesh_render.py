@@ -50,20 +50,25 @@ def glSetDefaultOptions():
     gpustate.depth_test('LESS_EQUAL')
 
 
-def glSetMirror(symmetry=None, view=None, effect=0.0, frame: Frame=None):
-    mirroring = (0, 0, 0)
-    if symmetry and frame:
-        mx = 1.0 if 'x' in symmetry else 0.0
-        my = 1.0 if 'y' in symmetry else 0.0
-        mz = 1.0 if 'z' in symmetry else 0.0
-        mirroring = (mx, my, mz)
-        bmeshShader.assign('mirror_o', frame.o)
-        bmeshShader.assign('mirror_x', frame.x)
-        bmeshShader.assign('mirror_y', frame.y)
-        bmeshShader.assign('mirror_z', frame.z)
-    bmeshShader.assign('mirror_view', {'Edge': 1, 'Face': 2}.get(view, 0))
-    bmeshShader.assign('mirror_effect', effect)
-    bmeshShader.assign('mirroring', mirroring)
+# def glSetMirror(
+#     symmetry : set[str] | None = None,
+#     view : Literal['Edge','Face'] | None = None,
+#     effect : float = 0.0,
+#     frame: Frame | None = None,
+# ):
+#     mirroring = (0, 0, 0)
+#     if symmetry and frame:
+#         mx = 1.0 if 'x' in symmetry else 0.0
+#         my = 1.0 if 'y' in symmetry else 0.0
+#         mz = 1.0 if 'z' in symmetry else 0.0
+#         mirroring = (mx, my, mz)
+#         bmeshShader.assign('mirror_o', frame.o)
+#         bmeshShader.assign('mirror_x', frame.x)
+#         bmeshShader.assign('mirror_y', frame.y)
+#         bmeshShader.assign('mirror_z', frame.z)
+#     bmeshShader.assign('mirror_view', {'Edge': 1, 'Face': 2}.get(view, 0))
+#     bmeshShader.assign('mirror_effect', effect)
+#     bmeshShader.assign('mirroring', mirroring)
 
 def triangulateFace(verts):
     l = len(verts)
@@ -306,4 +311,3 @@ class BufferedRender_Batch:
             if mx and my and mz: self._draw(-1, -1, -1)
 
         gpu.shader.unbind()
-

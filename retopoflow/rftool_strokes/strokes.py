@@ -36,7 +36,7 @@ from ..common.operator import (
     execute_operator,
     RFOperator, RFOperator_Execute, RFKeyMaps, BLKeyMaps,
     chain_rf_keymaps,
-    wrap_property, poll_retopoflow,
+    OperatorPropertyWrapper, poll_retopoflow,
 )
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.blender import event_modifier_check
@@ -424,8 +424,8 @@ class RFOperator_Strokes(RFOperator_Stroke_Insert_Properties, RFOperator):
         'insert': ('RMB: Cancel', )
     }
 
-    brush_radius: wrap_property(
-        RFBrush_Strokes, 'stroke_radius', 'int',
+    brush_radius: OperatorPropertyWrapper.int(
+        RFBrush_Strokes, 'stroke_radius',
         name='Radius',
         description='Radius of the brush in Blender UI units before it gets projected onto the mesh',
         min=1,
@@ -433,8 +433,8 @@ class RFOperator_Strokes(RFOperator_Stroke_Insert_Properties, RFOperator):
         subtype='PIXEL',
         default=50,
     )
-    snap_radius: wrap_property(
-        RFBrush_Strokes, 'snap_distance', 'int',
+    snap_radius: OperatorPropertyWrapper.int(
+        RFBrush_Strokes, 'snap_distance',
         name='Snap',
         description='Distance for brush to snap to existing geometry',
         min=5,
@@ -540,7 +540,7 @@ class RFTool_Strokes(RFTool_Base):
     bl_description = "Insert edge strips and extrude edges into a patch"
     bl_icon = get_path_to_blender_icon('strokes')
     bl_widget = None
-    bl_operator = 'retopoflow.strokes'
+    rf_operator_idname : str | None = 'retopoflow.strokes'
 
     rf_brush = RFBrush_Strokes()
     rf_overlay = RFOperator_Strokes_Overlay

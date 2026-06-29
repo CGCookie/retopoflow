@@ -35,6 +35,7 @@ from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.bmesh_ops import BMLayer
 from ...addon_common.common.decorators import add_cache
 from ...addon_common.common.colors import Color4
+from ...addon_common.common.maths import Frame, Point, Normal
 from ...addon_common.common.utils import iter_pairs
 from ..common.bmesh import get_bmesh_emesh, bme_other_bmv
 from ..common.drawing import (
@@ -148,8 +149,8 @@ class Patches_Template:
 
     def _update(
         self,
-        fn_transform_vertex : Callable[[Vector, Vector], tuple[Vector, Vector]] | None,
-        fn_snap_vertices : Callable[[list[tuple[Vector, Vector]], list[int]], None] | None,
+        fn_transform_vertex : Callable[[Point|Vector, Normal|Vector], tuple[Point|Vector, Normal|Vector]] | None,
+        fn_snap_vertices : Callable[[list[tuple[Point|Vector, Normal|Vector]], list[int]], None] | None,
     ):
         if fn_transform_vertex is None:
             self.snapped_vps = self.vps
@@ -169,8 +170,8 @@ class Patches_Template:
 
     @staticmethod
     def update_active(
-        fn_transform_vertex: Callable[[Vector, Vector], tuple[Vector, Vector]] | None,
-        fn_snap_vertices : Callable[[list[tuple[Vector, Vector]], list[int]], None] | None,
+        fn_transform_vertex: Callable[[Point|Vector, Normal|Vector], tuple[Point|Vector, Normal|Vector]] | None,
+        fn_snap_vertices : Callable[[list[tuple[Point|Vector, Normal|Vector]], list[int]], None] | None,
     ):
         active = Patches_Template._active
         if not active: return

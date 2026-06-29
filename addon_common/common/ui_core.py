@@ -332,10 +332,10 @@ class UI_Element(
             abs_size = self._tablecell_size
         else:
             parent_pos = self._relative_element.absolute_pos if self._relative_element and self._relative_element != self else Point2D((0, self._parent_size.max_height - 1))
-            if not parent_pos: parent_pos = RelPoint2D.ZERO
-            rel_pos = self._relative_pos or RelPoint2D.ZERO
-            rel_offset = self._relative_offset or RelPoint2D.ZERO
-            align_offset = self._alignment_offset or RelPoint2D.ZERO
+            if not parent_pos: parent_pos = RelPoint2D.Zero()
+            rel_pos = self._relative_pos or RelPoint2D.Zero()
+            rel_offset = self._relative_offset or RelPoint2D.Zero()
+            align_offset = self._alignment_offset or RelPoint2D.Zero()
             abs_pos = parent_pos + rel_pos + rel_offset + align_offset
             abs_size = self._absolute_size
 
@@ -383,4 +383,3 @@ def create_fn(tag):
     return create
 for tag in tags_known:
     setattr(UI_Element, tag.upper(), create_fn(tag))
-

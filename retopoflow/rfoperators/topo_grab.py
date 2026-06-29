@@ -191,7 +191,7 @@ class RFOperator_TopoGrab(RFOperator):
     rf_keymaps : RFKeyMaps = [
         (bl_idname, {'type': 'G', 'value': 'PRESS', 'alt': True}, None),
     ]
-    rf_status = ['LMB: Commit', 'MMB: (nothing)', 'RMD: Cancel']
+    rf_status = ['LMB: Commit', 'MMB: (nothing)', 'RMB: Cancel']
 
 
     offset: bpy.props.FloatVectorProperty(

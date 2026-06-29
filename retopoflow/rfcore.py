@@ -23,7 +23,7 @@ import bpy
 import bl_ui
 from bl_ui import space_toolsystem_common
 import bmesh
-from bpy.types import Context, Menu, Event, Depsgraph, Scene, Area, Region, Space, SpaceView3D, RegionView3D, Screen
+from bpy.types import Context, Menu, Event, Depsgraph, Scene, Area, Region, Space, SpaceView3D, RegionView3D, Screen, Header
 
 import time
 import traceback
@@ -87,6 +87,9 @@ from ..addon_common.autosave.autosave import AutoSave
 
 TEST_XMESH : bool = False
 
+IGNORED_TOP_OPERATORS : set[str] = {
+    'Screencast Keys',
+}
 
 
 '''
@@ -113,7 +116,7 @@ class RFCore:
     running_in_areas : list[Area] = []                 # areas that RFCore operator is currently running in
     resetter : Resetter = Resetter('RFCore')  # helper for resetting bpy settings to original settings
     reset_attempts : int = 0
-    last_reset_attempt : int = 0
+    last_reset_attempt : float = time.time()
     km_context : str | None = None   # context for the active tool keymap (used by the statusbar drawing to filter out keymaps that does not match the current tool context)
     km_status_override : str | Sequence[str] | None = None   # override for the statusbar text (used to display additional information about the current tool)
 
@@ -131,7 +134,7 @@ class RFCore:
     def register():
         print('RFCore.register')
         if RFCore._is_registered:
-            # print(f'  ALREADY REGISTERED!!')
+            print('RFCore is already registered!!')
             return
 
         # register RF operator and RF tools
@@ -296,10 +299,12 @@ class RFCore:
                                 _ = bpy.ops.wm.tool_set_by_id(name=bl_idname)
 
     @staticmethod
-    def quick_switch_to_reset(bl_idname):
+    def quick_switch_to_reset(bl_idname : str):
         if not bl_idname: return
         delta = time.time() - RFCore.last_reset_attempt
-        print(f'{delta=} {RFCore.reset_attempts=}')
+        print('RFCore.quick_switch_to_reset')
+        print(f'  time since last reset: {delta:0.2f}secs')
+        print(f'  reset attempts: {RFCore.reset_attempts}')
         if delta < 2:
             RFCore.reset_attempts += 1
         else:
@@ -312,25 +317,30 @@ class RFCore:
             RFCore.quick_switch_with_call(None, bl_idname)
 
     @staticmethod
-    def quick_switch_with_call(*args : Any, delay:float=0.25):
-        def switch(*args):
+    def quick_switch_with_call(*args : None | str | Callable[[], None], delay:float=0.25):
+        def switch(*args : None | str | Callable[[],None]):
             print(f'SWITCH: {args}')
-            if not args: return
-            if args[0] is None:
-                pass
-            elif type(args[0]) is str:
-                RFCore.switch_to_tool(args[0])
-            else:
-                try: args[0]()
-                except Exception as e: print(f'CAUGHT EXCEPTION {e=}')
-            args = args[1:]
-            bpy.app.timers.register(lambda: switch(*args), first_interval=delay)
+            if not args: return # nothing left to do
+            match args[0]:
+                case None:
+                    """ NOP """
+                case str(tool):
+                    RFCore.switch_to_tool(tool)
+                case fn:
+                    try:
+                        fn()
+                    except Exception as e:
+                        print(f'CAUGHT EXCEPTION {e=}')
+            bpy.app.timers.register(
+                lambda: switch(*args[1:]),
+                first_interval=delay,
+            )
         RFCore.stop()
         switch('builtin.move', *args)
         # bpy.app.timers.register(lambda: switch('builtin.move', *args), first_interval=delay)
 
     @staticmethod
-    def _update_statusbar(context: bpy.types.Context):
+    def _update_statusbar(context: Context):
         # print(f'RFOperator._update_statusbar {RFCore.selected_RFTool_idname}')
         # get the statusbar text from the active/selected RFTool.
         if tool_idname := RFCore.selected_RFTool_idname:
@@ -340,16 +350,15 @@ class RFCore:
                 return  # Currently showing native status bar for external op report: don't re-register yet
             RFCore.km_context = 'init'
             RFCore.km_status_override = None
-            context.workspace.status_text_set(
-                lambda statusbar, context: draw_rftool_statusbar(
-                    statusbar,
-                    context,
-                    tool=RFTools[tool_idname]
-                )
-            )
+
+            def fn(statusbar : Header, context : Context):
+                draw_rftool_statusbar(statusbar, context, tool=RFTools[tool_idname])
+            context.workspace.status_text_set(fn)
+
         else:
             RFCore.km_context = None
             RFCore.km_status_override = None
+
             context.workspace.status_text_set(None)
 
     @staticmethod
@@ -357,23 +366,28 @@ class RFCore:
         ''' Re-apply the RF status bar callback to force a redraw without disturbing the current keymap context.
         Used to animate the source cache build progress. It does not reset km_context. '''
         tool_idname = RFCore.selected_RFTool_idname
-        if not tool_idname: return
+        if not tool_idname:
+            return
+
         if StatusbarYield.is_active():
             if not SourceCache.building:
                 return
+
             # Source-cache progress should stay visible even if yield is active.
             StatusbarYield.cancel()
         try:
-            bpy.context.workspace.status_text_set(
-                lambda statusbar, context: draw_rftool_statusbar(statusbar, context, tool=RFTools[tool_idname])
-            )
+            def fn(statusbar : Header, context : Context):
+                draw_rftool_statusbar(statusbar, context, tool=RFTools[tool_idname])
+            bpy.context.workspace.status_text_set(fn)
         except Exception:
             pass
 
     @staticmethod
-    def tool_changed(context, space_type, idname, **kwargs):
-        # print(f'tool_changed(context, {space_type=}, {idname=}, {kwargs=})')
-        if RFCore.is_paused: return
+    def tool_changed(context : Context, _space_type, idname : str, **kwargs):
+        # print(f'tool_changed(context, {_space_type=}, {idname=}, {kwargs=})')
+
+        if RFCore.is_paused:
+            return
 
         prev_selected_RFTool_idname = RFCore.selected_RFTool_idname
         RFCore.selected_RFTool_idname = idname if idname in RFTools else None
@@ -403,7 +417,7 @@ class RFCore:
                                     with bpy.context.temp_override(window=win, area=area, region=rgn, space=space):
                                         RFCore.start(bpy.context)
                                     started = True
-                assert started, f'Could not start after tool changed!?'
+                assert started, 'Could not start after tool changed!?'
 
         # XXX: resizing the Blender window will cause tool change to change to current tool???
         if prev_selected_RFTool_idname != RFCore.selected_RFTool_idname:
@@ -414,10 +428,10 @@ class RFCore:
                 rftool.activate(context)
                 if rftool.rf_overlay:
                     if not context.region:
-                        print(f'')
-                        print(f'')
-                        print(f'>>>>>>>> NO context.region <<<<<<<<<<')
-                        print(f'tool_changed')
+                        print('')
+                        print('')
+                        print('>>>>>>>> NO context.region <<<<<<<<<<')
+                        print('tool_changed')
                         print(f'  {context=} {context.area=} {context.region=}')
                         print(f'  {bpy.context=} {bpy.context.area=} {bpy.context.region=}')
                         # this can happen if RF tool is selected when .blend file is saved
@@ -425,8 +439,8 @@ class RFCore:
                         RFCore.quick_switch_to_reset(rftool.rf_idname) # bpy.context.scene.retopoflow.saved_tool)
                     else:
                         try:
-                            print(f'Activating {rftool.rf_overlay}')
-                            print(bpy.context.area, bpy.context.region)
+                            # print(f'Activating {rftool.rf_overlay}')
+                            # print(bpy.context.area, bpy.context.region)
                             rftool.rf_overlay.activate()
                         except Exception as e:
                             print(f'Caught exception while trying to activate overlay {e}')
@@ -436,18 +450,23 @@ class RFCore:
         RFCore._update_statusbar(context)
 
     @staticmethod
-    def start(context):
-        if RFCore.is_running: return
+    def start(context : Context):
+        if RFCore.is_running:
+            return
+        space = context.space_data
+        if not isinstance(space, SpaceView3D):
+            return
+
         RFCore.is_running = True
         RFCore.event_mouse = None
         RFCore.is_controlling = True
         RFCore._last_rf_mesh_update_time = time.monotonic() # Reset timestamp so a startup geometry event never triggers a suppression window
 
-        wm, space = bpy.types.WindowManager, bpy.types.SpaceView3D
-        RFCore._handle_draw_cursor = wm.draw_cursor_add(RFCore.handle_draw_cursor,   (context, context.area), 'VIEW_3D', 'WINDOW')
-        RFCore._handle_preview     = space.draw_handler_add(RFCore.handle_preview,   (context, context.area), 'WINDOW', 'PRE_VIEW')
-        RFCore._handle_postview    = space.draw_handler_add(RFCore.handle_postview,  (context, context.area), 'WINDOW', 'POST_VIEW')
-        RFCore._handle_postpixel   = space.draw_handler_add(RFCore.handle_postpixel, (context, context.area), 'WINDOW', 'POST_PIXEL')
+        wm_type, space_type = bpy.types.WindowManager, bpy.types.SpaceView3D
+        RFCore._handle_draw_cursor = wm_type.draw_cursor_add(RFCore.handle_draw_cursor,   (context, context.area), 'VIEW_3D', 'WINDOW')
+        RFCore._handle_preview     = space_type.draw_handler_add(RFCore.handle_preview,   (context, context.area), 'WINDOW', 'PRE_VIEW')
+        RFCore._handle_postview    = space_type.draw_handler_add(RFCore.handle_postview,  (context, context.area), 'WINDOW', 'POST_VIEW')
+        RFCore._handle_postpixel   = space_type.draw_handler_add(RFCore.handle_postpixel, (context, context.area), 'WINDOW', 'POST_PIXEL')
         # tag_redraw_all('CC ui_start', only_tag=False)
 
         # bpy.app.handlers.depsgraph_update_post.append(RFCore.handle_depsgraph_update)
@@ -459,9 +478,13 @@ class RFCore:
         if bpy.app.version >= (5,1,0):
             bpy.app.handlers.exit_pre.append(RFCore.handle_exit_pre)
 
-        # Apply setup_snapping preference to projection before touching any snap settings
         prefs = preferences.RF_Prefs.get_prefs(context)
-        snapping = context.scene.retopoflow.snapping
+        props = getattr(context.scene, 'retopoflow', None)
+        if not props:
+            return
+
+        # Apply setup_snapping preference to projection before touching any snap settings
+        snapping = props.snapping
         if not prefs.setup_snapping:
             snapping.projection = 'FOLLOW_BLENDER'
 
@@ -514,14 +537,13 @@ class RFCore:
                 RFCore.resetter[prop_path] = settings[pref]
 
         # Set up retopology overlay
-        offset = context.space_data.overlay.retopology_offset
-        props = context.scene.retopoflow
+        offset = space.overlay.retopology_offset
         if bpy.app.version < (4, 5, 0) and props.override_default_offset and offset > 0.2 and offset <0.20001:
             # Fixing Blender's bad default
-            context.space_data.overlay.retopology_offset = 0.01
+            space.overlay.retopology_offset = 0.01
             print("Switching from Blender's default overlay distance to a smaller value")
         props.override_default_offset = False # Should only happen on initial load
-        props.retopo_offset = context.space_data.overlay.retopology_offset
+        props.retopo_offset = space.overlay.retopology_offset
         if prefs.setup_retopo_overlay:
             def show_retopology(space):
                 RFCore.resetter[(space, 'overlay.show_retopology')] = True
@@ -548,7 +570,7 @@ class RFCore:
             bpy.app.timers.register(_kick_source_cache_rebuild_after_enter, first_interval=1.0 / 12.0)
 
         try:
-            bpy_ops_retopoflow('core')
+            _ = bpy_ops_retopoflow('core')
         except Exception as e:
             print('Caught Exception when calling bpy.ops.retopoflow.core() while trying to start')
             print(f'  Exception: {e}')
@@ -556,7 +578,7 @@ class RFCore:
 
     @staticmethod
     def restart():
-        print(f'RFCore.restart()')
+        print('RFCore.restart()')
         def rerun():
             screen : Screen = bpy.context.screen
             area : Area | None = next(iter_all_view3d_areas(screen=screen), None)
@@ -569,7 +591,7 @@ class RFCore:
             if not r3d: return
             with bpy.context.temp_override(area=area, region=region, space=space, region_3d=r3d):
                 try:
-                    bpy_ops_retopoflow('core')
+                    _ = bpy_ops_retopoflow('core')
                 except Exception as e:
                     print('Caught Exception when calling bpy.ops.retopoflow.core() while trying to restart')
                     print(f'  Exception: {e}')
@@ -591,13 +613,16 @@ class RFCore:
 
     @staticmethod
     def stop():
-        if not RFCore.is_running: return
-        print(f'Stopping RFCore')
+        if not RFCore.is_running:
+            return
+
+        print('RFCore.stop')
         RFCore.is_running = False
         RFCore.event_mouse = None
         RFCore.is_controlling = False
 
         StatusbarYield.cancel() # Cancel any pending status bar suppression timers
+        bpy.context.workspace.status_text_set(None) # reset status bar
 
         for rfop in RFOperator.active_operators:
             try:
@@ -607,17 +632,17 @@ class RFCore:
                 # we will gracefully "handle" this by ignoring it
                 pass
             except Exception as e:
-                print(f'Caught unexpected Exception while trying to stop active RetopoFlow operators')
+                print('Caught unexpected Exception while trying to stop active RetopoFlow operators')
                 print(f'  {e}')
                 debugger.print_exception()
 
-        bpy.app.handlers.save_pre.remove(RFCore.handle_save_pre) # pyright: ignore[reportArgumentType]
-        bpy.app.handlers.load_pre.remove(RFCore.handle_load_pre) # pyright: ignore[reportArgumentType]
+        bpy.app.handlers.save_pre.remove(RFCore.handle_save_pre)
+        bpy.app.handlers.load_pre.remove(RFCore.handle_load_pre)
         bpy.app.handlers.redo_post.remove(RFCore.handle_redo_post)
         bpy.app.handlers.undo_post.remove(RFCore.handle_undo_post)
         bpy.app.handlers.depsgraph_update_post.remove(RFCore.handle_depsgraph_update)
         if bpy.app.version >= (5,1,0):
-            bpy.app.handlers.exit_pre.remove(RFCore.handle_exit_pre) # pyright: ignore[reportArgumentType]
+            bpy.app.handlers.exit_pre.remove(RFCore.handle_exit_pre)
 
         RFCore.remove_handlers()
 
@@ -636,41 +661,49 @@ class RFCore:
 
     @staticmethod
     def remove_handlers():
-        print(f'RFCore.remove_handlers')
-        wm, space = bpy.types.WindowManager, bpy.types.SpaceView3D
+        print('RFCore.remove_handlers')
+        wm_type, space_type = bpy.types.WindowManager, bpy.types.SpaceView3D
         if RFCore._handle_preview:
-            space.draw_handler_remove(RFCore._handle_preview,   'WINDOW')
+            space_type.draw_handler_remove(RFCore._handle_preview,   'WINDOW')
             RFCore._handle_preview = None
         if RFCore._handle_postview:
-            space.draw_handler_remove(RFCore._handle_postview,  'WINDOW')
+            space_type.draw_handler_remove(RFCore._handle_postview,  'WINDOW')
             RFCore._handle_postview = None
         if RFCore._handle_postpixel:
-            space.draw_handler_remove(RFCore._handle_postpixel, 'WINDOW')
+            space_type.draw_handler_remove(RFCore._handle_postpixel, 'WINDOW')
             RFCore._handle_postpixel = None
         if RFCore._handle_draw_cursor:
-            wm.draw_cursor_remove(RFCore._handle_draw_cursor)
+            wm_type.draw_cursor_remove(RFCore._handle_draw_cursor)
             RFCore._handle_draw_cursor = None
 
     @staticmethod
     def handle_update(context : Context, event : Event):
-        if not RFCore.selected_RFTool_idname: return
+        if not RFCore.selected_RFTool_idname:
+            return
 
         selected_RFTool = RFTools[RFCore.selected_RFTool_idname]
-        brush = selected_RFTool.rf_brush
-        if brush: brush.update(context, event)
+        if brush := selected_RFTool.rf_brush:
+            brush.update(context, event)
 
     @staticmethod
     def is_current_area(context : Context) -> bool:
-        return context.area == RFCore.running_in_areas[0] if RFCore.running_in_areas else False
+        if not RFCore.running_in_areas:
+            return False
+        return context.area == RFCore.running_in_areas[0]
 
     @staticmethod
-    def is_top_modal(context : Context):
-        op_name = 'RetopoFlow Core'
-        ops = context.window.modal_operators
-        if not ops: return False
-        if ops[0].name == op_name: return True
-        if len(ops) >= 2 and ops[0].name == 'Screencast Keys' and ops[1].name == op_name: return True
-        return False
+    def is_top_modal(context : Context) -> bool:
+        op_name = RFCore_Operator.bl_label
+        ops = [op.name for op in context.window.modal_operators]
+        match ops:
+            case []:
+                return False
+            case [top, *_]:
+                return top == op_name
+            case [top, second, *_]:
+                return top in IGNORED_TOP_OPERATORS and second == op_name
+            case _:
+                return False
 
     @staticmethod
     def handle_draw_cursor(context : Context, area : Area, mouse : tuple[int, int]):
@@ -681,14 +714,15 @@ class RFCore:
             # print('NOT RUNNING ANYMORE')
             return
 
-        def idx(items, item):
-            return next((idx for (idx,i) in enumerate(items) if i == item), None)
+        # def idx(items, item):
+        #     return next((idx for (idx,i) in enumerate(items) if i == item), None)
         # print(f'handle_draw_cursor area={idx(context.window.screen.areas, context.area)}')
         # print(f'handle_draw_cursor({mouse})  {RFCore.selected_RFTool_idname=}  {RFOperator.active_operator()=}  {bpy.context.window in RFCore.running_in_areas=}')
         # print(f'{RFTools[RFCore.selected_RFTool_idname]}')
+
         if context.area not in RFCore.running_in_areas:
             print(f'LAUNCHING IN NEW AREA {context.area.x},{context.area.y}')
-            bpy_ops_retopoflow('core')
+            _ = bpy_ops_retopoflow('core')
         else:
             # print(f'handle_draw_cursor: context.area: {context.area.x},{context.area.y}')
             if not RFCore.is_current_area(context):
@@ -758,36 +792,61 @@ class RFCore:
 
     @staticmethod
     @bpy.app.handlers.persistent
-    def handle_load_post(path_blend):
+    def handle_load_post(_path_blend : str):
         if not hasattr(bpy.context.scene, 'retopoflow'): return
         if not getattr(bpy.context.scene.retopoflow, 'saved_tool', ''): return
         RFCore.quick_switch_to_reset(bpy.context.scene.retopoflow.saved_tool)
         # bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', bpy.context.scene.retopoflow.saved_tool)
 
     @staticmethod
-    def handle_preview(context : Context, area : Area):
-        if not area or len(area.spaces) == 0:
-            RFCore.remove_handlers()
-            return
-        if not RFCore.is_controlling: return
-        if not RFCore.is_running: return
-        op = RFOperator.active_operator()
-        if op:
-            try:
-                op.draw_preview(context)
-            except Exception as e:
-                print('Caught exception while trying to draw preview')
-                print(f'  {e}')
-                debugger.print_exception()
+    def get_selected_rftool() -> type[RFTool_Base] | None:
+        selected_RFTool_idname = RFCore.selected_RFTool_idname
+        return RFTools[selected_RFTool_idname] if selected_RFTool_idname else None
+
+    @staticmethod
+    def get_selected_rftool_brush() -> RFBrush_Base | None:
+        selected_RFTool = RFCore.get_selected_rftool()
+        return selected_RFTool.rf_brush if selected_RFTool else None
+
+
+
+    @staticmethod
+    def attempt_handle_callback(fn : Callable[[Context], None], context : Context):
+        try:
+            fn(context)
+        except ReferenceError as e:
+            print(f'Caught ReferenceError while trying to call {fn}')
+            print(f'  {e}')
+            _ = debugger.print_exception()
+            RFCore.stop()
+        except Exception as e:
+            print(f'Caught exception while trying to call {fn}')
+            print(f'  {e}')
+            _ = debugger.print_exception()
+            if idname := RFCore.selected_RFTool_idname:
+                RFCore.quick_switch_to_reset(idname)
+            else:
                 RFCore.restart()
 
     @staticmethod
-    def handle_postview(context : Context, area : Area):
-        if len(area.spaces) == 0:
+    def handle_preview(context : Context, area : Area):
+        if not area or len(area.spaces) == 0 or context.mode != 'EDIT_MESH' or not RFCore.is_running:
             RFCore.remove_handlers()
             return
-        if context.mode != 'EDIT_MESH': return
-        # print(f'handle_postview {len(area.spaces)}')
+
+        op = RFOperator.active_operator()
+        if not op:
+            return
+        if not RFCore.is_controlling and not op.draw_always():
+            return
+
+        RFCore.attempt_handle_callback(op.draw_preview, context)
+
+    @staticmethod
+    def handle_postview(context : Context, area : Area):
+        if not area or len(area.spaces) == 0 or context.mode != 'EDIT_MESH' or not RFCore.is_running:
+            RFCore.remove_handlers()
+            return
 
         global TEST_XMESH
         if TEST_XMESH:
@@ -800,72 +859,31 @@ class RFCore:
             except Exception as e:
                 print('DISABLING TEST_XMESH!')
                 print(f'  Exception: {e}')
-                TEST_XMESH = False
-
-        if not RFCore.is_controlling: return
-        if not RFCore.is_running: return
+                TEST_XMESH = False # pyright:ignore[reportConstantRedefinition]
 
         op = RFOperator.active_operator()
-        if op:
-            try:
-                op.draw_postview(context)
-            except ReferenceError as e:
-                print('Caught ReferenceError while trying to draw tool postview')
-                print(f'  {e}')
-                debugger.print_exception()
-                RFCore.stop()
-            except Exception as e:
-                print('Caught exception while trying to draw tool postview')
-                print(f'  {e}')
-                debugger.print_exception()
-                RFCore.quick_switch_to_reset(RFCore.selected_RFTool_idname)
-                # RFCore.restart()
+        if op and (RFCore.is_controlling or op.draw_always()):
+            RFCore.attempt_handle_callback(op.draw_postview, context)
 
-        selected_RFTool_idname = RFCore.selected_RFTool_idname
-        if not selected_RFTool_idname: return
-        selected_RFTool = RFTools[selected_RFTool_idname]
-        if not selected_RFTool: return
-        brush = selected_RFTool.rf_brush
-        if not brush: return
-
-        try:
-            brush.draw_postview(context)
-        except ReferenceError as re:
-            print('Caught ReferenceError while trying to draw brush postview')
-            print(f'  {re}')
-            traceback.print_exc()
-            RFCore.restart()
+        if brush := RFCore.get_selected_rftool_brush():
+            RFCore.attempt_handle_callback(brush.draw_postview, context)
 
     @staticmethod
     def handle_postpixel(context : Context, area : Area):
-        if len(area.spaces) == 0:
+        if not area or len(area.spaces) == 0 or context.mode != 'EDIT_MESH' or not RFCore.is_running:
             RFCore.remove_handlers()
             return
-        if not RFCore.is_controlling: return
-        if not RFCore.is_running: return
+
         op = RFOperator.active_operator()
-        if op:
-            try:
-                op.draw_postpixel(context)
-            except Exception as e:
-                print('Caught exception while trying to draw tool postpixel')
-                traceback.print_exc()
-                RFCore.restart()
+        if not op:
+            return
+        if not RFCore.is_controlling and not op.draw_always():
+            return
 
-        selected_RFTool_idname = RFCore.selected_RFTool_idname
-        if not selected_RFTool_idname: return
-        selected_RFTool = RFTools[selected_RFTool_idname]
-        if not selected_RFTool: return
-        brush = selected_RFTool.rf_brush
-        if not brush: return
+        RFCore.attempt_handle_callback(op.draw_postpixel, context)
 
-        try:
-            brush.draw_postpixel(context)
-        except ReferenceError as re:
-            print('Caught ReferenceError while trying to draw brush postpixel')
-            print(f'  {re}')
-            traceback.print_exc()
-            RFCore.restart()
+        if brush := RFCore.get_selected_rftool_brush():
+            RFCore.attempt_handle_callback(brush.draw_postpixel, context)
 
     @staticmethod
     def handle_depsgraph_update(_scene : Scene, depsgraph : Depsgraph):
@@ -898,43 +916,44 @@ class RFCore:
         except Exception as e:
             print(f'RF: external op detection error: {e}')
 
-        selected_RFTool = RFTools[RFCore.selected_RFTool_idname]
-        selected_RFTool.depsgraph_update()
-        brush = selected_RFTool.rf_brush
-        if brush: brush.depsgraph_update()
+        # the following condition should _always_ be True
+        if selected_RFTool := RFCore.get_selected_rftool():
+            selected_RFTool.depsgraph_update()
+
+        if brush := RFCore.get_selected_rftool_brush():
+            brush.depsgraph_update()
+
         RFOperator.tickle(bpy.context)
 
     @staticmethod
-    def handle_redo_post(*args, **kwargs):
-        if not RFOperator.active_operator(): return
-        if not RFCore.is_controlling: return
-        # print(f'handle_redo_post({args}, {kwargs})')
-        op = RFOperator.active_operator()
-        if op: op.reset()
+    def handle_redo_post(*_args : ..., **_kwargs : ...): # pyright: ignore[reportAny]
+        if not RFCore.is_controlling:
+            return
+        # print(f'RFCore.handle_redo_post({args}, {kwargs})')
+        if op := RFOperator.active_operator():
+            op.reset()
 
     @staticmethod
-    def handle_undo_post(*args, **kwargs):
-        if not RFOperator.active_operator(): return
-        if not RFCore.is_controlling: return
-        # print(f'handle_undo_post({args}, {kwargs})')
-        op = RFOperator.active_operator()
-        if op: op.reset()
+    def handle_undo_post(*_args : ..., **_kwargs : ...): # pyright: ignore[reportAny]
+        if not RFCore.is_controlling:
+            return
+        # print('RFCore.handle_undo_post({args}, {kwargs})')
+        if op := RFOperator.active_operator():
+            op.reset()
 
     @staticmethod
     def resetter_clear_all():
         RFCore.resetter.clear()
         for rftool in RFTools.values():
-            resetter = getattr(rftool, 'resetter', None)
-            if not resetter: continue
-            resetter.clear()
+            if resetter := rftool.resetter:
+                resetter.clear()
 
     @staticmethod
     def resetter_restore_all():
         RFCore.resetter.restore()
         for rftool in RFTools.values():
-            resetter = getattr(rftool, 'resetter', None)
-            if not resetter: continue
-            resetter.restore()
+            if resetter := rftool.resetter:
+                resetter.restore()
 
 
 rfglobals.set_RFCore(RFCore)
@@ -1007,12 +1026,16 @@ rfglobals.set_InvalidationManager(InvalidationManager)
 
 
 class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
-    bl_idname = "retopoflow.core"
-    bl_label = "RetopoFlow Core"
-    running_operators = 0
+    bl_idname : str = "retopoflow.core"
+    bl_label : str = "RetopoFlow Core"
+
+    running_operators : ClassVar[int] = 0
+
+    is_running : bool
+    running_in_area : Area | None
 
     @classmethod
-    def poll(cls, context):
+    def poll(cls, context : Context) -> bool:
         if not context.region:
             # TODO: fix this!!
             print('RF was started without context being set up correctly.')
@@ -1036,29 +1059,34 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
         # only start if an RFTool is active
         return bool(RFCore.selected_RFTool_idname)
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args : ..., **kwargs : ...):
         super().__init__(*args, **kwargs)
-        print(f'RFCore_Operator.__init__')
+        print('RFCore_Operator.__init__')
         self.running_in_area = None
         RFCore_Operator.running_operators += 1
         self.is_running = True
 
     def __del__(self):
-        print(f'RFCore_Operator.__del__!!!')
+        print('RFCore_Operator.__del__!!!')
         try:
             print(f'    {self=}')
             print(f'    {getattr(self, "is_running", None)=}')
-            if hasattr(self, 'running_in_area') and self.running_in_area in RFCore.running_in_areas:
+            if self.running_in_area and self.running_in_area in RFCore.running_in_areas:
                 RFCore.running_in_areas.remove(self.running_in_area)
             self.is_running = False
         except ReferenceError:
             # Blender struct has been removed, can't access or set properties
-            print(f'    <struct removed>')
+            print('    <struct removed>')
         finally:
             RFCore_Operator.running_operators -= 1
-        print(f'  done')
+        print('  done')
 
     def execute(self, context : Context) -> set[str]:
+        props = getattr(context.scene, 'retopoflow', None)
+        if not props:
+            print('COULD NOT FIND context.scene.retopoflow!')
+            return {'CANCELLED'}
+
         prep_raycast_valid_sources(context)
         context.window_manager.modal_handler_add(self)
         self.running_in_area = context.area
@@ -1069,13 +1097,13 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
         prefs = preferences.RF_Prefs.get_prefs(context)
         source_count = len(list(iter_all_valid_sources(context)))
         if source_count == 0 and prefs.warn_no_sources:
-            selected = context.scene.retopoflow.snapping.snap_only_selected
+            selected = props.snapping.snap_only_selected
             selectable = context.scene.tool_settings.use_snap_selectable
-            obj = context.scene.retopoflow.snapping.snap_object
-            collection = context.scene.retopoflow.snapping.snap_collection
+            obj = props.snapping.snap_object
+            collection = props.snapping.snap_collection
             message = (
-                f"No sources detected.\n"
-                f"Retopoflow tools need a visible object that is not being edited to snap the retopology mesh to."
+                "No sources detected.\n"
+                "Retopoflow tools need a visible object that is not being edited to snap the retopology mesh to."
             )
             if selected: message = message + "\nOnly use selected objects as sources is ON."
             if selectable: message = message + "\nOnly use selectable objects as sources is ON."
@@ -1085,7 +1113,7 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
             show_message(message=message, title="Retopoflow", icon="ERROR")
             self.report({'ERROR'}, message)
 
-        print(f'RFCore_Operator executing')
+        print('RFCore_Operator executing')
         return {'RUNNING_MODAL'}
 
     def modal(self, context : Context, event : Event) -> set[str]:
@@ -1103,11 +1131,15 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
         if not context.area:
             # THIS HAPPENS WHEN THE UI LAYOUT IS CHANGED WHILE RUNNING
             # WORKAROUND: restart modal operator with correct context
-            print(f'RFCore_Operator restarting due to no context.area')
-            RFCore.quick_switch_to_reset(RFCore.selected_RFTool_idname)
+            if RFCore.selected_RFTool_idname:
+                print('RFCore_Operater.modal: no context.area. attempting a restart')
+                RFCore.quick_switch_to_reset(RFCore.selected_RFTool_idname)
+            else:
+                print('RFCore_Operator.modal: no context.area and no selected RFTool. exiting!')
             return {'FINISHED'}
+
         if context.area.type != 'VIEW_3D':
-            print(f'area type changed, exiting')
+            print('RFCore_Operater.modal: area type changed, exiting')
             return {'FINISHED'}
 
         if not context.region or not context.region_data:
@@ -1115,9 +1147,8 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
             # ARTIST SWITCHING TO IT (EX: RF TOOL IS DEFAULT).
             # I THINK THE CONTEXT IS NOT QUITE SET UP CORRECTLY.
             # NEED TO SWITCH TO DIFFERENT TOOL, THEN SWITCH BACK??
-            print(f'no {context.region=} or {context.region_data=}, RESTARTING!')
+            print(f'RFCore_Operater.modal: no {context.region=} or {context.region_data=}, RESTARTING!')
             RFCore.restart()
-            print(f'RFCore_Operator exiting')
             return {'FINISHED'}
 
         # print(f' {len(context.area.spaces)=}')
@@ -1125,7 +1156,7 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
 
         if not RFCore.is_running:
             # print(f'EXITING!')
-            print(f'RFCore_Operator exiting')
+            print('RFCore_Operater.modal: RFCore is not running. exiting!')
             return {'FINISHED'}
 
         InvalidationManager.run_test(context)
@@ -1135,6 +1166,7 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
             RFCore.is_controlling = True
             context.area.tag_redraw()
         RFCore.event_mouse = (event.mouse_x, event.mouse_y)
+
         # Cancel native status bar display on user interaction.
         if (StatusbarYield.is_active()
             # Check PRESS not RELEASE or else the click on the menu that calls the op interferes
@@ -1149,10 +1181,13 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
             try:
                 RFCore.handle_update(context, event)
             except ReferenceError as referr:
-                print(f'RFCore_Operator threw an unexpected ReferenceError')
-                print(referr)
-                print(f'Attempting to fix by restarting')
-                RFCore.quick_switch_to_reset(RFCore.selected_RFTool_idname)
+                print('RFCore_Operater.modal: RFCore.handle_update threw an unexpected ReferenceError')
+                print(f'  {referr}')
+                if RFCore.selected_RFTool_idname:
+                    print('  attempting to fix by restarting')
+                    RFCore.quick_switch_to_reset(RFCore.selected_RFTool_idname)
+                else:
+                    print('  no selected RFTool. exiting!')
                 return {'FINISHED'}
 
         return {'PASS_THROUGH'}

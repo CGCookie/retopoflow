@@ -21,11 +21,18 @@ Created by Jonathan Denning, Jonathan Lampel
 
 
 import bpy
+from bpy.types import Context, UILayout, Panel, OperatorProperties
+from typing import cast
+from ..rfprops.rfprops_scene import RFProps_Scene
+from ..common.bpy_helper import BL_SPACE_TYPES, BL_REGION_TYPES
 from ..common.interface import draw_section_indent
 
 
-def draw_cleanup_options(context, layout, draw_operators=True):
-    props = context.scene.retopoflow
+def draw_cleanup_options(context : Context, layout : UILayout, draw_operators : bool = True):
+    props : OperatorProperties | None = getattr(context.scene, 'retopoflow', None)
+    if not props:
+        return
+    rfprops : RFProps_Scene = cast(RFProps_Scene, props) # pyright: ignore[reportInvalidCast]
 
     grid = layout.grid_flow(even_columns=True, even_rows=False)
     grid.use_property_split = True
@@ -42,14 +49,14 @@ def draw_cleanup_options(context, layout, draw_operators=True):
     col = grid.column()
     col.row(heading='Merge').prop(props, 'cleaning_use_merge', text='By Distance')
     row = col.row()
-    row.enabled = props.cleaning_use_merge
+    row.enabled = rfprops.cleaning_use_merge
     row.prop(props, 'cleaning_merge_threshold', text='Threshold')
     col.separator()
 
     col = grid.column(align=True)
     col.row(heading='Normals').prop(props, 'cleaning_use_recalculate_normals', text='Recalculate')
     row = col.row()
-    row.enabled = props.cleaning_use_recalculate_normals
+    row.enabled = rfprops.cleaning_use_recalculate_normals
     row.prop(props, 'cleaning_flip_normals', text='Inside')
     col.separator()
 
@@ -66,7 +73,7 @@ def draw_cleanup_options(context, layout, draw_operators=True):
     row.prop(props, 'cleaning_use_triangulate_concave', text='Concave Faces')
     col.prop(props, 'cleaning_use_triangulate_nonplanar', text='Non-Planar Faces')
     row = col.row()
-    row.enabled = not props.cleaning_use_delete_ngons
+    row.enabled = not rfprops.cleaning_use_delete_ngons
     row.prop(props, 'cleaning_use_triangulate_ngons', text='N-Gons')
     col.separator()
 
@@ -77,26 +84,27 @@ def draw_cleanup_options(context, layout, draw_operators=True):
         layout.separator()
         row = layout.row()
         draw_section_indent(context, row)
-        row.operator('retopoflow.meshcleanup', text='Selected').affect_all=False
-        row.operator('retopoflow.meshcleanup', text='All').affect_all=True
+        row.operator('retopoflow.meshcleanup', text='Selected').affect_all = False
+        row.operator('retopoflow.meshcleanup', text='All').affect_all = True
 
 
-def draw_cleanup_panel(context, layout):
+def draw_cleanup_panel(context : Context, layout : UILayout):
     header, panel = layout.panel(idname='retopoflow_cleanup_panel', default_closed=True)
     header.label(text="Clean Up")
     if panel:
         draw_cleanup_options(context, panel)
 
 
-class RFMenu_PT_MeshCleanup(bpy.types.Panel):
-    bl_label = "Mesh Clean Up"
-    bl_idname = "RF_PT_MeshCleanup"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'HEADER'
-    bl_ui_units_x = 11
+class RFMenu_PT_MeshCleanup(Panel):
+    bl_label : str = "Mesh Clean Up"
+    bl_idname : str = "RF_PT_MeshCleanup"
+    bl_space_type : BL_SPACE_TYPES = 'VIEW_3D'
+    bl_region_type : BL_REGION_TYPES = 'HEADER'
+    bl_ui_units_x : int = 11
 
-    def draw(self, context):
-        draw_cleanup_options(context, self.layout)
+    def draw(self, context : Context):
+        if self.layout:
+            draw_cleanup_options(context, self.layout)
 
 
 def register():

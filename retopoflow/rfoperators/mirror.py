@@ -21,6 +21,9 @@ Created by Jonathan Denning, Jonathan Lampel
 
 
 import bpy
+from bpy.types import Context, Modifier, SpaceView3D, MirrorModifier, Object
+
+from typing import cast
 
 from ..rfglobals import RFGlobals
 from ..common.operator import RFRegisterClass
@@ -31,13 +34,17 @@ from ..common.object import clear_transforms
 mirror_node_tree_name = 'Retopoflow Mirror Display'
 
 
-def get_mirror_mod(obj):
+def get_mirror_mod(obj : Object) -> MirrorModifier | None:
     # Just uses last mirror in stack
     modifiers = list(reversed([x for x in obj.modifiers if x.type == 'MIRROR']))
-    return modifiers[0] if modifiers else None
+    return cast(MirrorModifier, modifiers[0]) if modifiers else None
 
 
-def update_nodes_preview(context, preview_mod=None):
+def update_nodes_preview(context : Context, preview_mod : Modifier | None = None):
+    space = context.space_data
+    if not isinstance(space, SpaceView3D):
+        return
+
     props = context.scene.retopoflow
     mirror_obj = context.active_object
     preview_name = mirror_obj.name + '_mirror_preview'
@@ -56,7 +63,7 @@ def update_nodes_preview(context, preview_mod=None):
     else:
         preview_obj.display_type = 'SOLID'
 
-    mod['Socket_5'] = context.space_data.overlay.retopology_offset
+    mod['Socket_5'] = space.overlay.retopology_offset
     mod['Socket_6'] = props.mirror_displace
     mod['Socket_9'] = props.mirror_displace_boundaries
     mod['Socket_12'] = props.mirror_displace_connected
@@ -170,31 +177,34 @@ def cleanup_nodes_preview(context):
             bpy.data.grease_pencils_v3.remove(gp_obj.data)
 
 
-def update_mirror_mod(context, modifier=None):
-    props = context.scene.retopoflow
+def update_mirror_mod(context : Context, modifier : MirrorModifier | None = None):
     obj = context.active_object
+    if not obj:
+        return
+    props = context.scene.retopoflow
     props_obj = obj.retopoflow
-    use_mirror = props_obj.mirror_axis[0] or props_obj.mirror_axis[1] or props_obj.mirror_axis[2]
-    mod = get_mirror_mod(obj) if modifier == None else modifier
+    use_mirror : bool = props_obj.mirror_axis[0] or props_obj.mirror_axis[1] or props_obj.mirror_axis[2]
 
-    if not mod and use_mirror:
-        mod = obj.modifiers.new('RF_Mirror', 'MIRROR')
+    if modifier is None:
+        modifier = get_mirror_mod(obj)
+    if modifier is None and use_mirror:
+        modifier = cast(MirrorModifier, obj.modifiers.new('RF_Mirror', 'MIRROR'))
 
-    if mod:
-        mod.use_axis = props_obj.mirror_axis
-        mod.use_clip = props_obj.mirror_clipping
+    if modifier:
+        modifier.use_axis = props_obj.mirror_axis
+        modifier.use_clip = props_obj.mirror_clipping
 
-    if mod and use_mirror:
+    if modifier and use_mirror:
         if props.mirror_display == 'SOLID' or props.mirror_display=='WIRE':
-            mod.show_in_editmode = False
-            mod.show_on_cage = False
+            modifier.show_in_editmode = False
+            modifier.show_on_cage = False
             setup_nodes_preview(context)
         elif props.mirror_display == 'APPLIED':
-            mod.show_in_editmode = True
-            mod.show_on_cage = True
+            modifier.show_in_editmode = True
+            modifier.show_on_cage = True
             cleanup_nodes_preview(context)
         else:
-            mod.show_on_cage = False
+            modifier.show_on_cage = False
             cleanup_nodes_preview(context)
     else:
         cleanup_nodes_preview(context)
