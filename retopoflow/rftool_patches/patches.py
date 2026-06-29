@@ -688,7 +688,7 @@ class RFOperator_Patches_Insert(RFOperator):
                 draw.stipple(pattern=[5,5], offset=0, color=Color4((1,1,1,0)))
                 draw.vertex(pos).vertex(self.mouse)
 
-    def process_stroke(self, context, radius2D, snap_distance, stroke2D, stroke3D, is_cycle, snapped_geo, snapped_mirror):
+    def process_stroke(self, context, radius2D, snap_distance, stroke2D, stroke3D, is_cycle, snapped_geo, snapped_mirror, **kwargs):
         print('PROCESS!')
 
 

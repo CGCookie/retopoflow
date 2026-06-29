@@ -859,7 +859,7 @@ def create_stroke_brush(
                 self.stroke_cycle,
                 [(self.snap_bmv0, self.snap_bmv1), (None, None), (self.snap_bmf0, self.snap_bmf1)],
                 [self.snap_mirror_0, self.snap_mirror_1, self.snap_mirror_all],
-                radius3D,
+                radius3D=radius3D,
             )
 
         def _update(self, context):

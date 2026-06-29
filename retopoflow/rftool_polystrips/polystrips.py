@@ -633,7 +633,7 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
     def reset(self):
         RFTool_PolyStrips.rf_brush.reset()
 
-    def process_stroke(self, context, radius2D, snap_distance, stroke2D, stroke3D, is_cycle, snapped_geo, snapped_mirror):
+    def process_stroke(self, context, radius2D, snap_distance, stroke2D, stroke3D, is_cycle, snapped_geo, snapped_mirror, **kwargs):
         snap_bmf0, snap_bmf1 = snapped_geo[2]
         p3D_0, p3D_1 = stroke3D[0], stroke3D[-1]
         if not snap_bmf0:
