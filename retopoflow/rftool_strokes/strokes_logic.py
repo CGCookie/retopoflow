@@ -561,6 +561,7 @@ class Strokes_Logic:
             bmv
             for bmv in bmvs
             if (
+                (bmv.is_boundary or bmv.is_wire) and
                 # (pt3D - bmv.co).length_squared < off3D2 and
                 (pt := self.project_bmv(context, bmv)) and (pt - pt2D).length_squared <= sd2
             )
