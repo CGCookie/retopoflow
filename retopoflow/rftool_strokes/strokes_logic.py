@@ -127,9 +127,12 @@ DEBUG = False
 
 
 class Strokes_Logic:
-    def __init__(self, context, radius, snap_distance, stroke3D, is_cycle, snapped_geo, snapped_mirror, span_insert_mode, fixed_span_count, extrapolate_mode, smooth_angle, smooth_density0, smooth_density1, mirror_mode, mirror_correct):
+    def __init__(self, context, radius, snap_distance, stroke3D, is_cycle, snapped_geo, snapped_mirror,
+                 span_insert_mode, fixed_span_count, extrapolate_mode, smooth_angle, smooth_density0, smooth_density1,
+                 mirror_mode, mirror_correct, radius3D=None):
         self.radius = radius
         self.snap_distance = snap_distance
+        self.radius3D = radius3D
         self.stroke3D_original = stroke3D    # stroke can change, so keep a copy of original
 
         self.show_is_cycle = True
@@ -363,7 +366,7 @@ class Strokes_Logic:
             case 'AVERAGE' if self.average_length > 0:
                 spacing3D = self.average_length
             case _:  # BRUSH (and AVERAGE with nothing selected, which falls back to the brush)
-                nspans = max(1, round(self.length2D / (2 * self.radius)))
+                nspans = max(1, self.get_brush_nspans(self.length3D))
                 spacing3D = self.length3D / nspans
         self.spacing3D = spacing3D
         self.feature_radius = spacing3D * getattr(snapping, 'source_edge_proximity', 0.25)
@@ -593,6 +596,10 @@ class Strokes_Logic:
 
     def find_point2D(self, v):  return find_point_at(self.stroke2D, self.is_cycle, v)
     def find_point3D(self, v):  return find_point_at(self.stroke3D, self.is_cycle, v)
+    def get_brush_nspans(self, length3D):
+        if self.radius3D:
+            return round(length3D / (2 * self.radius3D))
+        return round(self.length2D / (2 * self.radius))
     def project_pt(self, context, pt):
         p = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ pt)
         return p.xy if p else None
@@ -600,18 +607,12 @@ class Strokes_Logic:
         p = self.project_pt(context, bmv.co)
         return p.xy if p else None
     def bmv_closest(self, context, bmvs, pt3D):
-        pt2D = self.project_pt(context, pt3D)
-        off3D2 = context.space_data.overlay.retopology_offset ** 2  # TODO: TAKE INTO ACCOUNT OBJECT NON-UNIFORM SCALING
-        # bmvs = [bmv for bmv in bmvs if bmv.select and (pt := self.project_bmv(context, bmv)) and (pt - pt2D).length_squared < 20*20]
-        sd2 = self.snap_distance ** 2
+        # Threshold is half a span, so we snap when an existing vert is closer than the next new vert would be.
+        snap3D_sq = (self.spacing3D * 0.5) ** 2 if self.spacing3D > 0 else float('inf')
         bmvs = [
             bmv
             for bmv in bmvs
-            if (
-                (bmv.is_boundary or bmv.is_wire) and
-                # (pt3D - bmv.co).length_squared < off3D2 and
-                (pt := self.project_bmv(context, bmv)) and (pt - pt2D).length_squared <= sd2
-            )
+            if (bmv.is_boundary or bmv.is_wire) and (bmv.co - pt3D).length_squared <= snap3D_sq
         ]
         if not bmvs: return None
         return min(bmvs, key=lambda bmv: (bmv.co - pt3D).length_squared)
@@ -623,7 +624,7 @@ class Strokes_Logic:
     def insert_strip(self, context):
         match self.span_insert_mode:
             case 'BRUSH' | 'AVERAGE':
-                nspans = round(self.length2D / (2 * self.radius))
+                nspans = self.get_brush_nspans(self.length3D)
             case 'FIXED':
                 nspans = self.fixed_span_count
             case _:
@@ -702,7 +703,7 @@ class Strokes_Logic:
         if DEBUG: print(f'insert_cycle()')
         match self.span_insert_mode:
             case 'BRUSH' | 'AVERAGE':
-                nspans = round(self.length2D / (2 * self.radius))
+                nspans = self.get_brush_nspans(self.length3D)
             case 'FIXED':
                 nspans = self.fixed_span_count
             case _:
@@ -766,9 +767,7 @@ class Strokes_Logic:
         # determine number of spans
         match self.span_insert_mode:
             case 'BRUSH':
-                pt0 = self.project_pt(context, closest_pt0)
-                pt1 = self.project_pt(context, closest_pt1)
-                nspans = round((pt0 - pt1).length / (2 * self.radius))
+                nspans = self.get_brush_nspans((closest_pt0 - closest_pt1).length)
             case 'FIXED':
                 nspans = self.fixed_span_count
             case 'AVERAGE':
@@ -791,8 +790,8 @@ class Strokes_Logic:
 
             bmvs[0].append(bmv)
             for i in range(1, nverts):
-                pt = pt0 + v * (i / (nverts - 1))
-                co = raycast_point_valid_sources(context, pt, world=False, respect_clip_planes=True)
+                p3d = bmv.co.lerp(spt, i / (nverts - 1))
+                co = nearest_point_valid_sources(context, self.matrix_world @ p3d, world=False)
                 bmvs[i].append(self.new_feature_vert(co) if co else None)
 
             accum_dist += bme_length(bme_cur)
@@ -849,7 +848,7 @@ class Strokes_Logic:
         # determine number of spans
         match self.span_insert_mode:
             case 'BRUSH':
-                nspans = round(self.length2D / (2 * self.radius))
+                nspans = self.get_brush_nspans(self.length3D)
             case 'FIXED':
                 nspans = self.fixed_span_count
             case 'AVERAGE':
@@ -875,15 +874,11 @@ class Strokes_Logic:
         for i_row, bme in enumerate(self.longest_cycle0):
             pt = self.project_bmv(context, bmv0)
 
-            bmvp, bmvn = bmes_get_prevnext_bmvs(self.longest_cycle0, bmv0)
-            if i_row == 0: bmvp, bmvn = bmvn, bmvp
-            vpn = self.project_bmv(context, bmvn) - self.project_bmv(context, bmvp)
-            bme_angle = vec_screenspace_angle(vpn)
-            along = Vector((math.cos(bme_angle + angle), -math.sin(bme_angle + angle)))
-            fitted = fit_template2D(template, pt, target=(pt + (along * template_len)))
+            stroke_end_3d = self.find_point3D(1)
             cur_bmvs = [bmv0]
-            for t in fitted[1:]:
-                co = raycast_point_valid_sources(context, t, world=False, respect_clip_planes=True)
+            for i in range(1, nverts):
+                p3d = bmv0.co.lerp(stroke_end_3d, i / (nverts - 1))
+                co = nearest_point_valid_sources(context, self.matrix_world @ p3d, world=False)
                 cur_bmvs.append(self.new_feature_vert(co) if co else None)
 
             bmvs.append(cur_bmvs)
@@ -944,7 +939,7 @@ class Strokes_Logic:
         # determine number of spans
         match self.span_insert_mode:
             case 'BRUSH':
-                nspans = round(self.length2D / (2 * self.radius))
+                nspans = self.get_brush_nspans(self.length3D)
             case 'FIXED':
                 nspans = self.fixed_span_count
             case 'AVERAGE':
@@ -967,12 +962,10 @@ class Strokes_Logic:
         bmv0 = bme_unshared_bmv(self.longest_cycle0[0], self.longest_cycle0[1])
         bmv1 = bme_unshared_bmv(self.longest_cycle1[0], self.longest_cycle1[1])
         for (bme0, bme1) in zip(self.longest_cycle0, self.longest_cycle1):
-            pt0, pt1 = self.project_bmv(context, bmv0), self.project_bmv(context, bmv1)
-            scale = (pt1 - pt0).length / template_length
-            fitted = fit_template2D(template, pt0, target=pt1)
             cur_bmvs = [bmv0]
-            for t in fitted[1:-1]:
-                co = raycast_point_valid_sources(context, t, world=False, respect_clip_planes=True)
+            for i in range(1, nverts - 1):
+                p3d = bmv0.co.lerp(bmv1.co, i / (nverts - 1))
+                co = nearest_point_valid_sources(context, self.matrix_world @ p3d, world=False)
                 cur_bmvs.append(self.new_feature_vert(co) if co else None)
             cur_bmvs.append(bmv1)
             bmvs.append(cur_bmvs)
@@ -1074,7 +1067,7 @@ class Strokes_Logic:
         # determine number of spans
         match self.span_insert_mode:
             case 'BRUSH':
-                nspans = round(self.length2D / (2 * self.radius))
+                nspans = self.get_brush_nspans(self.length3D)
             case 'FIXED':
                 nspans = self.fixed_span_count
             case 'AVERAGE':
@@ -1120,39 +1113,29 @@ class Strokes_Logic:
             ]
 
         else:
-            # create template
-            template = [ self.find_point2D(iv / (nverts - 1)) for iv in range(nverts) ]
-
-            # get orientation of stroke to selected strip
-            vx = Vector((1, 0))
-            bmvp, bmvn = bmes_get_prevnext_bmvs(self.longest_strip0, self.snap_bmv0)
-            pp, pn = [self.project_bmv(context, bmv) for bmv in [bmvp, bmvn]]
-            vpn, vstroke = (pn - pp), (self.stroke2D[-1] - self.stroke2D[0])
-            template_len = vstroke.length
-            angle = vec_screenspace_angle(vstroke) - vec_screenspace_angle(vpn)
+            # create 3D template (world-space stroke positions, view-independent)
+            template3D = [self.find_point3D(iv / (nverts - 1)) for iv in range(nverts)]
+            stroke_end_3d = template3D[-1]
+            stroke_start_3d = template3D[0]
 
             # use template to build spans
             bmv0 = bme_unshared_bmv(self.longest_strip0[0], self.longest_strip0[1]) if len(self.longest_strip0) > 1 else self.longest_strip0[0].verts[0]
             bmvs = []
             for i_row, bme in enumerate(self.longest_strip0 + [None]):
-                pt = self.project_bmv(context, bmv0)
+                cur_bmvs = [bmv0]
 
                 if self.extrapolate_mode == 'FAN':
-                    bmvp,bmvn = bmes_get_prevnext_bmvs(self.longest_strip0, bmv0)
-                    vpn = self.project_bmv(context, bmvn) - self.project_bmv(context, bmvp)
-                    bme_angle = vec_screenspace_angle(vpn)
-                    along = Vector((math.cos(bme_angle + angle), -math.sin(bme_angle + angle)))
-                    fitted = fit_template2D(template, pt, target=(pt + (along * template_len)))
-                    cur_bmvs = [bmv0]
-                    for t in fitted[1:]:
-                        co = raycast_point_valid_sources(context, t, world=False, respect_clip_planes=True)
+                    # Lerp from strip vert toward stroke endpoint in 3D
+                    for i in range(1, nverts):
+                        p3d = bmv0.co.lerp(stroke_end_3d, i / (nverts - 1))
+                        co = nearest_point_valid_sources(context, self.matrix_world @ p3d, world=False)
                         cur_bmvs.append(self.new_feature_vert(co) if co else None)
 
                 else:
-                    cur_bmvs = [bmv0]
-                    offset0 = template[0]
-                    for offset in template[1:]:
-                        co = raycast_point_valid_sources(context, pt + offset - offset0, world=False, respect_clip_planes=True)
+                    # FOLLOW: translate stroke offset onto the strip vert
+                    for p_3d in template3D[1:]:
+                        p3d = bmv0.co + (p_3d - stroke_start_3d)
+                        co = nearest_point_valid_sources(context, self.matrix_world @ p3d, world=False)
                         cur_bmvs.append(self.new_feature_vert(co) if co else None)
 
                 bmvs.append(cur_bmvs)
@@ -1244,7 +1227,7 @@ class Strokes_Logic:
         # determine number of spans
         match self.span_insert_mode:
             case 'BRUSH':
-                nspans = round(self.length2D / (2 * self.radius))
+                nspans = self.get_brush_nspans(self.length3D)
             case 'FIXED':
                 nspans = self.fixed_span_count
             case 'AVERAGE':
@@ -1273,14 +1256,10 @@ class Strokes_Logic:
             bmv1 = bme1.verts[0] if bme_vector(bme0).dot(bme_vector(bme1)) > 0 else bme1.verts[1]
         i_sel_row = 0
         for i_row, (bme0, bme1) in enumerate(zip(self.longest_strip0 + [None], self.longest_strip1 + [None])):
-            pt0 = self.project_bmv(context, bmv0)
-            pt1 = self.project_bmv(context, bmv1)
-            fitted = fit_template2D(template, pt0, target=pt1)
-            #scale = (pt1 - pt0).length / template_length
             cur_bmvs = [bmv0]
-            for t in fitted[1:-1]:
-                # co = raycast_point_valid_sources(context, pt0 + offset * scale, world=False)
-                co = raycast_point_valid_sources(context, t, world=False, respect_clip_planes=True)
+            for i in range(1, nverts - 1):
+                p3d = bmv0.co.lerp(bmv1.co, i / (nverts - 1))
+                co = nearest_point_valid_sources(context, self.matrix_world @ p3d, world=False)
                 cur_bmvs.append(self.new_feature_vert(co) if co else None)
             cur_bmvs.append(bmv1)
             bmvs.append(cur_bmvs)
@@ -1338,45 +1317,48 @@ class Strokes_Logic:
             self.stroke3D.reverse()
 
         # find two corners, which are the sharpest points
-        idx0, idx1 = find_sharpest_indices(self.stroke2D)
+        idx0, idx1 = find_sharpest_indices(self.stroke3D)
+        stroke0_3d = self.stroke3D[:idx0]
+        stroke2_3d = list(reversed(self.stroke3D[idx1:]))
+        l0_3d = sum((p1-p0).length for (p0,p1) in iter_pairs(stroke0_3d, False))
+        l1_3d = sum((p1-p0).length for (p0,p1) in iter_pairs(self.stroke3D[idx0:idx1], False))
+        l2_3d = sum((p1-p0).length for (p0,p1) in iter_pairs(stroke2_3d, False))
+        # keep 2D slices for template construction below
         stroke0, stroke1, stroke2 = self.stroke2D[:idx0], self.stroke2D[idx0:idx1], self.stroke2D[idx1:]
         stroke2.reverse()
-        length0 = sum((p1-p0).length for (p0,p1) in iter_pairs(stroke0, False))
         length1 = sum((p1-p0).length for (p0,p1) in iter_pairs(stroke1, False))
-        length2 = sum((p1-p0).length for (p0,p1) in iter_pairs(stroke2, False))
 
         # determine number of spans
         match self.span_insert_mode:
             case 'BRUSH':
-                nspans = round(min(length0, length2) / (2 * self.radius))
+                nspans = self.get_brush_nspans(min(l0_3d, l2_3d))
             case 'FIXED':
                 nspans = self.fixed_span_count
             case 'AVERAGE':
-                l0 = sum((p1-p0).length for (p0,p1) in iter_pairs(self.stroke3D[:idx0], False))
-                l2 = sum((p1-p0).length for (p0,p1) in iter_pairs(self.stroke3D[idx1:], False))
-                nspans = round(min(l0, l2) / self.average_length)
+                nspans = round(min(l0_3d, l2_3d) / self.average_length)
             case _:
                 assert False, f'Unhandled {self.span_insert_mode=}'
         nspans = max(1, nspans)
         nverts = nspans + 1
 
-        # create templates
-        template0 = [find_point_at(stroke0, False, iv / (nverts-1)) for iv in range(nverts)]
-        template2 = [find_point_at(stroke2, False, iv / (nverts-1)) for iv in range(nverts)]
+        # create 3D templates
+        stroke1_3d = self.stroke3D[idx0:idx1]
+        template0_3d = [find_point_at(stroke0_3d, False, iv / (nverts-1)) for iv in range(nverts)]
+        template2_3d = [find_point_at(stroke2_3d, False, iv / (nverts-1)) for iv in range(nverts)]
 
         # build spans
         bmv0 = bme_unshared_bmv(self.longest_strip0[0], self.longest_strip0[1]) if len(self.longest_strip0) > 1 else self.longest_strip0[0].verts[0]
         bmvs = []
         for i, bme in enumerate(self.longest_strip0 + [None]):
             v = i / llc
-            pt0 = self.project_bmv(context, bmv0)
-            pt1 = find_point_at(stroke1, False, v)
-            fitted0 = fit_template2D(template0, pt0, target=pt1)
-            fitted2 = fit_template2D(template2, pt0, target=pt1)
+            target_3d = find_point_at(stroke1_3d, False, v)
             cur_bmvs = [bmv0]
-            for (p0, p2) in zip(fitted0[1:], fitted2[1:]):
-                p = lerp(v, p0, p2)
-                co = raycast_point_valid_sources(context, p, world=False, respect_clip_planes=True)
+            for iv in range(1, nverts):
+                t = iv / (nverts - 1)
+                p0_3d = find_point_at(template0_3d, False, t)
+                p2_3d = find_point_at(template2_3d, False, t)
+                p3d = p0_3d.lerp(p2_3d, v)
+                co = nearest_point_valid_sources(context, self.matrix_world @ p3d, world=False)
                 cur_bmvs.append(self.new_feature_vert(co) if co else None)
             bmvs.append(cur_bmvs)
             if not bme: break
@@ -1463,35 +1445,40 @@ class Strokes_Logic:
         self.show_force_nonstripL = True
 
         # split stroke into two sides
-        idx = find_sharpest_index(self.stroke2D)
-        stroke_r, stroke_b = self.stroke2D[:idx], self.stroke2D[idx:]
-        stroke_b.reverse()
-        length_r = sum((p1-p0).length for (p0,p1) in iter_pairs(stroke_r, False))
-        length_b = sum((p1-p0).length for (p0,p1) in iter_pairs(stroke_b, False))
+        idx = find_sharpest_index(self.stroke3D)
+        stroke_b_3d = list(reversed(self.stroke3D[:idx]))  # bottom arm, starting from corner
+        stroke_r_3d = self.stroke3D[idx:]                  # right arm, starting from corner
 
         # create templates
         strip_t_bmvs = get_strip_bmvs(strip_t, opposite)
         strip_l_bmvs = get_strip_bmvs(strip_l, opposite)
-        template_t = [self.project_bmv(context, bmv) for bmv in strip_t_bmvs]
-        template_l = [self.project_bmv(context, bmv) for bmv in strip_l_bmvs]
-        template_b = [find_point_at(stroke_b, False, iv / (llc_tb-1)) for iv in range(llc_tb)]
-        template_r = [find_point_at(stroke_r, False, iv / (llc_lr-1)) for iv in range(llc_lr)]
+        template_b_3d = [find_point_at(stroke_b_3d, False, iv / (llc_tb-1)) for iv in range(llc_tb)]
+        template_r_3d = [find_point_at(stroke_r_3d, False, iv / (llc_lr-1)) for iv in range(llc_lr)]
+
+        # 4 corners for Gordon surface formula
+        tl_3d = strip_t_bmvs[0].co  # same as strip_l_bmvs[0].co
+        tr_3d = strip_t_bmvs[-1].co
+        bl_3d = strip_l_bmvs[-1].co
+        br_3d = self.stroke3D[idx]
 
         # build spans
         bmvs = [[None for _ in range(llc_tb)] for _ in range(llc_lr)]
         for i_tb in range(llc_tb):
-            pt, pb = template_t[i_tb], template_b[i_tb]
-            fitted_l = fit_template2D(template_l, pt, target=pb)
-            fitted_r = fit_template2D(template_r, pt, target=pb)
+            h = i_tb / max(1, llc_tb - 1)
+            top_3d = strip_t_bmvs[i_tb].co
+            bot_3d = template_b_3d[i_tb]
             for i_lr in range(llc_lr):
                 if i_tb == 0:
                     bmvs[i_lr][i_tb] = strip_l_bmvs[i_lr]
                 elif i_lr == 0:
                     bmvs[i_lr][i_tb] = strip_t_bmvs[i_tb]
                 else:
-                    v = i_tb / (llc_tb - 1)
-                    p = lerp(v, fitted_l[i_lr], fitted_r[i_lr])
-                    co = raycast_point_valid_sources(context, p, world=False, respect_clip_planes=True)
+                    v = i_lr / max(1, llc_lr - 1)
+                    left_3d = strip_l_bmvs[i_lr].co
+                    right_3d = template_r_3d[i_lr]
+                    p3d = (top_3d.lerp(bot_3d, v) + left_3d.lerp(right_3d, h)
+                           - lerp(v, tl_3d.lerp(tr_3d, h), bl_3d.lerp(br_3d, h)))
+                    co = nearest_point_valid_sources(context, self.matrix_world @ p3d, world=False)
                     bmvs[i_lr][i_tb] = self.new_feature_vert(co) if co else None
 
         # fill in quads
@@ -1641,14 +1628,14 @@ class Strokes_Logic:
             # determine number of spans
             match self.span_insert_mode:
                 case 'BRUSH':
-                    # find closest distance between selected and stroke
-                    closest_distance2D = min(
-                        (s - self.project_bmv(context, bmv)).length
-                        for s in self.stroke2D
+                    # find closest distance between selected and stroke in world space
+                    closest_distance3D_brush = min(
+                        (s - bmv.co).length
+                        for s in self.stroke3D
                         for bme in self.longest_strip0
                         for bmv in bme.verts
                     )
-                    nspans = round(closest_distance2D / (2 * self.radius))
+                    nspans = self.get_brush_nspans(closest_distance3D_brush)
                 case 'FIXED':
                     nspans = self.fixed_span_count
                 case 'AVERAGE':
@@ -1735,14 +1722,22 @@ class Strokes_Logic:
             self.show_smoothness = True
 
         ######################
+        # 3D border arrays for world space vert placement
+        tl_3d = strip_t_bmvs[0].co
+        tr_3d = strip_t_bmvs[-1].co
+        bl_3d = self.snap_bmv0.co if self.snap_bmv0_nosel else self.stroke3D[0]
+        br_3d = self.snap_bmv1.co if self.snap_bmv1_nosel else self.stroke3D[-1]
+
+        ######################
         # build spans
         bmvs = [[None for _ in range(llc_tb)] for _ in range(llc_lr)]
         for i_tb in range(llc_tb):
-            pt, pb = template_t[i_tb], template_b[i_tb]
-            fitted_l = fit_template2D(template_l, pt, target=pb)
-            fitted_r = fit_template2D(template_r, pt, target=pb)
+            h = i_tb / max(1, llc_tb - 1)       # left-to-right [0,1]
+            top_3d = strip_t_bmvs[i_tb].co
+            bot_3d = self.find_point3D(h)        # stroke position at this column
             at_l, at_r = (i_tb == 0), (i_tb == llc_tb - 1)
             for i_lr in range(llc_lr):
+                v = i_lr / max(1, llc_lr - 1)   # top-to-bottom [0,1]
                 at_t, at_b = (i_lr == 0), (i_lr == llc_lr - 1)
                 if   at_t:                                   bmvs[i_lr][i_tb] = strip_t_bmvs[i_tb]
                 elif at_l and strip_l_bmvs:                  bmvs[i_lr][i_tb] = strip_l_bmvs[i_lr]
@@ -1750,16 +1745,19 @@ class Strokes_Logic:
                 elif at_b and at_l and self.snap_bmv0_nosel: bmvs[i_lr][i_tb] = self.snap_bmv0
                 elif at_b and at_r and self.snap_bmv1_nosel: bmvs[i_lr][i_tb] = self.snap_bmv1
                 else:
-                    v = i_tb / (llc_tb - 1)
-                    p = lerp(v, fitted_l[i_lr], fitted_r[i_lr])
-                    co = raycast_point_valid_sources(context, p, world=False, respect_clip_planes=True)
-                    if left_mirror_snap:
-                        zs = 0 if at_l else 1 # (i_tb / (llc_tb - 1))**0.25
+                    left_3d = strip_l_bmvs[i_lr].co if strip_l_bmvs else tl_3d.lerp(bl_3d, v)
+                    right_3d = strip_r_bmvs[i_lr].co if strip_r_bmvs else tr_3d.lerp(br_3d, v)
+                    # Gordon surface bilinear: passes through all 4 borders exactly
+                    p3d = (top_3d.lerp(bot_3d, v) + left_3d.lerp(right_3d, h)
+                           - tl_3d.lerp(tr_3d, h).lerp(bl_3d.lerp(br_3d, h), v))
+                    co = nearest_point_valid_sources(context, self.matrix_world @ p3d, world=False)
+                    if co and left_mirror_snap:
+                        zs = 0 if at_l else 1
                         if 'x' in left_mirror_snap: co.x *= zs
                         if 'y' in left_mirror_snap: co.y *= zs
                         if 'z' in left_mirror_snap: co.z *= zs
-                    if right_mirror_snap and at_r:
-                        zs = 0 if at_r else 1 # 1 - (i_tb / (llc_tb - 1))**0.25
+                    if co and right_mirror_snap and at_r:
+                        zs = 0 if at_r else 1
                         if 'x' in right_mirror_snap: co.x *= zs
                         if 'y' in right_mirror_snap: co.y *= zs
                         if 'z' in right_mirror_snap: co.z *= zs

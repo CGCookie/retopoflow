@@ -201,7 +201,9 @@ class RFOperator_Stroke_Insert(
     logic = None
 
     @staticmethod
-    def strokes_insert(context, radius, snap_distance, stroke3D, is_cycle, snapped_geo, snapped_mirror, span_insert_mode, cut_count, extrapolate_mode, smooth_angle, smooth_density0, smooth_density1, mirror_mode, mirror_correct):
+    def strokes_insert(context, radius, snap_distance, stroke3D, is_cycle, snapped_geo, snapped_mirror,
+                       span_insert_mode, cut_count, extrapolate_mode, smooth_angle, smooth_density0, smooth_density1,
+                       mirror_mode, mirror_correct, radius3D=None):
         stroke3D = [pt for pt in stroke3D if pt]
         length3D = sum((p1-p0).length for (p0,p1) in iter_pairs(stroke3D, is_cycle))
         if length3D == 0: return
@@ -222,6 +224,7 @@ class RFOperator_Stroke_Insert(
             smooth_density1,
             mirror_mode,
             mirror_correct,
+            radius3D,
         )
         RFOperator_Stroke_Insert.strokes_reinsert(context)
 
@@ -453,7 +456,7 @@ class RFOperator_Strokes(RFOperator_Stroke_Insert_Properties, RFOperator):
     def reset(self):
         RFTool_Strokes.rf_brush.reset()
 
-    def process_stroke(self, context, radius, snap_distance, stroke2D, stroke3D, is_cycle, snapped_geo, snapped_mirror):
+    def process_stroke(self, context, radius, snap_distance, stroke2D, stroke3D, is_cycle, snapped_geo, snapped_mirror, radius3D=None):
         RFOperator_Stroke_Insert.strokes_insert(
             context,
             radius,
@@ -470,6 +473,7 @@ class RFOperator_Strokes(RFOperator_Stroke_Insert_Properties, RFOperator):
             self.smooth_density1,
             self.mirror_mode,
             self.mirror_correct,
+            radius3D,
         )
 
     def update(self, context, event):
