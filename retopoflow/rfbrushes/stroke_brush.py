@@ -1003,7 +1003,7 @@ def create_stroke_brush(
             RFCore = RFGlobals.RFCore_None
             if not RFCore or not RFCore.is_current_area(context): return
             if not self.operator and not RFOperator_StrokeBrush_Adjust.is_active(): return
-            if self.shift_held: return
+            if self.shift_held and not RFOperator_StrokeBrush_Adjust.is_active(): return
             if not self.matrix_world: return
             #if context.area not in self.mouse_areas: return
 
@@ -1151,7 +1151,7 @@ def create_stroke_brush(
 
         rf_keymaps : RFKeyMaps = [
             # bl_idname
-            (f'retopoflow.{idname}', {'type': 'F', 'value': 'PRESS'}, {'km_context': 'init', 'km_label': 'Adjust Radius'}),  #, 'ctrl': False, 'shift': False
+            (f'retopoflow.{idname}', {'type': 'F', 'value': 'PRESS', 'shift': True}, {'km_context': 'init', 'km_label': 'Adjust Radius'}),  #, 'ctrl': False
         ]
         rf_status = {
             'adjust': ('LMB: Commit', 'RMB: Cancel')
