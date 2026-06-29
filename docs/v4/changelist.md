@@ -4,7 +4,9 @@ This document contains details about what has changed in Retopoflow in version 4
 
 ### 4.2.0
 
-- Added low poly sharp edge and edge mark snapping to Tweak and Relax
+- Added low poly hard surface / CAD snapping to all tools
+    - Enabled via the new Snapping menu
+    - Inludes a new caching system for the source objects
 - Added standalone operator for Relax that can even be used outside of Retopoflow
     - Has all the same masking and snapping options as the brush version
     - Includes unique options for retaining / reconstructing the desired shape
@@ -15,11 +17,13 @@ This document contains details about what has changed in Retopoflow in version 4
     - Works great with proportional editing
 - Added new source processing method, SDF, to Contours
     - It is faster than Walk but slower than Fast
-    - It is less accurate than Walk but more accurate than Fast
+    - It is slightly less accurate than Walk but much more accurate than Fast
     - It can handle flipped normals, split edges, and overhangs just fine
 - Added Alt R hotkey to twist in Contours
 - Added Ctrl Scroll after extruding in Contours to adjust segment count
 - Increased max span count in Contours from 100 to 500
+- Strokes now places verts at sharp angles in the stroke
+- Strokes now projects in world space, fixing spacing and redo issues
 - All Retopoflow tools now respect Blender's Alt+B clipping region
     - Useful for isolating areas while working
 - Tools statusbar now shows the result of Blender operations such as Merge by Distance
