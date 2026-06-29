@@ -142,7 +142,7 @@ class RFOperator_Tweak(RFOperator):
             ('MAGNIFY', 'Magnify', 'Push vertices away from the brush center', 'ADD',    0),
             ('PINCH',   'Pinch',   'Pull vertices toward the brush center',    'REMOVE', 1),
         ],
-        default='MAGNIFY',
+        default='PINCH',
     )
 
     algorithm_method: bpy.props.EnumProperty(

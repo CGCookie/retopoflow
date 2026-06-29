@@ -28,10 +28,12 @@ from mathutils import Vector
 import heapq
 
 from ..preferences import RF_Prefs
+from ..common.accel import SourceCache, Accel
 from ..common.bmesh import (
     get_bmesh_emesh,
     bmf_midpoint,
     NearestBMVert, NearestBMEdge, NearestBMFace,
+    get_bmv_avg_edge_len,
 )
 from ..common.bmesh_maths import is_bmvert_hidden
 from ..common.operator import execute_operator, RFOperator, RFKeyMaps
@@ -54,6 +56,7 @@ from ..common.maths import (
 )
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.colors import Color4
+from ..common.snapping import SourceSnapMixin
 
 
 def sync_projection_from_blender(context):
@@ -103,7 +106,7 @@ class RFOperator_Slide(RFOperator):
         return {'FINISHED'}
 
 
-class RFOperator_Translate(RFOperator):
+class RFOperator_Translate(SourceSnapMixin, RFOperator):
     bl_idname = "retopoflow.translate"
     bl_label = 'Translate'
     bl_space_type = "VIEW_3D"
@@ -307,6 +310,24 @@ class RFOperator_Translate(RFOperator):
         self.data = all_bmvs
         self.last_success = { bmv:Vector(bmv.co) for bmv in all_bmvs }
         self.bmvs = all_bmvs.keys()
+
+        # Source feature snapping
+        self.scale_avg = sum(self.matrix_world.to_scale()) / 3
+        snapping = context.scene.retopoflow.snapping
+        self.source_edge_accel = SourceCache.get(context)
+        self.source_sharp_proximity = getattr(snapping, 'source_edge_proximity', 0.25)
+        self.stickiness = getattr(snapping, 'source_edge_stickiness', 0.5) if self.source_edge_accel else 0.0
+        self.snap_init_state()
+        grabbed_bmvs = [bmv for bmv in self.bmvs if bmv in self.data and self.data[bmv] == 0.0]
+        if self.source_edge_accel and grabbed_bmvs:
+            avg_lens = [get_bmv_avg_edge_len(bmv) for bmv in grabbed_bmvs if bmv.link_edges]
+            stroke_avg = (sum(avg_lens) / len(avg_lens)) if avg_lens else 1.0
+            self.stroke_snap_radius = stroke_avg * self.scale_avg * self.source_sharp_proximity
+        else:
+            self.stroke_snap_radius = 0.0
+        all_mesh_verts = [v for v in self.bm.verts if not v.hide] if self.source_edge_accel else []
+        self.vert_accel = Accel(context, all_mesh_verts, self.matrix_world) if all_mesh_verts else None
+
         self.bmvs_co_orig = { bmv: Vector(bmv.co) for bmv in self.bmvs }
         self.bmvs_co2d_orig = {
             bmv: location_3d_to_region_2d(context.region, context.region_data, (M @ Vector((*bmv.co, 1.0))).xyz)
@@ -497,6 +518,13 @@ class RFOperator_Translate(RFOperator):
                 if zero['y']: co.y = 0
                 if zero['z']: co.z = 0
 
+            # Source feature snapping
+            if self.source_edge_accel and self.stroke_snap_radius > 0:
+                disp_2d = (self.mouse - self.mouse_prev) * factor
+                stroke_disp_2d = self.mouse - self.mouse_orig
+                co = self.snap_to_source_feature(bmv, co, factor, context, disp_2d, stroke_disp_2d, free_co=co)
+
+
             self.last_success[bmv] = co
             if distance > prop_dist_world: continue
             if context.tool_settings.use_mesh_automerge and not prop_use:
@@ -505,6 +533,8 @@ class RFOperator_Translate(RFOperator):
                     co = self.nearest_bmv.bmv.co
                     self.highlight.add(self.nearest_bmv.bmv)
             bmv.co = co
+
+        self.highlight.update(self.snapped_verts)
 
         if self.use_update_normals:
             self.update_normals(context, event)
@@ -537,6 +567,9 @@ class RFOperator_Translate(RFOperator):
                     v += nearest.normal_local
             if bmf.normal.dot(v) < 0:
                 bmf.normal_flip()
+
+    def snap_grabbed_set(self):
+        return set(self.bmvs)
 
     def use_screen_space(self, context, bmvs):
         if len(bmvs) > 10:
