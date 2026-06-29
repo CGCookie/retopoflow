@@ -416,17 +416,17 @@ def create_falloff_brush(
         @execute_operator(f'{idname}_radius',   f'Adjust {label} Radius')
         @staticmethod
         def adjust_radius(_context : Context):
-            bpy_ops_retopoflow(idname, 'INVOKE_DEFAULT', adjust='RADIUS')
+            _ = bpy_ops_retopoflow(idname, 'INVOKE_DEFAULT', adjust='RADIUS')
 
         @execute_operator(f'{idname}_strength', f'Adjust {label} Strength')
         @staticmethod
         def adjust_strength(_context : Context):
-            bpy_ops_retopoflow(idname, 'INVOKE_DEFAULT', adjust='STRENGTH')
+            _ = bpy_ops_retopoflow(idname, 'INVOKE_DEFAULT', adjust='STRENGTH')
 
         @execute_operator(f'{idname}_falloff',  f'Adjust {label} Falloff')
         @staticmethod
         def adjust_falloff(_context : Context):
-            bpy_ops_retopoflow(idname, 'INVOKE_DEFAULT', adjust='FALLOFF')
+            _ = bpy_ops_retopoflow(idname, 'INVOKE_DEFAULT', adjust='FALLOFF')
 
 
         #################################################################################

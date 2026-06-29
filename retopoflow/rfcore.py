@@ -570,7 +570,7 @@ class RFCore:
             bpy.app.timers.register(_kick_source_cache_rebuild_after_enter, first_interval=1.0 / 12.0)
 
         try:
-            bpy_ops_retopoflow('core')
+            _ = bpy_ops_retopoflow('core')
         except Exception as e:
             print('Caught Exception when calling bpy.ops.retopoflow.core() while trying to start')
             print(f'  Exception: {e}')
@@ -591,7 +591,7 @@ class RFCore:
             if not r3d: return
             with bpy.context.temp_override(area=area, region=region, space=space, region_3d=r3d):
                 try:
-                    bpy_ops_retopoflow('core')
+                    _ = bpy_ops_retopoflow('core')
                 except Exception as e:
                     print('Caught Exception when calling bpy.ops.retopoflow.core() while trying to restart')
                     print(f'  Exception: {e}')
@@ -722,7 +722,7 @@ class RFCore:
 
         if context.area not in RFCore.running_in_areas:
             print(f'LAUNCHING IN NEW AREA {context.area.x},{context.area.y}')
-            bpy_ops_retopoflow('core')
+            _ = bpy_ops_retopoflow('core')
         else:
             # print(f'handle_draw_cursor: context.area: {context.area.x},{context.area.y}')
             if not RFCore.is_current_area(context):

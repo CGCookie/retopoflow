@@ -142,7 +142,7 @@ def create_quadstrip_selection_overlay(
 
         @classmethod
         def activate(cls):
-            bpy_ops_retopoflow(idname, 'INVOKE_DEFAULT')
+            _ = bpy_ops_retopoflow(idname, 'INVOKE_DEFAULT')
 
         def __init__(self, *args : ..., **kwargs : dict[str, ...]):
             super().__init__(*args, **kwargs)

@@ -85,27 +85,26 @@ def create_loopstrip_selection_overlay(
         depsgraph_version : None | int = None
         selected_boundaries : tuple[list[tuple[list[Vector], list[Vector]]], list[tuple[list[Vector], list[Vector]]]] = ([],[])
 
+        def is_done(self):
+            RFCore = RFGlobals.RFCore_None
+            return RFCore.selected_RFTool_idname != rftool_idname if RFCore else True
+
         @classmethod
         def activate(cls):
-            bpy_ops_retopoflow(idname, 'INVOKE_DEFAULT')
+            _ = bpy_ops_retopoflow(idname, 'INVOKE_DEFAULT')
 
         def init(self, _context : Context, _event : Event):
             self.depsgraph_version = None
 
         def update(self, _context : Context, _event : Event) -> set[str]:
-            RFCore = RFGlobals.RFCore_None
-            if not RFCore:
-                return {'CANCELLED'}
-            is_done = (RFCore.selected_RFTool_idname != rftool_idname)
-            return {'CANCELLED'} if is_done else {'PASS_THROUGH'}
+            return {'CANCELLED'} if self.is_done() else {'PASS_THROUGH'}
 
         def draw_postpixel_overlay(self):
             RFCore = RFGlobals.RFCore_None
             if not RFCore:
                 return
 
-            is_done = (RFCore.selected_RFTool_idname != rftool_idname)
-            if is_done:
+            if self.is_done():
                 return
 
             if self.depsgraph_version != RFCore.depsgraph_version:

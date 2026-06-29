@@ -23,7 +23,6 @@ Created by Jonathan Denning, Jonathan Lampel
 
 
 from collections.abc import Sequence
-from typing import ClassVar
 
 import bpy
 from bpy.types import (
@@ -32,14 +31,20 @@ from bpy.types import (
     WorkSpaceTool,
     Event,
 )
+from bpy_extras.view3d_utils import location_3d_to_region_2d
+from bmesh.types import BMVert, BMEdge
+from mathutils import Vector
 
 from ..rfglobals import RFGlobals
 from ..rfoperators.topo_rotate import RFOperator_TopoRotate
 from ..rftool_base import RFTool_Base
 
+from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.resetter import Resetter
 
 from ..common.bpy_helper import bpy_ops_retopoflow, BL_SPACE_TYPES, BL_REGION_TYPES
+from ..common.bmesh import get_bmesh_emesh, bme_midpoint, get_boundary_strips_cycles
+from ..common.drawing import Drawing
 from ..common.icons import get_path_to_blender_icon
 from ..common.operator import (
     execute_operator,
@@ -78,7 +83,7 @@ class RFOperator_Patches_Insert(RFOperator_Execute):
 
 
 class RFOperator_Patches(RFOperator):
-    bl_idname : str = 'retpoflow.patches'
+    bl_idname : str = 'retopoflow.patches'
     bl_label : str = 'Patches'
     bl_description : str = 'Insert patch'
     bl_space_type : BL_SPACE_TYPES = 'VIEW_3D'
@@ -98,91 +103,79 @@ class RFOperator_Patches(RFOperator):
 
 
 class RFOperator_Patches_Selection_Overlay(RFOverlay_Base, RFOperator):
-    bl_idname : str = f'retopoflow.patches_selection_overlay'
-    bl_label : str = f'Patches Selection Overlay'
+    bl_idname : str = 'retopoflow.patches_selection_overlay'
+    bl_label : str = 'Patches Selection Overlay'
     bl_description : str = 'Overlay info about selected loops and strips'
     bl_options : set[str] = { 'INTERNAL' }
 
-    instance : ClassVar[object | None] = None
-    depsgraph_version : ClassVar[int] = -42
-    paused_update : ClassVar[bool] = False
-    paused_overlay : ClassVar[bool] = False
+    depsgraph_version : int = -42
 
-    # hovering : tuple[int, int, list[Vector]] | None = None  # needed for very first start
+    corners : dict[int, Vector] = {}
+    selected_boundaries : tuple[list[tuple[list[Vector], list[Vector]]], list[tuple[list[Vector], list[Vector]]]] = ([],[])
 
-    # selected_strips : list[list[Vector]]
-    # strips_indices : list[list[int]]
-    # curves : list[CubicBezier]
-
-    @classmethod
-    def pause_update(cls):
-        cls.paused_update = True
-    @classmethod
-    def unpause_update(cls):
-        cls.paused_update = False
-
-    @classmethod
-    def pause_overlay(cls):
-        cls.paused_overlay = True
-    @classmethod
-    def unpause_overlay(cls):
-        cls.paused_overlay = False
+    def is_done(self):
+        RFCore = RFGlobals.RFCore_None
+        return RFCore.selected_RFTool_idname != 'retopoflow.patches' if RFCore else True
 
     @classmethod
     def activate(cls):
-        print('RFOperator_Patches_Selection_Overlay.activate')
-        bpy_ops_retopoflow('patches_insert', 'INVOKE_DEFAULT')
-
-    def __init__(self, *args : ..., **kwargs : dict[str, ...]):
-        super().__init__(*args, **kwargs)
-
-        cls = type(self)
-        cls.instance = self
-        cls.depsgraph_version = -42
-        # self.selected_strips = []
-        # self.strips_indices = []
-        # self.curves = []
+        _ = bpy_ops_retopoflow('patches_selection_overlay', 'INVOKE_DEFAULT')
 
     def init(self, _context : Context, _event : Event):
-        print('RFOperator_Patches_Selection_Overlay.init')
-        cls = type(self)
-        cls.depsgraph_version = -42
-        cls.instance = self
-
-    def finish(self, _context : Context):
-        print('RFOperator_Patches_Selection_Overlay.finish')
-        cls = type(self)
-        cls.instance = None
+        self.depsgraph_version = -42
 
     def update(self, context : Context, event : Event) -> set[str]:
-        print('RFOperator_Patches_Selection_Overlay.update')
-
-        RFCore = RFGlobals.RFCore_None
-        if not RFCore:
-            return {'CANCELLED'}
-
-        is_done = (RFCore.selected_RFTool_idname != 'retopoflow.patches')
-        if is_done:
-            return {'CANCELLED'}
-
-        if self.paused_overlay:
-            return {'PASS_THROUGH'}
-
-        return {'PASS_THROUGH'}
+        return {'CANCELLED'} if self.is_done() else {'PASS_THROUGH'}
 
     def draw_postpixel_overlay(self):
-        print('RFOperator_Patches_Selection_Overlay.overlay')
         RFCore = RFGlobals.RFCore_None
-        if not RFCore: return
-        is_done = (RFCore.selected_RFTool_idname != 'retopoflow.patches')
-        if is_done:
-            return
-        if self.paused_overlay:
+        context = bpy.context
+        if not RFCore or self.is_done() or not context.edit_object:
             return
 
-        context = bpy.context
-        if not context.edit_object:
-            return
+        rgn, r3d = context.region, context.region_data
+        M = context.edit_object.matrix_world
+
+        print(RFCore.depsgraph_version)
+        if self.depsgraph_version != RFCore.depsgraph_version:
+            self.depsgraph_version = RFCore.depsgraph_version
+
+            # find selected boundary strips
+            bm, _ = get_bmesh_emesh(bpy.context, ensure_lookup_tables=True)
+            sel_bmes = [ bme for bme in bmops.get_all_selected_bmedges(bm) ]
+            # filter selected edges to only boundaries
+            sel_bmes = [ bme for bme in sel_bmes if bme.is_wire or bme.is_boundary ]
+            if len(sel_bmes) < 1000:
+                bmes_strips, bmes_cycles = get_boundary_strips_cycles(sel_bmes)
+                strips = [
+                    ([bme_midpoint(bme) for bme in strip], [bmv.co for bme in strip for bmv in bme.verts])
+                    for strip in bmes_strips
+                ]
+                cycles = [
+                    ([bme_midpoint(bme) for bme in cycle], [bmv.co for bme in cycle for bmv in bme.verts])
+                    for cycle in bmes_cycles
+                ]
+                if len(strips) + len(cycles) <= 5:
+                    self.selected_boundaries = (strips, cycles)
+                else:
+                    self.selected_boundaries = ([], [])
+            else:
+                self.selected_boundaries = ([], [])
+
+            if isinstance(bmv_active := bm.select_history.active, BMVert):
+                self.corners[bmv_active.index] = M @ bmv_active.co
+            len_verts = len(bm.verts)
+            self.corners = {
+                i: pt
+                for (i, pt) in self.corners.items()
+                if i < len_verts and (bmv := bm.verts[i]) and bmv.select
+            }
+
+        pts = [
+            location_3d_to_region_2d(rgn, r3d, pt) for pt in self.corners.values()
+        ]
+        Drawing.draw2D_points(context, pts, (1, 1, 0, 1), radius=12)
+
 
 
 

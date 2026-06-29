@@ -24,28 +24,31 @@ from typing import Protocol, Literal
 from collections.abc import Callable
 from types import ModuleType
 
+BPY_OP_RETURN = set[Literal['RUNNING_MODAL', 'CANCELLED', 'FINISHED', 'PASS_THROUGH']]
+BPY_OP_EXECUTION_CONTEXT = Literal[
+    "INVOKE_DEFAULT",
+    "INVOKE_REGION_WIN",
+    "INVOKE_REGION_CHANNELS",
+    "INVOKE_REGION_PREVIEW",
+    "INVOKE_AREA",
+    "INVOKE_SCREEN",
+    "EXEC_DEFAULT",
+    "EXEC_REGION_WIN",
+    "EXEC_REGION_CHANNELS",
+    "EXEC_REGION_PREVIEW",
+    "EXEC_AREA",
+    "EXEC_SCREEN",
+]
+
 class BpyOperatorCallable(Protocol):
     def __call__(
         self,
         /,
-        execution_context : Literal[
-            "INVOKE_DEFAULT",
-            "INVOKE_REGION_WIN",
-            "INVOKE_REGION_CHANNELS",
-            "INVOKE_REGION_PREVIEW",
-            "INVOKE_AREA",
-            "INVOKE_SCREEN",
-            "EXEC_DEFAULT",
-            "EXEC_REGION_WIN",
-            "EXEC_REGION_CHANNELS",
-            "EXEC_REGION_PREVIEW",
-            "EXEC_AREA",
-            "EXEC_SCREEN",
-        ] = 'EXEC_DEFAULT',
+        execution_context : BPY_OP_EXECUTION_CONTEXT = 'EXEC_DEFAULT',
         *args : ..., # pyright:ignore[reportAny]
         **kwargs : ..., # pyright:ignore[reportAny]
-    ) -> None:
-        pass
+    ) -> BPY_OP_RETURN:
+        return set()
 
 def get_bpy_op(category_name : str, operator_name : str) -> BpyOperatorCallable:
     category : ModuleType | None = getattr(bpy.ops, category_name, None)
@@ -57,21 +60,21 @@ def get_bpy_op(category_name : str, operator_name : str) -> BpyOperatorCallable:
 def call_bpy_op(
     category_name : str, operator_name : str,
     /,
-    execution_context : str = 'EXEC_DEFAULT',
+    execution_context : BPY_OP_EXECUTION_CONTEXT = 'EXEC_DEFAULT',
     *args : ...,  # pyright:ignore[reportAny]
     **kwargs : ..., # pyright:ignore[reportAny]
-) -> None:
+) -> BPY_OP_RETURN:
     op = get_bpy_op(category_name, operator_name)
-    op(execution_context, *args, **kwargs)
+    return op(execution_context, *args, **kwargs)
 
 def bpy_ops_retopoflow(
     operator_name : str,
     /,
-    execution_context : str = 'EXEC_DEFAULT',
+    execution_context : BPY_OP_EXECUTION_CONTEXT = 'EXEC_DEFAULT',
     *args : ..., # pyright:ignore[reportAny]
     **kwargs : ..., # pyright:ignore[reportAny]
-) -> None:
-    call_bpy_op('retopoflow', operator_name, execution_context, *args, **kwargs)
+) -> BPY_OP_RETURN:
+    return call_bpy_op('retopoflow', operator_name, execution_context, *args, **kwargs)
 
 
 # TimerCallback should actually take no args, but pyright complains
