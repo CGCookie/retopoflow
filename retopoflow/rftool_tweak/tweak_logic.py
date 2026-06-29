@@ -46,8 +46,9 @@ from ..common.raycast import (
 
 from ...addon_common.common.maths import sign_threshold
 from ..rftool_relax.relax_logic import Relax_Logic
+from ..common.snapping import SourceSnapMixin
 
-class Tweak_Logic:
+class Tweak_Logic(SourceSnapMixin):
     bm : BMesh
     em : Mesh
     matrix_world : Matrix
@@ -90,9 +91,6 @@ class Tweak_Logic:
     promoted_loop_verts : set[BMVert]  # loop verts elected to ride the source edge
     demoted_verts : set[BMVert]  # adjacent loop verts to be kept away from the source edge
     loop_guide_verts : 'tuple[BMVert, BMVert] | None'  # the seed edge that anchors the loop walk
-    # Snapping different from Relax which snaps against tiny per-substep forces. Here we snap against direct mouse motion.
-    SNAP_CORNER_PROXIMITY : float = 2.0  # corner snap radius as a multiple of the edge snap radius
-    SNAP_STICK_MULT       : float = 2.0  # how far stickiness=1 extends the release radius past the snap radius
 
     nudge_loop_verts : 'set[BMVert]'  # loop elected once per Nudge-Loops stroke; empty for Brush mode
     _nudge_vert_tangents : 'dict[BMVert, Vector]'  # slide tangent per vert, locked once (at election or first encounter)
@@ -180,9 +178,7 @@ class Tweak_Logic:
         self.source_sharp_proximity = getattr(snapping, 'source_edge_proximity', 0.25)
         self.stickiness = getattr(snapping, 'source_edge_stickiness', 0.5) if self.source_edge_accel else 0.0
         self.loops_strength = getattr(snapping, 'source_edge_guide_loops', 0.5) if self.source_edge_accel else 0.0
-        self.snapped_verts = set()
-        self.snap_target_world = {}
-        self.vert_corner_idx = {}
+        self.snap_init_state()
         self.verts_near_source_edge = {}
         self.promoted_loop_verts = set()
         self.demoted_verts = set()
@@ -791,88 +787,8 @@ class Tweak_Logic:
                         if cv_is_boundary and any(e.is_boundary for e in fv.link_edges): continue
                         self.demoted_verts.add(fv)
 
-    def _find_corner_occupant(self, corner_co_world, incoming_bmv, radius):
-        ''' Find a vert other than incoming_bmv sitting in a source corner.
-        Check snapped_verts first, fallback to accel so the full bmesh is never iterated linearly. '''
-        corner_w = Vector(corner_co_world)
-
-        # Fast path: verts snapped this stroke are the most likely occupants.
-        for v in self.snapped_verts:
-            if v is incoming_bmv: continue
-            if (local_to_world(v.co, self.matrix_world) - corner_w).length <= radius:
-                return v
-
-        # Fallback: Accel covers verts snapped in previous strokes.
-        # Use a tight radius - the occupant must actually be sitting at the corner.
-        if self.vert_accel:
-            tight_radius = radius * 0.5
-            candidates = self.vert_accel.get(corner_w, tight_radius)
-            best_v, best_dist = None, float('inf')
-            for v in candidates:
-                if v is incoming_bmv: continue
-                d = (local_to_world(v.co, self.matrix_world) - corner_w).length
-                if d < best_dist:
-                    best_dist = d
-                    best_v = v
-            return best_v
-
-        return None
-
-    def _kick_corner_occupant(self, occupant, corner_co, incoming_bmv, context=None, stroke_disp_2d=None):
-        ''' Move vert off corner to make room for incoming vert. '''
-
-        M, Mi = self.matrix_world, self.matrix_world_inv
-        accel = self.source_edge_accel
-        if not accel or context is None: return
-        corner_w = Vector(corner_co)
-
-        occ_snap_r    = self.stroke_snap_radius
-        occ_release_r = occ_snap_r * (1.0 + self.stickiness * self.SNAP_STICK_MULT) * 1.1
-
-        # Determine kick direction via a screen-space bump + raycast
-        kick_dir_world: Vector | None = None
-
-        incoming_world = local_to_world(incoming_bmv.co, M)
-        corner_2d  = location_3d_to_region_2d(context.region, context.region_data, corner_w)
-        incoming_2d = location_3d_to_region_2d(context.region, context.region_data, incoming_world)
-
-        if corner_2d is not None and incoming_2d is not None:
-            approach_2d = corner_2d - incoming_2d
-            approach_2d_len = approach_2d.length
-            if approach_2d_len < 1e-8 and stroke_disp_2d is not None:
-                approach_2d     = stroke_disp_2d         # degenerate: fall back to stroke
-                approach_2d_len = approach_2d.length
-            if approach_2d_len > 1e-8:
-                # Step past the corner in the kick direction by the release distance, in pixels
-                kick_2d_norm = approach_2d / approach_2d_len
-                # Estimate pixels per world unit from the corner's projection
-                p_ref = location_3d_to_region_2d(context.region, context.region_data, corner_w + Vector((occ_release_r, 0, 0)))
-                pix_per_unit = ((p_ref - corner_2d).length / occ_release_r) if p_ref else 50.0
-                sample_2d = corner_2d + kick_2d_norm * occ_release_r * pix_per_unit
-                hit = raycast_valid_sources(context, sample_2d, respect_clip_planes=True)
-                if hit:
-                    sample_world = Vector(hit['co_world'])
-                    d = sample_world - corner_w
-                    if d.length > 1e-8:
-                        kick_dir_world = d / d.length
-
-
-        if kick_dir_world is None:
-            # No raycast hit, use approach vector directly
-            d = incoming_world - corner_w   # away from incoming
-            if d.length > 1e-8:
-                kick_dir_world = -(d / d.length)   # negate: we want to move away
-            else:
-                return  # can't determine direction
-
-        new_occ_world = corner_w + kick_dir_world * occ_release_r
-        snapped_p = accel.closest_point(new_occ_world)
-        if snapped_p:
-            new_occ_world = Vector(snapped_p)
-        occupant.co = Mi @ new_occ_world
-        self.vert_corner_idx.pop(occupant, None)
-        self.snapped_verts.discard(occupant)
-        self.snap_target_world.pop(occupant, None)
+    def snap_grabbed_set(self):
+        return {t[0] for t in self.verts}
 
     def _push_crowded_edge_neighbors(self, context, stroke_disp_2d):
         ''' After grabbed verts have moved, check every snapped vert's direct neighbors.
@@ -940,158 +856,6 @@ class Tweak_Logic:
                 self.snap_target_world.pop(nb, None)
 
 
-    def snap_to_source_feature(self, bmv, new_co, falloff, context=None, disp_2d=None, stroke_disp_2d=None):
-        ''' Snap a dragged vert onto the nearest source feature edge/corner.
-        Promoted verts use a wider snap radius and always snap  within range.
-        Demoted verts are actively pushed away from the feature when they stray too close.
-        Unclassified verts snap only when moving toward the feature, then stay stuck. '''
-
-        accel = self.source_edge_accel
-        if not accel or not bmv.link_edges:
-            return new_co
-
-        snap_radius = self.stroke_snap_radius * max(falloff, 0.0)
-        if snap_radius <= 0.0:
-            self.snapped_verts.discard(bmv)
-            self.vert_corner_idx.pop(bmv, None)
-            return new_co
-
-        M, Mi = self.matrix_world, self.matrix_world_inv
-        new_co_world = local_to_world(new_co, M)
-
-        is_promoted = bool(self.promoted_loop_verts) and bmv in self.promoted_loop_verts
-        is_demoted  = bool(self.demoted_verts)       and bmv in self.demoted_verts
-        is_snapped  = bmv in self.snapped_verts
-
-        if is_demoted:
-            # Push away when they stray into the snap zone
-            self.snapped_verts.discard(bmv)
-            self.vert_corner_idx.pop(bmv, None)
-            self.snap_target_world.pop(bmv, None)
-            push_radius = snap_radius * 0.5 * self.loops_strength
-            if closest_p := accel.closest_point(new_co_world):
-                to_edge = Vector(closest_p) - new_co_world
-                if to_edge.length < push_radius:
-                    # Reflect away from the edge by the same distance it has intruded.
-                    return Mi @ (new_co_world - to_edge)
-            return new_co
-
-        # Promoted + unclassified: snap toward the feature
-        promoted_base = snap_radius * 1.5
-        if is_promoted:
-            # Promoted verts use a wider radius but after snapped have the same stickiness as regular verts.
-            snap_in_radius   = promoted_base
-            release_radius   = promoted_base * (1.0 + self.stickiness * self.SNAP_STICK_MULT)
-        else:
-            snap_in_radius   = snap_radius
-            release_radius   = snap_radius * (1.0 + self.stickiness * self.SNAP_STICK_MULT)
-
-        effective_radius = release_radius if is_snapped else snap_in_radius
-
-        # An edge snapped vert never moves far enough in a single step for the distance check to trigger release.
-        # Tracking the cumulative unconstrained drift lets the vert release when the brush has moved far enough away.
-        if is_snapped:
-            if bmv not in self.snap_target_world:
-                self.snap_target_world[bmv] = local_to_world(Vector(bmv.co), M)
-            else:
-                drift_local = Vector(new_co) - Vector(bmv.co)
-                self.snap_target_world[bmv] = self.snap_target_world[bmv] + M.to_3x3() @ drift_local
-            target_world = self.snap_target_world[bmv]
-            if closest_target := accel.closest_point(target_world):
-                if (target_world - Vector(closest_target)).length > effective_radius:
-                    self.snapped_verts.discard(bmv)
-                    self.vert_corner_idx.pop(bmv, None)
-                    self.snap_target_world.pop(bmv, None)
-                    return new_co
-        else:
-            self.snap_target_world.pop(bmv, None)
-
-        disp_world = M.to_3x3() @ (new_co - bmv.co) # Drag dispalcement
-
-        # Corners take priority over edges
-        was_on_corner = bmv in self.vert_corner_idx
-        if is_snapped:
-            corner_radius = effective_radius
-        else:
-            corner_radius = snap_in_radius * self.SNAP_CORNER_PROXIMITY  # wider snap-in only
-
-        snapped_to_corner = False
-        snapped_co_corner = None
-        if corner := accel.find_corner(new_co_world):
-            co_corner, corner_idx, dist_corner = corner
-            if dist_corner <= corner_radius:
-                grabbed_set = {t[0] for t in self.verts}
-                occupant = self._find_corner_occupant(co_corner, bmv, corner_radius)
-                allow_snap = True
-                if occupant is not None:
-                    if occupant in grabbed_set:
-                        # Both verts are grabbed: prevent collapse
-                        allow_snap = False
-                    else:
-                        # Occupant is not being dragged: kick it out
-                        self._kick_corner_occupant(occupant, co_corner, bmv, context, stroke_disp_2d)
-                if allow_snap:
-                    to_corner = Vector(co_corner) - new_co_world
-                    # Direction check for all corner snapping, both snap-in and re-snap.
-                    # disp_world always opposes to_corner, so the check only passes when the drag target is at the corner.
-                    # A released vert passing near a different corner won't snap to it unless actually moving toward it.
-                    if to_corner.length < 1e-8 or disp_world.dot(to_corner) > 0:
-                        self.snapped_verts.add(bmv)
-                        self.vert_corner_idx[bmv] = corner_idx
-                        snapped_to_corner = True
-                        snapped_co_corner = co_corner
-
-        if snapped_to_corner:
-            return Mi @ Vector(snapped_co_corner)
-
-        self.vert_corner_idx.pop(bmv, None)
-        if was_on_corner:
-            self.snapped_verts.discard(bmv)
-            self.snap_target_world.pop(bmv, None)
-            is_snapped = False
-
-        # Edge snapping
-        if closest_p := accel.closest_point(new_co_world):
-            p_vec = Vector(closest_p)
-            to_edge = p_vec - new_co_world
-            if to_edge.length <= effective_radius:
-                if is_snapped:
-                    # Slide along the edge only for the screen-space parallel brush movement
-                    bmv_world = local_to_world(bmv.co, M)
-                    tangent_result = accel.closest_point_with_tangent(bmv_world)
-                    if tangent_result is not None and context is not None and disp_2d is not None:
-                        _, tangent = tangent_result
-                        p0 = location_3d_to_region_2d(context.region, context.region_data, bmv_world)
-                        p1 = location_3d_to_region_2d(context.region, context.region_data, bmv_world + tangent)
-                        if p0 is not None and p1 is not None:
-                            tangent_2d = p1 - p0
-                            tangent_2d_len = tangent_2d.length
-                            if tangent_2d_len > 1e-8:
-                                tangent_2d_norm = tangent_2d / tangent_2d_len
-                                parallel_2d = disp_2d.dot(tangent_2d_norm) # Screen-space pixels moved parallel to the projected edge
-                                # Tangent is in world space, so tangent_2d_len is pixels per world unit
-                                # Flip to get world units per pixel
-                                parallel_3d = parallel_2d / tangent_2d_len
-                                candidate = point_to_bvec3(bmv_world + tangent * parallel_3d)
-                                constrained = accel.closest_point(candidate)
-                                if constrained is not None:
-                                    self.snapped_verts.add(bmv)
-                                    return Mi @ Vector(constrained)
-                    # Fallback: don't slide
-                    self.snapped_verts.add(bmv)
-                    return Vector(bmv.co)
-                # Corners sit on feature edges, so to_edge ≈ 0 even when dragging away.
-                # Without this, the edge check re-snaps the vert to the corner immediately after the corner check releases.
-                if (not was_on_corner and to_edge.length < 1e-8) or disp_world.dot(to_edge) > 0:
-                    self.snapped_verts.add(bmv)
-                    return Mi @ p_vec
-
-        # Out of range: release
-        self.snapped_verts.discard(bmv)
-        self.snap_target_world.pop(bmv, None)
-        return new_co
-
-
     def update(self, context, event):
         pressure = getattr(event, 'pressure', 1.0)
 
@@ -1125,6 +889,7 @@ class Tweak_Logic:
         is_pinch_magnify = getattr(self.tweak, 'brush_type', 'GRAB') == 'PINCH_MAGNIFY'
         _mode_is_pinch   = getattr(self.tweak, 'pinch_magnify_mode', 'MAGNIFY') == 'PINCH'
         is_pinch         = is_pinch_magnify and (_mode_is_pinch ^ self._pinch_ctrl_flip)
+
         for (bmv, co_orig, xy, strength) in self.verts:
             effective_strength = 0.0 if (is_nudge or is_pinch_magnify) else strength
             if self.mask_opt('boundary') == 'SLIDE' and bmv in self.boundary_verts:
@@ -1163,7 +928,16 @@ class Tweak_Logic:
                         p = self.angle_accel.closest_point(new_co)
                         if p is not None: new_co = p
                 if self.source_edge_accel:
-                    new_co = self.snap_to_source_feature(bmv, new_co, effective_strength, context, delta * effective_strength * pressure, mouse - self.mouse)
+                    snap_new_co = new_co
+                    if is_nudge:
+                        # In Nudge the per-frame move differs from the brush move and we need the distance travelled per-vert
+                        grab_hit = raycast_valid_sources(context, cur_xy + delta * strength * pressure, respect_clip_planes=True)
+                        if grab_hit:
+                            snap_new_co = grab_hit['co_local']
+                    # Velocity-independent release signal: where the vert would be if unconstrained over the whole stroke
+                    free_hit = raycast_valid_sources(context, xy + (mouse - self.mouse) * strength * pressure, respect_clip_planes=True)
+                    free_co = free_hit['co_local'] if free_hit else None
+                    new_co = self.snap_to_source_feature(bmv, snap_new_co, strength, context, delta * strength * pressure, mouse - self.mouse, free_co)
 
             if self.mirror:
                 co = Vector(new_co)

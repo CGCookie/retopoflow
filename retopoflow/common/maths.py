@@ -35,7 +35,7 @@ from typing import overload
 from ...addon_common.common.maths import clamp, Point, Normal, Plane, Direction
 from ...addon_common.common.utils import iter_pairs
 
-def local_to_world(matrix_world: Matrix, co: Vector) -> Vector:
+def local_to_world(co: Vector, matrix_world: Matrix) -> Vector:
     return point_to_bvec3((matrix_world @ Vector((*co, 1.0))).xyz)
 
 def view_forward_direction(context:Context) -> Vector:

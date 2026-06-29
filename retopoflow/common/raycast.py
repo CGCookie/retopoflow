@@ -647,7 +647,7 @@ class FindNearest:
             result, co, normal, idx = obj.closest_point_on_mesh(point_local_obj)
             if not result: continue
             co_world = matinfo_obj.l2w_point(co)
-            no_world = matinfo_obj.l2w_point(normal)
+            no_world = matinfo_obj.l2w_normal(normal)
             dist = distance_between_locations(point_world, co_world)
             if dist < self.distance_world:
                 self.distance_world = dist

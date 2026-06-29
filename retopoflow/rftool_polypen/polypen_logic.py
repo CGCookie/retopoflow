@@ -437,7 +437,7 @@ class PP_Logic:
         if not self.bm or not self.bm.is_valid:
             self.bm, self.em = get_bmesh_emesh(context)
             self.layer_sel_vert, self.layer_sel_edge, self.layer_sel_face = bmops.get_select_layers(self.bm)
-            print(type(self.layer_sel_vert), type(self.layer_sel_edge), type(self.layer_sel_face))
+            # print(type(self.layer_sel_vert), type(self.layer_sel_edge), type(self.layer_sel_face))
             self.selected = None
             self.nearest = None
             self.nearest_bme = None

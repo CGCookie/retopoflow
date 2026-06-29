@@ -539,7 +539,7 @@ class SourceAccel:
             yield _yield_setup(), None, None
 
             edge_angle = np.zeros(n_edges, dtype=np.float64)
-            if needs_evaluated_mesh and n_loops and n_polys:
+            if n_loops and n_polys:
                 loop_edge = np.empty(n_loops, dtype=np.int64)
                 mesh.loops.foreach_get('edge_index', loop_edge)
                 loop_total = np.empty(n_polys, dtype=np.int64)
