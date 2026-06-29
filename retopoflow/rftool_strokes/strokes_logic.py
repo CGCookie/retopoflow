@@ -128,7 +128,7 @@ DEBUG = False
 
 class Strokes_Logic:
     def __init__(self, context, radius, snap_distance, stroke3D, is_cycle, snapped_geo, snapped_mirror,
-                 span_insert_mode, fixed_span_count, extrapolate_mode, smooth_angle, smooth_density0, smooth_density1,
+                 span_insert_mode, fixed_span_count, span_length, extrapolate_mode, smooth_angle, smooth_density0, smooth_density1,
                  mirror_mode, mirror_correct, radius3D=None):
         self.radius = radius
         self.snap_distance = snap_distance
@@ -142,6 +142,7 @@ class Strokes_Logic:
 
         self.span_insert_mode = span_insert_mode
         self.fixed_span_count = fixed_span_count
+        self.span_length = max(0.001, span_length)
 
         self.show_extrapolate_mode = True
         self.extrapolate_mode = extrapolate_mode
@@ -363,6 +364,8 @@ class Strokes_Logic:
         match self.span_insert_mode:
             case 'FIXED':
                 spacing3D = self.length3D / max(1, self.fixed_span_count)
+            case 'LENGTH':
+                spacing3D = self.span_length
             case 'AVERAGE' if self.average_length > 0:
                 spacing3D = self.average_length
             case _:  # BRUSH (and AVERAGE with nothing selected, which falls back to the brush)
@@ -677,6 +680,8 @@ class Strokes_Logic:
                 nspans = self.get_brush_nspans(self.length3D)
             case 'FIXED':
                 nspans = self.fixed_span_count
+            case 'LENGTH':
+                nspans = max(1, round(self.length3D / self.span_length))
             case _:
                 assert False, f'Unhandled {self.span_insert_mode=}'
         nspans = max(1, nspans)
@@ -756,6 +761,8 @@ class Strokes_Logic:
                 nspans = self.get_brush_nspans(self.length3D)
             case 'FIXED':
                 nspans = self.fixed_span_count
+            case 'LENGTH':
+                nspans = max(1, round(self.length3D / self.span_length))
             case _:
                 assert False, f'Unhandled {self.span_insert_mode=}'
         nspans = max(3, nspans)
@@ -822,6 +829,8 @@ class Strokes_Logic:
                 nspans = self.fixed_span_count
             case 'AVERAGE':
                 nspans = round((closest_pt0 - closest_pt1).length / self.average_length)
+            case 'LENGTH':
+                nspans = max(1, round((closest_pt0 - closest_pt1).length / self.span_length))
             case _:
                 assert False, f'Unhandled {self.span_insert_mode=}'
         nspans = max(1, nspans)
@@ -903,6 +912,8 @@ class Strokes_Logic:
                 nspans = self.fixed_span_count
             case 'AVERAGE':
                 nspans = round(self.length3D / self.average_length)
+            case 'LENGTH':
+                nspans = max(1, round(self.length3D / self.span_length))
             case _:
                 assert False, f'Unhandled {self.span_insert_mode=}'
         nspans = max(1, nspans)
@@ -986,6 +997,8 @@ class Strokes_Logic:
                 nspans = self.fixed_span_count
             case 'AVERAGE':
                 nspans = round(self.length3D / self.average_length)
+            case 'LENGTH':
+                nspans = max(1, round(self.length3D / self.span_length))
             case _:
                 assert False, f'Unhandled {self.span_insert_mode=}'
         nspans = max(1, nspans)
@@ -1114,6 +1127,8 @@ class Strokes_Logic:
                 nspans = self.fixed_span_count
             case 'AVERAGE':
                 nspans = round(self.length3D / self.average_length)
+            case 'LENGTH':
+                nspans = max(1, round(self.length3D / self.span_length))
             case _:
                 assert False, f'Unhandled {self.span_insert_mode=}'
         nspans = max(1, nspans)
@@ -1277,6 +1292,8 @@ class Strokes_Logic:
                 nspans = self.fixed_span_count
             case 'AVERAGE':
                 nspans = round(self.length3D / self.average_length)
+            case 'LENGTH':
+                nspans = max(1, round(self.length3D / self.span_length))
             case _:
                 assert False, f'Unhandled {self.span_insert_mode=}'
         nspans = max(1, nspans)
@@ -1381,6 +1398,8 @@ class Strokes_Logic:
                 nspans = self.fixed_span_count
             case 'AVERAGE':
                 nspans = round(min(l0_3d, l2_3d) / self.average_length)
+            case 'LENGTH':
+                nspans = max(1, round(min(l0_3d, l2_3d) / self.span_length))
             case _:
                 assert False, f'Unhandled {self.span_insert_mode=}'
         nspans = max(1, nspans)
@@ -1691,6 +1710,14 @@ class Strokes_Logic:
                         for bmv in bme.verts
                     )
                     nspans = round(closest_distance3D / self.average_length)
+                case 'LENGTH':
+                    closest_distance3D = min(
+                        (s - bmv.co).length
+                        for s in self.stroke3D
+                        for bme in self.longest_strip0
+                        for bmv in bme.verts
+                    )
+                    nspans = max(1, round(closest_distance3D / self.span_length))
                 case _:
                     assert False, f'Unhandled {self.span_insert_mode=}'
             nspans = max(1, nspans)

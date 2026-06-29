@@ -104,8 +104,18 @@ class RFOperator_Stroke_Insert_Properties:
             ('BRUSH',   'Brush Radius', 'Inserts spans the size of the brush', 0),
             ('FIXED',   'Fixed',        'Inserts a fixed number of spans',     1),
             ('AVERAGE', 'Average',      'Inserts spans based on average length of selected edges. If there are no selected edges it uses the brush radius', 2),
+            ('LENGTH',  'Length',       'Inserts spans sized to match a world space distance', 3),
         ],
         default='AVERAGE',
+    )
+
+    span_length: bpy.props.FloatProperty(
+        name='Segment Length',
+        description='World space distance for each span when Span Count Method is set to Length',
+        default=0.1,
+        min=0.001,
+        soft_max=10.0,
+        subtype='DISTANCE',
     )
 
     cut_count: bpy.props.IntProperty(
@@ -202,7 +212,7 @@ class RFOperator_Stroke_Insert(
 
     @staticmethod
     def strokes_insert(context, radius, snap_distance, stroke3D, is_cycle, snapped_geo, snapped_mirror,
-                       span_insert_mode, cut_count, extrapolate_mode, smooth_angle, smooth_density0, smooth_density1,
+                       span_insert_mode, cut_count, span_length, extrapolate_mode, smooth_angle, smooth_density0, smooth_density1,
                        mirror_mode, mirror_correct, radius3D=None):
         stroke3D = [pt for pt in stroke3D if pt]
         length3D = sum((p1-p0).length for (p0,p1) in iter_pairs(stroke3D, is_cycle))
@@ -218,6 +228,7 @@ class RFOperator_Stroke_Insert(
             snapped_mirror,
             span_insert_mode,
             cut_count,
+            span_length,
             extrapolate_mode,
             smooth_angle,
             smooth_density0,
@@ -236,6 +247,7 @@ class RFOperator_Stroke_Insert(
             'INVOKE_DEFAULT', True,
             extrapolate_mode=logic.extrapolate_mode,
             cut_count=logic.fixed_span_count or 0,
+            span_length=logic.span_length,
             bridging_offset=logic.bridging_offset,
             smooth_angle=logic.smooth_angle,
             smooth_density0=logic.smooth_density0,
@@ -265,6 +277,9 @@ class RFOperator_Stroke_Insert(
 
         if logic.show_count:
             layout.prop(self, 'cut_count', text='Count')
+
+        if logic.span_insert_mode == 'LENGTH':
+            layout.prop(self, 'span_length', text='Segment Length')
 
         if logic.show_extrapolate_mode:
             layout.prop(self, 'extrapolate_mode')
@@ -302,6 +317,7 @@ class RFOperator_Stroke_Insert(
 
         logic.extrapolate_mode = self.extrapolate_mode
         logic.fixed_span_count = self.cut_count
+        logic.span_length      = self.span_length
         logic.bridging_offset  = self.bridging_offset
         logic.smooth_angle     = self.smooth_angle
         logic.smooth_density0  = self.smooth_density0
@@ -467,6 +483,7 @@ class RFOperator_Strokes(RFOperator_Stroke_Insert_Properties, RFOperator):
             snapped_mirror,
             self.span_insert_mode,
             self.cut_count,
+            self.span_length,
             self.extrapolate_mode,
             self.smooth_angle,
             self.smooth_density0,
@@ -552,6 +569,8 @@ class RFTool_Strokes(RFTool_Base):
             row.prop(props_strokes, 'span_insert_mode', text='')
             if props_strokes.span_insert_mode == 'FIXED':
                 row.prop(props_strokes, 'cut_count', text="")
+            elif props_strokes.span_insert_mode == 'LENGTH':
+                row.prop(props_strokes, 'span_length', text="")
             else:
                 row.prop(props_strokes, 'brush_radius', text="")
             # layout.label(text="Smooth Blending:")
@@ -585,6 +604,8 @@ class RFTool_Strokes(RFTool_Base):
                 panel.prop(props_strokes, 'span_insert_mode', text='Method')
                 if props_strokes.span_insert_mode == 'FIXED':
                     panel.prop(props_strokes, 'cut_count', text="Count")
+                elif props_strokes.span_insert_mode == 'LENGTH':
+                    panel.prop(props_strokes, 'span_length', text="Length")
                 else:
                     panel.prop(props_strokes, 'brush_radius', text="Radius")
                 panel.prop(props_strokes, 'snap_radius', text="Snap")

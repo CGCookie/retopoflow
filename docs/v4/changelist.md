@@ -24,6 +24,7 @@ This document contains details about what has changed in Retopoflow in version 4
 - Increased max span count in Contours from 100 to 500
 - Strokes now places verts at sharp angles in the stroke
 - Strokes now projects in world space, fixing spacing and redo issues
+- Strokes can now use world space units as the span length
 - All Retopoflow tools now respect Blender's Alt+B clipping region
     - Useful for isolating areas while working
 - Tools statusbar now shows the result of Blender operations such as Merge by Distance
