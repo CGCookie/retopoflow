@@ -181,6 +181,7 @@ class Strokes_Logic:
         self.source_accel = SourceCache.get(context) # False when unused or no features available for snapping
         self.scale_avg = sum(self.matrix_world.to_scale()) / 3
         self.feature_radius = 0
+        self.spacing3D = 0
 
         self.stroke3D = list(self.stroke3D_original)  # stroke can change, so keep a copy of original
         self.important_indices = []
@@ -364,8 +365,10 @@ class Strokes_Logic:
             case _:  # BRUSH (and AVERAGE with nothing selected, which falls back to the brush)
                 nspans = max(1, round(self.length2D / (2 * self.radius)))
                 spacing3D = self.length3D / nspans
+        self.spacing3D = spacing3D
         self.feature_radius = spacing3D * getattr(snapping, 'source_edge_proximity', 0.25)
 
+        self.force_stroke_angle_indices()
         self.force_corner_indices(context)
 
     def snap_co_to_feature(self, co_local):
@@ -386,6 +389,51 @@ class Strokes_Logic:
     def new_feature_vert(self, co_local):
         ''' Create a new bmvert at co_local after snapping it to a nearby source feature. '''
         return self.bm.verts.new(self.snap_co_to_feature(co_local))
+
+    def force_stroke_angle_indices(self):
+        ''' Force a vert at sharp bends in the stroke. '''
+        l = len(self.stroke3D)
+        if l < 3 or self.spacing3D <= 0: return
+
+        tolerance = self.spacing3D * 0.5
+
+        forced = set(self.important_indices) | {0, l - 1}
+        prev_count = len(forced)
+
+        # Iterative RDP
+        stack = [(0, l - 1)]
+        while stack:
+            i0, i1 = stack.pop()
+            if i1 - i0 <= 1:
+                continue
+            p0, p1 = self.stroke3D[i0], self.stroke3D[i1]
+            seg = p1 - p0
+            seg_len2 = seg.length_squared
+            max_dist, max_k = -1.0, i0 + 1
+            for k in range(i0 + 1, i1):
+                p = self.stroke3D[k]
+                if seg_len2 < 1e-20:
+                    d = (p - p0).length
+                else:
+                    t = max(0.0, min(1.0, (p - p0).dot(seg) / seg_len2))
+                    d = (p - (p0 + t * seg)).length
+                if d > max_dist:
+                    max_dist, max_k = d, k
+            if max_dist < tolerance:
+                continue
+            pt = self.stroke3D[max_k]
+            if not any((pt - self.stroke3D[fi]).length < self.spacing3D for fi in forced if fi != max_k):
+                forced.add(max_k)
+            stack.append((i0, max_k))
+            stack.append((max_k, i1))
+
+        if len(forced) == prev_count: return
+
+        self.important_indices = list(sorted(forced))
+        self.important_lengths = {
+            i: sum((p1 - p0).length for (p0, p1) in iter_pairs(self.stroke3D[:i+1], False))
+            for i in self.important_indices
+        }
 
     def force_corner_indices(self, context):
         ''' Detect source corners the stroke passes and force a vertex there. '''
@@ -410,9 +458,8 @@ class Strokes_Logic:
         if not best_per_corner:
             return
 
-        # build the forced index set
-        # seed endpoints like process_mirror so insert_strip's important-indices branch still spans the full stroke
-        forced = set(self.important_indices) if self.important_indices else {0, l - 1}
+        # build the forced index set and always include endpoints so insert_strip spans the full stroke
+        forced = set(self.important_indices) | {0, l - 1}
         chosen = sorted(best_per_corner.values(), key=lambda e: e[0])  # nearest corners win ties
         corner_co_by_index = {}
         for _dist, stroke_idx, corner_co in chosen:
