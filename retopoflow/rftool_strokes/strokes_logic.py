@@ -50,7 +50,8 @@ from ..common.bmesh_maths import (
 )
 from ..common.raycast import raycast_point_valid_sources, nearest_normal_valid_sources, nearest_point_valid_sources
 from ..common.maths import view_forward_direction, lerp, bvec_to_point, point_to_bvec3, bvec_point_to_bvec4, bvec_vector_to_bvec4
-from ..common.maths import xform_point, xform_vector, xform_direction
+from ..common.maths import xform_point, xform_vector, xform_direction, local_to_world
+from ..common.accel import SourceCache
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.bezier import interpolate_cubic
 from ...addon_common.common.debug import debugger
@@ -177,9 +178,14 @@ class Strokes_Logic:
         self.matrix_world = context.edit_object.matrix_world
         self.matrix_world_inv = self.matrix_world.inverted_safe()
 
+        self.source_accel = SourceCache.get(context) # False when unused or no features available for snapping
+        self.scale_avg = sum(self.matrix_world.to_scale()) / 3
+        self.feature_radius = 0
+
         self.stroke3D = list(self.stroke3D_original)  # stroke can change, so keep a copy of original
         self.important_indices = []
         self.important_lengths = {}
+        self.important_corner_co = {}
 
         self.process_selected(context)          # gather details about selected geometry
         self.process_mirror(context)            # can change stroke, depends on selected geo
@@ -347,6 +353,82 @@ class Strokes_Logic:
         # compute total lengths, which will be used to find where new verts are to be created
         self.length2D = sum((p1-p0).length for (p0,p1) in iter_pairs(self.stroke2D, self.is_cycle))
         self.length3D = sum((p1-p0).length for (p0,p1) in iter_pairs(self.stroke3D, self.is_cycle))
+
+        # Snapping distance follows span insert distance
+        snapping = context.scene.retopoflow.snapping
+        match self.span_insert_mode:
+            case 'FIXED':
+                spacing3D = self.length3D / max(1, self.fixed_span_count)
+            case 'AVERAGE' if self.average_length > 0:
+                spacing3D = self.average_length
+            case _:  # BRUSH (and AVERAGE with nothing selected, which falls back to the brush)
+                nspans = max(1, round(self.length2D / (2 * self.radius)))
+                spacing3D = self.length3D / nspans
+        self.feature_radius = spacing3D * getattr(snapping, 'source_edge_proximity', 0.25)
+
+        self.force_corner_indices(context)
+
+    def snap_co_to_feature(self, co_local):
+        ''' Snap a local space coordinate onto the nearest source feature if within the radius.
+        Returns the (possibly unchanged) local coordinate. '''
+        accel = self.source_accel
+        if not accel or self.feature_radius <= 0:
+            return co_local
+        co_world = local_to_world(co_local, self.matrix_world)
+        corner = accel.find_corner(co_world)
+        if corner and corner[2] <= self.feature_radius:
+            return self.matrix_world_inv @ Vector(corner[0])
+        closest = accel.closest_point(co_world)
+        if closest and (Vector(closest) - co_world).length <= self.feature_radius:
+            return self.matrix_world_inv @ Vector(closest)
+        return co_local
+
+    def new_feature_vert(self, co_local):
+        ''' Create a new bmvert at co_local after snapping it to a nearby source feature. '''
+        return self.bm.verts.new(self.snap_co_to_feature(co_local))
+
+    def force_corner_indices(self, context):
+        ''' Detect source corners the stroke passes and force a vertex there. '''
+        accel = self.source_accel
+        if not accel or self.feature_radius <= 0:
+            return
+        M, Mi = self.matrix_world, self.matrix_world_inv
+        l = len(self.stroke3D)
+
+        # nearest stroke index per corner and deduplicate when several stroke points share one corner
+        best_per_corner = {}  # corner_idx: (dist, stroke_idx, corner_co_world)
+        for i, pt in enumerate(self.stroke3D):
+            corner = accel.find_corner(local_to_world(pt, M))
+            if not corner:
+                continue
+            corner_co, corner_idx, dist = corner
+            if dist > self.feature_radius:
+                continue
+            prev = best_per_corner.get(corner_idx)
+            if prev is None or dist < prev[0]:
+                best_per_corner[corner_idx] = (dist, i, corner_co)
+        if not best_per_corner:
+            return
+
+        # build the forced index set
+        # seed endpoints like process_mirror so insert_strip's important-indices branch still spans the full stroke
+        forced = set(self.important_indices) if self.important_indices else {0, l - 1}
+        chosen = sorted(best_per_corner.values(), key=lambda e: e[0])  # nearest corners win ties
+        corner_co_by_index = {}
+        for _dist, stroke_idx, corner_co in chosen:
+            # skip if it would cluster a forced vert next to an already-forced index
+            if any(abs(stroke_idx - fi) <= 1 for fi in forced):
+                if stroke_idx not in forced:
+                    continue
+            forced.add(stroke_idx)
+            corner_co_by_index[stroke_idx] = Mi @ Vector(corner_co)
+
+        self.important_indices = list(sorted(forced))
+        self.important_corner_co = corner_co_by_index
+        self.important_lengths = {
+            i: sum((p1 - p0).length for (p0, p1) in iter_pairs(self.stroke3D[:i+1], False))
+            for i in self.important_indices
+        }
 
     def process_selected(self, context):
         """
@@ -519,8 +601,10 @@ class Strokes_Logic:
             if self.snap_bmv0:
                 # print('snap first')
                 bmvs += [self.snap_bmv0]
+            elif 0 in self.important_corner_co:
+                bmvs += [self.bm.verts.new(self.important_corner_co[0])] # place vert in snapped corner
             else:
-                bmvs += [self.bm.verts.new(self.find_point3D(0))]
+                bmvs += [self.new_feature_vert(self.find_point3D(0))]
             for (i0,i1,_,c) in segment_spans:
                 l0 = self.important_lengths[i0]
                 l1 = self.important_lengths[i1]
@@ -530,9 +614,12 @@ class Strokes_Logic:
                         # print('snap last')
                         bmvs += [self.snap_bmv1]
                         break
+                    if p == c - 1 and i1 in self.important_corner_co:
+                        bmvs += [self.bm.verts.new(self.important_corner_co[i1])] # place vert in snapped corner
+                        continue
                     v = (l0 + (l1 - l0) * (p + 1) / c) / self.length3D
                     pt = self.find_point3D(v)
-                    bmvs += [self.bm.verts.new(pt)]
+                    bmvs += [self.new_feature_vert(pt)]
         else:
             bmvs = []
             for iv in range(nverts):
@@ -543,7 +630,7 @@ class Strokes_Logic:
                 else:
                     v = iv / (nverts-1)
                     pt = self.find_point3D(v)
-                    bmvs += [self.bm.verts.new(pt)]
+                    bmvs += [self.new_feature_vert(pt)]
 
         bmes = []
         for ie in range(nspans):
@@ -576,7 +663,7 @@ class Strokes_Logic:
         nverts = nspans
 
         bmvs = [
-            self.bm.verts.new(self.find_point3D(iv / nverts))
+            self.new_feature_vert(self.find_point3D(iv / nverts))
             for iv in range(nverts)
         ]
         bmes = [
@@ -658,7 +745,7 @@ class Strokes_Logic:
             for i in range(1, nverts):
                 pt = pt0 + v * (i / (nverts - 1))
                 co = raycast_point_valid_sources(context, pt, world=False, respect_clip_planes=True)
-                bmvs[i].append(self.bm.verts.new(co) if co else None)
+                bmvs[i].append(self.new_feature_vert(co) if co else None)
 
             accum_dist += bme_length(bme_cur)
             bme_pre = bme_cur
@@ -749,7 +836,7 @@ class Strokes_Logic:
             cur_bmvs = [bmv0]
             for t in fitted[1:]:
                 co = raycast_point_valid_sources(context, t, world=False, respect_clip_planes=True)
-                cur_bmvs.append(self.bm.verts.new(co) if co else None)
+                cur_bmvs.append(self.new_feature_vert(co) if co else None)
 
             bmvs.append(cur_bmvs)
             bmv0 = bme_other_bmv(bme, bmv0)
@@ -838,7 +925,7 @@ class Strokes_Logic:
             cur_bmvs = [bmv0]
             for t in fitted[1:-1]:
                 co = raycast_point_valid_sources(context, t, world=False, respect_clip_planes=True)
-                cur_bmvs.append(self.bm.verts.new(co) if co else None)
+                cur_bmvs.append(self.new_feature_vert(co) if co else None)
             cur_bmvs.append(bmv1)
             bmvs.append(cur_bmvs)
             bmv0 = bme_other_bmv(bme0, bmv0)
@@ -972,7 +1059,7 @@ class Strokes_Logic:
                     co_local = frame1.l2w_point(co_frame)
                     snapped = nearest_point_valid_sources(context, (M @ bvec_point_to_bvec4(co_local)).xyz, respect_clip_planes=True)
                     co_local = (Mi @ bvec_point_to_bvec4(snapped)).xyz if snapped else co_local
-                    cur_bmvs.append( self.bm.verts.new(co_local) )
+                    cur_bmvs.append( self.new_feature_vert(co_local) )
                 bmvs.append(cur_bmvs)
             #sel_idx = next((i for (i,bmv) in enumerate(bmvs[0]) if bmv == self.snap_bmv0), -1)
             #bmvs_select = [row[sel_idx] for row in bmvs]
@@ -1011,14 +1098,14 @@ class Strokes_Logic:
                     cur_bmvs = [bmv0]
                     for t in fitted[1:]:
                         co = raycast_point_valid_sources(context, t, world=False, respect_clip_planes=True)
-                        cur_bmvs.append(self.bm.verts.new(co) if co else None)
+                        cur_bmvs.append(self.new_feature_vert(co) if co else None)
 
                 else:
                     cur_bmvs = [bmv0]
                     offset0 = template[0]
                     for offset in template[1:]:
                         co = raycast_point_valid_sources(context, pt + offset - offset0, world=False, respect_clip_planes=True)
-                        cur_bmvs.append(self.bm.verts.new(co) if co else None)
+                        cur_bmvs.append(self.new_feature_vert(co) if co else None)
 
                 bmvs.append(cur_bmvs)
                 if not bme: break
@@ -1146,7 +1233,7 @@ class Strokes_Logic:
             for t in fitted[1:-1]:
                 # co = raycast_point_valid_sources(context, pt0 + offset * scale, world=False)
                 co = raycast_point_valid_sources(context, t, world=False, respect_clip_planes=True)
-                cur_bmvs.append(self.bm.verts.new(co) if co else None)
+                cur_bmvs.append(self.new_feature_vert(co) if co else None)
             cur_bmvs.append(bmv1)
             bmvs.append(cur_bmvs)
             if bmv0 == self.snap_bmv0: i_sel_row = i_row
@@ -1242,7 +1329,7 @@ class Strokes_Logic:
             for (p0, p2) in zip(fitted0[1:], fitted2[1:]):
                 p = lerp(v, p0, p2)
                 co = raycast_point_valid_sources(context, p, world=False, respect_clip_planes=True)
-                cur_bmvs.append(self.bm.verts.new(co) if co else None)
+                cur_bmvs.append(self.new_feature_vert(co) if co else None)
             bmvs.append(cur_bmvs)
             if not bme: break
             bmv0 = bme_other_bmv(bme, bmv0)
@@ -1357,7 +1444,7 @@ class Strokes_Logic:
                     v = i_tb / (llc_tb - 1)
                     p = lerp(v, fitted_l[i_lr], fitted_r[i_lr])
                     co = raycast_point_valid_sources(context, p, world=False, respect_clip_planes=True)
-                    bmvs[i_lr][i_tb] = self.bm.verts.new(co) if co else None
+                    bmvs[i_lr][i_tb] = self.new_feature_vert(co) if co else None
 
         # fill in quads
         bmfs = []
@@ -1628,7 +1715,7 @@ class Strokes_Logic:
                         if 'x' in right_mirror_snap: co.x *= zs
                         if 'y' in right_mirror_snap: co.y *= zs
                         if 'z' in right_mirror_snap: co.z *= zs
-                    bmvs[i_lr][i_tb] = self.bm.verts.new(co) if co else None
+                    bmvs[i_lr][i_tb] = self.new_feature_vert(co) if co else None
 
         ######################
         # fill in quads
