@@ -41,8 +41,14 @@ def draw_tweaking_options(context : Context, layout : UILayout):
             # NOTE: tool.idname might not match an operator, so using rf_operator_idname
             rftool = RFTool_Base.get_rftool_by_workspacetool(tool)
             if rftool and rftool.rf_operator_idname:
-                tool_props = tool.operator_properties(rftool.rf_operator_idname)
-                if hasattr(tool_props, 'select_loops'):
+                try:
+                    # WorkSpaceTool.operator_properties throws a RunTime Exception if
+                    # the specified tool does not have any properties (2026.06.28)
+                    tool_props = tool.operator_properties(rftool.rf_operator_idname)
+                except Exception as _exception:
+                    tool_props = None
+
+                if tool_props and hasattr(tool_props, 'select_loops'):
                     col = layout.column()
                     draw_section_header(context, col, tool_props.bl_rna.name)
                     col.prop(tool_props, 'select_loops', text='Loops Mode')

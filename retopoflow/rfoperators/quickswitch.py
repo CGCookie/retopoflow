@@ -115,6 +115,8 @@ class RFOperator_Relax_QuickSwitch(RFOperator):
             quick_switch_tool('relax')
             return {'PASS_THROUGH'}
 
+        # since RFCore is running (above test), then there _should_ be
+        # at least one modal operator active
         op = context.window.modal_operators[0]
         if 'quickswitch_to_relax' not in op.bl_idname:
             # still relaxing

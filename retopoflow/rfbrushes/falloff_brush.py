@@ -47,17 +47,31 @@ class ConvertGetCallable(Protocol):
         return 0
 
 
-def create_falloff_brush(idname : str, label : str, **kwargs):
-    fn_disable : Callable[[Event], bool] | None = kwargs.get('fn_disable', None)
+def create_falloff_brush(
+    idname : str,
+    label : str,
+    *,
+    fn_disable : Callable[[Event], bool] | None = None,
+    radius : float = 100.0,
+    falloff : float = 1.00,
+    strength : float = 0.75,
+    color : Color | None = None,
+) -> tuple[type[RFBrush_Base], type[RFOperator]]:
+
+    # relabel these variables so that we can reference them in class definition below
+    arg_radius = radius
+    arg_falloff = falloff
+    arg_strength = strength
+    arg_color : Color = color or Color.from_ints(0, 135, 255, 255)
 
     class RFBrush_Falloff(RFBrush_Base):
         # brush settings
-        radius   : float = kwargs.get('radius',   100)
-        falloff  : float = kwargs.get('falloff',  1.00)
-        strength : float = kwargs.get('strength', 0.75)
+        radius   : float = arg_radius
+        falloff  : float = arg_falloff
+        strength : float = arg_strength
 
         # brush visualization settings
-        color           : Color = kwargs.get('color', Color.from_ints(0, 135, 255, 255))
+        color           : Color = arg_color
         below_alpha     : Color = Color((1,1,1,0.25))  # multiplied against color when occluded
         brush_min_alpha : float = 0.100
         brush_max_alpha : float = 0.700
@@ -69,22 +83,21 @@ def create_falloff_brush(idname : str, label : str, **kwargs):
 
         operator : RFOperator | None = None
 
-        mouse : tuple[int, int] | None # pyright: ignore[reportUninitializedInstanceVariable]
-        hit_ray : tuple[Vector,Vector] # pyright: ignore[reportUninitializedInstanceVariable]
-        hit : bool # pyright: ignore[reportUninitializedInstanceVariable]
-        hit_p : Vector | None # pyright: ignore[reportUninitializedInstanceVariable]
-        hit_n : Vector | None # pyright: ignore[reportUninitializedInstanceVariable]
-        hit_scale : float | None # pyright: ignore[reportUninitializedInstanceVariable]
-        hit_depth : float | None # pyright: ignore[reportUninitializedInstanceVariable]
-        hit_x : Direction | None # pyright: ignore[reportUninitializedInstanceVariable]
-        hit_y : Direction | None # pyright: ignore[reportUninitializedInstanceVariable]
-        hit_z : Direction | None # pyright: ignore[reportUninitializedInstanceVariable]
-        hit_rmat : Matrix | None # pyright: ignore[reportUninitializedInstanceVariable]
-        disabled : bool # pyright: ignore[reportUninitializedInstanceVariable]
-        offset : float # pyright: ignore[reportUninitializedInstanceVariable]
-        hit_scale_offset : float # pyright: ignore[reportUninitializedInstanceVariable]
-        prev_radius : float # pyright: ignore[reportUninitializedInstanceVariable]
-        center2D : Vector # pyright: ignore[reportUninitializedInstanceVariable]
+        mouse : tuple[int, int] | None = None
+        hit_ray : tuple[Vector,Vector] | None = None
+        hit : bool = False
+        hit_p : Vector | None = None
+        hit_n : Vector | None = None
+        hit_scale : float | None = None
+        hit_depth : float | None = None
+        hit_x : Direction | None = None
+        hit_y : Direction | None = None
+        hit_z : Direction | None = None
+        hit_rmat : Matrix | None = None
+        disabled : bool = False
+        offset : float = 0.0
+        hit_scale_offset : float = 0.0
+        center2D : Vector | None = None
 
         @classmethod
         def set_operator(cls, operator : RFOperator | None):
@@ -199,13 +212,17 @@ def create_falloff_brush(idname : str, label : str, **kwargs):
             if force: self._update(context)
 
         def _update(self, context : Context):
-            if context.area not in self.mouse_areas: return
+            if context.area not in self.mouse_areas:
+                return
+            if not isinstance(context.space_data, SpaceView3D):
+                return
             self.hit = False
             if not self.mouse: return
             # print(f'RFBrush_Falloff.update {(event.mouse_region_x, event.mouse_region_y)}') #{context.region=} {context.region_data=}')
             hit = raycast_valid_sources(context, self.mouse, respect_clip_planes=True)
             # print(f'  {hit=}')
-            if not hit: return
+            if not hit:
+                return
             #scale = size2D_to_size_point(context, self.mouse, hit['co_world'])
             distance : float = hit['distance']
             space : SpaceView3D = context.space_data
@@ -232,18 +249,24 @@ def create_falloff_brush(idname : str, label : str, **kwargs):
             self.hit_rmat = rmat
 
         def draw_postpixel(self, context : Context):
-            if not RFBrush_Falloff.operator: return
-            if context.area not in self.mouse_areas: return
-            if not RFOperator_FalloffBrush_Adjust.is_active(): return
-            if self.disabled: return
+            if not RFBrush_Falloff.operator:
+                return
+            if context.area not in self.mouse_areas:
+                return
+            if not RFOperator_FalloffBrush_Adjust.is_active():
+                return
+            if self.disabled:
+                return
 
             if not RFBrush_Falloff.operator.is_active() and not RFOperator_FalloffBrush_Adjust.is_active():
                 return
 
+            center2D = self.center2D
+            if center2D is None:
+                return
+
             active_op = RFOperator.active_operator()
             adjust = active_op.adjust if active_op is not None else ''
-
-            center2D = self.center2D
 
             r = self.radius if adjust == 'RADIUS' else context.region.height * 0.25 * 0.5
             color = self.color
@@ -293,13 +316,20 @@ def create_falloff_brush(idname : str, label : str, **kwargs):
 
         def draw_postview(self, context : Context):
             RFCore = RFGlobals.RFCore_None
-            if not RFCore: return
-            if context.area not in self.mouse_areas: return
-            if RFOperator_FalloffBrush_Adjust.is_active(): return
-            if not RFCore or not (RFCore.is_top_modal(context) or self.is_top_modal(context)): return
-            if self.disabled: return
+            if not RFCore:
+                return
+            if context.area not in self.mouse_areas:
+                return
+            if RFOperator_FalloffBrush_Adjust.is_active():
+                return
+            if not RFCore or not (RFCore.is_top_modal(context) or self.is_top_modal(context)):
+                return
+            if self.disabled:
+                return
+
             self._update(context)
-            if not self.hit or not self.hit_p or not self.hit_n: return # Ensure we have a hit and a normal
+            if not self.hit or not self.hit_p or not self.hit_n or not self.hit_ray:
+                return # Ensure we have a hit and a normal
 
             # Calculate position and orientation
             p = self.hit_p - self.hit_ray[1].xyz * self.offset
@@ -316,9 +346,13 @@ def create_falloff_brush(idname : str, label : str, **kwargs):
             ri = rmin + self.strength * (ro - rmin)
 
             # Color.
-            color = self.color
+            color : Color = self.color
             # Ensure below_alpha has alpha component 'a'
-            below_alpha_val = self.below_alpha.a if hasattr(self.below_alpha, 'a') else self.below_alpha[3] if isinstance(self.below_alpha, (list, tuple)) and len(self.below_alpha) == 4 else 0.25
+            below_alpha_val = (
+                self.below_alpha.a if hasattr(self.below_alpha, 'a') else (
+                    self.below_alpha[3] if isinstance(self.below_alpha, (list, tuple)) and len(self.below_alpha) == 4 else 0.25
+                )
+            )
 
             gpustate.blend('ALPHA')
             gpustate.depth_mask(True) # Keep depth mask enabled
@@ -333,7 +367,7 @@ def create_falloff_brush(idname : str, label : str, **kwargs):
             # draw below
             gpustate.depth_test('GREATER')
             # Adjust alpha for drawing below
-            color_below = Color((*color[:3], color.a * below_alpha_val))
+            color_below = Color((color.r, color.g, color.b, color.a * below_alpha_val))
             Drawing.draw_circle_3d(position=p, normal=n, color=color_below, radius=ro, thickness=2, scale=self.hit_scale_offset, segments=None, viewport_size=viewport_size)
             Drawing.draw_circle_3d(position=p, normal=n, color=color_below, radius=ri, thickness=1, scale=self.hit_scale_offset, segments=None, viewport_size=viewport_size)
 
@@ -379,18 +413,18 @@ def create_falloff_brush(idname : str, label : str, **kwargs):
         #################################################################################
         # these are hacks to launch falloff brush operator with certain set properties
 
-        @staticmethod
         @execute_operator(f'{idname}_radius',   f'Adjust {label} Radius')
+        @staticmethod
         def adjust_radius(_context : Context):
             bpy_ops_retopoflow(idname, 'INVOKE_DEFAULT', adjust='RADIUS')
 
-        @staticmethod
         @execute_operator(f'{idname}_strength', f'Adjust {label} Strength')
+        @staticmethod
         def adjust_strength(_context : Context):
             bpy_ops_retopoflow(idname, 'INVOKE_DEFAULT', adjust='STRENGTH')
 
-        @staticmethod
         @execute_operator(f'{idname}_falloff',  f'Adjust {label} Falloff')
+        @staticmethod
         def adjust_falloff(_context : Context):
             bpy_ops_retopoflow(idname, 'INVOKE_DEFAULT', adjust='FALLOFF')
 

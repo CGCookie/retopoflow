@@ -23,21 +23,27 @@ Created by Jonathan Denning, Jonathan Lampel
 
 
 from collections.abc import Sequence
+from typing import ClassVar
 
+import bpy
 from bpy.types import (
     Context,
     UILayout,
     WorkSpaceTool,
+    Event,
 )
 
+from ..rfglobals import RFGlobals
 from ..rfoperators.topo_rotate import RFOperator_TopoRotate
 from ..rftool_base import RFTool_Base
 
 from ...addon_common.common.resetter import Resetter
 
+from ..common.bpy_helper import bpy_ops_retopoflow, BL_SPACE_TYPES, BL_REGION_TYPES
 from ..common.icons import get_path_to_blender_icon
 from ..common.operator import (
     execute_operator,
+    RFOperator,
     RFOperator_Execute,
     RFKeyMaps,
     chain_rf_keymaps,
@@ -45,6 +51,7 @@ from ..common.operator import (
     BLKeyMaps,
 )
 
+from ..rfoverlay_base import RFOverlay_Base
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
 from ..rfpanels.tweaking_panel import draw_tweaking_panel
 from ..rfpanels.mirror_panel import draw_mirror_panel
@@ -54,13 +61,12 @@ from ..rfpanels.help_panel import draw_help_panel
 
 
 
-
-
 class RFOperator_Patches_Insert(RFOperator_Execute):
     bl_idname : str = 'retopoflow.patches_insert'
-    bl_label : str = 'Patches'
+    bl_label : str = 'Insert Patch'
     bl_description : str = 'Fill in hole with patch'
     bl_options : set[str] = set()
+
     rf_keymaps : RFKeyMaps = [
         (bl_idname, {'type': 'F', 'value': 'PRESS'}, None)
     ]
@@ -69,6 +75,114 @@ class RFOperator_Patches_Insert(RFOperator_Execute):
     def execute(self, context : Context) -> set[str]:
         print('execute!')
         return {'FINISHED'}
+
+
+class RFOperator_Patches(RFOperator):
+    bl_idname : str = 'retpoflow.patches'
+    bl_label : str = 'Patches'
+    bl_description : str = 'Insert patch'
+    bl_space_type : BL_SPACE_TYPES = 'VIEW_3D'
+    bl_region_type : BL_REGION_TYPES = 'TOOLS'
+    bl_options : set[str] = set()
+
+    rf_keymaps : RFKeyMaps = []
+
+    def init(self, context : Context, event : Event):
+        pass
+
+    def finish(self, context : Context):
+        pass
+
+    def update(self, context : Context, event : Event) -> set[str]:
+        return {'PASS_THROUGH'}
+
+
+class RFOperator_Patches_Selection_Overlay(RFOverlay_Base, RFOperator):
+    bl_idname : str = f'retopoflow.patches_selection_overlay'
+    bl_label : str = f'Patches Selection Overlay'
+    bl_description : str = 'Overlay info about selected loops and strips'
+    bl_options : set[str] = { 'INTERNAL' }
+
+    instance : ClassVar[object | None] = None
+    depsgraph_version : ClassVar[int] = -42
+    paused_update : ClassVar[bool] = False
+    paused_overlay : ClassVar[bool] = False
+
+    # hovering : tuple[int, int, list[Vector]] | None = None  # needed for very first start
+
+    # selected_strips : list[list[Vector]]
+    # strips_indices : list[list[int]]
+    # curves : list[CubicBezier]
+
+    @classmethod
+    def pause_update(cls):
+        cls.paused_update = True
+    @classmethod
+    def unpause_update(cls):
+        cls.paused_update = False
+
+    @classmethod
+    def pause_overlay(cls):
+        cls.paused_overlay = True
+    @classmethod
+    def unpause_overlay(cls):
+        cls.paused_overlay = False
+
+    @classmethod
+    def activate(cls):
+        print('RFOperator_Patches_Selection_Overlay.activate')
+        bpy_ops_retopoflow('patches_insert', 'INVOKE_DEFAULT')
+
+    def __init__(self, *args : ..., **kwargs : dict[str, ...]):
+        super().__init__(*args, **kwargs)
+
+        cls = type(self)
+        cls.instance = self
+        cls.depsgraph_version = -42
+        # self.selected_strips = []
+        # self.strips_indices = []
+        # self.curves = []
+
+    def init(self, _context : Context, _event : Event):
+        print('RFOperator_Patches_Selection_Overlay.init')
+        cls = type(self)
+        cls.depsgraph_version = -42
+        cls.instance = self
+
+    def finish(self, _context : Context):
+        print('RFOperator_Patches_Selection_Overlay.finish')
+        cls = type(self)
+        cls.instance = None
+
+    def update(self, context : Context, event : Event) -> set[str]:
+        print('RFOperator_Patches_Selection_Overlay.update')
+
+        RFCore = RFGlobals.RFCore_None
+        if not RFCore:
+            return {'CANCELLED'}
+
+        is_done = (RFCore.selected_RFTool_idname != 'retopoflow.patches')
+        if is_done:
+            return {'CANCELLED'}
+
+        if self.paused_overlay:
+            return {'PASS_THROUGH'}
+
+        return {'PASS_THROUGH'}
+
+    def draw_postpixel_overlay(self):
+        print('RFOperator_Patches_Selection_Overlay.overlay')
+        RFCore = RFGlobals.RFCore_None
+        if not RFCore: return
+        is_done = (RFCore.selected_RFTool_idname != 'retopoflow.patches')
+        if is_done:
+            return
+        if self.paused_overlay:
+            return
+
+        context = bpy.context
+        if not context.edit_object:
+            return
 
 
 
@@ -80,15 +194,17 @@ class RFTool_Patches(RFTool_Base):
     bl_description : str = "Retopologize holes!"
     bl_icon : str = get_path_to_blender_icon('patches')
     bl_widget : None = None
-    rf_operator_idname : str | None = 'retopoflow.patches_insert'
+    rf_operator_idname : str | None = 'retopoflow.patches'
 
     bl_keymap : BLKeyMaps = chain_rf_keymaps(
+        RFOperator_Patches,
         RFOperator_Patches_Insert,
         # RFOperator_Patches_Insert_Template,
         # RFOperator_PatchesBrush_Adjust,
         RFOperator_TopoRotate,
     )
 
+    rf_overlay : type[RFOverlay_Base] | None = RFOperator_Patches_Selection_Overlay
     # rf_brush : RFBrush_Patches = RFBrush_Patches()
 
     @staticmethod
@@ -162,4 +278,3 @@ class RFTool_Patches(RFTool_Base):
 @execute_operator('switch_to_patches', 'RetopoFlow: Switch to Patches', fn_poll=poll_retopoflow)
 def switch_rftool(context : Context):
     RFTool_Patches.activate_tool(context)
-

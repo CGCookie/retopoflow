@@ -169,6 +169,7 @@ class RFOperator_Base(Operator):
         if not exceptions:
             return
 
+        # Exceptions were thrown and caught!
         print()
         term_printer.boxed(
             *[ f'{rf_idname}, {action}: {e}\n' for (rf_idname, action, e) in exceptions ],
@@ -324,29 +325,18 @@ class TickledCallback(Protocol):
     def __call__(self): pass
 
 class RFOperator(RFOperator_KeymapContext):
-    active_operators : list[Self] = []
+    active_operators : ClassVar[list[Self]] = []
 
     tickled : TickledCallback | None = None
 
-    _is_running : ClassVar[bool]
+    _is_running : ClassVar[bool] = False
 
-    working_area : Area | None
-    working_window : Window | None
-    last_op : Operator | None
-    _stop : bool
-    fullscreen_keymaps : list[KeyMapItem]
-    _draw_postpixel_overlay : object | None
-
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        type(self)._is_running = False
-        self.working_area = None
-        self.working_window = None
-        self.last_op = None
-        self._stop = False
-        self.fullscreen_keymaps = []
-        self._draw_postpixel_overlay = None
+    working_area : Area | None = None
+    working_window : Window | None = None
+    last_op : Operator | None = None
+    _stop : bool = False
+    fullscreen_keymaps : list[KeyMapItem] = []
+    _draw_postpixel_overlay : object | None = None
 
     @staticmethod
     def handle_tickle():
@@ -450,7 +440,8 @@ class RFOperator(RFOperator_KeymapContext):
             self._draw_postpixel_overlay = None
         bpy.context.workspace.status_text_set(None)
 
-        if self in RFOperator.active_operators: RFOperator.active_operators.remove(self)
+        if self in RFOperator.active_operators:
+            RFOperator.active_operators.remove(self)
         type(self)._is_running = False
 
     def modal(self, context : Context, event : Event) -> set[str]:
@@ -579,7 +570,7 @@ class RFOperator(RFOperator_KeymapContext):
     def update(self, _context : Context, _event : Event) -> set[str]: return {'FINISHED'}
     def finish(self, _context : Context): pass
     def draw_always(self) -> bool: return False
-    def draw_postpixel_overlay(self, _context : Context): pass
+    def draw_postpixel_overlay(self): pass
     def draw_preview(self, _context : Context): pass
     def draw_postview(self, _context : Context): pass
     def draw_postpixel(self, _context : Context): pass

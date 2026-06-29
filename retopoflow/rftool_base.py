@@ -52,7 +52,6 @@ class RFTool_Base(WorkSpaceTool):
         RFTool_Base._subclasses_by_name[cls.bl_idname] = cls
         super().__init_subclass__(**kwargs)
         cls.rf_idname = cls.bl_idname
-        print(cls.bl_idname)
 
     @staticmethod
     def get_rftool_by_workspacetool(tool : WorkSpaceTool) -> type[RFTool_Base] | None:
