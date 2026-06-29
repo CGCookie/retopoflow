@@ -197,7 +197,7 @@ class SourceSnapMixin:
         if corner := accel.find_corner(new_co_world):
             co_corner, corner_idx, dist_corner = corner
             if dist_corner <= corner_radius:
-                grabbed_set = self._snap_grabbed_set()
+                grabbed_set = self.snap_grabbed_set()
                 occupant = self._find_corner_occupant(co_corner, bmv, corner_radius)
                 allow_snap = True
                 if occupant is not None:
