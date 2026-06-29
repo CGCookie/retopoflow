@@ -600,6 +600,56 @@ class Strokes_Logic:
         if self.radius3D:
             return round(length3D / (2 * self.radius3D))
         return round(self.length2D / (2 * self.radius))
+
+    def fan_params_3d(self, context, snap_bmv, loop):
+        """Return (angle, n_ref) for FAN mode.
+        angle: signed rotation from edge_dir_ref to stroke_dir, measured around n_ref.
+        n_ref: loop-plane normal computed once at snap_bmv, reused for all rows so the
+               rotation direction stays consistent across verts on curved surfaces."""
+        stroke_dir = self.stroke3D[-1] - self.stroke3D[0]
+        if stroke_dir.length < 1e-8:
+            return 0.0, Vector((0, 0, 1))
+        stroke_dir = stroke_dir.normalized()
+
+        bmvp_ref, bmvn_ref = bmes_get_prevnext_bmvs(loop, snap_bmv)
+        edge_dir_ref = (bmvn_ref.co - bmvp_ref.co).normalized()
+
+        world_pos = (self.matrix_world @ bvec_point_to_bvec4(snap_bmv.co)).xyz
+        n_world = nearest_normal_valid_sources(context, world_pos)
+        if n_world:
+            n_ref = (self.matrix_world.transposed().to_3x3() @ n_world).normalized()
+        elif snap_bmv.link_faces:
+            n_ref = compute_n([f.normal for f in snap_bmv.link_faces if not f.hide])
+            if n_ref.length < 1e-8:
+                return 0.0, stroke_dir.orthogonal().normalized()
+            n_ref = n_ref.normalized()
+        else:
+            return 0.0, stroke_dir.orthogonal().normalized()
+
+        s_proj = stroke_dir - stroke_dir.dot(n_ref) * n_ref
+        e_proj = edge_dir_ref - edge_dir_ref.dot(n_ref) * n_ref
+        if s_proj.length < 1e-8 or e_proj.length < 1e-8:
+            return 0.0, n_ref
+        s_proj = s_proj.normalized()
+        e_proj = e_proj.normalized()
+        angle = math.atan2(e_proj.cross(s_proj).dot(n_ref), s_proj.dot(e_proj))
+        return angle, n_ref
+
+    def fan_row_dir_3d(self, bmv, loop, angle, n_ref, flip=False):
+        """Return the 3D extrusion direction for one row vert in FAN mode.
+        Rotates the local edge tangent by `angle` around n_ref."""
+        bmvp, bmvn = bmes_get_prevnext_bmvs(loop, bmv)
+        if flip:
+            bmvp, bmvn = bmvn, bmvp
+        edge_dir = (bmvn.co - bmvp.co).normalized()
+
+        e_proj = edge_dir - edge_dir.dot(n_ref) * n_ref
+        if e_proj.length < 1e-8:
+            return edge_dir
+        e_proj = e_proj.normalized()
+        # Rodrigues rotation in tangent plane: rotate e_proj by angle around n_ref
+        return e_proj * math.cos(angle) + n_ref.cross(e_proj) * math.sin(angle)
+
     def project_pt(self, context, pt):
         p = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ pt)
         return p.xy if p else None
@@ -858,26 +908,18 @@ class Strokes_Logic:
         nspans = max(1, nspans)
         nverts = nspans + 1
 
-        # create template
-        template = [ self.find_point2D(iv / (nverts - 1)) for iv in range(nverts) ]
-        # get orientation of stroke to selected cycle
-        vx = Vector((1, 0))
-        bmvp, bmvn = bmes_get_prevnext_bmvs(self.longest_cycle0, self.snap_bmv0)
-        pp, pn = [self.project_bmv(context, bmv) for bmv in [bmvp, bmvn]]
-        vpn, vstroke = (pn - pp), (self.stroke2D[-1] - self.stroke2D[0])
-        template_len = vstroke.length
-        angle = vec_screenspace_angle(vstroke) - vec_screenspace_angle(vpn)
+        # compute fan angle and reference normal, used for all rows to keep rotation direction consistent
+        fan_angle, fan_n_ref = self.fan_params_3d(context, self.snap_bmv0, self.longest_cycle0)
 
         # use template to build spans
         bmv0 = bme_unshared_bmv(self.longest_cycle0[0], self.longest_cycle0[1])
         bmvs = []
         for i_row, bme in enumerate(self.longest_cycle0):
-            pt = self.project_bmv(context, bmv0)
-
-            stroke_end_3d = self.find_point3D(1)
+            extrude_dir = self.fan_row_dir_3d(bmv0, self.longest_cycle0, fan_angle, fan_n_ref, flip=(i_row == 0))
+            target_3d = bmv0.co + extrude_dir * self.length3D
             cur_bmvs = [bmv0]
             for i in range(1, nverts):
-                p3d = bmv0.co.lerp(stroke_end_3d, i / (nverts - 1))
+                p3d = bmv0.co.lerp(target_3d, i / (nverts - 1))
                 co = nearest_point_valid_sources(context, self.matrix_world @ p3d, world=False)
                 cur_bmvs.append(self.new_feature_vert(co) if co else None)
 
@@ -1115,8 +1157,10 @@ class Strokes_Logic:
         else:
             # create 3D template (world-space stroke positions, view-independent)
             template3D = [self.find_point3D(iv / (nverts - 1)) for iv in range(nverts)]
-            stroke_end_3d = template3D[-1]
             stroke_start_3d = template3D[0]
+
+            if self.extrapolate_mode == 'FAN':
+                fan_angle, fan_n_ref = self.fan_params_3d(context, self.snap_bmv0, self.longest_strip0)
 
             # use template to build spans
             bmv0 = bme_unshared_bmv(self.longest_strip0[0], self.longest_strip0[1]) if len(self.longest_strip0) > 1 else self.longest_strip0[0].verts[0]
@@ -1125,9 +1169,10 @@ class Strokes_Logic:
                 cur_bmvs = [bmv0]
 
                 if self.extrapolate_mode == 'FAN':
-                    # Lerp from strip vert toward stroke endpoint in 3D
+                    extrude_dir = self.fan_row_dir_3d(bmv0, self.longest_strip0, fan_angle, fan_n_ref)
+                    target_3d = bmv0.co + extrude_dir * self.length3D
                     for i in range(1, nverts):
-                        p3d = bmv0.co.lerp(stroke_end_3d, i / (nverts - 1))
+                        p3d = bmv0.co.lerp(target_3d, i / (nverts - 1))
                         co = nearest_point_valid_sources(context, self.matrix_world @ p3d, world=False)
                         cur_bmvs.append(self.new_feature_vert(co) if co else None)
 
