@@ -807,14 +807,9 @@ class Drawing:
 
         width_scaled = w if (w := Drawing.scale(width)) is not None else 1.0
 
-        offset_scaled = o if (o := Drawing.scale(offset)) is not None else 0.0
-
-        if stipple:
-            stipple0_scaled = s if (s := Drawing.scale(stipple[0])) is not None else 1.0
-            stipple1_scaled = s if (s := Drawing.scale(stipple[1])) is not None else 0.0
-        else:
-            stipple0_scaled = s if (s := Drawing.scale(1.0)) is not None else 1.0
-            stipple1_scaled = s if (s := Drawing.scale(0.0)) is not None else 0.0
+        stipple0 = stipple[0] if stipple else 1.0
+        stipple1 = stipple[1] if stipple else 0.0
+        offset_acc = float(offset)
 
         gpu.state.blend_set("ALPHA")
         shader_2D_lineseg.bind()
@@ -828,14 +823,14 @@ class Drawing:
             ubos_2D_lineseg.options.pos0 = (*p0, 0, 1)
             ubos_2D_lineseg.options.pos1 = (*p1, 0, 1)
             ubos_2D_lineseg.options.stipple_width = (
-                stipple0_scaled,
-                stipple1_scaled,
-                offset_scaled,
+                stipple0,
+                stipple1,
+                offset_acc,
                 width_scaled,
-            )  # offset changes
+            )  # offset_acc advances by each segment's length
             ubos_2D_lineseg.update_shader()
             batch_2D_lineseg.draw(shader_2D_lineseg)
-            offset += (p1 - p0).length
+            offset_acc += (p1 - p0).length
         gpu.shader.unbind()
 
     @staticmethod
