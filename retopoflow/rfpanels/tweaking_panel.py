@@ -28,6 +28,34 @@ from ..common.interface import draw_section_header
 from ..rftool_base import RFTool_Base
 
 
+def draw_active_tool_options(context, layout):
+    if context.space_data.type == 'PREFERENCES': return
+
+    tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
+    if 'retopoflow' not in tool.idname: return
+
+    # get RFTool_Base class corresponding to Blender WorkSpaceTool
+    # NOTE: tool.idname might not match an operator, so using rf_operator_idname
+    rftool = RFTool_Base.get_rftool_by_workspacetool(tool)
+    if not rftool or not rftool.rf_operator_idname: return
+
+    try:
+        # WorkSpaceTool.operator_properties throws a RunTime Exception if
+        # the specified tool does not have any properties (2026.06.28)
+        tool_props = tool.operator_properties(rftool.rf_operator_idname)
+    except Exception as _exception:
+        tool_props = None
+    if not tool_props: return
+
+    loops = hasattr(tool_props, 'select_loops')
+    curves = hasattr(tool_props, 'show_curve_handles')
+    if loops or curves:
+        col = layout.column()
+        draw_section_header(context, col, tool_props.bl_rna.name)
+        if loops: col.prop(tool_props, 'select_loops', text='Loops Mode')
+        if curves: col.prop(tool_props, 'show_curve_handles', text='Curve Handles')
+
+
 def draw_tweaking_options(context : Context, layout : UILayout):
     if not context.space_data:
         return
@@ -37,28 +65,7 @@ def draw_tweaking_options(context : Context, layout : UILayout):
     layout.use_property_split = True
     layout.use_property_decorate = False
 
-    if context.space_data.type != 'PREFERENCES':
-        tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
-        if 'retopoflow' in tool.idname:
-            # get RFTool_Base class corresponding to Blender WorkSpaceTool
-            # NOTE: tool.idname might not match an operator, so using rf_operator_idname
-            rftool = RFTool_Base.get_rftool_by_workspacetool(tool)
-            if rftool and rftool.rf_operator_idname:
-                try:
-                    # WorkSpaceTool.operator_properties throws a RunTime Exception if
-                    # the specified tool does not have any properties (2026.06.28)
-                    tool_props = tool.operator_properties(rftool.rf_operator_idname)
-                except Exception as _exception:
-                    tool_props = None
-
-                if tool_props:
-                    loops = hasattr(tool_props, 'select_loops')
-                    curves = hasattr(tool_props, 'show_curve_handles')
-                    if loops or curves:
-                        col = layout.column()
-                        draw_section_header(context, col, tool_props.bl_rna.name)
-                        if loops: col.prop(tool_props, 'select_loops', text='Loops Mode')
-                        if curves: col.prop(tool_props, 'show_curve_handles', text='Curve Handles')
+    draw_active_tool_options(context, layout)
 
     grid = layout.grid_flow(even_columns=True, even_rows=False)
 
