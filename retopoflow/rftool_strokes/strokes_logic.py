@@ -48,6 +48,7 @@ from ..common.bmesh_maths import (
     get_boundary_cycle,
     get_boundary_strips,
     get_longest_strip_cycle,
+    fit_plane_of_verts,
 )
 from ..common.raycast import raycast_point_valid_sources, nearest_normal_valid_sources, nearest_point_valid_sources
 from ..common.maths import view_forward_direction, lerp, bvec_to_point, point_to_bvec3, bvec_point_to_bvec4, bvec_vector_to_bvec4
@@ -130,7 +131,7 @@ DEBUG = False
 class Strokes_Logic:
     def __init__(self, context, radius, snap_distance, stroke3D, is_cycle, snapped_geo, snapped_mirror,
                  span_insert_mode, fixed_span_count, span_length, extrapolate_mode, smooth_angle, smooth_density0, smooth_density1,
-                 mirror_mode, mirror_correct, radius3D=None):
+                 mirror_mode, mirror_correct, to_circle=0.0, radius3D=None):
         self.radius = radius
         self.snap_distance = snap_distance
         self.radius3D = radius3D
@@ -169,7 +170,9 @@ class Strokes_Logic:
         self.show_mirror_correct = False
         self.mirror_correct = mirror_correct
 
-        self.show_action = ''
+        self.to_circle = to_circle
+
+        self.action = ''
         self.show_count = True
         self.cut_count = None
         self.initial = True
@@ -196,7 +199,7 @@ class Strokes_Logic:
         self.process_selected(context)          # gather details about selected geometry
         self.process_mirror(context)            # can change stroke, depends on selected geo
         if not self.stroke3D:
-            self.failure_message = 'Stroke was not compatible with settings'
+            self.failure_message = 'Stroke not compatible with settings'
             return
         self.process_stroke_details(context)    # must happen after stroke is finalized
         self.process_snap_geometry(context)     # should probably happen after stroke is finalized
@@ -210,7 +213,7 @@ class Strokes_Logic:
         # bpy.ops.ed.undo_push(message=f'Strokes insert {time.time()}')
 
         # now that we've done calculations on span count, switch to fixed so artist can adjust cut_count
-        if self.cut_count is not None:
+        if self.cut_count is not None and self.span_insert_mode != 'LENGTH':
             self.span_insert_mode = 'FIXED'
             self.fixed_span_count = self.cut_count
         self.initial = False
@@ -750,7 +753,7 @@ class Strokes_Logic:
         bmops.select_iter(self.bm, bmvs)
 
         self.cut_count = nspans
-        self.show_action = 'Strip'
+        self.action = 'Strip'
         self.show_count = True
         self.show_is_cycle = True
         self.show_extrapolate_mode = False
@@ -778,15 +781,60 @@ class Strokes_Logic:
             for (bmv0, bmv1) in iter_pairs(bmvs, True)
         ]
 
+        if self.to_circle > 0:
+            positions = self.circularize_positions(context, [bmv.co.copy() for bmv in bmvs])
+            for bmv, co in zip(bmvs, positions):
+                bmv.co = co
+
         # select newly created geometry
         bmops.deselect_all(self.bm)
         bmops.select_iter(self.bm, bmvs)
 
         self.cut_count = nspans
-        self.show_action = 'Loop'
+        self.action = 'Loop'
         self.show_count = True
         self.show_is_cycle = True
         self.show_extrapolate_mode = False
+
+
+    def circularize_positions(self, context, positions):
+        ''' Blend a list of local space Vectors toward an evenly spaced circle,
+        re-projected onto the source surface. Returns a new list. '''
+        import math
+        from ...addon_common.common.maths import Plane, Point
+        from ...addon_common.ext.circle_fit import hyperLSQ
+
+        n = len(positions)
+        if n < 3:
+            return list(positions)
+
+        points = [Point(p) for p in positions]
+        try:
+            plane = Plane.fit_to_points(points)
+            pts2d = [list(plane.w2l_point(p).xy) for p in points]
+            cx, cy, r, _ = hyperLSQ(pts2d)
+        except Exception:
+            return list(positions)
+
+        start_angle = math.atan2(pts2d[0][1] - cy, pts2d[0][0] - cx)
+
+        # Preserve the winding direction of the original loop
+        winding = sum(
+            (pts2d[i][0] - cx) * (pts2d[(i+1) % n][1] - cy) - (pts2d[i][1] - cy) * (pts2d[(i+1) % n][0] - cx)
+            for i in range(n)
+        )
+        direction = 1.0 if winding >= 0 else -1.0
+
+        M = self.matrix_world
+        result = []
+        for i, pos in enumerate(positions):
+            angle = start_angle + direction * (2 * math.pi * i / n)
+            ideal_local = Vector(plane.l2w_point(Point((cx + r * math.cos(angle), cy + r * math.sin(angle), 0.0))))
+            blended_local = pos.lerp(ideal_local, self.to_circle)
+            blended_world = (M @ blended_local.to_4d()).to_3d()
+            snapped = nearest_point_valid_sources(context, blended_world, world=False)
+            result.append(Vector(snapped) if snapped else blended_local)
+        return result
 
 
     ##############################################################################
@@ -837,25 +885,29 @@ class Strokes_Logic:
         nspans = max(1, nspans)
         nverts = nspans + 1
 
-        # build spans
+        # sample stroke positions for each loop vert, then optionally circularize
         bme_pre = self.longest_cycle0[-1]
         accum_dist = 0
-        bmvs = [[] for i in range(nverts)]
+        stroke_pts = []
+        existing_bmvs = []
         for bme_cur in self.longest_cycle0:
             bmv = bmes_shared_bmv(bme_pre, bme_cur)
-            spt = self.find_point3D(accum_dist / self.longest_cycle0_length)
-            pt0 = self.project_bmv(context, bmv)
-            pt1 = self.project_pt(context, spt)
-            v = pt1 - pt0
+            existing_bmvs.append(bmv)
+            stroke_pts.append(self.find_point3D(accum_dist / self.longest_cycle0_length))
+            accum_dist += bme_length(bme_cur)
+            bme_pre = bme_cur
 
+        if self.to_circle > 0:
+            stroke_pts = self.circularize_positions(context, stroke_pts)
+
+        # build spans using stroke positions
+        bmvs = [[] for i in range(nverts)]
+        for bmv, spt in zip(existing_bmvs, stroke_pts):
             bmvs[0].append(bmv)
             for i in range(1, nverts):
                 p3d = bmv.co.lerp(spt, i / (nverts - 1))
                 co = nearest_point_valid_sources(context, self.matrix_world @ p3d, world=False)
                 bmvs[i].append(self.new_feature_vert(co) if co else None)
-
-            accum_dist += bme_length(bme_cur)
-            bme_pre = bme_cur
 
         # fill in quads
         bmfs = []
@@ -877,7 +929,7 @@ class Strokes_Logic:
         bmops.select_iter(self.bm, bmvs[-1])
 
         self.cut_count = nspans
-        self.show_action = 'Equals-Loop'
+        self.action = 'Equals-Loop'
         self.show_count = True
         self.show_is_cycle = False
         self.show_extrapolate_mode = False
@@ -959,7 +1011,7 @@ class Strokes_Logic:
         bmops.select_iter(self.bm, [row[-1] for row in bmvs])
 
         self.cut_count = nspans
-        self.show_action = 'T-Loop'
+        self.action = 'T-Loop'
         self.show_count = True
         self.show_is_cycle = False
         self.show_extrapolate_mode = False
@@ -1054,7 +1106,7 @@ class Strokes_Logic:
         bmops.select_iter(self.bm, [row[i_larger] for row in bmvs])
 
         self.cut_count = nspans
-        self.show_action = 'I-Loop'
+        self.action = 'I-Loop'
         self.show_count = True
         self.show_is_cycle = False
         self.show_extrapolate_mode = False
@@ -1271,7 +1323,7 @@ class Strokes_Logic:
         bmops.select_iter(self.bm, [bmv for bmv in bmvs_select if bmv and bmv.is_valid])
 
         self.cut_count = nspans
-        self.show_action = 'T-Strip'
+        self.action = 'T-Strip'
         self.show_count = True
         self.show_is_cycle = False
         self.show_extrapolate_mode = True
@@ -1372,7 +1424,7 @@ class Strokes_Logic:
         bmops.select_iter(self.bm, [row[i_select] for row in bmvs if row[i_select] and row[i_select].is_valid])
 
         self.cut_count = nspans
-        self.show_action = 'I-Strip'
+        self.action = 'I-Strip'
         self.show_count = True
         self.show_is_cycle = False
         self.show_extrapolate_mode = False
@@ -1469,7 +1521,7 @@ class Strokes_Logic:
         bmops.select_iter(self.bm, [row[-1] for row in bmvs])
 
         self.cut_count = nspans
-        self.show_action = 'C-Strip'
+        self.action = 'C-Strip'
         self.show_count = True
         self.show_is_cycle = False
         self.show_extrapolate_mode = False
@@ -1585,7 +1637,7 @@ class Strokes_Logic:
         bmops.deselect_all(self.bm)
         bmops.select_iter(self.bm, bmvs[-1])
 
-        self.show_action = 'L-Strip'
+        self.action = 'L-Strip'
         self.show_is_cycle = False
         self.show_extrapolate_mode = False
         self.show_count = False
@@ -1880,7 +1932,7 @@ class Strokes_Logic:
         bmops.deselect_all(self.bm)
         bmops.select_iter(self.bm, [bmv for bmv in bmvs[-1] if bmv and bmv.is_valid])
 
-        self.show_action = 'Equals-Strip'
+        self.action = 'Equals-Strip'
         self.show_extrapolate_mode = False
         self.cut_count = llc_lr - 1
         self.show_count = True # not strip_l_bmvs and not strip_r_bmvs

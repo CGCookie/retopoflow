@@ -153,6 +153,15 @@ class RFOperator_Stroke_Insert_Properties:
         max=1.0,
     )
 
+    to_circle: bpy.props.FloatProperty(
+        name='To Circle',
+        description='Blend the closed loop toward a best-fit circle on the source surface. Only affects new standalone closed loops.',
+        default=0.0,
+        min=0.0,
+        max=1.0,
+        subtype='FACTOR',
+    )
+
     mirror_mode: bpy.props.EnumProperty(
         name='Mirror Method',
         description='Controls what should happen to stroke that crosses a mirror',
@@ -213,7 +222,7 @@ class RFOperator_Stroke_Insert(
     @staticmethod
     def strokes_insert(context, radius, snap_distance, stroke3D, is_cycle, snapped_geo, snapped_mirror,
                        span_insert_mode, cut_count, span_length, extrapolate_mode, smooth_angle, smooth_density0, smooth_density1,
-                       mirror_mode, mirror_correct, radius3D=None):
+                       mirror_mode, mirror_correct, to_circle=0.0, radius3D=None):
         stroke3D = [pt for pt in stroke3D if pt]
         length3D = sum((p1-p0).length for (p0,p1) in iter_pairs(stroke3D, is_cycle))
         if length3D == 0: return
@@ -235,6 +244,7 @@ class RFOperator_Stroke_Insert(
             smooth_density1,
             mirror_mode,
             mirror_correct,
+            to_circle,
             radius3D,
         )
         RFOperator_Stroke_Insert.strokes_reinsert(context)
@@ -257,6 +267,7 @@ class RFOperator_Stroke_Insert(
             is_cycle=logic.is_cycle,
             mirror_mode=logic.mirror_mode,
             mirror_correct=logic.mirror_correct,
+            to_circle=logic.to_circle,
         )
 
     def draw(self, context):
@@ -265,21 +276,22 @@ class RFOperator_Stroke_Insert(
         layout.use_property_decorate = False
         logic = RFOperator_Stroke_Insert.logic
 
-        if logic.show_action:
-            split = layout.split(factor=0.4)
-            col = split.column()
-            col.alignment='RIGHT'
-            col.label(text='Inserted')
-            split.label(text=logic.show_action)
-
-        if logic.failure_message:
-            layout.label(text=logic.failure_message, icon='WARNING_LARGE')
-
-        if logic.show_count:
-            layout.prop(self, 'cut_count', text='Count')
+        if logic.show_is_cycle and logic.action:
+            layout.row(heading=logic.action).prop(self, 'is_cycle', text='Cyclic')
+        else:
+            if logic.action:
+                split = layout.split(factor=0.4)
+                col = split.column()
+                col.alignment='RIGHT'
+                col.label(text='Inserted')
+                split.label(text=logic.action)
+            if logic.show_is_cycle:
+                layout.row(heading='Cyclic').prop(self, 'is_cycle', text='')
 
         if logic.span_insert_mode == 'LENGTH':
-            layout.prop(self, 'span_length', text='Segment Length')
+            layout.prop(self, 'span_length', text='Length')
+        elif logic.show_count:
+            layout.prop(self, 'cut_count', text='Count')
 
         if logic.show_extrapolate_mode:
             layout.prop(self, 'extrapolate_mode')
@@ -293,19 +305,25 @@ class RFOperator_Stroke_Insert(
             col.prop(self, 'smooth_density0', text='Spacing Start')
             col.prop(self, 'smooth_density1', text='End')
 
-        if logic.show_is_cycle:
-            layout.row(heading='Cyclic').prop(self, 'is_cycle', text='')
-
         if logic.show_force_nonstripL:
             layout.row(heading='Force').prop(self, 'force_nonstripL', text='Non-L-Strip')
 
         if logic.show_untwist_bridge:
             layout.row(heading='Untwist').prop(self, 'untwist_bridge', text='Bridge')
 
+        if logic.action in ['Loop', 'Equals-Loop']:
+            layout.prop(self, 'to_circle', text='Circle')
+
         if logic.show_mirror_mode:
             layout.prop(self, 'mirror_mode', text='Mirror Mode')
         if logic.show_mirror_correct:
             layout.prop(self, 'mirror_correct', text='Mirror Side')
+
+        if logic.failure_message:
+            layout.separator()
+            row = layout.row()
+            row.use_property_split = False
+            row.label(text=logic.failure_message, icon='WARNING_LARGE')
 
     def execute(self, context):
         """
@@ -327,6 +345,7 @@ class RFOperator_Stroke_Insert(
         logic.is_cycle         = self.is_cycle
         logic.mirror_mode      = self.mirror_mode
         logic.mirror_correct   = self.mirror_correct
+        logic.to_circle        = self.to_circle
 
         try:
             logic.update(context)
@@ -490,6 +509,7 @@ class RFOperator_Strokes(RFOperator_Stroke_Insert_Properties, RFOperator):
             self.smooth_density1,
             self.mirror_mode,
             self.mirror_correct,
+            self.to_circle,
             radius3D,
         )
 
