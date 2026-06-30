@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   height="1600"
+   viewBox="0 0 1400 1600"
+   width="1400"
+   version="1.1"
+   id="svg3"
+   sodipodi:docname="loop-icon.svg"
+   inkscape:export-filename="/home/jonathan/Repos/retopoflow/icons/loop-icon.png"
+   inkscape:export-xdpi="7.6799998"
+   inkscape:export-ydpi="7.6799998"
+   inkscape:version="1.4.3 (0d15f75042, 2025-12-25)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs3" />
+  <sodipodi:namedview
+     pagecolor="#303030"
+     showgrid="true"
+     id="namedview1"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="0.749375"
+     inkscape:cx="700.58382"
+     inkscape:cy="800"
+     inkscape:window-width="2560"
+     inkscape:window-height="1371"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg3">
+    <inkscape:grid
+       id="grid5"
+       units="px"
+       spacingx="100"
+       spacingy="100"
+       color="#4772b3"
+       opacity="0.2"
+       visible="true"
+       originx="0"
+       originy="0" />
+  </sodipodi:namedview>
+  <g
+     fill="#fff"
+     id="g3">
+    <g
+       enable-background="new"
+       transform="matrix(100 0 0 100 -15300 -38800)"
+       id="g2">
+      <path
+         d="m156.49609 393.24609a.50005.50005 0 0 0 -.27343.91993c.927.618 2.37713.83398 3.77734.83398 1.39708 0 2.84978-.21561 3.77734-.83398a.50005.50005 0 1 0 -.55468-.83204c-.57244.38163-1.95046.66602-3.22266.66602-1.27563 0-2.64966-.28402-3.22266-.66602a.50005.50005 0 0 0 -.28125-.0879z"
+         opacity=".8"
+         id="path1"
+         style="opacity:0.5" />
+      <path
+         d="m160 389c-1.5802 0-3.01318.28529-4.0957.77734-.54126.24603-.9977.54261-1.33789.90821-.3402.3656-.56641.82065-.56641 1.31445v3 5c0 .4938.22621.94885.56641 1.31445.34019.3656.79663.66218 1.33789.90821 1.08252.49205 2.5155.77734 4.0957.77734s3.01318-.28529 4.0957-.77734c.54126-.24603.9977-.54261 1.33789-.90821.3402-.3656.56641-.82065.56641-1.31445v-5-3c0-.4938-.22621-.94885-.56641-1.31445-.34019-.3656-.79663-.66218-1.33789-.90821-1.08252-.49205-2.5155-.77734-4.0957-.77734zm0 1c1.45737 0 2.77356.27473 3.68164.6875.45404.20638.8031.4471 1.01953.67969s.29883.43625.29883.63281v3 5c0 .19656-.0824.40022-.29883.63281s-.56549.47331-1.01953.67969c-.90808.41277-2.22427.6875-3.68164.6875s-2.77356-.27473-3.68164-.6875c-.45404-.20638-.8031-.4471-1.01953-.67969s-.29883-.43625-.29883-.63281v-5-3c0-.19656.0824-.40022.29883-.63281s.56549-.47331 1.01953-.67969c.90808-.41277 2.22427-.6875 3.68164-.6875z"
+         id="path2"
+         style="opacity:0.5" />
+    </g>
+  </g>
+  <path
+     style="opacity:1;fill:none;stroke:#ffffff;stroke-width:150;stroke-linecap:round;stroke-opacity:1"
+     d="m 178.81568,872.72728 c 224.18683,229.52452 820.68391,229.52462 1046.20522,-10e-6"
+     id="path3"
+     sodipodi:nodetypes="cc" />
+</svg>
