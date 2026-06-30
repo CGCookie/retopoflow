@@ -20,6 +20,7 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
+import bmesh
 from mathutils import Vector, Matrix
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 from ..common.bmesh import (
@@ -1169,6 +1170,12 @@ class Strokes_Logic:
                 for j in range(len(bmvs[0]))
             ]
 
+            # bmvs[i][0] is original selection, bmvs[i][1:] are new verts
+            zip_pairs = [
+                (bmvs[0][0],  bmvs[0][1:]),
+                (bmvs[-1][0], bmvs[-1][1:]),
+            ]
+
         else:
             # create 3D template (world-space stroke positions, view-independent)
             template3D = [self.find_point3D(iv / (nverts - 1)) for iv in range(nverts)]
@@ -1202,6 +1209,11 @@ class Strokes_Logic:
                 if not bme: break
                 bmv0 = bme_other_bmv(bme, bmv0)
             bmvs_select = [row[-1] for row in bmvs]
+            # bmvs[i][j] where i=strip, j=extrude; original selection is column 0
+            zip_pairs = [
+                (bmvs[0][0],  bmvs[0][1:]),
+                (bmvs[-1][0], bmvs[-1][1:]),
+            ]
 
         if not self.ignore_correct_side:
             side = self.get_mirror_side(bmvs[0][0].co)
@@ -1249,9 +1261,14 @@ class Strokes_Logic:
         fwd = xform_direction(Mi, view_forward_direction(context))
         check_bmf_normals(fwd, bmfs)
 
+        # zip patch sides into adjacent boundary geometry
+        patch_all_bmvs = {bmv for row in bmvs for bmv in row if bmv}
+        for anchor, side_verts in zip_pairs:
+            self.zip_boundary(anchor, side_verts, patch_all_bmvs)
+
         # select newly created geometry
         bmops.deselect_all(self.bm)
-        bmops.select_iter(self.bm, bmvs_select)
+        bmops.select_iter(self.bm, [bmv for bmv in bmvs_select if bmv and bmv.is_valid])
 
         self.cut_count = nspans
         self.show_action = 'T-Strip'
@@ -1345,9 +1362,14 @@ class Strokes_Logic:
         fwd = xform_direction(Mi, view_forward_direction(context))
         check_bmf_normals(fwd, bmfs)
 
+        # zip patch sides into adjacent boundary geometry
+        patch_all_bmvs = {bmv for row in bmvs for bmv in row if bmv}
+        self.zip_boundary(bmvs[0][0],   bmvs[0][1:-1],  patch_all_bmvs)
+        self.zip_boundary(bmvs[-1][0],  bmvs[-1][1:-1], patch_all_bmvs)
+
         # select newly created geometry
         bmops.deselect_all(self.bm)
-        bmops.select_iter(self.bm, [row[i_select] for row in bmvs])
+        bmops.select_iter(self.bm, [row[i_select] for row in bmvs if row[i_select] and row[i_select].is_valid])
 
         self.cut_count = nspans
         self.show_action = 'I-Strip'
@@ -1845,9 +1867,18 @@ class Strokes_Logic:
         fwd = xform_direction(Mi, view_forward_direction(context))
         check_bmf_normals(fwd, bmfs)
 
+        # zip bottom row into adjacent boundary geometry when snap anchors are available
+        patch_all_bmvs = {bmv for row in bmvs for bmv in row if bmv}
+        bl_is_anchor = self.snap_bmv0_nosel or bool(strip_l_bmvs)
+        br_is_anchor = self.snap_bmv1_nosel or bool(strip_r_bmvs)
+        if bl_is_anchor and bmvs[-1][0]:
+            self.zip_boundary(bmvs[-1][0], [v for v in bmvs[-1][1:] if v], patch_all_bmvs)
+        if br_is_anchor and bmvs[-1][-1]:
+            self.zip_boundary(bmvs[-1][-1], [v for v in reversed(bmvs[-1][:-1]) if v], patch_all_bmvs)
+
         # select bottom row
         bmops.deselect_all(self.bm)
-        bmops.select_iter(self.bm, bmvs[-1])
+        bmops.select_iter(self.bm, [bmv for bmv in bmvs[-1] if bmv and bmv.is_valid])
 
         self.show_action = 'Equals-Strip'
         self.show_extrapolate_mode = False
@@ -1906,3 +1937,29 @@ class Strokes_Logic:
             bmv = bmvs_next[0]
             bmvs += [bmv]
         return (l, bmvs)
+
+    def zip_boundary(self, anchor_bmv, patch_side_bmvs, patch_all_bmvs):
+        ''' Walk outward from anchor_bmv along boundary or wire edges, merging to existing by distance.
+        Stops at the first vert that is too far away. '''
+        threshold_sq = (self.spacing3D * 0.5) ** 2
+        visited = set(patch_all_bmvs) | {anchor_bmv}
+        current = anchor_bmv
+        for patch_bmv in patch_side_bmvs:
+            if not patch_bmv:
+                continue
+            candidates = [
+                bme_other_bmv(bme, current)
+                for bme in current.link_edges
+                if not bme.hide and (bme.is_wire or bme.is_boundary)
+                and bme_other_bmv(bme, current) not in visited
+            ]
+            if not candidates:
+                break
+            next_bmv = min(candidates, key=lambda v: (v.co - patch_bmv.co).length_squared)
+            if (next_bmv.co - patch_bmv.co).length_squared > threshold_sq:
+                break
+            saved_co = next_bmv.co.copy()
+            bmesh.ops.weld_verts(self.bm, targetmap={next_bmv: patch_bmv})
+            patch_bmv.co = saved_co
+            visited.add(next_bmv)
+            current = patch_bmv
