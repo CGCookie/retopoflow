@@ -25,6 +25,7 @@ from bpy.types import Context, UILayout
 from typing import cast
 from ..preferences import RF_Prefs
 from ..common.interface import draw_section_header
+from ..common.icons import Icon
 from ..rftool_base import RFTool_Base
 
 
@@ -97,6 +98,13 @@ def draw_tweaking_panel(context : Context, layout : UILayout):
     header.label(text="Tweaking")
     if panel:
         draw_tweaking_options(context, panel)
+
+
+def draw_tweaking_popover(context: Context, layout: UILayout, tool_props):
+    row = layout.row(align=True)
+    row.prop(tool_props, 'select_loops', text='', toggle=True, icon_value=Icon.LOOP.icon_id)
+    row.prop(tool_props, 'show_curve_handles', toggle=True, text='', icon='IPO_BEZIER')
+    row.popover('RF_PT_TweakCommon')
 
 
 class RFMenu_PT_TweakCommon(bpy.types.Panel):

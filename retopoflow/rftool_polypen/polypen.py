@@ -35,7 +35,7 @@ from ..rfoperators.topo_rotate import RFOperator_TopoRotate
 from ..rfoperators.zipper import RFOperator_Zipper
 
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
-from ..rfpanels.tweaking_panel import draw_tweaking_panel
+from ..rfpanels.tweaking_panel import draw_tweaking_panel, draw_tweaking_popover
 from ..rfpanels.rfpanel_snapping import draw_snapping_panel
 from ..rfpanels.general_panel import draw_general_panel
 from ..rfpanels.mirror_panel import draw_mirror_panel, draw_mirror_popover
@@ -276,10 +276,10 @@ class RFTool_PolyPen(RFTool_Base):
             row.prop(props_polypen, 'use_loop_cuts', text='Loop Cuts')
             if props_polypen.insert_mode in ('TRI/QUAD', 'QUAD-ONLY'):
                 row.prop(props_polypen, 'quad_preserve', text='Junctions')
+
             draw_line_separator(layout)
-            row = layout.row(align=True)
-            row.prop(props_polypen, 'select_loops', text='Loops', toggle=True)
-            row.popover('RF_PT_TweakCommon')
+
+            draw_tweaking_popover(context, layout, props_polypen)
             layout.popover('RF_PT_Snapping', text='Snapping')
             row = layout.row(align=True)
             row.popover('RF_PT_MeshCleanup', text='Clean Up')

@@ -58,7 +58,7 @@ from ..rfoperators.maximize_watcher import RFOperator_MaximizeWatcher
 from ..rfoperators.topo_rotate import RFOperator_TopoRotate
 
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
-from ..rfpanels.tweaking_panel import draw_tweaking_panel
+from ..rfpanels.tweaking_panel import draw_tweaking_panel, draw_tweaking_popover
 from ..rfpanels.rfpanel_snapping import draw_snapping_panel
 from ..rfpanels.mirror_panel import draw_mirror_panel, draw_mirror_popover
 from ..rfpanels.general_panel import draw_general_panel
@@ -927,11 +927,10 @@ class RFTool_Strokes(RFTool_Base):
             # row.prop(props_strokes, 'smooth_density1', text='', slider=True)
             row = layout.row(heading='T-Strips:', align=False)
             row.prop(props_strokes, 'extrapolate_mode', expand=True)
+
             draw_line_separator(layout)
-            row = layout.row(align=True)
-            row.prop(props_strokes, 'select_loops', text='', toggle=True, icon='MOD_CURVE')
-            row.prop(props_strokes, 'show_curve_handles', toggle=True, text='', icon='IPO_BEZIER')
-            row.popover('RF_PT_TweakCommon')
+
+            draw_tweaking_popover(context, layout, props_strokes)
             layout.popover('RF_PT_Snapping', text='Snapping')
             row = layout.row(align=True)
             row.popover('RF_PT_MeshCleanup', text='Clean Up')
