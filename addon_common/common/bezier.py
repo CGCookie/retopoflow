@@ -480,6 +480,123 @@ class CubicBezierSpline:
             inds += [(ind0, ind1) for ind0, ind1, _, _, _, _ in cbs_pts]
         return CubicBezierSpline(cbs=cbs, inds=inds)
 
+    @staticmethod
+    def create_from_knots(pts, knot_indices, *, cyclic=False, corner_indices=()):
+        '''Build a multi-segment poly-Bezier through `pts` with knots placed exactly at `knot_indices`.'''
+        n = len(pts)
+        knots = sorted({ i for i in knot_indices if 0 <= i < n })
+        corners = { i % n for i in corner_indices }
+        cbs, inds = [], []
+
+        for ka, kb in zip(knots[:-1], knots[1:]):
+            sub = pts[ka:kb + 1]
+            if len(sub) < 2: continue
+            cbs.append(CubicBezier.create_from_points(sub))
+            inds.append((ka, kb))
+
+        if cyclic and knots:
+            ka = knots[-1]
+            sub = list(pts[ka:]) + list(pts[:knots[0] + 1])
+            if len(sub) >= 2:
+                cbs.append(CubicBezier.create_from_points(sub))
+                inds.append((ka, knots[0]))
+
+        spline = CubicBezierSpline(cbs=cbs, inds=inds)
+        nseg = len(cbs)
+        if nseg == 0:
+            return spline
+
+        # the per-run fits may drift the shared endpoints slightly apart. Snap each
+        # junction's two control points to their midpoint so knots are exactly shared
+        for i in range(nseg - 1):
+            shared = (Vector(cbs[i].p3) + Vector(cbs[i + 1].p0)) / 2
+            cbs[i].p3 = shared
+            cbs[i + 1].p0 = shared
+        if cyclic and nseg >= 2:
+            shared = (Vector(cbs[-1].p3) + Vector(cbs[0].p0)) / 2
+            cbs[-1].p3 = shared
+            cbs[0].p0 = shared
+
+        def smooth_junction(cb_in, cb_out):
+            # make the in/out tangents collinear through the shared knot (G1),
+            # preserving each tangent's arm length
+            K = Vector(cb_in.p3)
+            din, dout = (K - Vector(cb_in.p2)), (Vector(cb_out.p1) - K)
+            li, lo = din.length, dout.length
+            if li < 1e-9 or lo < 1e-9: return
+            d = din.normalized() + dout.normalized()
+            if d.length < 1e-9: return
+            d.normalize()
+            cb_in.p2 = K - d * li
+            cb_out.p1 = K + d * lo
+
+        for i in range(nseg - 1):
+            if (inds[i][1] % n) not in corners:
+                smooth_junction(cbs[i], cbs[i + 1])
+        if cyclic and nseg >= 2 and (knots[0] % n) not in corners:
+            smooth_junction(cbs[-1], cbs[0])
+
+        return spline
+
+    @staticmethod
+    def create_catmull_rom(pts, knot_indices, *, cyclic=False, corner_indices=()):
+        '''Build a multi-segment Bézier through pts using Catmull-Rom tangents.'''
+        n = len(pts)
+        if n < 2:
+            return CubicBezierSpline(cbs=[], inds=[])
+
+        knots = sorted({ i for i in knot_indices if 0 <= i < n })
+        corners = { i % n for i in corner_indices }
+
+        def prev_v(k):
+            return (k - 1) % n if cyclic else max(0, k - 1)
+
+        def next_v(k):
+            return (k + 1) % n if cyclic else min(n - 1, k + 1)
+
+        def tangent_out(k):
+            pk, nk = prev_v(k), next_v(k)
+            if k in corners or pk == k:
+                d = Vector(pts[nk]) - Vector(pts[k])
+            else:
+                d = Vector(pts[nk]) - Vector(pts[pk])
+            return d.normalized() if d.length > 1e-9 else Vector((0, 0, 1))
+
+        def tangent_in(k):
+            pk, nk = prev_v(k), next_v(k)
+            if k in corners or nk == k:
+                d = Vector(pts[k]) - Vector(pts[pk])
+            else:
+                d = Vector(pts[nk]) - Vector(pts[pk])
+            return d.normalized() if d.length > 1e-9 else Vector((0, 0, 1))
+
+        cbs, inds = [], []
+
+        knot_pairs = list(zip(knots[:-1], knots[1:]))
+        if cyclic and knots:
+            knot_pairs.append((knots[-1], knots[0]))
+
+        for ka, kb in knot_pairs:
+            p0 = Vector(pts[ka])
+            p3 = Vector(pts[kb])
+
+            if ka < kb:
+                L = sum((Vector(pts[i + 1]) - Vector(pts[i])).length for i in range(ka, kb))
+            else:
+                # cyclic wrap-around: ka → n-1 → 0 → kb
+                L  = sum((Vector(pts[i + 1]) - Vector(pts[i])).length for i in range(ka, n - 1))
+                L += (Vector(pts[0]) - Vector(pts[n - 1])).length
+                L += sum((Vector(pts[i + 1]) - Vector(pts[i])).length for i in range(0, kb))
+            L = max(L, 1e-9)
+
+            p1 = p0 + tangent_out(ka) * (L / 3)
+            p2 = p3 - tangent_in(kb)  * (L / 3)
+
+            cbs.append(CubicBezier(p0, p1, p2, p3))
+            inds.append((ka, kb))
+
+        return CubicBezierSpline(cbs=cbs, inds=inds)
+
     def __init__(self, cbs=None, inds=None):
         if cbs is None:
             cbs = []

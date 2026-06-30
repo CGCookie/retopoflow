@@ -34,6 +34,9 @@ def draw_tweaking_options(context : Context, layout : UILayout):
 
     props = RF_Prefs.get_prefs(context)
 
+    layout.use_property_split = True
+    layout.use_property_decorate = False
+
     if context.space_data.type != 'PREFERENCES':
         tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
         if 'retopoflow' in tool.idname:
@@ -48,14 +51,16 @@ def draw_tweaking_options(context : Context, layout : UILayout):
                 except Exception as _exception:
                     tool_props = None
 
-                if tool_props and hasattr(tool_props, 'select_loops'):
-                    col = layout.column()
-                    draw_section_header(context, col, tool_props.bl_rna.name)
-                    col.prop(tool_props, 'select_loops', text='Loops Mode')
+                if tool_props:
+                    loops = hasattr(tool_props, 'select_loops')
+                    curves = hasattr(tool_props, 'show_curve_handles')
+                    if loops or curves:
+                        col = layout.column()
+                        draw_section_header(context, col, tool_props.bl_rna.name)
+                        if loops: col.prop(tool_props, 'select_loops', text='Loops Mode')
+                        if curves: col.prop(tool_props, 'show_curve_handles', text='Curve Handles')
 
     grid = layout.grid_flow(even_columns=True, even_rows=False)
-    grid.use_property_split = True
-    grid.use_property_decorate = False
 
     col = grid.column()
     draw_section_header(context, col, 'Selection')
@@ -85,10 +90,6 @@ def draw_tweaking_options(context : Context, layout : UILayout):
         row2 = row.row()
         row2.enabled = context.scene.tool_settings.use_mesh_automerge
         row2.prop(context.scene.tool_settings, 'double_threshold', text='')
-
-    if context.area.type != 'PREFERENCES' and hasattr(tool_props, 'select_loops'):
-        col = grid.column()
-        col.prop(tool_props, 'select_loops', text='Select Loops')
 
 
 def draw_tweaking_panel(context : Context, layout : UILayout):
