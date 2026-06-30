@@ -265,7 +265,7 @@ class RFTool_PolyPen(RFTool_Base):
         RFTool_PolyPen.props = props_polypen
 
         if context.region.type == 'TOOL_HEADER':
-            layout.prop(props_polypen, 'insert_mode', text='Insert')
+            layout.prop(props_polypen, 'insert_mode', text='')
             if props_polypen.insert_mode == 'QUAD-ONLY':
                 layout.prop(props_polypen, 'quad_stability', slider=True)
             layout.separator()

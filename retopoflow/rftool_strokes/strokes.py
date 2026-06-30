@@ -105,10 +105,10 @@ class RFOperator_Stroke_Insert_Properties:
         name='Span Count Method',
         description='Controls the number of spans when inserting',
         items=[
-            ('BRUSH',   'Brush Radius', 'Inserts spans the size of the brush', 0),
-            ('FIXED',   'Fixed',        'Inserts a fixed number of spans',     1),
-            ('AVERAGE', 'Average',      'Inserts spans based on average length of selected edges. If there are no selected edges it uses the brush radius', 2),
-            ('LENGTH',  'Length',       'Inserts spans sized to match a world space distance', 3),
+            ('BRUSH',   'Brush',   'Inserts spans the size of the brush', 0),
+            ('FIXED',   'Fixed',   'Inserts a fixed number of spans', 1),
+            ('AVERAGE', 'Average', 'Inserts spans based on average length of selected edges. If there are no selected edges it uses the brush radius', 2),
+            ('LENGTH',  'Length',  'Inserts spans sized to match a world space distance', 3),
         ],
         default='AVERAGE',
     )
@@ -908,7 +908,7 @@ class RFTool_Strokes(RFTool_Base):
         RFTool_Strokes.props = props_strokes
 
         if context.region.type == 'TOOL_HEADER':
-            layout.label(text="Insert:")
+            # layout.label(text="Insert:")
             row = layout.row(align=True)
             row.prop(props_strokes, 'span_insert_mode', text='')
             if props_strokes.span_insert_mode == 'FIXED':
@@ -917,16 +917,10 @@ class RFTool_Strokes(RFTool_Base):
                 row.prop(props_strokes, 'span_length', text="")
             else:
                 row.prop(props_strokes, 'brush_radius', text="")
-            # layout.label(text="Smooth Blending:")
-            layout.prop(props_strokes, 'snap_radius', text="Snap")
-            layout.prop(props_strokes, 'stroke_smoothing', text='Stabilize', slider=True)
             layout.prop(props_strokes, 'smooth_angle', text='Blending', slider=True)
-            # layout.label(text="Spacing:")
-            # row = layout.row(align=True)
-            # row.prop(props_strokes, 'smooth_density0', text='', slider=True)
-            # row.prop(props_strokes, 'smooth_density1', text='', slider=True)
-            row = layout.row(heading='T-Strips:', align=False)
+            row = layout.row(heading='Extrusions:', align=False)
             row.prop(props_strokes, 'extrapolate_mode', expand=True)
+            row.popover('RF_PT_StrokeOptions', text='', icon='STROKE')
 
             draw_line_separator(layout)
 
@@ -954,11 +948,11 @@ class RFTool_Strokes(RFTool_Base):
                     panel.prop(props_strokes, 'brush_radius', text="Radius")
                 panel.prop(props_strokes, 'snap_radius', text="Snap")
                 panel.prop(props_strokes, 'stroke_smoothing', text='Stabilize', slider=True)
-                panel.prop(props_strokes, 'smooth_angle', text='Blending', slider=True)
                 col = panel.column(align=True)
                 col.prop(props_strokes, 'smooth_density0', text='Spacing Start', slider=True)
                 col.prop(props_strokes, 'smooth_density1', text='End', slider=True)
-                panel.prop(props_strokes, 'extrapolate_mode', text='T-Strips')
+                panel.prop(props_strokes, 'smooth_angle', text='Blending', slider=True)
+                panel.prop(props_strokes, 'extrapolate_mode', text='Extrusions')
             draw_tweaking_panel(context, layout)
             draw_snapping_panel(context, layout, idname='strokes_snapping_panel')
             draw_cleanup_panel(context, layout)

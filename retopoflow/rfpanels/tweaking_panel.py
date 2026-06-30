@@ -108,9 +108,11 @@ def draw_tweaking_panel(context : Context, layout : UILayout):
 
 
 def draw_tweaking_popover(context: Context, layout: UILayout, tool_props):
+    loops = hasattr(tool_props, 'select_loops')
+    curves = hasattr(tool_props, 'show_curve_handles')
     row = layout.row(align=True)
-    row.prop(tool_props, 'select_loops', text='', toggle=True, icon_value=Icon.LOOP.icon_id)
-    row.prop(tool_props, 'show_curve_handles', toggle=True, text='', icon='IPO_BEZIER')
+    if loops: row.prop(tool_props, 'select_loops', text='', toggle=True, icon_value=Icon.LOOP.icon_id)
+    if curves: row.prop(tool_props, 'show_curve_handles', toggle=True, text='', icon='IPO_BEZIER')
     row.popover('RF_PT_TweakCommon')
 
 

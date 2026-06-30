@@ -69,7 +69,7 @@ RFTools : dict[str, type[RFTool_Base]] = { rft.bl_idname: rft for rft in RFTool_
 from .rfpanels import (
     general_panel, help_panel, menu_mesh, mesh_cleanup_panel, masking_panel, mirror_panel,
     relax_algorithm_panel, tweaking_panel, rfpanel_snapping, tools_pie, rfmenu_context,
-    rfpanel_countours_method,  # MUST IMPORT THIS _AFTER_ THE RFTOOLS ABOVE TO MAINTAIN ORDER!
+    rfpanel_countours_method, rfpanel_stroke # MUST IMPORT THIS _AFTER_ THE RFTOOLS ABOVE TO MAINTAIN ORDER!
 
 )
 
@@ -156,6 +156,7 @@ class RFCore:
         relax_algorithm_panel.register()
         rfpanel_snapping.register()
         rfpanel_countours_method.register()
+        rfpanel_stroke.register()
         launch_browser.register()
         tools_pie.register()
 
@@ -249,6 +250,7 @@ class RFCore:
         relax_algorithm_panel.unregister()
         rfpanel_snapping.unregister()
         rfpanel_countours_method.unregister()
+        rfpanel_stroke.unregister()
         tools_pie.unregister()
         rfprops_scene.unregister()
         rfprops_object.unregister()

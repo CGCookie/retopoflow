@@ -126,7 +126,7 @@ class RFOperator_Tweak(RFOperator):
             ('NUDGE',         'Nudge',         'Nudge-style: smear vertices in the direction of the stroke without grabbing'),
             ('PINCH_MAGNIFY', 'Pinch / Magnify', 'Pull or push vertices perpendicular to the stroke direction'),
         ],
-        default='GRAB',
+        default='NUDGE',
     )
 
     nudge_loops: bpy.props.BoolProperty(
@@ -290,7 +290,7 @@ class RFTool_Tweak(RFTool_Base):
         # UI: 3d view > n-panel
         # WINDOW: properties > tool
         if context.region.type == 'TOOL_HEADER':
-            layout.label(text="Brush:")
+            # layout.label(text="Brush:")
             layout.prop(props_tweak, 'brush_radius')
             layout.prop(props_tweak, 'brush_strength', slider=True)
             layout.prop(props_tweak, 'brush_falloff', slider=True)

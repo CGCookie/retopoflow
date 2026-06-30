@@ -690,7 +690,7 @@ class RFTool_Contours(RFTool_Base):
             # layout.label(text='Insert:')
             layout.prop(props_contours, 'cut_orientation', text='')
             layout.prop(props_contours, 'span_count', text='Spans')
-            layout.prop(props_contours, 'loop_count', text='Cuts')
+            # layout.prop(props_contours, 'loop_count', text='Cuts')
             layout.prop(props_contours, 'curvature_bias', text='Curvature', slider=True)
             layout.prop(props_contours, 'space_evenly', text='Space Evenly', slider=True)
             method_name = props_contours.bl_rna.properties['process_source_method'].enum_items[props_contours.process_source_method].name

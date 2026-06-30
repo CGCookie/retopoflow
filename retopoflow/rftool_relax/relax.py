@@ -292,10 +292,11 @@ class RFTool_Relax(RFTool_Base):
         # UI: 3d view > n-panel
         # WINDOW: properties > tool
         if context.region.type == 'TOOL_HEADER':
-            layout.label(text="Brush:")
+            # layout.label(text="Brush:")
             layout.prop(props_relax, 'brush_radius')
             layout.prop(props_relax, 'brush_strength', slider=True)
             layout.popover('RF_PT_RelaxAlgorithm')
+
             if prefs.expand_masking:
                 draw_line_separator(layout)
                 layout.row(heading='Selected:', align=True).prop(props_scene, 'mask_selected', expand=True, icon_only=True)
@@ -312,6 +313,7 @@ class RFTool_Relax(RFTool_Base):
                     layout.popover('RF_PT_Pinning', text='Masking')
             else:
                 layout.popover('RF_PT_Masking')
+
             draw_line_separator(layout)
             layout.popover('RF_PT_Snapping', text='Snapping')
             row = layout.row(align=True)
