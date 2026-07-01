@@ -22,6 +22,7 @@ Created by Jonathan Denning, Jonathan Lampel
 import bpy
 import bmesh
 import heapq
+import math
 from mathutils import Vector
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_location_3d
 
@@ -484,6 +485,23 @@ class RFOperator_Strokes(RFOperator_Stroke_Insert_Properties, RFOperator):
         name = 'Curve Handles',
         description = 'Show Bézier curve control handles on selected edge strips and loops',
         default = False
+    )
+    curve_handle_density: bpy.props.FloatProperty(
+        name = 'Density',
+        description = 'How many curve handles to show on the selection',
+        subtype='FACTOR',
+        min = 0.1,
+        max = 1,
+        default = 0.5
+    )
+    curve_corner_angle: bpy.props.FloatProperty(
+        name = 'Corner Angle',
+        description = 'Deflection angle beyond which a vert always gets its own (vector) '
+                       'curve handle, regardless of the Density setting',
+        subtype = 'ANGLE',
+        min = math.radians(10),
+        max = math.radians(170),
+        default = math.radians(60),
     )
 
     def init(self, context, event):

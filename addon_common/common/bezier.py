@@ -848,6 +848,14 @@ class CubicBezierSpline:
         fit instead of occasionally landing on a worse one that then needs a
         separate pass to detect and undo.
 
+        Two guardrails run after each pass, since raw fit-to-points score
+        alone can settle on a technically-marginally-better result that looks
+        visually broken: after scale, a handle that ended up under 1/10th its
+        counterpart's length is tried at the counterpart's length instead, if
+        that doesn't cost much fit quality (see acceptable_alternative);
+        after rotate, a handle within 15 degrees of perpendicular to its own
+        run's local tangent is similarly tried aligned with that tangent.
+
         A segment index in `locked_segs` is a caller-established good fit
         already -- skip its handles entirely in the scale pass, and skip the
         rotate pass too for any aligned-pair group where *both* sides are
@@ -870,6 +878,15 @@ class CubicBezierSpline:
             if axis.length < 1e-9:
                 axis = arbitrary_perpendicular(direction)
             return axis.normalized()
+
+        def acceptable_alternative(alt_score, original_score, chord_length):
+            ''' Whether alt_score is close enough to original_score to prefer the
+            alternative on other (non-fit-quality) grounds -- e.g. a degenerately
+            short or near-perpendicular handle that technically scored best. Allows
+            up to double the original score, plus a small margin scaled to the
+            segment's own chord so an original score near zero doesn't make every
+            alternative look unacceptably worse by comparison. '''
+            return alt_score <= original_score * 2.0 + 0.02 * chord_length
 
         wrap_ok = cyclic and nseg >= 2
         junction_range = range(nseg) if wrap_ok else range(max(0, nseg - 1))
@@ -941,6 +958,35 @@ class CubicBezierSpline:
                     )
                     evaluate(best_t)
 
+            # a handle that shrank to near nothing relative to its counterpart
+            # looks visually broken (the curve makes an abrupt transition right
+            # at the knot) even though the scale search, per handle, found it
+            # technically fits marginally better there. If stretching it back
+            # out to match its counterpart doesn't cost much fit quality, prefer
+            # that over the degenerate result.
+            for seg_i, (cb, run) in enumerate(zip(cbs, runs)):
+                len1 = (Vector(cb.p1) - Vector(cb.p0)).length
+                len2 = (Vector(cb.p2) - Vector(cb.p3)).length
+                if len1 <= len2:
+                    short_attr, short_anchor_attr, short_len, long_len = 'p1', 'p0', len1, len2
+                else:
+                    short_attr, short_anchor_attr, short_len, long_len = 'p2', 'p3', len2, len1
+                if (seg_i, short_attr) in frozen_handles:
+                    continue
+                if long_len < 1e-9 or short_len >= 0.1 * long_len:
+                    continue
+                anchor = Vector(getattr(cb, short_anchor_attr))
+                vec = Vector(getattr(cb, short_attr)) - anchor
+                if vec.length < 1e-9:
+                    continue
+                direction = vec / vec.length
+                original_score = CubicBezierSpline.total_distance(cb, run)
+                setattr(cb, short_attr, anchor + direction * long_len)
+                stretched_score = CubicBezierSpline.total_distance(cb, run)
+                chord_length = (Vector(cb.p3) - Vector(cb.p0)).length
+                if not acceptable_alternative(stretched_score, original_score, chord_length):
+                    setattr(cb, short_attr, anchor + direction * short_len)  # not worth it -- revert
+
             # --- rotate: grouped for aligned junctions, independent otherwise ---
             groups = []  # each: ([(cb, attr, anchor_attr, run), ...], (seg_i, ...))
             paired = [[False, False] for _ in range(nseg)]  # [i][0]=p1 used, [i][1]=p2 used
@@ -1001,14 +1047,16 @@ class CubicBezierSpline:
                 chord = Vector(arms[0][0].p3) - Vector(arms[0][0].p0)
                 axis = rotation_axis(shared, chord)
 
-                def evaluate(t, arms=arms, axis=axis, shared=shared):
-                    rot = Matrix.Rotation(t, 3, axis)
-                    new_travel_dir = (rot @ shared).normalized()
+                def apply_direction(direction, arms=arms):
                     total = 0.0
                     for cb, attr, anchor, _direction, length, run, sign in arms:
-                        setattr(cb, attr, anchor + new_travel_dir * (sign * length))
+                        setattr(cb, attr, anchor + direction * (sign * length))
                         total += CubicBezierSpline.total_distance(cb, run)
                     return total
+
+                def evaluate(t, axis=axis, shared=shared, apply_direction=apply_direction):
+                    rot = Matrix.Rotation(t, 3, axis)
+                    return apply_direction((rot @ shared).normalized())
 
                 initial_t = 0.0
                 if is_boundary:
@@ -1030,7 +1078,40 @@ class CubicBezierSpline:
                     evaluate, num_tests=25 if is_boundary else 10,
                     initial_step=math.radians(20), initial_t=initial_t,
                 )
-                evaluate(best_t)
+                best_score = evaluate(best_t)
+
+                # a handle nearly perpendicular to the curve's own local tangent
+                # looks visually wrong even if the search found it technically
+                # fits marginally better -- e.g. a slight kink right at this
+                # knot can make a handle pointing "sideways" score well for the
+                # few nearby points without looking anything like the curve's
+                # actual direction of travel there. local_tangent is a simple,
+                # run-only estimate of that direction (the secant to each arm's
+                # nearest interior point, or its chord if it has none), grouped
+                # and sign-corrected the same way `shared` is. If a direction
+                # closer to it doesn't cost much fit quality, prefer that over
+                # a near-perpendicular (or reversed) result.
+                local_tangent = Vector((0.0, 0.0, 0.0))
+                tangent_ok = True
+                for _cb, attr, _anchor, _direction, _length, run, _sign in arms:
+                    if attr == 'p1':
+                        ref_point = run[1] if len(run) > 2 else run[-1]
+                        d = Vector(ref_point) - Vector(run[0])
+                    else:
+                        ref_point = run[-2] if len(run) > 2 else run[0]
+                        d = Vector(run[-1]) - Vector(ref_point)
+                    if d.length < 1e-9:
+                        tangent_ok = False
+                        break
+                    local_tangent += d.normalized()
+                if tangent_ok and local_tangent.length > 1e-9:
+                    local_tangent.normalize()
+                    committed_dir = (Matrix.Rotation(best_t, 3, axis) @ shared).normalized()
+                    angle_from_tangent = math.acos(max(-1.0, min(1.0, committed_dir.dot(local_tangent))))
+                    if angle_from_tangent > math.radians(75):
+                        tangent_score = apply_direction(local_tangent)
+                        if not acceptable_alternative(tangent_score, best_score, chord.length):
+                            apply_direction(committed_dir)  # not worth it -- revert
 
     def __init__(self, cbs=None, inds=None):
         if cbs is None:

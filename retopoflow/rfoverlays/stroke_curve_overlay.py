@@ -44,6 +44,7 @@ from ..common.bmesh import (
     bmes_shared_bmv,
 )
 from ..common.bmesh_maths import get_strip_bmvs, rdp_corner_indices
+from ..common.maths import map_range, clamp
 from ..common.drawing import Drawing
 from ..common.raycast import is_point_hidden, mouse_from_event
 from ...addon_common.common import bmesh_ops as bmops
@@ -51,14 +52,27 @@ from ...addon_common.common.bezier import CubicBezier, CubicBezierSpline
 from ...addon_common.common.blender_cursors import Cursors
 
 
-# how many verts a single cubic segment may span before an auto-knot is inserted
-AUTO_KNOT_MAX_SPAN = 100
-# corner tolerance and min corner spacing as fractions of the average selected edge length
-CORNER_TOLERANCE_FACTOR = 1.0
-CORNER_MIN_SPACING_FACTOR = 2.5
-# minimum deflection angle (between incoming and outgoing edges) for a vert to get
-# independent (vector) tangent handles; below this it gets G1-aligned handles
-SHARP_CORNER_ANGLE = math.radians(60)
+# how far a single cubic segment may span before an auto-knot is inserted, as
+# a fraction of the whole chain's own total length (NOT vert count -- a vert
+# count would make subdividing, which changes nothing about the curve's
+# actual shape, insert more knots just because there are more verts to count).
+# Kept deliberately >1 (effectively a no-op: no sub-span can ever exceed the
+# whole chain's own length) -- bend-tolerance-driven RDP already places a
+# knot at every meaningfully curving point, proportional to the chain's own
+# scale, so knot count should come from that (and the user's density setting)
+# alone. Lower this only if a very long, gentle, single-piece run still needs
+# a backstop knot for some other reason (e.g. very stiff proportional-edit
+# falloff over a long span).
+AUTO_KNOT_MAX_SPAN_FACTOR = 1.5
+# corner tolerance (BEND_TOLERANCE_FACTOR) and min corner spacing, as fractions
+# of the chain's own total length -- same reasoning: avg edge length shrinks
+# under subdivision, which would make RDP more sensitive to the exact same
+# geometry. BEND_TOLERANCE_FACTOR itself is user-tunable (Strokes' "Density"
+# property, curve_handle_density) rather than fixed -- see
+# _bend_tolerance_factor for the density -> tolerance mapping, bounded by
+# these two endpoints (min density -> loosest/fewest handles, max density ->
+# tightest/most handles).
+CORNER_MIN_SPACING_FACTOR = 0.01
 # on-screen radii (pre Drawing.scale) of the knot/tangent handle dots, also used
 # to shorten the control-polygon arm lines so they stop at each dot's edge
 # instead of running into its (partially transparent) center
@@ -78,6 +92,23 @@ REBUILD_DEVIATION_FACTOR = 4.0
 # its interior verts already average less deviation from its existing curve
 # than this fraction of the average edge length (see _well_fit_segments).
 SEGMENT_KEEP_FIT_TOLERANCE = 0.15
+
+
+def density_to_bend_tolerance(density : float) -> float:
+    '''
+    Maps Strokes' curve_handle_density property (0.1 to 1.0) to
+    BEND_TOLERANCE_FACTOR, geometrically (not linearly) interpolated between
+    BEND_TOLERANCE_FACTOR_MIN and _MAX: tolerance is a threshold RDP compares
+    a deviation against multiplicatively (does it exceed the tolerance, not
+    by how much), so a proportional step in density should be a proportional
+    -- not additive -- step in tolerance. A linear interpolation between 0.5
+    and 0.01 would spend most of the slider barely changing anything and then
+    collapse abruptly near the top; geometric interpolation keeps each step
+    across the whole slider feeling similarly responsive.
+    '''
+    t = map_range(clamp(density, 0.1, 1.0), 0.1, 1.0, 0.0, 1.0)
+    lo, hi = 0.5, 0.01 # lo = few control points, hi = more
+    return lo * (hi / lo) ** t
 
 
 def shrink_segment(p_from, p_to, shrink_from, shrink_to):
@@ -206,15 +237,18 @@ def create_loopstrip_curve_overlay(
 
         # ------------------------------------------------------------------ data
 
-        def _curve_handles_enabled(self, context : Context) -> bool:
+        def _tool_props(self, context : Context):
             active_tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
-            if not active_tool:
-                return True
-            try:
-                tool_props = active_tool.operator_properties(rftool_idname)
-                return getattr(tool_props, 'show_curve_handles', True)
-            except Exception:
-                return True
+            return active_tool.operator_properties(rftool_idname)
+
+        def _curve_handles_enabled(self, context : Context) -> bool:
+            return self._tool_props(context).show_curve_handles
+
+        def _bend_tolerance_factor(self, context : Context) -> float:
+            return density_to_bend_tolerance(self._tool_props(context).curve_handle_density)
+
+        def _sharp_corner_angle(self, context : Context) -> float:
+            return self._tool_props(context).curve_corner_angle
 
         def update_data(self, context : Context) -> bool:
             RFCore = RFGlobals.RFCore_None
@@ -229,11 +263,23 @@ def create_loopstrip_curve_overlay(
                     self.label_data = []
                 return True
 
-            if self.depsgraph_version == RFCore.depsgraph_version and hasattr(self, 'curves'): return True
+            # curve_handle_density/curve_corner_angle are tool properties, not
+            # scene data -- dragging either doesn't bump depsgraph_version, so
+            # both are checked for separately here to still force a rebuild
+            # (see _build_curve's own check against the cached structure's
+            # tunables for why that's needed too, not just bypassing this
+            # early-out). Bundled as one tuple so a future third tunable is
+            # one more tuple entry, not a whole new set of tracking variables.
+            tunables = (self._bend_tolerance_factor(context), self._sharp_corner_angle(context))
+            tunables_changed = tunables != getattr(self, '_last_tunables', None)
+
+            if not tunables_changed and self.depsgraph_version == RFCore.depsgraph_version and hasattr(self, 'curves'): return True
             if self.paused_update: return False
 
             cls = type(self)
             cls.depsgraph_version = RFCore.depsgraph_version
+            self._last_tunables = tunables
+            bend_tolerance_factor, sharp_angle = tunables
 
             self.curves = []
             self.chains = []
@@ -255,9 +301,11 @@ def create_loopstrip_curve_overlay(
 
             active_keys = set()
             for strip in strips:
-                self._add_chain(self._strip_bmvs(strip, cyclic=False), cyclic=False, avg_len=avg_len, active_keys=active_keys)
+                self._add_chain(self._strip_bmvs(strip, cyclic=False), cyclic=False, avg_len=avg_len,
+                                 bend_tolerance_factor=bend_tolerance_factor, sharp_angle=sharp_angle, active_keys=active_keys)
             for cycle in cycles:
-                self._add_chain(self._strip_bmvs(cycle, cyclic=True), cyclic=True, avg_len=avg_len, active_keys=active_keys)
+                self._add_chain(self._strip_bmvs(cycle, cyclic=True), cyclic=True, avg_len=avg_len,
+                                 bend_tolerance_factor=bend_tolerance_factor, sharp_angle=sharp_angle, active_keys=active_keys)
 
             # drop cached structure for chains that are no longer selected
             self._curve_struct_cache = {
@@ -282,7 +330,7 @@ def create_loopstrip_curve_overlay(
             start = bme_unshared_bmv(strip[0], strip[1])
             return get_strip_bmvs(strip, start)
 
-        def _add_chain(self, bmvs, *, cyclic, avg_len, active_keys):
+        def _add_chain(self, bmvs, *, cyclic, avg_len, bend_tolerance_factor, sharp_angle, active_keys):
             if not bmvs:
                 return
             cos = [bmv.co.copy() for bmv in bmvs]
@@ -296,7 +344,10 @@ def create_loopstrip_curve_overlay(
 
             cache_key = tuple(bmv.index for bmv in bmvs)
             active_keys.add(cache_key)
-            spline, handles = self._build_curve(cos, cyclic=cyclic, avg_len=avg_len, cache_key=cache_key)
+            spline, handles = self._build_curve(
+                cos, cyclic=cyclic, avg_len=avg_len, bend_tolerance_factor=bend_tolerance_factor,
+                sharp_angle=sharp_angle, cache_key=cache_key,
+            )
             if spline is None or not spline.cbs:
                 return
 
@@ -307,15 +358,19 @@ def create_loopstrip_curve_overlay(
                 'handles': handles,
             })
 
-        def _build_curve(self, cos, *, cyclic, avg_len, cache_key):
+        def _build_curve(self, cos, *, cyclic, avg_len, bend_tolerance_factor, sharp_angle, cache_key):
             n = len(cos)
+            tunables = (bend_tolerance_factor, sharp_angle)
 
             cached = self._curve_struct_cache.get(cache_key)
             knots = corner_set = None
             max_dev = None
             if cached and len(cached['cos']) == n:
                 max_dev = max((a - b).length for a, b in zip(cos, cached['cos']))
-                if max_dev <= avg_len * REBUILD_DEVIATION_FACTOR:
+                # a tunable change invalidates the cached knot placement even
+                # if no vert moved -- it's not just about staying under the
+                # rebuild-deviation threshold below
+                if max_dev <= avg_len * REBUILD_DEVIATION_FACTOR and cached.get('tunables') == tunables:
                     knots, corner_set = cached['knots'], cached['corner_set']
 
             # nothing (detectably) moved since the last build -- reuse that
@@ -327,36 +382,48 @@ def create_loopstrip_curve_overlay(
 
             fresh_derive = knots is None
             if fresh_derive:
-                tol = max(avg_len * CORNER_TOLERANCE_FACTOR, 1e-6)
-                seed = [] if cyclic else [0, n - 1]
+                # corner/span thresholds below are fractions of the chain's own
+                # total length, NOT of avg_len -- avg_len is per-EDGE, so it
+                # shrinks under subdivision (same shape, more/shorter edges),
+                # which would make RDP more sensitive and auto-knot spans
+                # trigger more often for a curve whose geometry hasn't changed
+                # at all. stroke_length only depends on the curve's own shape.
+                stroke_length = sum(
+                    (Vector(cos[(i + 1) % n]) - Vector(cos[i])).length
+                    for i in range(n if cyclic else n - 1)
+                )
+                tol = max(stroke_length * bend_tolerance_factor, 1e-6)
+
+                # RDP's chord-deviation test is what decides whether a point becomes
+                # a knot candidate at all -- a sharp but short kink (small arms) can
+                # deviate too little from a distant chord to ever get proposed, even
+                # though its own local angle is clearly a corner. Sharp verts are
+                # found directly by angle first and forced in as seeds, so a genuine
+                # corner always gets a knot regardless of how loose bend_tolerance_
+                # factor (or its user-facing density control) is set.
+                sharp_indices = self._sharp_angle_indices(cos, n, cyclic, sharp_angle)
+                seed = ({0, n - 1} if not cyclic else set()) | sharp_indices
                 corners = rdp_corner_indices(
                     cos, tol,
                     seed_indices=seed,
-                    min_spacing=avg_len * CORNER_MIN_SPACING_FACTOR,
+                    min_spacing=stroke_length * CORNER_MIN_SPACING_FACTOR,
                 )
 
                 # RDP picks each corner by max deviation from a chord that may span far
                 # beyond its local bend, so the pick can land beside the true apex. Snap
                 # each (non-endpoint) corner to the point of max deviation from the chord
-                # between its own immediate neighbors -- the true local extremum.
-                locked = set() if cyclic else {0, n - 1}
+                # between its own immediate neighbors -- the true local extremum. Sharp
+                # verts are exact already (that's how they were found), so they're
+                # locked in place along with the strip's own endpoints.
+                locked = ({0, n - 1} if not cyclic else set()) | sharp_indices
                 corners = self._snap_to_local_extrema(cos, corners, n, cyclic, locked)
 
                 # Only verts with a geometrically sharp deflection angle get vector
                 # (independent) handles. RDP knots at smooth verts still get G1 handles.
-                corner_set = set()
-                for k in corners:
-                    if not cyclic and (k == 0 or k == n - 1):
-                        continue  # open-strip endpoints: no peer arm, angle is moot
-                    prev_k = (k - 1) % n if cyclic else k - 1
-                    next_k = (k + 1) % n if cyclic else k + 1
-                    v_in  = Vector(cos[k])      - Vector(cos[prev_k])
-                    v_out = Vector(cos[next_k]) - Vector(cos[k])
-                    if v_in.length < 1e-9 or v_out.length < 1e-9:
-                        continue
-                    cos_a = max(-1.0, min(1.0, v_in.normalized().dot(v_out.normalized())))
-                    if math.acos(cos_a) > SHARP_CORNER_ANGLE:
-                        corner_set.add(k)
+                corner_set = {
+                    k for k in corners
+                    if (angle := self._deflection_angle(cos, k, n, cyclic)) is not None and angle > sharp_angle
+                }
 
                 knots = list(corners)
                 if cyclic and len(knots) < 2:
@@ -364,7 +431,7 @@ def create_loopstrip_curve_overlay(
                     step = max(1, n // 4)
                     knots = sorted(set(knots) | set(range(0, n, step)))
 
-                knots = self._insert_auto_knots(cos, knots, n, cyclic)
+                knots = self._insert_auto_knots(cos, knots, n, cyclic, stroke_length)
 
             # the "nothing changed" shortcut above already absorbs every redraw
             # where verts didn't actually move, so the only way to reach this
@@ -412,6 +479,7 @@ def create_loopstrip_curve_overlay(
             self._curve_struct_cache[cache_key] = {
                 'knots': knots,
                 'corner_set': corner_set,
+                'tunables': tunables,
                 'cos': [Vector(co) for co in cos],
                 'spline': spline,
                 'handles': handles,
@@ -457,6 +525,33 @@ def create_loopstrip_curve_overlay(
                         continue
                 locked[i] = cb
             return locked
+
+        def _deflection_angle(self, cos, k, n, cyclic):
+            '''
+            Angle between vert k's incoming and outgoing edges, using its immediate
+            neighbors only (not RDP or any chord) -- None for an open strip's own
+            endpoint (no second arm to measure against) or a degenerate (zero-length)
+            neighboring edge, where "angle" isn't a meaningful question.
+            '''
+            if not cyclic and (k == 0 or k == n - 1):
+                return None
+            prev_k = (k - 1) % n if cyclic else k - 1
+            next_k = (k + 1) % n if cyclic else k + 1
+            v_in  = Vector(cos[k])      - Vector(cos[prev_k])
+            v_out = Vector(cos[next_k]) - Vector(cos[k])
+            if v_in.length < 1e-9 or v_out.length < 1e-9:
+                return None
+            cos_a = max(-1.0, min(1.0, v_in.normalized().dot(v_out.normalized())))
+            return math.acos(cos_a)
+
+        def _sharp_angle_indices(self, cos, n, cyclic, sharp_angle):
+            ''' Every vert whose own local deflection angle already exceeds
+            `sharp_angle`, independent of RDP's chord-deviation test -- see
+            its call site in _build_curve for why that independence matters. '''
+            return {
+                k for k in range(n)
+                if (angle := self._deflection_angle(cos, k, n, cyclic)) is not None and angle > sharp_angle
+            }
 
         def _max_dev_index(self, cos, ka, kb, n):
             '''
@@ -512,10 +607,17 @@ def create_loopstrip_curve_overlay(
                     break
             return knots
 
-        def _insert_auto_knots(self, cos, knots, n, cyclic, max_span=AUTO_KNOT_MAX_SPAN):
+        def _arc_length(self, cos, ka, kb, n):
+            return sum((Vector(cos[k % n]) - Vector(cos[(k - 1) % n])).length for k in range(ka + 1, kb + 1))
+
+        def _insert_auto_knots(self, cos, knots, n, cyclic, stroke_length):
             knots = sorted(set(knots))
             if not knots:
                 return knots
+            # a fraction of the chain's own total length, not a vert count, so
+            # subdividing (same shape, more/shorter edges) doesn't add auto-knots
+            # that weren't warranted by the curve's actual geometry
+            max_span = max(stroke_length * AUTO_KNOT_MAX_SPAN_FACTOR, 1e-6)
             result = set(knots)
             pairs = list(zip(knots[:-1], knots[1:]))
             if cyclic:
@@ -525,14 +627,13 @@ def create_loopstrip_curve_overlay(
             return sorted(result)
 
         def _split_long_span(self, cos, ka, kb, n, max_span, result):
-            span = kb - ka
-            if span <= max_span:
+            if self._arc_length(cos, ka, kb, n) <= max_span:
                 return
             # place the extra knot at the run's true local extremum, not just its
             # midpoint by vert count, so long bends still get a knot at their apex
             best = self._max_dev_index(cos, ka, kb, n)
             if best is None or best in (ka, kb):
-                mid = ka + span // 2
+                mid = ka + (kb - ka) // 2
                 if mid not in (ka, kb):
                     result.add(mid % n)
                 return

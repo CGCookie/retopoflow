@@ -54,7 +54,14 @@ def draw_active_tool_options(context, layout):
         col = layout.column()
         draw_section_header(context, col, tool_props.bl_rna.name)
         if loops: col.prop(tool_props, 'select_loops', text='Loops Mode')
-        if curves: col.prop(tool_props, 'show_curve_handles', text='Curve Handles')
+        if curves:
+            col.separator()
+            curve_col = col.column(align=True)
+            curve_col.row(heading='Curve Handles').prop(tool_props, 'show_curve_handles', text='Enable')
+            sub = curve_col.column()
+            sub.enabled = tool_props.show_curve_handles
+            sub.prop(tool_props, 'curve_handle_density', text='Density')
+            sub.prop(tool_props, 'curve_corner_angle')
 
 
 def draw_tweaking_options(context : Context, layout : UILayout):
