@@ -28,7 +28,11 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_locat
 
 from ..rfglobals import RFGlobals
 from ..rfbrushes.stroke_brush import create_stroke_brush
-from ..rfoverlays.stroke_curve_overlay import create_loopstrip_curve_overlay, shrink_segment, KNOT_RADIUS, TANGENT_RADIUS, FREE_KNOT_BORDER_COLOR
+from ..rfoverlays.stroke_curve_overlay import (
+    create_loopstrip_curve_overlay, shrink_segment, KNOT_RADIUS, TANGENT_RADIUS,
+    CURVE_LINE_COLOR, CONTROL_POLYGON_COLOR, TANGENT_FILL_COLOR, TANGENT_BORDER_COLOR,
+    KNOT_FILL_COLOR, KNOT_BORDER_COLOR, FREE_KNOT_FILL_COLOR,
+)
 
 from ..rftool_base import RFTool_Base
 from ..common.bmesh import get_bmesh_emesh, bme_midpoint, get_boundary_strips_cycles
@@ -484,7 +488,7 @@ class RFOperator_Strokes(RFOperator_Stroke_Insert_Properties, RFOperator):
     show_curve_handles: bpy.props.BoolProperty(
         name = 'Curve Handles',
         description = 'Show Bézier curve control handles on selected edge strips and loops',
-        default = False
+        default = True
     )
     curve_handle_density: bpy.props.FloatProperty(
         name = 'Density',
@@ -961,12 +965,12 @@ class RFOperator_Strokes_CurveEdit(RFOperator):
             curve_pts = [p for p in curve_pts if p]
             draw_curve_line = True
             if draw_curve_line and len(curve_pts) >= 2:
-                Drawing.draw2D_linestrip(context, curve_pts, (1.0, 1.0, 0.0, 0.5), width=2, stipple=[5,5])
+                Drawing.draw2D_linestrip(context, curve_pts, CURVE_LINE_COLOR, width=2, stipple=[5,5])
             p0_, p1_, p2_, p3_ = (location_3d_to_region_2d(rgn, r3d, M @ Vector(getattr(cb, a))) for a in ('p0','p1','p2','p3'))
             knot_r, tan_r = Drawing.scale(KNOT_RADIUS/2), Drawing.scale(TANGENT_RADIUS/2)
             a0, a1 = shrink_segment(p0_, p1_, knot_r, tan_r)
             a2, a3 = shrink_segment(p2_, p3_, tan_r, knot_r)
-            Drawing.draw2D_lines(context, [a0, a1, a2, a3], (1.0, 1.0, 1.0, 0.5), width=2)
+            Drawing.draw2D_lines(context, [a0, a1, a2, a3], CONTROL_POLYGON_COLOR, width=2)
         knot_pts2d, free_knot_pts2d, tan_pts2d = [], [], []
         for h in self.chain['handles']:
             seg, attr = h['pos']
@@ -979,11 +983,11 @@ class RFOperator_Strokes_CurveEdit(RFOperator):
             else:
                 knot_pts2d.append(p)
         if tan_pts2d:
-            Drawing.draw2D_points(context, tan_pts2d, (0.0, 0.0, 0.0, 0.75), radius=TANGENT_RADIUS, border=2, borderColor=(1,1,1,0.5))
+            Drawing.draw2D_points(context, tan_pts2d, TANGENT_FILL_COLOR, radius=TANGENT_RADIUS, border=2, borderColor=TANGENT_BORDER_COLOR)
         if knot_pts2d:
-            Drawing.draw2D_points(context, knot_pts2d, (1.0, 1.0, 1.0, 1.0), radius=KNOT_RADIUS, border=2, borderColor=(0,0,0,0.5))
+            Drawing.draw2D_points(context, knot_pts2d, KNOT_FILL_COLOR, radius=KNOT_RADIUS, border=2, borderColor=KNOT_BORDER_COLOR)
         if free_knot_pts2d:
-            Drawing.draw2D_points(context, free_knot_pts2d, (1.0, 1.0, 1.0, 1.0), radius=KNOT_RADIUS, border=2, borderColor=FREE_KNOT_BORDER_COLOR)
+            Drawing.draw2D_points(context, free_knot_pts2d, FREE_KNOT_FILL_COLOR, radius=KNOT_RADIUS, border=2, borderColor=KNOT_BORDER_COLOR)
 
     def draw_postpixel(self, context):
         ''' Draw the live curve, plus the proportional edit circle in 2D space. '''

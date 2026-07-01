@@ -21,6 +21,8 @@ Created by Jonathan Denning, Jonathan Lampel
 
 from __future__ import annotations
 
+import time
+
 import bpy
 from mathutils import Vector, Matrix
 from bpy.types import Context, Event
@@ -55,14 +57,19 @@ from ...addon_common.common.blender_cursors import Cursors
 # a fraction of the whole chain's own total length (NOT vert count -- a vert
 # count would make subdividing, which changes nothing about the curve's
 # actual shape, insert more knots just because there are more verts to count).
-# Kept deliberately >1 (effectively a no-op: no sub-span can ever exceed the
-# whole chain's own length) -- bend-tolerance-driven RDP already places a
-# knot at every meaningfully curving point, proportional to the chain's own
-# scale, so knot count should come from that (and the user's density setting)
-# alone. Lower this only if a very long, gentle, single-piece run still needs
-# a backstop knot for some other reason (e.g. very stiff proportional-edit
-# falloff over a long span).
-AUTO_KNOT_MAX_SPAN_FACTOR = 1.5
+# bend-tolerance-driven RDP only adds knots where the chord deviates enough to
+# register as a corner -- a bend that straightens out into a long, genuinely
+# gentle run afterward can leave one segment spanning most of the chain, which
+# forces its handles into an impossible compromise between the bend's own
+# curvature and not distorting the long straight tail (empirically, this is
+# what actually produces the "handle so short it barely shows" look, not the
+# handle-search itself). 0.6 was picked by sweeping candidate values against a
+# batch of synthetic bend shapes: it minimized the worst observed handle-to-
+# chord ratio across all three density settings, while more aggressive values
+# (e.g. 0.2-0.3) start inflating knot count without further improving --
+# or even worsening -- that worst case, since segments that short bring back
+# their own few-interior-point fitting difficulties.
+AUTO_KNOT_MAX_SPAN_FACTOR = 0.6
 # min corner spacing, as a fraction of the chain's own total length -- same
 # reasoning as AUTO_KNOT_MAX_SPAN_FACTOR: avg edge length shrinks under
 # subdivision, which would make RDP more sensitive to the exact same geometry.
@@ -76,9 +83,19 @@ CORNER_MIN_SPACING_FACTOR = 0.01
 # instead of running into its (partially transparent) center
 KNOT_RADIUS = 14
 TANGENT_RADIUS = 12
-# border tint for a knot whose position is NOT coupled to any vertex (see
-# _build_handles) -- everything else uses the default black-ish border
-FREE_KNOT_BORDER_COLOR = (1.0, 0.65, 0.0, 0.9)
+# shared draw colors for the curve/handles -- used here AND by
+# RFOperator_Strokes_CurveEdit's own live-drag preview (strokes.py), so a
+# handle can't visibly change color the instant a drag starts just because
+# the two draw call sites drifted out of sync with each other
+CURVE_LINE_COLOR = (1.0, 1.0, 0.0, 0.5)
+CONTROL_POLYGON_COLOR = (1.0, 1.0, 1.0, 0.5)
+TANGENT_FILL_COLOR = (0.0, 0.0, 0.0, 0.75)
+TANGENT_BORDER_COLOR = (1.0, 1.0, 1.0, 0.5)
+KNOT_FILL_COLOR = (1.0, 1.0, 1.0, 1.0)
+KNOT_BORDER_COLOR = (0.0, 0.0, 0.0, 0.5)
+# a knot whose position is NOT coupled to any vertex (see _build_handles) is
+# distinguished by fill only -- its border tint is the same as a normal knot's
+FREE_KNOT_FILL_COLOR = (0.5, 0.5, 0.5, 1.0)
 # once a chain's knot placement (corners/auto-knots) is derived, it's cached and
 # reused -- recomputing positions/handle lengths from current verts every time,
 # but NOT re-running corner-detection -- so edits don't cause the control points
@@ -90,6 +107,30 @@ REBUILD_DEVIATION_FACTOR = 4.0
 # its interior verts already average less deviation from its existing curve
 # than this fraction of the average edge length (see _well_fit_segments).
 SEGMENT_KEEP_FIT_TOLERANCE = 0.15
+# minimum seconds between rebuilds triggered by curve_handle_density/
+# curve_corner_angle changing -- dragging either fires far more update_data
+# calls than there are actual distinct values worth rebuilding for, so a
+# rebuild mid-drag is throttled to this rate instead of running on every
+# single tick; whichever value the slider is at once the throttle window
+# elapses is what gets built (see update_data), not every value skipped over.
+TUNABLE_REBUILD_THROTTLE = 0.1
+
+
+def _internal_bl_idname(dotted_idname : str) -> str:
+    '''
+    Blender registers an operator's *internal* name as 'CATEGORY_OT_name',
+    distinct from the dotted 'category.name' form used in Python source (as
+    a class's own bl_idname, or to call bpy.ops.category.name()) -- items in
+    context.window.modal_operators expose the former, not the latter, so
+    comparing against a literal 'retopoflow.core' there would never match.
+    '''
+    category, _, name = dotted_idname.partition('.')
+    return f'{category.upper()}_OT_{name}'
+
+
+# RFCore's own always-running top-level modal operator -- see update_data's
+# check against context.window.modal_operators.
+RFCORE_OPERATOR_BL_IDNAME = _internal_bl_idname('retopoflow.core')
 
 
 def density_to_bend_tolerance(density : float) -> float:
@@ -262,6 +303,34 @@ def create_loopstrip_curve_overlay(
                     self.label_data = []
                 return True
 
+            # a modal operator OTHER THAN this overlay's own instance or
+            # RFCore's own top-level operator currently has control -- most
+            # likely a native transform (move/rotate/scale, or any other
+            # transform.* variant), RF's own Translate/Slide (retopoflow.
+            # translate/slide -- G is handled by RF's own operator, not
+            # always Blender's native transform.translate, and it moves verts
+            # every bit as much), box select, etc. Denylisting like this
+            # (rather than allowlisting specific op names) also catches
+            # shear/bend/loop-cut/bisect/etc. without having to enumerate
+            # every vert-moving modal Blender or RF itself ships. Every one of
+            # those depsgraph updates would otherwise count as "the mesh
+            # changed", forcing a rebuild (RDP corner detection possibly
+            # included) on every single frame of the drag, which is both slow
+            # and can make the knot structure itself jump around mid-drag if a
+            # big enough move crosses the structural-rebuild threshold
+            # partway through. Skip entirely while one's running -- both
+            # callers (draw_postpixel_overlay, hovered_handle) bail out on a
+            # False return without touching any state, so the overlay just
+            # doesn't draw until control returns to RF, at which point this
+            # same depsgraph-version check rebuilds once, cleanly, against
+            # the final settled positions.
+            external_ops = [
+                op.bl_idname for op in context.window.modal_operators
+                if op is not self and op.bl_idname != RFCORE_OPERATOR_BL_IDNAME
+            ]
+            if external_ops:
+                return False
+
             # curve_handle_density/curve_corner_angle are tool properties, not
             # scene data -- dragging either doesn't bump depsgraph_version, so
             # both are checked for separately here to still force a rebuild
@@ -271,6 +340,14 @@ def create_loopstrip_curve_overlay(
             # one more tuple entry, not a whole new set of tracking variables.
             tunables = (self._bend_tolerance_factor(context), self._sharp_corner_angle(context))
             tunables_changed = tunables != getattr(self, '_last_tunables', None)
+            if tunables_changed and time.monotonic() - getattr(self, '_last_tunables_rebuild_time', 0.0) < TUNABLE_REBUILD_THROTTLE:
+                # too soon after the last tunable-driven rebuild -- most likely
+                # still mid slider-drag, so keep showing the last-built curves
+                # rather than paying for a full rebuild on every single tick.
+                # _last_tunables is deliberately left stale here, so the very
+                # next call still sees "changed" and re-checks the throttle
+                # against whatever value the slider is at by then.
+                tunables_changed = False
 
             if not tunables_changed and self.depsgraph_version == RFCore.depsgraph_version and hasattr(self, 'curves'): return True
             if self.paused_update: return False
@@ -278,6 +355,7 @@ def create_loopstrip_curve_overlay(
             cls = type(self)
             cls.depsgraph_version = RFCore.depsgraph_version
             self._last_tunables = tunables
+            self._last_tunables_rebuild_time = time.monotonic()
             bend_tolerance_factor, sharp_angle = tunables
 
             self.curves = []
@@ -406,6 +484,7 @@ def create_loopstrip_curve_overlay(
                     cos, tol,
                     seed_indices=seed,
                     min_spacing=stroke_length * CORNER_MIN_SPACING_FACTOR,
+                    force_endpoints=not cyclic,
                 )
 
                 # RDP picks each corner by max deviation from a chord that may span far
@@ -429,7 +508,7 @@ def create_loopstrip_curve_overlay(
                     step = max(1, n // 4)
                     knots = sorted(set(knots) | set(range(0, n, step)))
 
-                knots = self._insert_auto_knots(cos, knots, n, cyclic, stroke_length)
+                knots = self._insert_auto_knots(cos, knots, n, cyclic, stroke_length, tol)
 
             # the "nothing changed" shortcut above already absorbs every redraw
             # where verts didn't actually move, so the only way to reach this
@@ -444,11 +523,13 @@ def create_loopstrip_curve_overlay(
             # free knot, so a manually-placed handle isn't quietly pulled back
             # towards whatever a fresh Catmull-Rom guess would've picked).
             locked_cbs = {}
+            prev_cos = None
             if not fresh_derive and cached.get('spline'):
-                locked_cbs = self._well_fit_segments(cached['spline'], cos, avg_len, n, cyclic, corner_set)
+                prev_cos = cached['cos']
+                locked_cbs = self._well_fit_segments(cached['spline'], cos, prev_cos, avg_len, n, cyclic, corner_set)
 
             spline = CubicBezierSpline.create_catmull_rom(
-                cos, knots, cyclic=cyclic, corner_indices=corner_set, locked_cbs=locked_cbs,
+                cos, knots, cyclic=cyclic, corner_indices=corner_set, locked_cbs=locked_cbs, prev_pts=prev_cos,
             )
 
             # Build smooth_junctions: set of segment indices i where the junction
@@ -485,20 +566,21 @@ def create_loopstrip_curve_overlay(
 
             return spline, handles
 
-        def _well_fit_segments(self, cached_spline, cos, avg_len, n, cyclic, corner_set):
+        def _well_fit_segments(self, cached_spline, cos, prev_cos, avg_len, n, cyclic, corner_set):
             '''
             Segments of `cached_spline` worth handing to create_catmull_rom as
             locked: build the exact candidate create_catmull_rom would (a
             coupled knot's side snapped to its current vert and its tangent
-            handle carried along by the same delta; a free knot's side left
-            exactly as cached, since it was never tied to any particular vert
-            -- see its is_free_knot), then check that candidate's own fit --
-            average deviation of its interior verts -- against
-            SEGMENT_KEEP_FIT_TOLERANCE. A coupled vert that moved far enough
-            to need more than a same-delta translation shows up here as a
-            worse fit, same as any other reason the curve stopped matching its
-            points, so there's no need for a separate raw distance check on
-            the endpoints themselves.
+            handle carried along by the same delta; a free knot's side
+            carried by that same vert's own delta too, since it isn't tied to
+            it exactly but still needs to track a rigid shift of its
+            neighborhood -- see create_catmull_rom's own prev_pts), then check
+            that candidate's own fit -- average deviation of its interior
+            verts -- against SEGMENT_KEEP_FIT_TOLERANCE. A coupled vert that
+            moved far enough to need more than a same-delta translation shows
+            up here as a worse fit, same as any other reason the curve
+            stopped matching its points, so there's no need for a separate
+            raw distance check on the endpoints themselves.
 
             Checked per segment rather than once for the whole chain, so an
             edit that only reshaped one part of a multi-segment chain doesn't
@@ -519,8 +601,14 @@ def create_loopstrip_curve_overlay(
             locked = {}
             for i, (cb, (ka, kb)) in enumerate(zip(cached_spline.cbs, cached_spline.inds)):
                 run = [Vector(cos[k % n]) for k in range(ka, kb + 1)]
-                p0 = Vector(cb.p0) if CubicBezierSpline.is_free_knot(ka % n, corner_set, cyclic, n) else run[0]
-                p3 = Vector(cb.p3) if CubicBezierSpline.is_free_knot(kb % n, corner_set, cyclic, n) else run[-1]
+                if CubicBezierSpline.is_free_knot(ka % n, corner_set, cyclic, n):
+                    p0 = Vector(cb.p0) + (Vector(cos[ka % n]) - Vector(prev_cos[ka % n]))
+                else:
+                    p0 = run[0]
+                if CubicBezierSpline.is_free_knot(kb % n, corner_set, cyclic, n):
+                    p3 = Vector(cb.p3) + (Vector(cos[kb % n]) - Vector(prev_cos[kb % n]))
+                else:
+                    p3 = run[-1]
                 d0, d3 = p0 - Vector(cb.p0), p3 - Vector(cb.p3)
                 candidate = CubicBezier(p0, Vector(cb.p1) + d0, Vector(cb.p2) + d3, p3)
                 if len(run) > 2:
@@ -613,7 +701,7 @@ def create_loopstrip_curve_overlay(
         def _arc_length(self, cos, ka, kb, n):
             return sum((Vector(cos[k % n]) - Vector(cos[(k - 1) % n])).length for k in range(ka + 1, kb + 1))
 
-        def _insert_auto_knots(self, cos, knots, n, cyclic, stroke_length):
+        def _insert_auto_knots(self, cos, knots, n, cyclic, stroke_length, tol):
             knots = sorted(set(knots))
             if not knots:
                 return knots
@@ -626,23 +714,40 @@ def create_loopstrip_curve_overlay(
             if cyclic:
                 pairs.append((knots[-1], knots[0] + n))  # closing run wraps past the end
             for ka, kb in pairs:
-                self._split_long_span(cos, ka, kb, n, max_span, result)
+                self._split_long_span(cos, ka, kb, n, max_span, tol, result)
             return sorted(result)
 
-        def _split_long_span(self, cos, ka, kb, n, max_span, result):
+        def _split_long_span(self, cos, ka, kb, n, max_span, tol, result):
             if self._arc_length(cos, ka, kb, n) <= max_span:
                 return
             # place the extra knot at the run's true local extremum, not just its
             # midpoint by vert count, so long bends still get a knot at their apex
             best = self._max_dev_index(cos, ka, kb, n)
-            if best is None or best in (ka, kb):
-                mid = ka + (kb - ka) // 2
-                if mid not in (ka, kb):
-                    result.add(mid % n)
+            if best is None:
+                return
+            # a span this long only earns a backstop knot if it's ALSO
+            # measurably not straight -- using the same tolerance RDP itself
+            # uses to decide "is this deviation big enough to matter" (see
+            # _build_curve). A perfectly (or nearly) straight run has nothing
+            # to gain from extra resolution no matter how long it runs, since
+            # a single cubic segment already represents a straight line
+            # exactly; without this check, any cornerless straight strip
+            # longer than one span would always get split purely because its
+            # one segment trivially covers 100% of its own stroke length.
+            p0, p1 = Vector(cos[ka % n]), Vector(cos[kb % n])
+            seg = p1 - p0
+            seg_len2 = seg.length_squared
+            p = Vector(cos[best % n])
+            if seg_len2 < 1e-12:
+                dev = (p - p0).length
+            else:
+                t = max(0.0, min(1.0, (p - p0).dot(seg) / seg_len2))
+                dev = (p - (p0 + t * seg)).length
+            if dev < tol:
                 return
             result.add(best % n)
-            self._split_long_span(cos, ka, best, n, max_span, result)
-            self._split_long_span(cos, best, kb, n, max_span, result)
+            self._split_long_span(cos, ka, best, n, max_span, tol, result)
+            self._split_long_span(cos, best, kb, n, max_span, tol, result)
 
         def _build_handles(self, spline, cyclic, smooth_junctions):
             cbs = spline.cbs
@@ -742,6 +847,8 @@ def create_loopstrip_curve_overlay(
             if not context.edit_object:
                 return
             if not self.update_data(context):
+                # also covers a native transform being mid-drag -- see
+                # update_data's own check
                 return
             rgn, r3d = context.region, context.region_data
             if not r3d:
@@ -767,7 +874,7 @@ def create_loopstrip_curve_overlay(
                     curve_pts = [p for p in curve_pts if p]
                     draw_curve_line = False
                     if draw_curve_line and len(curve_pts) >= 2:
-                        Drawing.draw2D_linestrip(context, curve_pts, (1.0, 1.0, 0.0, 0.5), width=2, stipple=[5,5])
+                        Drawing.draw2D_linestrip(context, curve_pts, CURVE_LINE_COLOR, width=2, stipple=[5,5])
                     # control polygon: draws the two tangent arms (p0-p1 and p2-p3),
                     # shortened at each end so the line stops at the handle dot's
                     # edge instead of running into its (partially transparent) center
@@ -775,7 +882,7 @@ def create_loopstrip_curve_overlay(
                     knot_r, tan_r = Drawing.scale(KNOT_RADIUS/2), Drawing.scale(TANGENT_RADIUS/2)
                     a0, a1 = shrink_segment(p0_, p1_, knot_r, tan_r)
                     a2, a3 = shrink_segment(p2_, p3_, tan_r, knot_r)
-                    Drawing.draw2D_lines(context, [a0, a1, a2, a3], (1.0, 1.0, 1.0, 0.5), width=2)
+                    Drawing.draw2D_lines(context, [a0, a1, a2, a3], CONTROL_POLYGON_COLOR, width=2)
 
                 knot_pts2d, free_knot_pts2d, tan_pts2d = [], [], []
                 for h in chain['handles']:
@@ -790,10 +897,10 @@ def create_loopstrip_curve_overlay(
                     else:
                         knot_pts2d.append(p)
                 if tan_pts2d:
-                    Drawing.draw2D_points(context, tan_pts2d, (0.0, 0.0, 0.0, 0.75), radius=TANGENT_RADIUS, border=2, borderColor=(1,1,1,0.5))
+                    Drawing.draw2D_points(context, tan_pts2d, TANGENT_FILL_COLOR, radius=TANGENT_RADIUS, border=2, borderColor=TANGENT_BORDER_COLOR)
                 if knot_pts2d:
-                    Drawing.draw2D_points(context, knot_pts2d, (1.0, 1.0, 1.0, 1.0), radius=KNOT_RADIUS, border=2, borderColor=(0,0,0,0.5))
+                    Drawing.draw2D_points(context, knot_pts2d, KNOT_FILL_COLOR, radius=KNOT_RADIUS, border=2, borderColor=KNOT_BORDER_COLOR)
                 if free_knot_pts2d:
-                    Drawing.draw2D_points(context, free_knot_pts2d, (1.0, 1.0, 1.0, 1.0), radius=KNOT_RADIUS, border=2, borderColor=FREE_KNOT_BORDER_COLOR)
+                    Drawing.draw2D_points(context, free_knot_pts2d, FREE_KNOT_FILL_COLOR, radius=KNOT_RADIUS, border=2, borderColor=KNOT_BORDER_COLOR)
 
     return type(opname, (RFOperator_LoopStrip_Curve_Overlay, RFOperator), {})

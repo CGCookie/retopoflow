@@ -104,17 +104,21 @@ def find_sharpest_index(points, *, sharp_radius_percent=0.10):
     sharps.sort(key=lambda s: s[1])
     return sharps[0][0]
 
-def rdp_corner_indices(points, tolerance, *, seed_indices=(), min_spacing=0.0):
+def rdp_corner_indices(points, tolerance, *, seed_indices=(), min_spacing=0.0, force_endpoints=True):
     ''' Iterative Ramer-Douglas-Peucker corner finder.  Returns the sorted indices of
     points whose perpendicular distance from the chord spanning their enclosing segment exceeds `tolerance`.
-    The endpoints (0 and len-1) and any `seed_indices` are always included. '''
+    Any `seed_indices` are always included. The endpoints (0 and len-1) are too, by default
+    (force_endpoints=True) -- pass False for a cyclic/closed input, where index 0 and len-1 are
+    just an arbitrary seam in the array representation (wherever the walk happened to start),
+    not a meaningful geometric corner; forcing them there would add a corner with no shape-based
+    justification, wherever that seam happens to land. '''
     l = len(points)
     if l < 3:
         forced = set(seed_indices)
-        if l >= 1: forced |= {0, l - 1}
+        if force_endpoints and l >= 1: forced |= {0, l - 1}
         return sorted(i for i in forced if 0 <= i < l)
 
-    forced = set(seed_indices) | {0, l - 1}
+    forced = set(seed_indices) | ({0, l - 1} if force_endpoints else set())
     stack = [(0, l - 1)]
     while stack:
         i0, i1 = stack.pop()
