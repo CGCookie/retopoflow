@@ -44,6 +44,46 @@ def interpolate_cubic(v0, v1, v2, v3, t):
     return v0*b0 + v1*b1 + v2*b2 + v3*b3
 
 
+def fit_tangent_lengths(pts, us, t1, t2, fallback):
+    '''
+    Given a run of points `pts` (p0 = pts[0], p3 = pts[-1]) sampled at chord-length
+    parameters `us` in [0, 1], and fixed unit tangent directions `t1` (leaving p0)
+    and `t2` (leaving p3, pointing back into the curve), solves the 2x2
+    least-squares system for the scalar handle lengths alpha1, alpha2 such that
+        p1 = p0 + alpha1 * t1
+        p2 = p3 + alpha2 * t2
+    best fits `pts` -- i.e. each handle is scaled independently to match how the
+    points actually behave on its side, rather than both sides sharing one
+    uniform third-of-the-run length.
+
+    Reference: Schneider, "An Algorithm for Fitting Digitized Curves",
+    Graphics Gems I -- the tangent directions are fixed (already known to be
+    locally correct), only their lengths are solved for.
+
+    Falls back to `fallback` for both lengths if the run is degenerate (too few
+    points, or the fit yields a non-positive length).
+    '''
+    p0, p3 = pts[0], pts[-1]
+    c00 = c01 = c11 = x0 = x1 = 0.0
+    for pt, u in zip(pts, us):
+        b0, b1, b2, b3 = compute_cubic_weights(u)
+        q = (b0 + b1) * p0 + (b2 + b3) * p3
+        r = pt - q
+        c00 += b1 * b1
+        c01 += b1 * b2 * t1.dot(t2)
+        c11 += b2 * b2
+        x0  += b1 * t1.dot(r)
+        x1  += b2 * t2.dot(r)
+    det = c00 * c11 - c01 * c01
+    if abs(det) < 1e-9:
+        return fallback, fallback
+    alpha1 = (x0 * c11 - x1 * c01) / det
+    alpha2 = (c00 * x1 - c01 * x0) / det
+    if alpha1 < 1e-9 or alpha2 < 1e-9:
+        return fallback, fallback
+    return alpha1, alpha2
+
+
 def compute_cubic_error(v0, v1, v2, v3, l_v, l_t):
     return math.sqrt(sum(
         (interpolate_cubic(v0, v1, v2, v3, t) - v)**2
@@ -396,6 +436,65 @@ class CubicBezier:
             p = q
         return 1
 
+    def approximate_arc_length_fraction_at_t(
+        self,
+        t : float,
+        fn_dist : Callable[[Vector, Vector], float],
+        split : int | None = None,
+    ) -> float:
+        '''
+        Returns the fraction (0 to 1) of this curve's total arc length that lies
+        between p0 and eval(t). Inverse of approximate_t_at_arc_length_fraction --
+        used to capture a point's proportional position along the curve so it can
+        be preserved (instead of its raw parameter t, which isn't proportional to
+        arc length) as the curve's shape changes under editing.
+        '''
+        samples = self.get_tessellate_uniform(fn_dist, split=split)
+        total = sum(d for _, _, d in samples)
+        if total < 1e-9:
+            return 0.0
+        cum = 0.0
+        prev_t = 0.0
+        for s, _, d in samples:
+            if s >= t:
+                local = 0.0 if s == prev_t else (t - prev_t) / (s - prev_t)
+                return (cum + d * local) / total
+            cum += d
+            prev_t = s
+        return 1.0
+
+    def approximate_t_at_arc_length_fraction(
+        self,
+        fraction : float,
+        fn_dist : Callable[[Vector, Vector], float],
+        split : int | None = None,
+    ) -> float:
+        '''
+        Returns the t whose arc length from p0 is `fraction` of the curve's
+        total arc length. Inverse of approximate_arc_length_fraction_at_t.
+
+        Interpolates within the bracketing tessellation samples rather than
+        snapping to the nearest one (as approximate_t_at_interval_uniform does)
+        -- needed because this is called every frame while a segment's shape is
+        changing continuously under editing; snapping to one of only `split`
+        discrete t values would make the result visibly pop between those steps
+        instead of sliding smoothly.
+        '''
+        samples = self.get_tessellate_uniform(fn_dist, split=split)
+        total = sum(d for _, _, d in samples)
+        if total < 1e-9:
+            return 0.0
+        target = fraction * total
+        cum = 0.0
+        prev_t = 0.0
+        for s, _, d in samples:
+            if cum + d >= target:
+                local = 0.0 if d < 1e-9 else (target - cum) / d
+                return prev_t + (s - prev_t) * local
+            cum += d
+            prev_t = s
+        return 1.0
+
     def approximate_ts_at_intervals_uniform(
         self,
         intervals : list[float],  # should be int?
@@ -539,11 +638,26 @@ class CubicBezierSpline:
         return spline
 
     @staticmethod
-    def create_catmull_rom(pts, knot_indices, *, cyclic=False, corner_indices=()):
-        '''Build a multi-segment Bézier through pts using Catmull-Rom tangents.'''
+    def create_catmull_rom(pts, knot_indices, *, cyclic=False, corner_indices=(), locked_cbs=None):
+        '''
+        Build a multi-segment Bézier through pts: first a fast Catmull-Rom
+        tangent fit for every segment as a starting guess, then refine_handles
+        directly searches for the length and rotation that actually fit each
+        segment's own points best (see its docstring).
+
+        `locked_cbs`, if given, maps a segment index to a CubicBezier to reuse
+        for that segment instead of fitting it fresh -- for a caller that's
+        already established (by some outside measure) that a previous fit is
+        still a good match for that segment's current points, so redoing the
+        work would just spend time to land back on the same answer. The
+        segment's endpoints are still snapped to pts (a coupled knot's vert
+        may have nudged slightly), translating its handles along with them;
+        refine_handles then leaves it untouched entirely.
+        '''
         n = len(pts)
         if n < 2:
             return CubicBezierSpline(cbs=[], inds=[])
+        locked_cbs = locked_cbs or {}
 
         knots = sorted({ i for i in knot_indices if 0 <= i < n })
         corners = { i % n for i in corner_indices }
@@ -570,32 +684,353 @@ class CubicBezierSpline:
                 d = Vector(pts[nk]) - Vector(pts[pk])
             return d.normalized() if d.length > 1e-9 else Vector((0, 0, 1))
 
-        cbs, inds = [], []
+        def is_free_knot(k):
+            ''' Smooth, non-endpoint knots are "free": not meant to sit on any particular pts[k]. '''
+            if k in corners:
+                return False
+            return cyclic or (k != 0 and k != n - 1)
+
+        cbs, inds, runs = [], [], []
 
         knot_pairs = list(zip(knots[:-1], knots[1:]))
         if cyclic and knots:
             knot_pairs.append((knots[-1], knots[0]))
+        nseg = len(knot_pairs)
+        aligned_junction = [(kb % n) not in corners for _, kb in knot_pairs]
 
-        for ka, kb in knot_pairs:
-            p0 = Vector(pts[ka])
-            p3 = Vector(pts[kb])
+        # a locked segment whose handle is aligned-paired with an unlocked
+        # neighbor's is about to be re-searched by refine_handles anyway (see
+        # its docstring) -- starting that handle from the fresh fast-fit guess
+        # a fully-unlocked segment gets, instead of the cached value, gives
+        # that search a starting point that actually matches the neighbor's
+        # current shape rather than whatever shape it was cached against.
+        boundary_p1, boundary_p2 = set(), set()
+        wrap_ok = cyclic and nseg >= 2
+        junction_range = range(nseg) if wrap_ok else range(max(0, nseg - 1))
+        for i in junction_range:
+            j = (i + 1) % nseg
+            if aligned_junction[i] and (i in locked_cbs) != (j in locked_cbs):
+                boundary_p2.add(i)
+                boundary_p1.add(j)
 
-            if ka < kb:
-                L = sum((Vector(pts[i + 1]) - Vector(pts[i])).length for i in range(ka, kb))
+        for seg_i, (ka, kb) in enumerate(knot_pairs):
+            if kb <= ka:
+                kb += n  # cyclic wrap-around: walk forward through the seam
+
+            # gather the run's points (in extended, possibly-wrapped index space),
+            # used both by the fast baseline fit and by refine_handles afterward
+            run = [Vector(pts[i % n]) for i in range(ka, kb + 1)]
+            p0, p3 = run[0], run[-1]
+
+            locked = locked_cbs.get(seg_i)
+            if locked is not None:
+                # a coupled knot's vert may have nudged slightly -- snap p0/p3
+                # to it and carry the tangent handle along by the same delta.
+                # A free knot was never tied to pts[k] in the first place (the
+                # whole point of it being free), so its side keeps the locked
+                # position exactly as given instead of snapping to whichever
+                # vert happens to be at that index now.
+                if is_free_knot(ka % n):
+                    p0 = Vector(locked.p0)
+                if is_free_knot(kb % n):
+                    p3 = Vector(locked.p3)
+                d0, d3 = p0 - Vector(locked.p0), p3 - Vector(locked.p3)
+                p1, p2 = Vector(locked.p1) + d0, Vector(locked.p2) + d3
+                if seg_i in boundary_p1 or seg_i in boundary_p2:
+                    t1 = tangent_out(ka % n)
+                    t2 = -tangent_in(kb % n)
+                    fresh_p1, fresh_p2 = CubicBezierSpline.fit_segment_fast(run, p0, p3, t1, t2)
+                    if seg_i in boundary_p1:
+                        p1 = fresh_p1
+                    if seg_i in boundary_p2:
+                        p2 = fresh_p2
+                cbs.append(CubicBezier(p0, p1, p2, p3))
             else:
-                # cyclic wrap-around: ka → n-1 → 0 → kb
-                L  = sum((Vector(pts[i + 1]) - Vector(pts[i])).length for i in range(ka, n - 1))
-                L += (Vector(pts[0]) - Vector(pts[n - 1])).length
-                L += sum((Vector(pts[i + 1]) - Vector(pts[i])).length for i in range(0, kb))
-            L = max(L, 1e-9)
-
-            p1 = p0 + tangent_out(ka) * (L / 3)
-            p2 = p3 - tangent_in(kb)  * (L / 3)
-
-            cbs.append(CubicBezier(p0, p1, p2, p3))
+                t1 = tangent_out(ka % n)
+                t2 = -tangent_in(kb % n)
+                p1, p2 = CubicBezierSpline.fit_segment_fast(run, p0, p3, t1, t2)
+                cbs.append(CubicBezier(p0, p1, p2, p3))
             inds.append((ka, kb))
+            runs.append(run)
+
+        CubicBezierSpline.refine_handles(cbs, runs, aligned_junction, cyclic, locked_segs=set(locked_cbs.keys()))
 
         return CubicBezierSpline(cbs=cbs, inds=inds)
+
+    @staticmethod
+    def fit_segment_fast(run, p0, p3, t1, t2):
+        '''
+        Fits the two interior control points (p1, p2) for a single knot-to-knot
+        segment along the *fixed* Catmull-Rom directions `t1` (leaving p0) and
+        `t2` (leaving p3, pointing back into the curve) -- solving only for
+        each handle's length (see fit_tangent_lengths), not its direction.
+
+        This is the cheap starting guess create_catmull_rom hands to
+        refine_handles, and is also used directly (with no refinement) for the
+        live per-frame handle preview while dragging a knot -- see
+        RFOperator_Strokes_CurveEdit, where refining every frame would be too
+        slow for something that's discarded and rebuilt properly once the drag
+        ends anyway.
+        '''
+        seglens = [0.0] + [(b - a).length for a, b in zip(run[:-1], run[1:])]
+        L = max(sum(seglens), 1e-9)
+        us, cum = [], 0.0
+        for d in seglens:
+            cum += d
+            us.append(cum / L)
+        alpha1, alpha2 = fit_tangent_lengths(run, us, t1, t2, fallback=L / 3)
+        return p0 + t1 * alpha1, p3 + t2 * alpha2
+
+    @staticmethod
+    def hot_cold_search(evaluate, *, num_tests=10, initial_step=1.0, initial_t=0.0):
+        '''
+        Minimizes a 1D function via "hot and cold" pattern search: starts at
+        `initial_t` (0.0, the current/unmodified value, unless the caller has
+        reason to start somewhere else -- e.g. the result of a coarser scan)
+        and tries a step in one direction, accelerating in that direction
+        while it keeps improving ("hot"), or reversing direction and shrinking
+        the step when it doesn't ("cold"). Runs for exactly `num_tests` calls
+        to `evaluate(t)` and returns whichever `t` scored lowest across all of
+        them -- not just the last one tried, since a step can overshoot past
+        the best point on its way to discovering that stepping further is
+        worse.
+        '''
+        best_t, best_score = initial_t, evaluate(initial_t)
+        cur_t, cur_score = best_t, best_score
+        step = initial_step
+        direction = 1.0
+        for _ in range(num_tests - 1):
+            t = cur_t + direction * step
+            score = evaluate(t)
+            if score < best_score:
+                best_score, best_t = score, t
+            if score < cur_score:
+                cur_t, cur_score = t, score
+                step *= 1.5
+            else:
+                direction = -direction
+                step *= 0.5
+        return best_t
+
+    @staticmethod
+    def total_distance(cb, run):
+        ''' Sum of distances from every interior point of `run` to its closest position on `cb`. '''
+        if len(run) <= 2:
+            return 0.0
+        fn_dist = lambda a, b: (a - b).length
+        cb.tessellate_uniform(fn_dist=fn_dist)
+        return sum(
+            fn_dist(cb.eval(cb.approximate_t_at_point_tessellation(pt)), pt)
+            for pt in run[1:-1]
+        )
+
+    @staticmethod
+    def refine_handles(cbs, runs, aligned, cyclic, *, rounds=3, locked_segs=frozenset()):
+        '''
+        Improves on cbs' initial (fast Catmull-Rom) handles in place by
+        directly searching for the length and direction that best fit each
+        segment's own points, alternating:
+          - scale: every handle's length, always independently -- G1
+            continuity only requires the two handles at a shared knot to point
+            in the same direction, not have the same length
+          - rotate: every handle's direction -- *together*, as a single shared
+            direction, for the two handles flanking a knot marked `aligned`;
+            independently for everything else (corners, and the ends of an
+            open strip)
+        for `rounds` passes. Each handle (or aligned pair) is optimized with
+        hot_cold_search: 10 candidate values tested, keeping whichever gives
+        the lowest total_distance for the vert(s) that specific handle (or
+        pair) actually affects.
+
+        This replaces trying many arbitrary starting guesses and hoping one
+        lands somewhere good: every test is judged by the same fit-to-the-
+        actual-points criterion, so the search always moves toward a better
+        fit instead of occasionally landing on a worse one that then needs a
+        separate pass to detect and undo.
+
+        A segment index in `locked_segs` is a caller-established good fit
+        already -- skip its handles entirely in the scale pass, and skip the
+        rotate pass too for any aligned-pair group where *both* sides are
+        locked (nothing there is free to move regardless). A group with only
+        one side locked still runs the normal joint search -- forcing the
+        unlocked side to match the locked side's exact current direction
+        would also satisfy G1 alignment, but can settle on a worse fit for
+        the unlocked side than letting both sides move to find it together.
+        '''
+        nseg = len(cbs)
+        if nseg == 0:
+            return
+
+        def arbitrary_perpendicular(v):
+            ref = Vector((1, 0, 0)) if abs(v.x) < 0.9 else Vector((0, 1, 0))
+            return v.cross(ref)
+
+        def rotation_axis(direction, reference):
+            axis = reference.cross(direction)
+            if axis.length < 1e-9:
+                axis = arbitrary_perpendicular(direction)
+            return axis.normalized()
+
+        wrap_ok = cyclic and nseg >= 2
+        junction_range = range(nseg) if wrap_ok else range(max(0, nseg - 1))
+
+        # A handle is frozen (skipped by both scale and rotate) only if its own
+        # segment is locked AND it isn't paired at an aligned junction with an
+        # unlocked segment. An unpaired locked handle (a corner or an open
+        # strip's end) has no neighbor to accommodate, so it stays frozen. One
+        # that IS paired with an unlocked neighbor needs to stay eligible for
+        # both -- pinning its length while only its direction can move is its
+        # own source of forcing a worse joint fit, the same issue as pinning
+        # direction outright.
+        frozen_handles = set()
+        for seg_i in locked_segs:
+            frozen_handles.add((seg_i, 'p1'))
+            frozen_handles.add((seg_i, 'p2'))
+        # handles right at a locked/unlocked boundary start the search from
+        # whatever the locked side happened to have cached, not the fresh
+        # Catmull-Rom guess a fully-unlocked handle gets -- give them a wider
+        # search so a possibly-stale starting point doesn't strand them in a
+        # worse local optimum than a from-scratch fit would have found. These
+        # are few (at most two per contiguous locked run), so searching them
+        # harder doesn't meaningfully undercut the savings from skipping the
+        # rest of a locked region entirely.
+        boundary_handles = set()
+        for i in junction_range:
+            j = (i + 1) % nseg
+            if aligned[i] and (i in locked_segs) != (j in locked_segs):
+                frozen_handles.discard((i, 'p2'))
+                frozen_handles.discard((j, 'p1'))
+                boundary_handles.add((i, 'p2'))
+                boundary_handles.add((j, 'p1'))
+
+        for _ in range(rounds):
+            # --- scale: every handle, always independent ---
+            for seg_i, (cb, run) in enumerate(zip(cbs, runs)):
+                for attr, anchor_attr in (('p1', 'p0'), ('p2', 'p3')):
+                    if (seg_i, attr) in frozen_handles:
+                        continue
+                    anchor = Vector(getattr(cb, anchor_attr))
+                    vec = Vector(getattr(cb, attr)) - anchor
+                    length = vec.length
+                    if length < 1e-9:
+                        continue
+                    direction = vec / length
+
+                    def evaluate(t, cb=cb, attr=attr, anchor=anchor, direction=direction, length=length, run=run):
+                        mult = max(0.05, 1.0 + t)
+                        setattr(cb, attr, anchor + direction * (length * mult))
+                        return CubicBezierSpline.total_distance(cb, run)
+
+                    at_boundary = (seg_i, attr) in boundary_handles
+                    initial_t = 0.0
+                    if at_boundary:
+                        # same reasoning as the rotate pass's coarse scan: this
+                        # handle's cached length was tuned for a shape its
+                        # neighbor no longer has, so try a spread of multipliers
+                        # first instead of only ever nudging from 1x
+                        initial_t, coarse_best_score = 0.0, evaluate(0.0)
+                        for mult in (0.2, 0.5, 1.5, 2.0, 3.0, 5.0):
+                            t = mult - 1.0
+                            score = evaluate(t)
+                            if score < coarse_best_score:
+                                coarse_best_score, initial_t = score, t
+
+                    best_t = CubicBezierSpline.hot_cold_search(
+                        evaluate, num_tests=25 if at_boundary else 10,
+                        initial_step=0.4, initial_t=initial_t,
+                    )
+                    evaluate(best_t)
+
+            # --- rotate: grouped for aligned junctions, independent otherwise ---
+            groups = []  # each: ([(cb, attr, anchor_attr, run), ...], (seg_i, ...))
+            paired = [[False, False] for _ in range(nseg)]  # [i][0]=p1 used, [i][1]=p2 used
+            for i in junction_range:
+                j = (i + 1) % nseg
+                if aligned[i]:
+                    groups.append(([(cbs[i], 'p2', 'p3', runs[i]), (cbs[j], 'p1', 'p0', runs[j])], (i, j)))
+                    paired[i][1] = paired[j][0] = True
+            for i in range(nseg):
+                if not paired[i][0]:
+                    groups.append(([(cbs[i], 'p1', 'p0', runs[i])], (i,)))
+                if not paired[i][1]:
+                    groups.append(([(cbs[i], 'p2', 'p3', runs[i])], (i,)))
+
+            for group, seg_indices in groups:
+                # only skip a group that's *entirely* locked -- nothing there
+                # can move regardless. A group with a mix of locked and
+                # unlocked arms runs the same search as a fully-unlocked one:
+                # forcing the unlocked side to match the locked side's exact
+                # current direction would satisfy G1 alignment too, but with
+                # no room for the locked side to also give a little, that can
+                # settle on a worse fit for the unlocked side than a real
+                # joint search would -- and the locked side's own fit was only
+                # ever established as *good enough* (within tolerance), not
+                # perfect, so there was never a hard requirement to hold it at
+                # exactly its current value in the first place.
+                locked_flags = [seg_i in locked_segs for seg_i in seg_indices]
+                if all(locked_flags):
+                    continue
+                is_boundary = any(locked_flags)
+
+                arms = []
+                for cb, attr, anchor_attr, run in group:
+                    anchor = Vector(getattr(cb, anchor_attr))
+                    vec = Vector(getattr(cb, attr)) - anchor
+                    length = vec.length
+                    if length < 1e-9:
+                        arms = []
+                        break
+                    # p1 points away from its knot in the curve's direction of
+                    # travel; p2 points backward against it -- so at a shared
+                    # knot the two handles' raw vectors are supposed to be
+                    # opposite, not equal. `sign` converts each into a common
+                    # "direction of travel" so they can be averaged/rotated as
+                    # one, and converts back when writing the result below.
+                    sign = 1.0 if attr == 'p1' else -1.0
+                    arms.append((cb, attr, anchor, vec / length, length, run, sign))
+                if not arms:
+                    continue
+
+                shared = Vector((0.0, 0.0, 0.0))
+                for _cb, _attr, _anchor, direction, _length, _run, sign in arms:
+                    shared += direction * sign
+                if shared.length < 1e-9:
+                    continue
+                shared.normalize()
+
+                chord = Vector(arms[0][0].p3) - Vector(arms[0][0].p0)
+                axis = rotation_axis(shared, chord)
+
+                def evaluate(t, arms=arms, axis=axis, shared=shared):
+                    rot = Matrix.Rotation(t, 3, axis)
+                    new_travel_dir = (rot @ shared).normalized()
+                    total = 0.0
+                    for cb, attr, anchor, _direction, length, run, sign in arms:
+                        setattr(cb, attr, anchor + new_travel_dir * (sign * length))
+                        total += CubicBezierSpline.total_distance(cb, run)
+                    return total
+
+                initial_t = 0.0
+                if is_boundary:
+                    # hot_cold_search is a greedy local search: starting at the
+                    # locked side's cached direction, it can get stuck without
+                    # ever finding a much-better direction on "the other side"
+                    # of a worse one in between. A coarse scan around the full
+                    # circle first finds roughly the right neighborhood for the
+                    # normal search to then refine from -- affordable here
+                    # since boundary groups are few.
+                    initial_t, coarse_best_score = 0.0, evaluate(0.0)
+                    for k in range(1, 12):
+                        t = k * (2 * math.pi / 12)
+                        score = evaluate(t)
+                        if score < coarse_best_score:
+                            coarse_best_score, initial_t = score, t
+
+                best_t = CubicBezierSpline.hot_cold_search(
+                    evaluate, num_tests=25 if is_boundary else 10,
+                    initial_step=math.radians(20), initial_t=initial_t,
+                )
+                evaluate(best_t)
 
     def __init__(self, cbs=None, inds=None):
         if cbs is None:

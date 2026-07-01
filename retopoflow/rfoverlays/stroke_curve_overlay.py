@@ -47,18 +47,53 @@ from ..common.bmesh_maths import get_strip_bmvs, rdp_corner_indices
 from ..common.drawing import Drawing
 from ..common.raycast import is_point_hidden, mouse_from_event
 from ...addon_common.common import bmesh_ops as bmops
-from ...addon_common.common.bezier import CubicBezierSpline
+from ...addon_common.common.bezier import CubicBezier, CubicBezierSpline
 from ...addon_common.common.blender_cursors import Cursors
 
 
 # how many verts a single cubic segment may span before an auto-knot is inserted
-AUTO_KNOT_MAX_SPAN = 20
+AUTO_KNOT_MAX_SPAN = 100
 # corner tolerance and min corner spacing as fractions of the average selected edge length
 CORNER_TOLERANCE_FACTOR = 1.0
-CORNER_MIN_SPACING_FACTOR = 0.5
+CORNER_MIN_SPACING_FACTOR = 2.5
 # minimum deflection angle (between incoming and outgoing edges) for a vert to get
 # independent (vector) tangent handles; below this it gets G1-aligned handles
-SHARP_CORNER_ANGLE = math.radians(45)
+SHARP_CORNER_ANGLE = math.radians(60)
+# on-screen radii (pre Drawing.scale) of the knot/tangent handle dots, also used
+# to shorten the control-polygon arm lines so they stop at each dot's edge
+# instead of running into its (partially transparent) center
+KNOT_RADIUS = 14
+TANGENT_RADIUS = 12
+# border tint for a knot whose position is NOT coupled to any vertex (see
+# _build_handles) -- everything else uses the default black-ish border
+FREE_KNOT_BORDER_COLOR = (1.0, 0.65, 0.0, 0.9)
+# once a chain's knot placement (corners/auto-knots) is derived, it's cached and
+# reused -- recomputing positions/handle lengths from current verts every time,
+# but NOT re-running corner-detection -- so edits don't cause the control points
+# themselves to jump to different verts. Only a single-vert displacement beyond
+# this many average edge lengths (since the structure was last derived) forces a
+# full structural rebuild.
+REBUILD_DEVIATION_FACTOR = 4.0
+# a segment is left untouched by a refit -- instead of being refit fresh -- if
+# its interior verts already average less deviation from its existing curve
+# than this fraction of the average edge length (see _well_fit_segments).
+SEGMENT_KEEP_FIT_TOLERANCE = 0.15
+
+
+def shrink_segment(p_from, p_to, shrink_from, shrink_to):
+    ''' Pulls both ends of a 2D screen-space segment in along its own direction
+    by `shrink_from`/`shrink_to` pixels, so a line into a handle dot stops at the
+    dot's edge instead of its center. '''
+    if p_from is None or p_to is None:
+        return p_from, p_to
+    d = p_to - p_from
+    length = d.length
+    if length < 1e-6:
+        return p_from, p_to
+    d = d / length
+    sf = min(shrink_from, length / 2)
+    st = min(shrink_to, length / 2)
+    return p_from + d * sf, p_to - d * st
 
 
 def get_label_pos(context : Context, lbl : str, cos : Sequence[Vector]) -> Vector | None:
@@ -135,6 +170,7 @@ def create_loopstrip_curve_overlay(
             self.curves = []
             self.chains = []
             self.label_data = []
+            self._curve_struct_cache = {}  # bmv_indices tuple -> {'knots','corner_set','cos'}
 
         def init(self, _context : Context, _event : Event):
             cls = type(self)
@@ -217,10 +253,16 @@ def create_loopstrip_curve_overlay(
 
             avg_len = sum(bme_length(bme) for bme in sel_bmes) / len(sel_bmes)
 
+            active_keys = set()
             for strip in strips:
-                self._add_chain(self._strip_bmvs(strip, cyclic=False), cyclic=False, avg_len=avg_len)
+                self._add_chain(self._strip_bmvs(strip, cyclic=False), cyclic=False, avg_len=avg_len, active_keys=active_keys)
             for cycle in cycles:
-                self._add_chain(self._strip_bmvs(cycle, cyclic=True), cyclic=True, avg_len=avg_len)
+                self._add_chain(self._strip_bmvs(cycle, cyclic=True), cyclic=True, avg_len=avg_len, active_keys=active_keys)
+
+            # drop cached structure for chains that are no longer selected
+            self._curve_struct_cache = {
+                k: v for k, v in self._curve_struct_cache.items() if k in active_keys
+            }
 
             return True
 
@@ -240,7 +282,7 @@ def create_loopstrip_curve_overlay(
             start = bme_unshared_bmv(strip[0], strip[1])
             return get_strip_bmvs(strip, start)
 
-        def _add_chain(self, bmvs, *, cyclic, avg_len):
+        def _add_chain(self, bmvs, *, cyclic, avg_len, active_keys):
             if not bmvs:
                 return
             cos = [bmv.co.copy() for bmv in bmvs]
@@ -252,7 +294,9 @@ def create_loopstrip_curve_overlay(
             if len(bmvs) < 5:
                 return  # need 5+ verts in a row to build a curve
 
-            spline, handles = self._build_curve(cos, cyclic=cyclic, avg_len=avg_len)
+            cache_key = tuple(bmv.index for bmv in bmvs)
+            active_keys.add(cache_key)
+            spline, handles = self._build_curve(cos, cyclic=cyclic, avg_len=avg_len, cache_key=cache_key)
             if spline is None or not spline.cbs:
                 return
 
@@ -263,42 +307,90 @@ def create_loopstrip_curve_overlay(
                 'handles': handles,
             })
 
-        def _build_curve(self, cos, *, cyclic, avg_len):
+        def _build_curve(self, cos, *, cyclic, avg_len, cache_key):
             n = len(cos)
-            tol = max(avg_len * CORNER_TOLERANCE_FACTOR, 1e-6)
-            seed = [] if cyclic else [0, n - 1]
-            corners = rdp_corner_indices(
-                cos, tol,
-                seed_indices=seed,
-                min_spacing=avg_len * CORNER_MIN_SPACING_FACTOR,
+
+            cached = self._curve_struct_cache.get(cache_key)
+            knots = corner_set = None
+            max_dev = None
+            if cached and len(cached['cos']) == n:
+                max_dev = max((a - b).length for a, b in zip(cos, cached['cos']))
+                if max_dev <= avg_len * REBUILD_DEVIATION_FACTOR:
+                    knots, corner_set = cached['knots'], cached['corner_set']
+
+            # nothing (detectably) moved since the last build -- reuse that
+            # build's spline and handles outright rather than refitting, so a
+            # redraw with no edits at all (e.g. just switching tools) can't
+            # replace a good fit with a different one for the exact same points.
+            if knots is not None and max_dev is not None and max_dev <= avg_len * 1e-6:
+                return cached['spline'], cached['handles']
+
+            fresh_derive = knots is None
+            if fresh_derive:
+                tol = max(avg_len * CORNER_TOLERANCE_FACTOR, 1e-6)
+                seed = [] if cyclic else [0, n - 1]
+                corners = rdp_corner_indices(
+                    cos, tol,
+                    seed_indices=seed,
+                    min_spacing=avg_len * CORNER_MIN_SPACING_FACTOR,
+                )
+
+                # RDP picks each corner by max deviation from a chord that may span far
+                # beyond its local bend, so the pick can land beside the true apex. Snap
+                # each (non-endpoint) corner to the point of max deviation from the chord
+                # between its own immediate neighbors -- the true local extremum.
+                locked = set() if cyclic else {0, n - 1}
+                corners = self._snap_to_local_extrema(cos, corners, n, cyclic, locked)
+
+                # Only verts with a geometrically sharp deflection angle get vector
+                # (independent) handles. RDP knots at smooth verts still get G1 handles.
+                corner_set = set()
+                for k in corners:
+                    if not cyclic and (k == 0 or k == n - 1):
+                        continue  # open-strip endpoints: no peer arm, angle is moot
+                    prev_k = (k - 1) % n if cyclic else k - 1
+                    next_k = (k + 1) % n if cyclic else k + 1
+                    v_in  = Vector(cos[k])      - Vector(cos[prev_k])
+                    v_out = Vector(cos[next_k]) - Vector(cos[k])
+                    if v_in.length < 1e-9 or v_out.length < 1e-9:
+                        continue
+                    cos_a = max(-1.0, min(1.0, v_in.normalized().dot(v_out.normalized())))
+                    if math.acos(cos_a) > SHARP_CORNER_ANGLE:
+                        corner_set.add(k)
+
+                knots = list(corners)
+                if cyclic and len(knots) < 2:
+                    # ensure enough knots around a smooth loop to capture its shape
+                    step = max(1, n // 4)
+                    knots = sorted(set(knots) | set(range(0, n, step)))
+
+                knots = self._insert_auto_knots(cos, knots, n, cyclic)
+
+            # the "nothing changed" shortcut above already absorbs every redraw
+            # where verts didn't actually move, so the only way to reach this
+            # line is a genuine structural rebuild OR a just-completed edit --
+            # both one-time events, not a per-frame cost, so refine_handles'
+            # direct search (see its docstring) is affordable here. But an
+            # edit usually only reshapes *part* of a multi-segment chain --
+            # segments whose own points already fit their existing curve well
+            # are handed to create_catmull_rom as locked, so it leaves them
+            # exactly as they are instead of spending that search to land back
+            # on essentially the same answer (and, for a segment flanking a
+            # free knot, so a manually-placed handle isn't quietly pulled back
+            # towards whatever a fresh Catmull-Rom guess would've picked).
+            locked_cbs = {}
+            if not fresh_derive and cached.get('spline'):
+                locked_cbs = self._well_fit_segments(cached['spline'], cos, avg_len, n, cyclic, corner_set)
+
+            spline = CubicBezierSpline.create_catmull_rom(
+                cos, knots, cyclic=cyclic, corner_indices=corner_set, locked_cbs=locked_cbs,
             )
-            # Only verts with a geometrically sharp deflection angle get vector
-            # (independent) handles. RDP knots at smooth verts still get G1 handles.
-            corner_set = set()
-            for k in corners:
-                if not cyclic and (k == 0 or k == n - 1):
-                    continue  # open-strip endpoints: no peer arm, angle is moot
-                prev_k = (k - 1) % n if cyclic else k - 1
-                next_k = (k + 1) % n if cyclic else k + 1
-                v_in  = Vector(cos[k])      - Vector(cos[prev_k])
-                v_out = Vector(cos[next_k]) - Vector(cos[k])
-                if v_in.length < 1e-9 or v_out.length < 1e-9:
-                    continue
-                cos_a = max(-1.0, min(1.0, v_in.normalized().dot(v_out.normalized())))
-                if math.acos(cos_a) > SHARP_CORNER_ANGLE:
-                    corner_set.add(k)
-
-            knots = list(corners)
-            if cyclic and len(knots) < 2:
-                # ensure enough knots around a smooth loop to capture its shape
-                step = max(1, n // 4)
-                knots = sorted(set(knots) | set(range(0, n, step)))
-
-            knots = self._insert_auto_knots(knots, n, cyclic)
-            spline = CubicBezierSpline.create_catmull_rom(cos, knots, cyclic=cyclic, corner_indices=corner_set)
 
             # Build smooth_junctions: set of segment indices i where the junction
-            # AFTER cbs[i] is smooth (not a corner) so G1 should be enforced on drag
+            # AFTER cbs[i] is smooth (not a corner) -- refine_handles always keeps
+            # such a junction's two tangent arms pointing the same direction (see
+            # its docstring), so dragging one should mirror the other to preserve
+            # that.
             nseg = len(spline.cbs)
             nknots = len(knots)
             smooth_junctions = set()
@@ -312,9 +404,115 @@ def create_loopstrip_curve_overlay(
                         smooth_junctions.add(i)
 
             handles = self._build_handles(spline, cyclic, smooth_junctions)
+
+            # cache the structure AND this build's fit/handles -- unconditionally,
+            # since a "cheap refit" pass (fresh_derive=False) still produces a new
+            # spline from the current cos that needs to become the new baseline
+            # for the next call's "did anything change" check above
+            self._curve_struct_cache[cache_key] = {
+                'knots': knots,
+                'corner_set': corner_set,
+                'cos': [Vector(co) for co in cos],
+                'spline': spline,
+                'handles': handles,
+            }
+
             return spline, handles
 
-        def _insert_auto_knots(self, knots, n, cyclic, max_span=AUTO_KNOT_MAX_SPAN):
+        def _well_fit_segments(self, cached_spline, cos, avg_len, n, cyclic, corner_set):
+            '''
+            Segments of `cached_spline` worth handing to create_catmull_rom as
+            locked: build the exact candidate create_catmull_rom would (a
+            coupled knot's side snapped to its current vert and its tangent
+            handle carried along by the same delta; a free knot's side left
+            exactly as cached, since it was never tied to any particular vert
+            -- see its is_free_knot), then check that candidate's own fit --
+            average deviation of its interior verts -- against
+            SEGMENT_KEEP_FIT_TOLERANCE. A coupled vert that moved far enough
+            to need more than a same-delta translation shows up here as a
+            worse fit, same as any other reason the curve stopped matching its
+            points, so there's no need for a separate raw distance check on
+            the endpoints themselves.
+
+            Checked per segment rather than once for the whole chain, so an
+            edit that only reshaped one part of a multi-segment chain doesn't
+            force a refit of the parts that never stopped fitting well.
+            '''
+            def is_free(k):
+                if k in corner_set:
+                    return False
+                return cyclic or (k != 0 and k != n - 1)
+
+            fit_tol = avg_len * SEGMENT_KEEP_FIT_TOLERANCE
+            locked = {}
+            for i, (cb, (ka, kb)) in enumerate(zip(cached_spline.cbs, cached_spline.inds)):
+                run = [Vector(cos[k % n]) for k in range(ka, kb + 1)]
+                p0 = Vector(cb.p0) if is_free(ka % n) else run[0]
+                p3 = Vector(cb.p3) if is_free(kb % n) else run[-1]
+                d0, d3 = p0 - Vector(cb.p0), p3 - Vector(cb.p3)
+                candidate = CubicBezier(p0, Vector(cb.p1) + d0, Vector(cb.p2) + d3, p3)
+                if len(run) > 2:
+                    avg_dev = CubicBezierSpline.total_distance(candidate, run) / (len(run) - 2)
+                    if avg_dev > fit_tol:
+                        continue
+                locked[i] = cb
+            return locked
+
+        def _max_dev_index(self, cos, ka, kb, n):
+            '''
+            Index in (ka, kb) -- an extended index range where kb may be >= n for a
+            cyclic wrap -- whose vert has max perpendicular distance from chord
+            cos[ka]-cos[kb]. This is the local "extremum" of that run. Returns None
+            if there's no interior point.
+            '''
+            if kb - ka < 2:
+                return None
+            p0, p1 = Vector(cos[ka % n]), Vector(cos[kb % n])
+            seg = p1 - p0
+            seg_len2 = seg.length_squared
+            best_k, best_d = None, -1.0
+            for kk in range(ka + 1, kb):
+                p = Vector(cos[kk % n])
+                if seg_len2 < 1e-12:
+                    d = (p - p0).length
+                else:
+                    t = max(0.0, min(1.0, (p - p0).dot(seg) / seg_len2))
+                    d = (p - (p0 + t * seg)).length
+                if d > best_d:
+                    best_d, best_k = d, kk
+            return best_k
+
+        def _snap_to_local_extrema(self, cos, knots, n, cyclic, locked, iterations=2):
+            knots = sorted(set(knots))
+            if len(knots) < 3:
+                return knots
+            for _ in range(iterations):
+                m = len(knots)
+                refined = list(knots)
+                changed = False
+                for idx in range(m):
+                    k = knots[idx]
+                    if k in locked:
+                        continue
+                    ka = knots[(idx - 1) % m]
+                    kb = knots[(idx + 1) % m]
+                    if idx == 0:
+                        ka -= n
+                    if idx == m - 1:
+                        kb += n
+                    best = self._max_dev_index(cos, ka, kb, n)
+                    if best is None:
+                        continue
+                    new_k = best % n
+                    if new_k != k:
+                        changed = True
+                    refined[idx] = new_k
+                knots = sorted(set(refined))
+                if not changed:
+                    break
+            return knots
+
+        def _insert_auto_knots(self, cos, knots, n, cyclic, max_span=AUTO_KNOT_MAX_SPAN):
             knots = sorted(set(knots))
             if not knots:
                 return knots
@@ -323,13 +521,24 @@ def create_loopstrip_curve_overlay(
             if cyclic:
                 pairs.append((knots[-1], knots[0] + n))  # closing run wraps past the end
             for ka, kb in pairs:
-                span = kb - ka
-                if span <= max_span:
-                    continue
-                ndiv = (span + max_span - 1) // max_span
-                for j in range(1, ndiv):
-                    result.add((ka + (span * j) // ndiv) % n)
+                self._split_long_span(cos, ka, kb, n, max_span, result)
             return sorted(result)
+
+        def _split_long_span(self, cos, ka, kb, n, max_span, result):
+            span = kb - ka
+            if span <= max_span:
+                return
+            # place the extra knot at the run's true local extremum, not just its
+            # midpoint by vert count, so long bends still get a knot at their apex
+            best = self._max_dev_index(cos, ka, kb, n)
+            if best is None or best in (ka, kb):
+                mid = ka + span // 2
+                if mid not in (ka, kb):
+                    result.add(mid % n)
+                return
+            result.add(best % n)
+            self._split_long_span(cos, ka, best, n, max_span, result)
+            self._split_long_span(cos, best, kb, n, max_span, result)
 
         def _build_handles(self, spline, cyclic, smooth_junctions):
             cbs = spline.cbs
@@ -338,17 +547,22 @@ def create_loopstrip_curve_overlay(
             if nseg == 0:
                 return handles
 
+            # a knot is vertex-coupled (dragging it moves a real vert, and that
+            # vert's position defines it) unless it's a smooth, non-endpoint
+            # junction -- those are "free": draggable to reshape the curve
+            # without pinning any vert to the exact handle position (see
+            # RFOperator_Strokes_CurveEdit.init)
             if cyclic:
                 for i in range(nseg):
                     j = (i - 1) % nseg
-                    handles.append({'kind':'knot', 'pos':(i,'p0'),
+                    handles.append({'kind':'knot', 'pos':(i,'p0'), 'free': j in smooth_junctions,
                                     'set':[(j,'p3'), (i,'p0')], 'move':[(j,'p2'), (i,'p1')]})
             else:
-                handles.append({'kind':'knot', 'pos':(0,'p0'), 'set':[(0,'p0')], 'move':[(0,'p1')]})
+                handles.append({'kind':'knot', 'pos':(0,'p0'), 'free': False, 'set':[(0,'p0')], 'move':[(0,'p1')]})
                 for i in range(1, nseg):
-                    handles.append({'kind':'knot', 'pos':(i,'p0'),
+                    handles.append({'kind':'knot', 'pos':(i,'p0'), 'free': (i - 1) in smooth_junctions,
                                     'set':[(i-1,'p3'), (i,'p0')], 'move':[(i-1,'p2'), (i,'p1')]})
-                handles.append({'kind':'knot', 'pos':(nseg-1,'p3'),
+                handles.append({'kind':'knot', 'pos':(nseg-1,'p3'), 'free': False,
                                 'set':[(nseg-1,'p3')], 'move':[(nseg-1,'p2')]})
 
             for i in range(nseg):
@@ -450,20 +664,32 @@ def create_loopstrip_curve_overlay(
                     draw_curve_line = False
                     if draw_curve_line and len(curve_pts) >= 2:
                         Drawing.draw2D_linestrip(context, curve_pts, (1.0, 1.0, 0.0, 0.5), width=2, stipple=[5,5])
-                    # control polygon: draws the two tangent arms (p0-p1 and p2-p3)
-                    arms = [location_3d_to_region_2d(rgn, r3d, M @ Vector(getattr(cb, a))) for a in ('p0','p1','p2','p3')]
-                    Drawing.draw2D_lines(context, arms, (1.0, 1.0, 1.0, 0.5), width=2)
+                    # control polygon: draws the two tangent arms (p0-p1 and p2-p3),
+                    # shortened at each end so the line stops at the handle dot's
+                    # edge instead of running into its (partially transparent) center
+                    p0_, p1_, p2_, p3_ = (location_3d_to_region_2d(rgn, r3d, M @ Vector(getattr(cb, a))) for a in ('p0','p1','p2','p3'))
+                    knot_r, tan_r = Drawing.scale(KNOT_RADIUS/2), Drawing.scale(TANGENT_RADIUS/2)
+                    a0, a1 = shrink_segment(p0_, p1_, knot_r, tan_r)
+                    a2, a3 = shrink_segment(p2_, p3_, tan_r, knot_r)
+                    Drawing.draw2D_lines(context, [a0, a1, a2, a3], (1.0, 1.0, 1.0, 0.5), width=2)
 
-                knot_pts2d, tan_pts2d = [], []
+                knot_pts2d, free_knot_pts2d, tan_pts2d = [], [], []
                 for h in chain['handles']:
                     seg, attr = h['pos']
                     p = location_3d_to_region_2d(rgn, r3d, M @ Vector(getattr(cbs[seg], attr)))
                     if not p:
                         continue
-                    (knot_pts2d if h['kind'] == 'knot' else tan_pts2d).append(p)
+                    if h['kind'] != 'knot':
+                        tan_pts2d.append(p)
+                    elif h.get('free'):
+                        free_knot_pts2d.append(p)
+                    else:
+                        knot_pts2d.append(p)
                 if tan_pts2d:
-                    Drawing.draw2D_points(context, tan_pts2d, (0.0, 0.0, 0.0, 0.75), radius=12, border=2, borderColor=(1,1,1,0.5))
+                    Drawing.draw2D_points(context, tan_pts2d, (0.0, 0.0, 0.0, 0.75), radius=TANGENT_RADIUS, border=2, borderColor=(1,1,1,0.5))
                 if knot_pts2d:
-                    Drawing.draw2D_points(context, knot_pts2d, (1.0, 1.0, 1.0, 1.0), radius=14, border=2, borderColor=(0,0,0,0.5))
+                    Drawing.draw2D_points(context, knot_pts2d, (1.0, 1.0, 1.0, 1.0), radius=KNOT_RADIUS, border=2, borderColor=(0,0,0,0.5))
+                if free_knot_pts2d:
+                    Drawing.draw2D_points(context, free_knot_pts2d, (1.0, 1.0, 1.0, 1.0), radius=KNOT_RADIUS, border=2, borderColor=FREE_KNOT_BORDER_COLOR)
 
     return type(opname, (RFOperator_LoopStrip_Curve_Overlay, RFOperator), {})

@@ -24,18 +24,22 @@ This document contains details about what has changed in Retopoflow in version 4
     - It can handle flipped normals, split edges, and overhangs just fine
 - Added Alt R hotkey to twist in Contours
 - Added Ctrl Scroll after extruding in Contours to adjust segment count
-- Increased max span count in Contours from 100 to 500
+- Increased max span count in Contours
 
 - Stokes now snaps its span sides to nearby connected vertices
     - This makes it so Strokes can fill holes without creating overlapping verts
-- Strokes now places verts at sharp angles in the stroke
+- Strokes can now be edited with curve handles like PolyStrips
+- Strokes now places verts at sharp angles in the drawn stroke
 - Strokes now projects in world space, fixing spacing and redo issues
 - Strokes can now use world space units as the span length
+- Closed loops drawn with Strokes have a new slider to make them perfectly circular
 - Switched Strokes and PolyStrips brush size hotkey to Shift F to free up F for filling
 
 - All Retopoflow tools now respect Blender's Alt+B clipping region
     - Useful for isolating areas while working
 - Tools statusbar now shows the result of Blender operations such as Merge by Distance
+- Added new custom icon for Loops tweaking in tool header
+- Cleaned up tool header UI
 - Fixed proportional editing circle size and location
 
 ## 4.1.9

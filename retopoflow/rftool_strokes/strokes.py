@@ -27,7 +27,7 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_locat
 
 from ..rfglobals import RFGlobals
 from ..rfbrushes.stroke_brush import create_stroke_brush
-from ..rfoverlays.stroke_curve_overlay import create_loopstrip_curve_overlay
+from ..rfoverlays.stroke_curve_overlay import create_loopstrip_curve_overlay, shrink_segment, KNOT_RADIUS, TANGENT_RADIUS, FREE_KNOT_BORDER_COLOR
 
 from ..rftool_base import RFTool_Base
 from ..common.bmesh import get_bmesh_emesh, bme_midpoint, get_boundary_strips_cycles
@@ -47,6 +47,7 @@ from ...addon_common.common.blender import event_modifier_check
 from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.debug import debugger
 from ...addon_common.common.maths import clamp, Frame, Color, sign_threshold
+from ...addon_common.common.bezier import CubicBezierSpline
 from ...addon_common.common.resetter import Resetter
 from ...addon_common.common.utils import iter_pairs
 
@@ -552,6 +553,18 @@ class RFOperator_Strokes(RFOperator_Stroke_Insert_Properties, RFOperator):
         return {'PASS_THROUGH'} if event.type in {'MOUSEMOVE', 'LEFTMOUSE'} else {'RUNNING_MODAL'}
 
 
+def _segment_arc_length(cb, fn_dist):
+    return sum(d for _, _, d in cb.get_tessellate_uniform(fn_dist))
+
+
+def _cumulative_lengths(cbs, segs, fn_dist):
+    ''' Running total arc length at each boundary of `segs` (len(segs)+1 entries, starting at 0). '''
+    cum = [0.0]
+    for seg in segs:
+        cum.append(cum[-1] + _segment_arc_length(cbs[seg], fn_dist))
+    return cum
+
+
 class RFOperator_Strokes_CurveEdit(RFOperator):
     bl_idname = 'retopoflow.strokes_curve_edit'
     bl_label = 'Edit Stroke Curve'
@@ -606,6 +619,55 @@ class RFOperator_Strokes_CurveEdit(RFOperator):
 
         fn_dist = lambda a, b: (a - b).length
 
+        # segment(s) whose shape will change as this handle is dragged -- verts
+        # on these need their *arc-length fraction* preserved instead of their
+        # raw parameter t (which isn't proportional to arc length, so it drifts
+        # spacing as a segment stretches/compresses under editing)
+        nseg = len(self.spline.cbs)
+        if self.handle['kind'] == 'knot':
+            self.touched_segs = { seg for seg, _ in self.handle['set'] }
+        else:
+            self.touched_segs = { self.handle['pos'][0] }
+
+        # a "free" knot isn't a vertex -- nothing should be forced to sit
+        # exactly on it, or bunch up as it moves. Its two flanking segments
+        # aren't independently anchored (unlike a normal touched segment,
+        # where the far end IS a real vert), so the whole run from the
+        # nearest TRUE (vertex-coupled) knot on one side to the nearest true
+        # knot on the other -- crossing over any other free knots along the
+        # way -- is treated as one combined span. Every vert in it keeps its
+        # original *proportional* position within that combined span's arc
+        # length (recomputed fresh each frame in update(), since the span's
+        # segments keep reshaping as the drag continues) rather than its
+        # position within just one segment, so a vert near one true anchor
+        # doesn't get dragged around by an edit happening near the other.
+        self.combined_segs = None
+        if self.handle['kind'] == 'knot' and self.handle.get('free') and len(self.handle['set']) == 2:
+            free_at_seg_p0 = {
+                h['pos'][0]: h.get('free', False)
+                for h in self.chain['handles']
+                if h['kind'] == 'knot' and h['pos'][1] == 'p0'
+            }
+            seg_before, seg_after = self.handle['set'][0][0], self.handle['set'][1][0]
+            combined_segs = [seg_before, seg_after]
+            lo = seg_before
+            while free_at_seg_p0.get(lo, False):
+                prev_seg = (lo - 1) % nseg if self.chain['cyclic'] else lo - 1
+                if prev_seg < 0 or prev_seg in combined_segs:
+                    break
+                combined_segs.insert(0, prev_seg)
+                lo = prev_seg
+            hi = seg_after
+            while True:
+                next_seg = (hi + 1) % nseg if self.chain['cyclic'] else hi + 1
+                if (not self.chain['cyclic'] and next_seg >= nseg) or next_seg in combined_segs:
+                    break
+                if not free_at_seg_p0.get(next_seg, False):
+                    break
+                combined_segs.append(next_seg)
+                hi = next_seg
+            self.combined_segs = combined_segs
+
         bmvs = [self.bm.verts[i] for i in self.chain['bmv_indices']]
         # gather neighboring geo for proportional editing
         if bmvs and use_proportional_edit:
@@ -637,6 +699,7 @@ class RFOperator_Strokes_CurveEdit(RFOperator):
         bmv_merged_2d_coords = Vector((0.0, 0.0))
         bmv_merged_3d_coords = Vector((0.0, 0.0, 0.0))
         rgn, r3d = context.region, context.region_data
+        combined_cum = _cumulative_lengths(self.spline.cbs, self.combined_segs, fn_dist) if self.combined_segs else None
         for (bmv, distance) in all_bmvs.items():
             t = self.spline.approximate_t_at_point_tessellation(bmv.co, fn_dist)
             o = self.spline.eval(t)
@@ -644,11 +707,23 @@ class RFOperator_Strokes_CurveEdit(RFOperator):
             if z.length < 1e-9: z = Vector((0, 0, 1))
             z.normalize()
             f = Frame(o, x=self.fwd, z=z)
+            seg = min(int(t), nseg - 1)
+            arc_frac = None
+            combined_frac = None
+            if self.combined_segs and seg in self.combined_segs:
+                idx = self.combined_segs.index(seg)
+                local_frac = self.spline.cbs[seg].approximate_arc_length_fraction_at_t(t - seg, fn_dist)
+                dist_into_combined = combined_cum[idx] + local_frac * (combined_cum[idx + 1] - combined_cum[idx])
+                combined_frac = dist_into_combined / max(combined_cum[-1], 1e-9)
+            elif seg in self.touched_segs:
+                arc_frac = self.spline.cbs[seg].approximate_arc_length_fraction_at_t(t - seg, fn_dist)
             data[bmv.index] = (
                 t,
                 f.w2l_point(bmv.co),
                 Vector(bmv.co),
                 distance,
+                arc_frac,
+                combined_frac,
             )
             if use_proportional_edit and bmv.select:
                 bmv_selected_count += 1
@@ -763,15 +838,38 @@ class RFOperator_Strokes_CurveEdit(RFOperator):
             ]
 
         spline = self.spline
+        nseg = len(spline.cbs)
+        fn_dist = lambda a, b: (a - b).length
+        combined_cum = _cumulative_lengths(spline.cbs, self.combined_segs, fn_dist) if self.combined_segs else None
         for bmv_idx in self.grab['only']:
             bmv = bm.verts[bmv_idx]
-            t, pt_curve_orig, pt_edit_orig, distance = data[bmv_idx]
+            t, pt_curve_orig, pt_edit_orig, distance, arc_frac, combined_frac = data[bmv_idx]
             if distance > prop_dist_world: continue
             if prop_use:
                 dist = max(1 - distance / prop_dist_world, 0)
                 factor = proportional_edit(prop_falloff, dist)
             else:
                 factor = 1
+            if combined_frac is not None:
+                # this vert is somewhere in the combined run spanning a free
+                # knot -- keep its proportional position within that run's
+                # *current* total arc length (recomputed above, since the
+                # run's segments keep reshaping as the drag continues)
+                target = combined_frac * combined_cum[-1]
+                idx = 0
+                while idx < len(combined_cum) - 2 and target > combined_cum[idx + 1]:
+                    idx += 1
+                seg = self.combined_segs[idx]
+                seg_span = max(combined_cum[idx + 1] - combined_cum[idx], 1e-9)
+                local_frac = (target - combined_cum[idx]) / seg_span
+                t = seg + spline.cbs[seg].approximate_t_at_arc_length_fraction(local_frac, fn_dist)
+            elif arc_frac is not None:
+                # this vert's segment is being reshaped -- track its original
+                # proportional position along the arc length instead of its raw
+                # parameter t, so reshaping the segment doesn't bunch verts up
+                # or spread them out relative to each other
+                seg = min(int(t), nseg - 1)
+                t = seg + spline.cbs[seg].approximate_t_at_arc_length_fraction(arc_frac, fn_dist)
             o = spline.eval(t)
             z = Vector(spline.eval_derivative(t))
             if z.length < 1e-9: z = Vector((0, 0, 1))
@@ -818,21 +916,31 @@ class RFOperator_Strokes_CurveEdit(RFOperator):
         for cb in cbs:
             curve_pts = [location_3d_to_region_2d(rgn, r3d, M @ Vector(cb.eval(v / 20))) for v in range(21)]
             curve_pts = [p for p in curve_pts if p]
-            draw_curve_line = False
+            draw_curve_line = True
             if draw_curve_line and len(curve_pts) >= 2:
                 Drawing.draw2D_linestrip(context, curve_pts, (1.0, 1.0, 0.0, 0.5), width=2, stipple=[5,5])
-            arms = [location_3d_to_region_2d(rgn, r3d, M @ Vector(getattr(cb, a))) for a in ('p0','p1','p2','p3')]
-            Drawing.draw2D_lines(context, arms, (1.0, 1.0, 1.0, 0.5), width=2)
-        knot_pts2d, tan_pts2d = [], []
+            p0_, p1_, p2_, p3_ = (location_3d_to_region_2d(rgn, r3d, M @ Vector(getattr(cb, a))) for a in ('p0','p1','p2','p3'))
+            knot_r, tan_r = Drawing.scale(KNOT_RADIUS/2), Drawing.scale(TANGENT_RADIUS/2)
+            a0, a1 = shrink_segment(p0_, p1_, knot_r, tan_r)
+            a2, a3 = shrink_segment(p2_, p3_, tan_r, knot_r)
+            Drawing.draw2D_lines(context, [a0, a1, a2, a3], (1.0, 1.0, 1.0, 0.5), width=2)
+        knot_pts2d, free_knot_pts2d, tan_pts2d = [], [], []
         for h in self.chain['handles']:
             seg, attr = h['pos']
             p = location_3d_to_region_2d(rgn, r3d, M @ Vector(getattr(cbs[seg], attr)))
             if not p: continue
-            (knot_pts2d if h['kind'] == 'knot' else tan_pts2d).append(p)
+            if h['kind'] != 'knot':
+                tan_pts2d.append(p)
+            elif h.get('free'):
+                free_knot_pts2d.append(p)
+            else:
+                knot_pts2d.append(p)
         if tan_pts2d:
-            Drawing.draw2D_points(context, tan_pts2d, (0.0, 0.0, 0.0, 0.75), radius=12, border=2, borderColor=(1,1,1,0.5))
+            Drawing.draw2D_points(context, tan_pts2d, (0.0, 0.0, 0.0, 0.75), radius=TANGENT_RADIUS, border=2, borderColor=(1,1,1,0.5))
         if knot_pts2d:
-            Drawing.draw2D_points(context, knot_pts2d, (1.0, 1.0, 1.0, 1.0), radius=14, border=2, borderColor=(0,0,0,0.5))
+            Drawing.draw2D_points(context, knot_pts2d, (1.0, 1.0, 1.0, 1.0), radius=KNOT_RADIUS, border=2, borderColor=(0,0,0,0.5))
+        if free_knot_pts2d:
+            Drawing.draw2D_points(context, free_knot_pts2d, (1.0, 1.0, 1.0, 1.0), radius=KNOT_RADIUS, border=2, borderColor=FREE_KNOT_BORDER_COLOR)
 
     def draw_postpixel(self, context):
         ''' Draw the live curve, plus the proportional edit circle in 2D space. '''
