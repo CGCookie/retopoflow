@@ -545,7 +545,7 @@ class CubicBezier:
         self.fn_dist = fn_dist
         self.tessellation = self.get_tessellate_uniform(fn_dist, split=split)
 
-    def approximate_t_at_point_tessellation(self, point : Vector) -> float:
+    def _closest_point_tessellation(self, point : Vector) -> tuple[float, float]:
         assert self.fn_dist, 'tessellate_uniform must be called first!'
         fn_dist = self.fn_dist
         bt : float | None = None
@@ -555,7 +555,19 @@ class CubicBezier:
             if bd is None or d < bd:
                 bd, bt = d, t
         assert bt is not None
+        return bt, bd
+
+    def approximate_t_at_point_tessellation(self, point : Vector) -> float:
+        bt, _ = self._closest_point_tessellation(point)
         return bt
+
+    def approximate_distance_to_point_tessellation(self, point : Vector) -> float:
+        ''' Distance from `point` to its closest position on the tessellation --
+        for a caller that only needs the distance, not eval(t) + fn_dist() on the
+        t approximate_t_at_point_tessellation would return (the search already
+        computes this distance to find that t). '''
+        _, bd = self._closest_point_tessellation(point)
+        return bd
 
     def approximate_totlength_tessellation(self) -> float:
         return sum(self.approximate_lengths_tessellation())
@@ -638,6 +650,13 @@ class CubicBezierSpline:
         return spline
 
     @staticmethod
+    def is_free_knot(k, corners, cyclic, n):
+        ''' Smooth, non-endpoint knots are "free": not meant to sit on any particular pts[k]. '''
+        if k in corners:
+            return False
+        return cyclic or (k != 0 and k != n - 1)
+
+    @staticmethod
     def create_catmull_rom(pts, knot_indices, *, cyclic=False, corner_indices=(), locked_cbs=None):
         '''
         Build a multi-segment Bézier through pts: first a fast Catmull-Rom
@@ -684,12 +703,6 @@ class CubicBezierSpline:
                 d = Vector(pts[nk]) - Vector(pts[pk])
             return d.normalized() if d.length > 1e-9 else Vector((0, 0, 1))
 
-        def is_free_knot(k):
-            ''' Smooth, non-endpoint knots are "free": not meant to sit on any particular pts[k]. '''
-            if k in corners:
-                return False
-            return cyclic or (k != 0 and k != n - 1)
-
         cbs, inds, runs = [], [], []
 
         knot_pairs = list(zip(knots[:-1], knots[1:]))
@@ -704,14 +717,16 @@ class CubicBezierSpline:
         # a fully-unlocked segment gets, instead of the cached value, gives
         # that search a starting point that actually matches the neighbor's
         # current shape rather than whatever shape it was cached against.
-        boundary_p1, boundary_p2 = set(), set()
+        # refine_handles needs this same boundary set for its own search, so
+        # it's computed once here (in its (seg_i, attr) form) and passed in.
+        boundary_handles = set()
         wrap_ok = cyclic and nseg >= 2
         junction_range = range(nseg) if wrap_ok else range(max(0, nseg - 1))
         for i in junction_range:
             j = (i + 1) % nseg
             if aligned_junction[i] and (i in locked_cbs) != (j in locked_cbs):
-                boundary_p2.add(i)
-                boundary_p1.add(j)
+                boundary_handles.add((i, 'p2'))
+                boundary_handles.add((j, 'p1'))
 
         for seg_i, (ka, kb) in enumerate(knot_pairs):
             if kb <= ka:
@@ -730,19 +745,20 @@ class CubicBezierSpline:
                 # whole point of it being free), so its side keeps the locked
                 # position exactly as given instead of snapping to whichever
                 # vert happens to be at that index now.
-                if is_free_knot(ka % n):
+                if CubicBezierSpline.is_free_knot(ka % n, corners, cyclic, n):
                     p0 = Vector(locked.p0)
-                if is_free_knot(kb % n):
+                if CubicBezierSpline.is_free_knot(kb % n, corners, cyclic, n):
                     p3 = Vector(locked.p3)
                 d0, d3 = p0 - Vector(locked.p0), p3 - Vector(locked.p3)
                 p1, p2 = Vector(locked.p1) + d0, Vector(locked.p2) + d3
-                if seg_i in boundary_p1 or seg_i in boundary_p2:
+                at_p1, at_p2 = (seg_i, 'p1') in boundary_handles, (seg_i, 'p2') in boundary_handles
+                if at_p1 or at_p2:
                     t1 = tangent_out(ka % n)
                     t2 = -tangent_in(kb % n)
                     fresh_p1, fresh_p2 = CubicBezierSpline.fit_segment_fast(run, p0, p3, t1, t2)
-                    if seg_i in boundary_p1:
+                    if at_p1:
                         p1 = fresh_p1
-                    if seg_i in boundary_p2:
+                    if at_p2:
                         p2 = fresh_p2
                 cbs.append(CubicBezier(p0, p1, p2, p3))
             else:
@@ -753,7 +769,8 @@ class CubicBezierSpline:
             inds.append((ka, kb))
             runs.append(run)
 
-        CubicBezierSpline.refine_handles(cbs, runs, aligned_junction, cyclic, locked_segs=set(locked_cbs.keys()))
+        CubicBezierSpline.refine_handles(cbs, runs, aligned_junction, cyclic,
+            locked_segs=set(locked_cbs.keys()), boundary_handles=boundary_handles)
 
         return CubicBezierSpline(cbs=cbs, inds=inds)
 
@@ -819,13 +836,10 @@ class CubicBezierSpline:
             return 0.0
         fn_dist = lambda a, b: (a - b).length
         cb.tessellate_uniform(fn_dist=fn_dist)
-        return sum(
-            fn_dist(cb.eval(cb.approximate_t_at_point_tessellation(pt)), pt)
-            for pt in run[1:-1]
-        )
+        return sum(cb.approximate_distance_to_point_tessellation(pt) for pt in run[1:-1])
 
     @staticmethod
-    def refine_handles(cbs, runs, aligned, cyclic, *, rounds=3, locked_segs=frozenset()):
+    def refine_handles(cbs, runs, aligned, cyclic, *, rounds=3, locked_segs=frozenset(), boundary_handles=frozenset()):
         '''
         Improves on cbs' initial (fast Catmull-Rom) handles in place by
         directly searching for the length and direction that best fit each
@@ -864,6 +878,12 @@ class CubicBezierSpline:
         unlocked side to match the locked side's exact current direction
         would also satisfy G1 alignment, but can settle on a worse fit for
         the unlocked side than letting both sides move to find it together.
+
+        `boundary_handles` is the (seg_i, attr) set of handles sitting right at
+        a locked/unlocked boundary -- the caller already had to compute this
+        same set to know which handles to re-fit fresh instead of translating
+        from cache (see create_catmull_rom), so it's passed in rather than
+        re-derived here.
         '''
         nseg = len(cbs)
         if nseg == 0:
@@ -899,29 +919,33 @@ class CubicBezierSpline:
         # both -- pinning its length while only its direction can move is its
         # own source of forcing a worse joint fit, the same issue as pinning
         # direction outright.
+        # `boundary_handles` (a caller-computed (seg_i, attr) set -- see
+        # create_catmull_rom, the sole caller) marks handles right at a
+        # locked/unlocked boundary. These start the search from whatever the
+        # locked side happened to have cached, not the fresh Catmull-Rom guess
+        # a fully-unlocked handle gets -- give them a wider search so a
+        # possibly-stale starting point doesn't strand them in a worse local
+        # optimum than a from-scratch fit would have found. They stay eligible
+        # despite their segment being locked -- pinning them like the rest of
+        # a locked segment's handles is its own source of forcing a worse
+        # joint fit with the unlocked neighbor, the same issue as pinning
+        # direction outright (see the rotate-pass note above). These are few
+        # (at most two per contiguous locked run), so searching them harder
+        # doesn't meaningfully undercut the savings from skipping the rest of
+        # a locked region entirely.
         frozen_handles = set()
         for seg_i in locked_segs:
             frozen_handles.add((seg_i, 'p1'))
             frozen_handles.add((seg_i, 'p2'))
-        # handles right at a locked/unlocked boundary start the search from
-        # whatever the locked side happened to have cached, not the fresh
-        # Catmull-Rom guess a fully-unlocked handle gets -- give them a wider
-        # search so a possibly-stale starting point doesn't strand them in a
-        # worse local optimum than a from-scratch fit would have found. These
-        # are few (at most two per contiguous locked run), so searching them
-        # harder doesn't meaningfully undercut the savings from skipping the
-        # rest of a locked region entirely.
-        boundary_handles = set()
-        for i in junction_range:
-            j = (i + 1) % nseg
-            if aligned[i] and (i in locked_segs) != (j in locked_segs):
-                frozen_handles.discard((i, 'p2'))
-                frozen_handles.discard((j, 'p1'))
-                boundary_handles.add((i, 'p2'))
-                boundary_handles.add((j, 'p1'))
+        frozen_handles -= boundary_handles
 
         for _ in range(rounds):
             # --- scale: every handle, always independent ---
+            # scale_scores[seg_i] tracks the total_distance each committed
+            # evaluate() call below already computed, so the degenerate-length
+            # guardrail just after this loop can reuse it as `original_score`
+            # instead of recomputing the same thing fresh.
+            scale_scores = {}
             for seg_i, (cb, run) in enumerate(zip(cbs, runs)):
                 for attr, anchor_attr in (('p1', 'p0'), ('p2', 'p3')):
                     if (seg_i, attr) in frozen_handles:
@@ -956,7 +980,7 @@ class CubicBezierSpline:
                         evaluate, num_tests=25 if at_boundary else 10,
                         initial_step=0.4, initial_t=initial_t,
                     )
-                    evaluate(best_t)
+                    scale_scores[seg_i] = evaluate(best_t)
 
             # a handle that shrank to near nothing relative to its counterpart
             # looks visually broken (the curve makes an abrupt transition right
@@ -980,7 +1004,7 @@ class CubicBezierSpline:
                 if vec.length < 1e-9:
                     continue
                 direction = vec / vec.length
-                original_score = CubicBezierSpline.total_distance(cb, run)
+                original_score = scale_scores[seg_i]
                 setattr(cb, short_attr, anchor + direction * long_len)
                 stretched_score = CubicBezierSpline.total_distance(cb, run)
                 chord_length = (Vector(cb.p3) - Vector(cb.p0)).length

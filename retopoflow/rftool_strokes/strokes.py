@@ -501,7 +501,7 @@ class RFOperator_Strokes(RFOperator_Stroke_Insert_Properties, RFOperator):
         subtype = 'ANGLE',
         min = math.radians(10),
         max = math.radians(170),
-        default = math.radians(60),
+        default = math.radians(50),
     )
 
     def init(self, context, event):
@@ -583,6 +583,33 @@ def _cumulative_lengths(cbs, segs, fn_dist):
     return cum
 
 
+def _walk_free_run(start, step, nseg, cyclic, free_at_seg_p0, visited):
+    '''
+    Extends `visited` outward from `start` one segment at a time (`step` = -1
+    backward, +1 forward) for as long as the knot crossed at each step is
+    free -- see combined_segs' construction in init() below. Returns the
+    newly-visited segments in walk order, nearest to `start` first; `visited`
+    itself grows to include them, so a second call in the opposite direction
+    won't cross back into this one.
+    '''
+    result = []
+    cur = start
+    while True:
+        nxt = (cur + step) % nseg if cyclic else cur + step
+        if not cyclic and not (0 <= nxt < nseg):
+            break
+        if nxt in visited:
+            break
+        # the boundary knot between cur and nxt is "at p0" of whichever one
+        # comes later in forward (increasing-index) order
+        if not free_at_seg_p0.get(nxt if step > 0 else cur, False):
+            break
+        result.append(nxt)
+        visited.add(nxt)
+        cur = nxt
+    return result
+
+
 class RFOperator_Strokes_CurveEdit(RFOperator):
     bl_idname = 'retopoflow.strokes_curve_edit'
     bl_label = 'Edit Stroke Curve'
@@ -646,6 +673,11 @@ class RFOperator_Strokes_CurveEdit(RFOperator):
             self.touched_segs = { seg for seg, _ in self.handle['set'] }
         else:
             self.touched_segs = { self.handle['pos'][0] }
+            if 'g1_peer' in self.handle:
+                # a G1-mirrored tangent arm reshapes the peer segment on the
+                # other side of the junction too (see apply_handle), so its
+                # verts need the same arc-length tracking as this handle's own
+                self.touched_segs.add(self.handle['g1_peer'][0])
 
         # a "free" knot isn't a vertex -- nothing should be forced to sit
         # exactly on it, or bunch up as it moves. Its two flanking segments
@@ -667,24 +699,11 @@ class RFOperator_Strokes_CurveEdit(RFOperator):
                 if h['kind'] == 'knot' and h['pos'][1] == 'p0'
             }
             seg_before, seg_after = self.handle['set'][0][0], self.handle['set'][1][0]
-            combined_segs = [seg_before, seg_after]
-            lo = seg_before
-            while free_at_seg_p0.get(lo, False):
-                prev_seg = (lo - 1) % nseg if self.chain['cyclic'] else lo - 1
-                if prev_seg < 0 or prev_seg in combined_segs:
-                    break
-                combined_segs.insert(0, prev_seg)
-                lo = prev_seg
-            hi = seg_after
-            while True:
-                next_seg = (hi + 1) % nseg if self.chain['cyclic'] else hi + 1
-                if (not self.chain['cyclic'] and next_seg >= nseg) or next_seg in combined_segs:
-                    break
-                if not free_at_seg_p0.get(next_seg, False):
-                    break
-                combined_segs.append(next_seg)
-                hi = next_seg
-            self.combined_segs = combined_segs
+            cyclic = self.chain['cyclic']
+            visited = {seg_before, seg_after}
+            backward = _walk_free_run(seg_before, -1, nseg, cyclic, free_at_seg_p0, visited)
+            forward = _walk_free_run(seg_after, 1, nseg, cyclic, free_at_seg_p0, visited)
+            self.combined_segs = list(reversed(backward)) + [seg_before, seg_after] + forward
 
         bmvs = [self.bm.verts[i] for i in self.chain['bmv_indices']]
         # gather neighboring geo for proportional editing
@@ -860,8 +879,14 @@ class RFOperator_Strokes_CurveEdit(RFOperator):
         fn_dist = lambda a, b: (a - b).length
         combined_cum = _cumulative_lengths(spline.cbs, self.combined_segs, fn_dist) if self.combined_segs else None
         for bmv_idx in self.grab['only']:
-            bmv = bm.verts[bmv_idx]
             t, pt_curve_orig, pt_edit_orig, distance, arc_frac, combined_frac = data[bmv_idx]
+            if arc_frac is None and combined_frac is None:
+                # this vert's segment is neither touched nor part of a
+                # combined free-knot run -- its t maps into a segment whose
+                # control points this drag never moves, so eval(t) can only
+                # ever reproduce the exact same point it's already at
+                continue
+            bmv = bm.verts[bmv_idx]
             if distance > prop_dist_world: continue
             if prop_use:
                 dist = max(1 - distance / prop_dist_world, 0)

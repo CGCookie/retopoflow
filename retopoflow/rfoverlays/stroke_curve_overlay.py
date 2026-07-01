@@ -22,7 +22,6 @@ Created by Jonathan Denning, Jonathan Lampel
 from __future__ import annotations
 
 import bpy
-import math
 from mathutils import Vector, Matrix
 from bpy.types import Context, Event
 from bpy_extras.view3d_utils import location_3d_to_region_2d
@@ -64,14 +63,13 @@ from ...addon_common.common.blender_cursors import Cursors
 # a backstop knot for some other reason (e.g. very stiff proportional-edit
 # falloff over a long span).
 AUTO_KNOT_MAX_SPAN_FACTOR = 1.5
-# corner tolerance (BEND_TOLERANCE_FACTOR) and min corner spacing, as fractions
-# of the chain's own total length -- same reasoning: avg edge length shrinks
-# under subdivision, which would make RDP more sensitive to the exact same
-# geometry. BEND_TOLERANCE_FACTOR itself is user-tunable (Strokes' "Density"
-# property, curve_handle_density) rather than fixed -- see
-# _bend_tolerance_factor for the density -> tolerance mapping, bounded by
-# these two endpoints (min density -> loosest/fewest handles, max density ->
-# tightest/most handles).
+# min corner spacing, as a fraction of the chain's own total length -- same
+# reasoning as AUTO_KNOT_MAX_SPAN_FACTOR: avg edge length shrinks under
+# subdivision, which would make RDP more sensitive to the exact same geometry.
+# The corner *tolerance* itself is user-tunable (Strokes' "Density" property,
+# curve_handle_density) rather than fixed -- see density_to_bend_tolerance for
+# the density -> tolerance mapping (min density -> loosest/fewest handles,
+# max density -> tightest/most handles).
 CORNER_MIN_SPACING_FACTOR = 0.01
 # on-screen radii (pre Drawing.scale) of the knot/tangent handle dots, also used
 # to shorten the control-polygon arm lines so they stop at each dot's edge
@@ -96,15 +94,16 @@ SEGMENT_KEEP_FIT_TOLERANCE = 0.15
 
 def density_to_bend_tolerance(density : float) -> float:
     '''
-    Maps Strokes' curve_handle_density property (0.1 to 1.0) to
-    BEND_TOLERANCE_FACTOR, geometrically (not linearly) interpolated between
-    BEND_TOLERANCE_FACTOR_MIN and _MAX: tolerance is a threshold RDP compares
-    a deviation against multiplicatively (does it exceed the tolerance, not
-    by how much), so a proportional step in density should be a proportional
-    -- not additive -- step in tolerance. A linear interpolation between 0.5
-    and 0.01 would spend most of the slider barely changing anything and then
-    collapse abruptly near the top; geometric interpolation keeps each step
-    across the whole slider feeling similarly responsive.
+    Maps Strokes' curve_handle_density property (0.1 to 1.0) to the bend
+    tolerance factor passed to rdp_corner_indices, geometrically (not
+    linearly) interpolated between 0.5 (few control points) and 0.01 (more):
+    tolerance is a threshold RDP compares a deviation against multiplicatively
+    (does it exceed the tolerance, not by how much), so a proportional step in
+    density should be a proportional -- not additive -- step in tolerance. A
+    linear interpolation between 0.5 and 0.01 would spend most of the slider
+    barely changing anything and then collapse abruptly near the top;
+    geometric interpolation keeps each step across the whole slider feeling
+    similarly responsive.
     '''
     t = map_range(clamp(density, 0.1, 1.0), 0.1, 1.0, 0.0, 1.0)
     lo, hi = 0.5, 0.01 # lo = few control points, hi = more
@@ -420,10 +419,9 @@ def create_loopstrip_curve_overlay(
 
                 # Only verts with a geometrically sharp deflection angle get vector
                 # (independent) handles. RDP knots at smooth verts still get G1 handles.
-                corner_set = {
-                    k for k in corners
-                    if (angle := self._deflection_angle(cos, k, n, cyclic)) is not None and angle > sharp_angle
-                }
+                # sharp_indices was already scanned over every vert above; corner_set
+                # is just the knots that happen to land on one.
+                corner_set = set(corners) & sharp_indices
 
                 knots = list(corners)
                 if cyclic and len(knots) < 2:
@@ -505,18 +503,24 @@ def create_loopstrip_curve_overlay(
             Checked per segment rather than once for the whole chain, so an
             edit that only reshaped one part of a multi-segment chain doesn't
             force a refit of the parts that never stopped fitting well.
-            '''
-            def is_free(k):
-                if k in corner_set:
-                    return False
-                return cyclic or (k != 0 and k != n - 1)
 
+            NOTE: a segment whose own points are byte-identical to their prior
+            build might look like a safe unconditional lock, skipping this
+            check entirely -- but refine_handles jointly optimizes every
+            *unlocked* segment together each round (see its docstring), so
+            which neighbors are locked this round changes the search landscape
+            for a still-unlocked segment even when ITS points didn't move.
+            That makes "did this segment's points change" the wrong question;
+            only the fit check below (a pure function of this cb and these
+            points) is safe to shortcut, and it isn't expensive enough on its
+            own to be worth the risk of getting that subtlety wrong.
+            '''
             fit_tol = avg_len * SEGMENT_KEEP_FIT_TOLERANCE
             locked = {}
             for i, (cb, (ka, kb)) in enumerate(zip(cached_spline.cbs, cached_spline.inds)):
                 run = [Vector(cos[k % n]) for k in range(ka, kb + 1)]
-                p0 = Vector(cb.p0) if is_free(ka % n) else run[0]
-                p3 = Vector(cb.p3) if is_free(kb % n) else run[-1]
+                p0 = Vector(cb.p0) if CubicBezierSpline.is_free_knot(ka % n, corner_set, cyclic, n) else run[0]
+                p3 = Vector(cb.p3) if CubicBezierSpline.is_free_knot(kb % n, corner_set, cyclic, n) else run[-1]
                 d0, d3 = p0 - Vector(cb.p0), p3 - Vector(cb.p3)
                 candidate = CubicBezier(p0, Vector(cb.p1) + d0, Vector(cb.p2) + d3, p3)
                 if len(run) > 2:
@@ -541,8 +545,7 @@ def create_loopstrip_curve_overlay(
             v_out = Vector(cos[next_k]) - Vector(cos[k])
             if v_in.length < 1e-9 or v_out.length < 1e-9:
                 return None
-            cos_a = max(-1.0, min(1.0, v_in.normalized().dot(v_out.normalized())))
-            return math.acos(cos_a)
+            return v_in.angle(v_out)
 
         def _sharp_angle_indices(self, cos, n, cyclic, sharp_angle):
             ''' Every vert whose own local deflection angle already exceeds
