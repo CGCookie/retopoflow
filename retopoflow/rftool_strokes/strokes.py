@@ -789,6 +789,25 @@ class RFOperator_Strokes_CurveEdit(RFOperator):
         }
 
     def finish(self, context):
+        # the spline being dragged IS the overlay's cached spline object (see
+        # init), so its control points already hold this drag's final state --
+        # committed or, on cancel, restored from the snapshot. But the cache's
+        # 'cos' baseline still holds the PRE-drag vert positions, so without
+        # this sync the overlay's next rebuild would see "verts moved a lot vs
+        # the baseline", throw the dragged curve away, and refit it from
+        # scratch -- a lossy reconstruction of a curve we're holding the exact
+        # ground truth for (the verts were literally placed onto it by eval).
+        # Syncing 'cos' to the verts' current positions makes the next rebuild
+        # see "nothing changed since this spline was built" and reuse it
+        # verbatim (see _build_curve's nothing-changed shortcut). On cancel
+        # this is a no-op by construction: update() restored the verts to the
+        # very positions already in the cache.
+        overlay = RFTool_Strokes.rf_overlay.instance
+        if overlay is not None:
+            cache_key = tuple(self.chain['bmv_indices'])
+            cached = getattr(overlay, '_curve_struct_cache', {}).get(cache_key)
+            if cached and len(cached['cos']) == len(cache_key):
+                cached['cos'] = [self.bm.verts[i].co.copy() for i in cache_key]
         RFTool_Strokes.rf_overlay.unpause_update()
 
     def apply_handle(self, context, delta, rgn, r3d, M, Mi):

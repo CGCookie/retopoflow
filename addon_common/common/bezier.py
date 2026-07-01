@@ -657,7 +657,19 @@ class CubicBezierSpline:
         return cyclic or (k != 0 and k != n - 1)
 
     @staticmethod
-    def create_catmull_rom(pts, knot_indices, *, cyclic=False, corner_indices=(), locked_cbs=None, prev_pts=None):
+    def acceptable_alternative(alt_score, original_score, chord_length):
+        ''' Whether alt_score is close enough to original_score to prefer the
+        alternative on other (non-fit-quality) grounds -- e.g. a degenerately
+        short or near-perpendicular handle that technically scored best (see
+        refine_handles), or a free knot's own cached position vs its
+        underlying vert (see create_catmull_rom). Allows up to double the
+        original score, plus a small margin scaled to the segment's own chord
+        so an original score near zero doesn't make every alternative look
+        unacceptably worse by comparison. '''
+        return alt_score <= original_score * 2.0 + 0.02 * chord_length
+
+    @staticmethod
+    def create_catmull_rom(pts, knot_indices, *, cyclic=False, corner_indices=(), locked_cbs=None, prev_pts=None, cached_cbs=None):
         '''
         Build a multi-segment Bézier through pts: first a fast Catmull-Rom
         tangent fit for every segment as a starting guess, then refine_handles
@@ -673,18 +685,63 @@ class CubicBezierSpline:
         may have nudged slightly), translating its handles along with them;
         refine_handles then leaves it untouched entirely.
 
-        `prev_pts`, if given (parallel to `pts`, the positions locked_cbs was
-        last built against), lets a *free* knot -- not tied to any particular
-        vert, so it doesn't snap onto one the way a coupled knot's side does
-        -- still track a rigid shift of its own neighborhood: it's translated
-        by however far the vert at that same index moved, rather than staying
-        frozen at its old absolute position while everything around it moves.
-        Without `prev_pts`, a free knot's side is left exactly as cached.
+        `prev_pts`, if given (parallel to `pts`, the positions locked_cbs/
+        cached_cbs was last built against), lets a *free* knot -- not tied to
+        any particular vert, so it doesn't snap onto one the way a coupled
+        knot's side does -- still track a rigid shift of its own
+        neighborhood: it's translated by however far the vert at that same
+        index moved, rather than staying frozen at its old absolute position
+        while everything around it moves. Without `prev_pts`, a free knot's
+        side is left exactly as cached.
+
+        `cached_cbs`, if given, maps a segment index to the CubicBezier it had
+        in the *previous* build -- for a free knot flanked by two segments
+        that AREN'T locked (both need a full refit) but whose manually-set
+        position is worth trying to keep anyway. This is resolved ONCE per
+        free knot, jointly for both flanking segments, never independently
+        per side: the candidate anchor (the cached free-knot position,
+        translated by prev_pts the same way locked_cbs's is) is scored via
+        total_distance -- summed across BOTH segments' own points -- against
+        the plain vert-anchored fit on both sides, and the swap is applied to
+        both sides together only when CubicBezierSpline.acceptable_alternative()
+        says the combined candidate is still a comparably good fit. Resolving
+        it jointly matters because each side's own fit-quality check can
+        disagree with the other's (one segment's points might still favor the
+        cached anchor while the other's don't) -- deciding independently would
+        leave one side using the cached point and the other the vert, pulling
+        the shared knot apart into two different positions (the exact "handle
+        separated from itself" bug the locked/unlocked reconciliation pass
+        below already exists to prevent, just via a different combination of
+        locked/unlocked neighbors).
+
+        The candidate's tangent direction is read from the cached segment's
+        own handle, not re-derived from vertex-neighbor geometry the way the
+        default (vert-anchored) fit is: tangent_out/tangent_in estimate a
+        direction appropriate to a curve anchored AT the vertex, which has no
+        particular relationship to a free knot sitting away from it. Reusing
+        the cached direction gives the refit a starting point that's actually
+        consistent with the anchor being tried; forcing a vertex-based
+        direction onto a deliberately offset anchor is its own source of a
+        refit scoring worse than the fit it's replacing, independent of
+        whether the anchor point itself was a good choice.
+
+        A free knot's anchor vert can move for reasons that have nothing to
+        do with the free knot itself (e.g. a DIFFERENT free knot's drag
+        redistributes verts along its own combined run, see
+        RFOperator_Strokes_CurveEdit, incidentally moving this one's anchor
+        vert too), so a cached position can be stale or simply unrelated to
+        this segment's current shape. An earlier version of this preserved
+        the cached position unconditionally and caused exactly that: free
+        knots snapping to nonsense positions whenever some unrelated vert
+        moved. Scoring both candidates and falling back to the vert-anchored
+        pair whenever the cached one doesn't hold up keeps the benefit (a
+        deliberately-placed free knot survives a refit) without that risk.
         '''
         n = len(pts)
         if n < 2:
             return CubicBezierSpline(cbs=[], inds=[])
         locked_cbs = locked_cbs or {}
+        cached_cbs = cached_cbs or {}
 
         knots = sorted({ i for i in knot_indices if 0 <= i < n })
         corners = { i % n for i in corner_indices }
@@ -783,6 +840,94 @@ class CubicBezierSpline:
                 cbs.append(CubicBezier(p0, p1, p2, p3))
             inds.append((ka, kb))
             runs.append(run)
+
+        # a FREE knot at a locked/unlocked boundary can come out of the loop
+        # above with two different positions for what's meant to be one
+        # shared point: the locked side correctly preserved (and translated)
+        # its own manually-set position, but the unlocked side has no such
+        # rule -- its branch above always uses pts[k] directly, since that's
+        # exactly right for a COUPLED knot (both sides read the very same
+        # vert, so they can't disagree) but wrong for a free one. A locked
+        # and unlocked segment sharing a coupled knot never has this problem,
+        # only a free one -- reconcile it here by having the unlocked side
+        # inherit the locked side's position, carrying its own tangent handle
+        # along by the resulting delta the same way the locked branch above
+        # already does for a coupled vert's small nudge.
+        for i in junction_range:
+            j = (i + 1) % nseg
+            if (i in locked_cbs) == (j in locked_cbs):
+                continue  # both or neither locked -- both already used the same rule, so they already agree
+            kb_i = knot_pairs[i][1] % n
+            if not CubicBezierSpline.is_free_knot(kb_i, corners, cyclic, n):
+                continue  # a coupled knot: both sides already read the same pts[k]
+            if i in locked_cbs:
+                canonical = Vector(cbs[i].p3)
+                delta = canonical - Vector(cbs[j].p0)
+                cbs[j].p0 = canonical
+                cbs[j].p1 = Vector(cbs[j].p1) + delta
+            else:
+                canonical = Vector(cbs[j].p0)
+                delta = canonical - Vector(cbs[i].p3)
+                cbs[i].p3 = canonical
+                cbs[i].p2 = Vector(cbs[i].p2) + delta
+
+        # a free knot flanked by two UNLOCKED segments has no locked side to
+        # defer to (the pass above only resolves a locked/unlocked mismatch),
+        # but cached_cbs may still offer a position worth keeping -- see its
+        # param docs above for why this has to be ONE decision shared by both
+        # sides rather than each side checking independently.
+        for i in junction_range:
+            j = (i + 1) % nseg
+            if i in locked_cbs or j in locked_cbs:
+                continue  # handled by the pass above, or both coupled (no ambiguity)
+            k = knot_pairs[i][1] % n
+            if not CubicBezierSpline.is_free_knot(k, corners, cyclic, n):
+                continue  # a coupled knot: both sides already read the same pts[k]
+
+            cached_i, cached_j = cached_cbs.get(i), cached_cbs.get(j)
+            if cached_i is None and cached_j is None:
+                continue  # nothing cached to offer as an alternative -- vertex default stands
+
+            cand_point = Vector(cached_i.p3) if cached_i is not None else Vector(cached_j.p0)
+            if prev_pts is not None:
+                cand_point = cand_point + (Vector(pts[k]) - Vector(prev_pts[k]))
+
+            # dir_j: direction leaving the shared knot INTO segment j (see
+            # fit_segment_fast) -- read straight from whichever cached
+            # segment has it; a smooth (non-corner, i.e. free) knot's two
+            # arms are collinear, so segment i's own p2-arm direction mirrors
+            # it exactly when segment j's isn't cached.
+            dir_j = None
+            if cached_j is not None:
+                d = Vector(cached_j.p1) - Vector(cached_j.p0)
+                if d.length > 1e-9:
+                    dir_j = d.normalized()
+            if dir_j is None and cached_i is not None:
+                d = Vector(cached_i.p3) - Vector(cached_i.p2)
+                if d.length > 1e-9:
+                    dir_j = d.normalized()
+            if dir_j is None:
+                continue  # both cached handles were degenerate -- nothing usable to try
+
+            run_i, run_j = runs[i], runs[j]
+            chord_i = (Vector(cbs[i].p3) - Vector(cbs[i].p0)).length
+            chord_j = (Vector(cbs[j].p3) - Vector(cbs[j].p0)).length
+            if chord_i < 1e-9 or chord_j < 1e-9:
+                continue
+
+            t1_i = tangent_out(knot_pairs[i][0] % n)
+            cand_p1_i, cand_p2_i = CubicBezierSpline.fit_segment_fast(run_i, cbs[i].p0, cand_point, t1_i, -dir_j)
+            cand_cb_i = CubicBezier(cbs[i].p0, cand_p1_i, cand_p2_i, cand_point)
+
+            t2_j = -tangent_in(knot_pairs[j][1] % n)
+            cand_p1_j, cand_p2_j = CubicBezierSpline.fit_segment_fast(run_j, cand_point, cbs[j].p3, dir_j, t2_j)
+            cand_cb_j = CubicBezier(cand_point, cand_p1_j, cand_p2_j, cbs[j].p3)
+
+            default_score = CubicBezierSpline.total_distance(cbs[i], run_i) + CubicBezierSpline.total_distance(cbs[j], run_j)
+            cand_score = CubicBezierSpline.total_distance(cand_cb_i, run_i) + CubicBezierSpline.total_distance(cand_cb_j, run_j)
+            if CubicBezierSpline.acceptable_alternative(cand_score, default_score, chord_i + chord_j):
+                cbs[i] = cand_cb_i
+                cbs[j] = cand_cb_j
 
         CubicBezierSpline.refine_handles(cbs, runs, aligned_junction, cyclic,
             locked_segs=set(locked_cbs.keys()), boundary_handles=boundary_handles)
@@ -928,15 +1073,6 @@ class CubicBezierSpline:
             if axis.length < 1e-9:
                 axis = arbitrary_perpendicular(direction)
             return axis.normalized()
-
-        def acceptable_alternative(alt_score, original_score, chord_length):
-            ''' Whether alt_score is close enough to original_score to prefer the
-            alternative on other (non-fit-quality) grounds -- e.g. a degenerately
-            short or near-perpendicular handle that technically scored best. Allows
-            up to double the original score, plus a small margin scaled to the
-            segment's own chord so an original score near zero doesn't make every
-            alternative look unacceptably worse by comparison. '''
-            return alt_score <= original_score * 2.0 + 0.02 * chord_length
 
         def significantly_better(better_score, worse_score, chord_length):
             ''' The inverse, much stricter bar from acceptable_alternative --
@@ -1084,7 +1220,7 @@ class CubicBezierSpline:
                 best_len = short_len
                 for cand_len in rungs:
                     setattr(cb, short_attr, anchor + direction * cand_len)
-                    if acceptable_alternative(CubicBezierSpline.total_distance(cb, run), original_score, chord_length):
+                    if CubicBezierSpline.acceptable_alternative(CubicBezierSpline.total_distance(cb, run), original_score, chord_length):
                         best_len = cand_len
                         break
                 setattr(cb, short_attr, anchor + direction * best_len)
@@ -1117,7 +1253,7 @@ class CubicBezierSpline:
                     best_len = length
                     for cand_len in rungs:
                         setattr(cb, attr, anchor + direction * cand_len)
-                        if acceptable_alternative(CubicBezierSpline.total_distance(cb, run), original_score, chord_length):
+                        if CubicBezierSpline.acceptable_alternative(CubicBezierSpline.total_distance(cb, run), original_score, chord_length):
                             best_len = cand_len
                             break
                     setattr(cb, attr, anchor + direction * best_len)
@@ -1158,7 +1294,7 @@ class CubicBezierSpline:
                     if capped_len > chord_length:
                         keep_long = significantly_better(long_score, short_score, chord_length)
                     else:
-                        keep_long = not acceptable_alternative(short_score, long_score, chord_length)
+                        keep_long = not CubicBezierSpline.acceptable_alternative(short_score, long_score, chord_length)
                     if keep_long:
                         setattr(cb, attr, anchor + direction * capped_len)  # earns its keep -- put it back
 
@@ -1297,7 +1433,7 @@ class CubicBezierSpline:
                     angle_from_tangent = math.acos(max(-1.0, min(1.0, committed_dir.dot(local_tangent))))
                     if angle_from_tangent > math.radians(50):
                         tangent_score = apply_direction(local_tangent)
-                        if not acceptable_alternative(tangent_score, best_score, chord.length):
+                        if not CubicBezierSpline.acceptable_alternative(tangent_score, best_score, chord.length):
                             apply_direction(committed_dir)  # not worth it -- revert
 
     def __init__(self, cbs=None, inds=None):

@@ -523,13 +523,21 @@ def create_loopstrip_curve_overlay(
             # free knot, so a manually-placed handle isn't quietly pulled back
             # towards whatever a fresh Catmull-Rom guess would've picked).
             locked_cbs = {}
+            cached_cbs = {}
             prev_cos = None
             if not fresh_derive and cached.get('spline'):
                 prev_cos = cached['cos']
                 locked_cbs = self._well_fit_segments(cached['spline'], cos, prev_cos, avg_len, n, cyclic, corner_set)
+                # handed to create_catmull_rom as *candidates* only (not taken
+                # unconditionally the way locked_cbs is) -- see its own
+                # cached_cbs docs for why a fresh refit still needs a
+                # fit-quality check before trusting one of these over the
+                # plain vert-anchored position.
+                cached_cbs = dict(enumerate(cached['spline'].cbs))
 
             spline = CubicBezierSpline.create_catmull_rom(
-                cos, knots, cyclic=cyclic, corner_indices=corner_set, locked_cbs=locked_cbs, prev_pts=prev_cos,
+                cos, knots, cyclic=cyclic, corner_indices=corner_set,
+                locked_cbs=locked_cbs, prev_pts=prev_cos, cached_cbs=cached_cbs,
             )
 
             # Build smooth_junctions: set of segment indices i where the junction
