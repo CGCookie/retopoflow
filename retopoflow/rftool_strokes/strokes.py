@@ -20,18 +20,21 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
+import bmesh
+import heapq
 from mathutils import Vector
-from bpy_extras.view3d_utils import location_3d_to_region_2d
+from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_location_3d
 
 from ..rfglobals import RFGlobals
 from ..rfbrushes.stroke_brush import create_stroke_brush
-from ..rfoverlays.loopstrip_selection_overlay import create_loopstrip_selection_overlay
+from ..rfoverlays.stroke_curve_overlay import create_loopstrip_curve_overlay
 
 from ..rftool_base import RFTool_Base
 from ..common.bmesh import get_bmesh_emesh, bme_midpoint, get_boundary_strips_cycles
 from ..common.drawing import Drawing
 from ..common.icons import get_path_to_blender_icon
-from ..common.raycast import raycast_point_valid_sources
+from ..common.maths import view_forward_direction, view_right_direction, xform_direction, proportional_edit
+from ..common.raycast import raycast_point_valid_sources, nearest_point_valid_sources, mouse_from_event
 from ..common.operator import (
     execute_operator,
     RFOperator, RFOperator_Execute, RFKeyMaps, BLKeyMaps,
@@ -39,10 +42,11 @@ from ..common.operator import (
     OperatorPropertyWrapper, poll_retopoflow,
 )
 from ...addon_common.common import bmesh_ops as bmops
+from ...addon_common.common import gpustate
 from ...addon_common.common.blender import event_modifier_check
 from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.debug import debugger
-from ...addon_common.common.maths import clamp
+from ...addon_common.common.maths import clamp, Frame, Color, sign_threshold
 from ...addon_common.common.resetter import Resetter
 from ...addon_common.common.utils import iter_pairs
 
@@ -54,7 +58,7 @@ from ..rfoperators.maximize_watcher import RFOperator_MaximizeWatcher
 from ..rfoperators.topo_rotate import RFOperator_TopoRotate
 
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
-from ..rfpanels.tweaking_panel import draw_tweaking_panel
+from ..rfpanels.tweaking_panel import draw_tweaking_panel, draw_tweaking_popover
 from ..rfpanels.rfpanel_snapping import draw_snapping_panel
 from ..rfpanels.mirror_panel import draw_mirror_panel, draw_mirror_popover
 from ..rfpanels.general_panel import draw_general_panel
@@ -101,10 +105,10 @@ class RFOperator_Stroke_Insert_Properties:
         name='Span Count Method',
         description='Controls the number of spans when inserting',
         items=[
-            ('BRUSH',   'Brush Radius', 'Inserts spans the size of the brush', 0),
-            ('FIXED',   'Fixed',        'Inserts a fixed number of spans',     1),
-            ('AVERAGE', 'Average',      'Inserts spans based on average length of selected edges. If there are no selected edges it uses the brush radius', 2),
-            ('LENGTH',  'Length',       'Inserts spans sized to match a world space distance', 3),
+            ('BRUSH',   'Brush',   'Inserts spans the size of the brush', 0),
+            ('FIXED',   'Fixed',   'Inserts a fixed number of spans', 1),
+            ('AVERAGE', 'Average', 'Inserts spans based on average length of selected edges. If there are no selected edges it uses the brush radius', 2),
+            ('LENGTH',  'Length',  'Inserts spans sized to match a world space distance', 3),
         ],
         default='AVERAGE',
     )
@@ -475,6 +479,11 @@ class RFOperator_Strokes(RFOperator_Stroke_Insert_Properties, RFOperator):
         description = 'Select and transform loops while tweaking edges with the mouse',
         default = False
     )
+    show_curve_handles: bpy.props.BoolProperty(
+        name = 'Curve Handles',
+        description = 'Show Bézier curve control handles on selected edge strips and loops',
+        default = False
+    )
 
     def init(self, context, event):
         self.km_context = 'ready'
@@ -522,11 +531,14 @@ class RFOperator_Strokes(RFOperator_Stroke_Insert_Properties, RFOperator):
             return {'RUNNING_MODAL'}
 
         if RFTool_Strokes.rf_brush.is_stroking():
+            # hide curve handles while a stroke is being drawn
+            RFTool_Strokes.rf_overlay.pause_overlay()
             self.set_statusbar_override(self.rf_status['insert'])
             if event.type in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE', 'LEFTMOUSE'}:
                 RFCore.handle_update(context, event)
                 return {'RUNNING_MODAL'}
         else:
+            RFTool_Strokes.rf_overlay.unpause_overlay()
             self.set_statusbar_override(None)
             if not event.ctrl:
                 Cursors.restore()
@@ -540,7 +552,318 @@ class RFOperator_Strokes(RFOperator_Stroke_Insert_Properties, RFOperator):
         return {'PASS_THROUGH'} if event.type in {'MOUSEMOVE', 'LEFTMOUSE'} else {'RUNNING_MODAL'}
 
 
-RFOperator_Strokes_Overlay = create_loopstrip_selection_overlay(
+class RFOperator_Strokes_CurveEdit(RFOperator):
+    bl_idname = 'retopoflow.strokes_curve_edit'
+    bl_label = 'Edit Stroke Curve'
+    bl_description = 'Drag curve control handles to reshape a selected strip or loop'
+    bl_options = { 'REGISTER', 'UNDO', 'INTERNAL' }
+
+    rf_keymaps : RFKeyMaps = [
+        (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS'}, None),
+    ]
+
+    @classmethod
+    def can_start(cls, context):
+        i = RFTool_Strokes.rf_overlay.instance
+        return False if not i else bool(getattr(i, 'hovering', False))
+
+    def init(self, context, event):
+        overlay = RFTool_Strokes.rf_overlay.instance
+        self.curves = overlay.curves
+        self.chains = overlay.chains
+        chain_idx, handle_idx, snapshot = overlay.hovering
+        self.chain = self.chains[chain_idx]
+        self.spline = self.curves[chain_idx]
+        self.handle = self.chain['handles'][handle_idx]
+        self.snapshot = snapshot
+
+        RFTool_Strokes.rf_overlay.pause_update()
+        RFTool_Strokes.rf_overlay.instance.depsgraph_version = None
+
+        mouse = mouse_from_event(event)
+        M, Mi = context.edit_object.matrix_world, context.edit_object.matrix_world.inverted_safe()
+
+        use_proportional_edit = context.tool_settings.use_proportional_edit
+
+        self.mirror = set()
+        self.mirror_clip = False
+        self.mirror_threshold = Vector((0, 0, 0))
+        for mod in context.edit_object.modifiers:
+            if mod.type != 'MIRROR': continue
+            if not mod.use_clip: continue
+            if mod.use_axis[0]: self.mirror.add('x')
+            if mod.use_axis[1]: self.mirror.add('y')
+            if mod.use_axis[2]: self.mirror.add('z')
+            mt, scale = mod.merge_threshold, context.edit_object.scale
+            self.mirror_threshold = Vector(( mt / scale.x, mt / scale.y, mt / scale.z ))
+            self.mirror_clip = mod.use_clip
+
+        self.bm, self.em = get_bmesh_emesh(context, ensure_lookup_tables=True)
+        self.M, self.Mi = M, Mi
+        self.fwd = xform_direction(Mi, view_forward_direction(context))
+        self.right = xform_direction(Mi, view_right_direction(context))
+        self.spline.tessellate_uniform()
+
+        fn_dist = lambda a, b: (a - b).length
+
+        bmvs = [self.bm.verts[i] for i in self.chain['bmv_indices']]
+        # gather neighboring geo for proportional editing
+        if bmvs and use_proportional_edit:
+            connected_only = context.tool_settings.use_proportional_connected
+            if connected_only:
+                all_bmvs = {}
+                # NOTE: bmv.index added to tuple to break distance ties before bmvs are compared
+                queue = [(0, bmv.index, bmv) for bmv in bmvs]
+                while queue:
+                    (d, _, bmv) = heapq.heappop(queue)
+                    if bmv in all_bmvs: continue
+                    all_bmvs[bmv] = d
+                    for bme in bmv.link_edges:
+                        bmv_ = bme.other_vert(bmv)
+                        heapq.heappush(queue, (d + (M @ bmv.co - M @ bmv_.co).length, bmv_.index, bmv_))
+            else:
+                cos_sel = [M @ bmv.co for bmv in bmvs]
+                all_bmvs = {}
+                for bmv in self.bm.verts:
+                    co = M @ bmv.co
+                    d = min((co - co_sel).length for co_sel in cos_sel)
+                    all_bmvs[bmv] = d
+        else:
+            all_bmvs = { bmv: 0.0 for bmv in bmvs }
+
+        # all data is local to edit!
+        data = {}
+        bmv_selected_count = 0
+        bmv_merged_2d_coords = Vector((0.0, 0.0))
+        bmv_merged_3d_coords = Vector((0.0, 0.0, 0.0))
+        rgn, r3d = context.region, context.region_data
+        for (bmv, distance) in all_bmvs.items():
+            t = self.spline.approximate_t_at_point_tessellation(bmv.co, fn_dist)
+            o = self.spline.eval(t)
+            z = Vector(self.spline.eval_derivative(t))
+            if z.length < 1e-9: z = Vector((0, 0, 1))
+            z.normalize()
+            f = Frame(o, x=self.fwd, z=z)
+            data[bmv.index] = (
+                t,
+                f.w2l_point(bmv.co),
+                Vector(bmv.co),
+                distance,
+            )
+            if use_proportional_edit and bmv.select:
+                bmv_selected_count += 1
+                co_world = M @ bmv.co
+                bmv_merged_3d_coords += co_world
+                screen_co = location_3d_to_region_2d(rgn, r3d, co_world)
+                if screen_co:
+                    bmv_merged_2d_coords += screen_co
+
+        if use_proportional_edit and bmv_selected_count:
+            self.selection_origin_3d = bmv_merged_3d_coords / bmv_selected_count
+            self.selection_origin_2d = bmv_merged_2d_coords / bmv_selected_count
+        else:
+            self.selection_origin_3d = None
+            self.selection_origin_2d = None
+
+        self.grab = {
+            'mouse':   Vector(mouse),
+            'current': Vector(mouse),
+            'data':    data,
+            'only':    None,
+        }
+
+    def finish(self, context):
+        RFTool_Strokes.rf_overlay.unpause_update()
+
+    def apply_handle(self, context, delta, rgn, r3d, M, Mi):
+        h = self.handle
+        cbs = self.spline.cbs
+        idx_of = {'p0': 0, 'p1': 1, 'p2': 2, 'p3': 3}
+        def orig(seg, attr):
+            return Vector(self.snapshot[seg][idx_of[attr]])
+
+        seg0, attr0 = h['pos']
+        pt_orig = orig(seg0, attr0)
+        pt_screen = location_3d_to_region_2d(rgn, r3d, M @ pt_orig)
+        if pt_screen is None:
+            return
+        new_screen = pt_screen + delta
+
+        if h['kind'] == 'knot':
+            # knots snap to the source surface and carry their tangent arms along
+            new_world = raycast_point_valid_sources(context, new_screen, respect_clip_planes=True)
+            if not new_world:
+                return
+            new_edit = Mi @ new_world
+            knot_delta = new_edit - pt_orig
+            for (seg, attr) in h['set']:
+                setattr(cbs[seg], attr, new_edit.copy())
+            for (seg, attr) in h['move']:
+                setattr(cbs[seg], attr, orig(seg, attr) + knot_delta)
+        else:
+            # tangent arms move freely in the view plane
+            new_world = region_2d_to_location_3d(rgn, r3d, new_screen, M @ pt_orig)
+            new_edit = Mi @ new_world
+            setattr(cbs[seg0], attr0, new_edit)
+            # G1: at smooth junctions, mirror the peer tangent arm to stay collinear
+            if 'g1_peer' in h:
+                knot_seg, knot_attr = h['g1_knot']
+                peer_seg, peer_attr = h['g1_peer']
+                K = orig(knot_seg, knot_attr)
+                T_moved = new_edit - K
+                peer_orig_pt = orig(peer_seg, peer_attr)
+                peer_len = (peer_orig_pt - K).length
+                if T_moved.length > 1e-9 and peer_len > 1e-9:
+                    setattr(cbs[peer_seg], peer_attr, K - T_moved.normalized() * peer_len)
+
+    def update(self, context, event):
+        data = self.grab['data']
+        bm, em = self.bm, self.em
+
+        if event.type == 'LEFTMOUSE' and event.value == 'RELEASE':
+            return {'FINISHED'}
+
+        if event.type in {'ESC', 'RIGHTMOUSE'}:
+            for cb, pts in zip(self.spline.cbs, self.snapshot):
+                # restore snapshot
+                cb.p0, cb.p1, cb.p2, cb.p3 = (Vector(p) for p in pts)
+            for bmv_idx in data:
+                bm.verts[bmv_idx].co = data[bmv_idx][2]
+            bmesh.update_edit_mesh(em)
+            context.area.tag_redraw()
+            return {'CANCELLED'}
+
+        if event.type in {'WHEELDOWNMOUSE', 'WHEELUPMOUSE'}:
+            if event.type == 'WHEELUPMOUSE':
+                context.tool_settings.proportional_distance *= 0.90
+            else:
+                context.tool_settings.proportional_distance /= 0.90
+            if self.grab['only']:
+                for bmv_idx in self.grab['only']:
+                    bm.verts[bmv_idx].co = data[bmv_idx][2]
+            self.grab['only'] = None
+
+        mouse = mouse_from_event(event)
+        self.grab['current'] = mouse
+        delta = Vector(mouse) - self.grab['mouse']
+        rgn, r3d = context.region, context.region_data
+        M, Mi = self.M, self.Mi
+        fwd = self.fwd
+        prop_use = context.tool_settings.use_proportional_edit
+        prop_dist_world = context.tool_settings.proportional_distance
+        prop_falloff = context.tool_settings.proportional_edit_falloff
+
+        self.apply_handle(context, delta, rgn, r3d, M, Mi)
+
+        if self.grab['only'] is None:
+            self.grab['only'] = [
+                bmv_idx
+                for bmv_idx in data
+                if data[bmv_idx][3] <= prop_dist_world
+            ]
+
+        spline = self.spline
+        for bmv_idx in self.grab['only']:
+            bmv = bm.verts[bmv_idx]
+            t, pt_curve_orig, pt_edit_orig, distance = data[bmv_idx]
+            if distance > prop_dist_world: continue
+            if prop_use:
+                dist = max(1 - distance / prop_dist_world, 0)
+                factor = proportional_edit(prop_falloff, dist)
+            else:
+                factor = 1
+            o = spline.eval(t)
+            z = Vector(spline.eval_derivative(t))
+            if z.length < 1e-9: z = Vector((0, 0, 1))
+            z.normalize()
+            f = Frame(o, x=fwd, z=z)
+            pt_edit_new = M @ f.l2w_point(pt_curve_orig)
+            pt_edit_new = pt_edit_orig + (pt_edit_new - pt_edit_orig) * factor
+            co = nearest_point_valid_sources(context, pt_edit_new, world=False, respect_clip_planes=True) or pt_edit_orig
+
+            if self.mirror:
+                th = self.mirror_threshold
+                zero = {
+                    'x': ('x' in self.mirror and (sign_threshold(co.x, th.x) != sign_threshold(pt_edit_orig.x, th.x) or sign_threshold(pt_edit_orig.x, th.x) == 0)),
+                    'y': ('y' in self.mirror and (sign_threshold(co.y, th.y) != sign_threshold(pt_edit_orig.y, th.y) or sign_threshold(pt_edit_orig.y, th.y) == 0)),
+                    'z': ('z' in self.mirror and (sign_threshold(co.z, th.z) != sign_threshold(pt_edit_orig.z, th.z) or sign_threshold(pt_edit_orig.z, th.z) == 0)),
+                }
+                # iteratively zero out the component
+                for _ in range(1000):
+                    d = 0
+                    if zero['x']: co.x, d = co.x * 0.95, max(abs(co.x), d)
+                    if zero['y']: co.y, d = co.y * 0.95, max(abs(co.y), d)
+                    if zero['z']: co.z, d = co.z * 0.95, max(abs(co.z), d)
+                    co_world = M @ Vector((*co, 1.0))
+                    co_world_snapped = nearest_point_valid_sources(context, co_world.xyz / co_world.w, world=True, respect_clip_planes=True)
+                    if not co_world_snapped: break
+                    co = Mi @ co_world_snapped
+                    if d < 0.001: break  # break out if change was below threshold
+                if zero['x']: co.x = 0
+                if zero['y']: co.y = 0
+                if zero['z']: co.z = 0
+
+            bmv.co = co
+
+        bmesh.update_edit_mesh(em)
+        context.area.tag_redraw()
+        return {'RUNNING_MODAL'}
+
+    def draw_curve(self, context):
+        ''' Draw the dashed curve + control handles live while dragging. '''
+        rgn, r3d = context.region, context.region_data
+        if not r3d: return
+        M = self.M
+        cbs = self.spline.cbs
+        for cb in cbs:
+            curve_pts = [location_3d_to_region_2d(rgn, r3d, M @ Vector(cb.eval(v / 20))) for v in range(21)]
+            curve_pts = [p for p in curve_pts if p]
+            draw_curve_line = False
+            if draw_curve_line and len(curve_pts) >= 2:
+                Drawing.draw2D_linestrip(context, curve_pts, (1.0, 1.0, 0.0, 0.5), width=2, stipple=[5,5])
+            arms = [location_3d_to_region_2d(rgn, r3d, M @ Vector(getattr(cb, a))) for a in ('p0','p1','p2','p3')]
+            Drawing.draw2D_lines(context, arms, (1.0, 1.0, 1.0, 0.5), width=2)
+        knot_pts2d, tan_pts2d = [], []
+        for h in self.chain['handles']:
+            seg, attr = h['pos']
+            p = location_3d_to_region_2d(rgn, r3d, M @ Vector(getattr(cbs[seg], attr)))
+            if not p: continue
+            (knot_pts2d if h['kind'] == 'knot' else tan_pts2d).append(p)
+        if tan_pts2d:
+            Drawing.draw2D_points(context, tan_pts2d, (0.0, 0.0, 0.0, 0.75), radius=12, border=2, borderColor=(1,1,1,0.5))
+        if knot_pts2d:
+            Drawing.draw2D_points(context, knot_pts2d, (1.0, 1.0, 1.0, 1.0), radius=14, border=2, borderColor=(0,0,0,0.5))
+
+    def draw_postpixel(self, context):
+        ''' Draw the live curve, plus the proportional edit circle in 2D space. '''
+        self.draw_curve(context)
+        if not context.tool_settings.use_proportional_edit: return
+        if self.selection_origin_3d is None or self.selection_origin_2d is None: return
+        gpustate.blend('ALPHA')
+        rgn, r3d = context.region, context.region_data
+
+        pt = self.selection_origin_3d + context.tool_settings.proportional_distance * self.right
+        pt2d = location_3d_to_region_2d(rgn, r3d, pt)
+        if pt2d is None: return
+        radius = pt2d[0] - self.selection_origin_2d[0]
+        if self.handle['kind'] == 'knot':
+            center = self.selection_origin_2d
+        else:
+            seg, attr = self.handle['pos']
+            center = location_3d_to_region_2d(rgn, r3d, self.M @ Vector(getattr(self.spline.cbs[seg], attr)))
+            if center is None: return
+
+        col_off = 20/255
+        color_in = Color((0.33+col_off, 0.33+col_off, 0.33+col_off, 1.0))
+        color_out = Color((0.33-col_off, 0.33-col_off, 0.33-col_off, 1.0))
+
+        gpustate.blend('ALPHA')
+        Drawing.draw2D_smooth_circle(context, center, radius, color_out, width=3)
+        Drawing.draw2D_smooth_circle(context, center, radius-1, color_in, width=1)
+        gpustate.blend('NONE')
+
+
+RFOperator_Strokes_Overlay = create_loopstrip_curve_overlay(
     'RFOperator_Strokes_Selection_Overlay',
     'retopoflow.strokes',  # must match RFTool_base.bl_idname
     'strokes_overlay',
@@ -570,6 +893,7 @@ class RFTool_Strokes(RFTool_Base):
     bl_keymap : BLKeyMaps = chain_rf_keymaps(
         RFOperator_Strokes,
         RFOperator_Stroke_Insert,
+        RFOperator_Strokes_CurveEdit,
         RFOperator_StrokesBrush_Adjust,
         RFOperator_MaximizeWatcher,
         RFOperator_Translate,
@@ -584,7 +908,7 @@ class RFTool_Strokes(RFTool_Base):
         RFTool_Strokes.props = props_strokes
 
         if context.region.type == 'TOOL_HEADER':
-            layout.label(text="Insert:")
+            # layout.label(text="Insert:")
             row = layout.row(align=True)
             row.prop(props_strokes, 'span_insert_mode', text='')
             if props_strokes.span_insert_mode == 'FIXED':
@@ -593,20 +917,14 @@ class RFTool_Strokes(RFTool_Base):
                 row.prop(props_strokes, 'span_length', text="")
             else:
                 row.prop(props_strokes, 'brush_radius', text="")
-            # layout.label(text="Smooth Blending:")
-            layout.prop(props_strokes, 'snap_radius', text="Snap")
-            layout.prop(props_strokes, 'stroke_smoothing', text='Stabilize', slider=True)
             layout.prop(props_strokes, 'smooth_angle', text='Blending', slider=True)
-            # layout.label(text="Spacing:")
-            # row = layout.row(align=True)
-            # row.prop(props_strokes, 'smooth_density0', text='', slider=True)
-            # row.prop(props_strokes, 'smooth_density1', text='', slider=True)
-            row = layout.row(heading='T-Strips:', align=False)
+            row = layout.row(heading='Extrusions:', align=False)
             row.prop(props_strokes, 'extrapolate_mode', expand=True)
+            row.popover('RF_PT_StrokeOptions', text='', icon='STROKE')
+
             draw_line_separator(layout)
-            row = layout.row(align=True)
-            row.prop(props_strokes, 'select_loops', text='Loops', toggle=True)
-            row.popover('RF_PT_TweakCommon')
+
+            draw_tweaking_popover(context, layout, props_strokes)
             layout.popover('RF_PT_Snapping', text='Snapping')
             row = layout.row(align=True)
             row.popover('RF_PT_MeshCleanup', text='Clean Up')
@@ -630,11 +948,11 @@ class RFTool_Strokes(RFTool_Base):
                     panel.prop(props_strokes, 'brush_radius', text="Radius")
                 panel.prop(props_strokes, 'snap_radius', text="Snap")
                 panel.prop(props_strokes, 'stroke_smoothing', text='Stabilize', slider=True)
-                panel.prop(props_strokes, 'smooth_angle', text='Blending', slider=True)
                 col = panel.column(align=True)
                 col.prop(props_strokes, 'smooth_density0', text='Spacing Start', slider=True)
                 col.prop(props_strokes, 'smooth_density1', text='End', slider=True)
-                panel.prop(props_strokes, 'extrapolate_mode', text='T-Strips')
+                panel.prop(props_strokes, 'smooth_angle', text='Blending', slider=True)
+                panel.prop(props_strokes, 'extrapolate_mode', text='Extrusions')
             draw_tweaking_panel(context, layout)
             draw_snapping_panel(context, layout, idname='strokes_snapping_panel')
             draw_cleanup_panel(context, layout)

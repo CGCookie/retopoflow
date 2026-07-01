@@ -25,7 +25,36 @@ from bpy.types import Context, UILayout
 from typing import cast
 from ..preferences import RF_Prefs
 from ..common.interface import draw_section_header
+from ..common.icons import Icon
 from ..rftool_base import RFTool_Base
+
+
+def draw_active_tool_options(context, layout):
+    if context.space_data.type == 'PREFERENCES': return
+
+    tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
+    if 'retopoflow' not in tool.idname: return
+
+    # get RFTool_Base class corresponding to Blender WorkSpaceTool
+    # NOTE: tool.idname might not match an operator, so using rf_operator_idname
+    rftool = RFTool_Base.get_rftool_by_workspacetool(tool)
+    if not rftool or not rftool.rf_operator_idname: return
+
+    try:
+        # WorkSpaceTool.operator_properties throws a RunTime Exception if
+        # the specified tool does not have any properties (2026.06.28)
+        tool_props = tool.operator_properties(rftool.rf_operator_idname)
+    except Exception as _exception:
+        tool_props = None
+    if not tool_props: return
+
+    loops = hasattr(tool_props, 'select_loops')
+    curves = hasattr(tool_props, 'show_curve_handles')
+    if loops or curves:
+        col = layout.column()
+        draw_section_header(context, col, tool_props.bl_rna.name)
+        if loops: col.prop(tool_props, 'select_loops', text='Loops Mode')
+        if curves: col.prop(tool_props, 'show_curve_handles', text='Curve Handles')
 
 
 def draw_tweaking_options(context : Context, layout : UILayout):
@@ -34,28 +63,12 @@ def draw_tweaking_options(context : Context, layout : UILayout):
 
     props = RF_Prefs.get_prefs(context)
 
-    if context.space_data.type != 'PREFERENCES':
-        tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
-        if 'retopoflow' in tool.idname:
-            # get RFTool_Base class corresponding to Blender WorkSpaceTool
-            # NOTE: tool.idname might not match an operator, so using rf_operator_idname
-            rftool = RFTool_Base.get_rftool_by_workspacetool(tool)
-            if rftool and rftool.rf_operator_idname:
-                try:
-                    # WorkSpaceTool.operator_properties throws a RunTime Exception if
-                    # the specified tool does not have any properties (2026.06.28)
-                    tool_props = tool.operator_properties(rftool.rf_operator_idname)
-                except Exception as _exception:
-                    tool_props = None
+    layout.use_property_split = True
+    layout.use_property_decorate = False
 
-                if tool_props and hasattr(tool_props, 'select_loops'):
-                    col = layout.column()
-                    draw_section_header(context, col, tool_props.bl_rna.name)
-                    col.prop(tool_props, 'select_loops', text='Loops Mode')
+    draw_active_tool_options(context, layout)
 
     grid = layout.grid_flow(even_columns=True, even_rows=False)
-    grid.use_property_split = True
-    grid.use_property_decorate = False
 
     col = grid.column()
     draw_section_header(context, col, 'Selection')
@@ -86,16 +99,21 @@ def draw_tweaking_options(context : Context, layout : UILayout):
         row2.enabled = context.scene.tool_settings.use_mesh_automerge
         row2.prop(context.scene.tool_settings, 'double_threshold', text='')
 
-    if context.area.type != 'PREFERENCES' and hasattr(tool_props, 'select_loops'):
-        col = grid.column()
-        col.prop(tool_props, 'select_loops', text='Select Loops')
-
 
 def draw_tweaking_panel(context : Context, layout : UILayout):
     header, panel = layout.panel(idname='tweak_panel_common', default_closed=True)
     header.label(text="Tweaking")
     if panel:
         draw_tweaking_options(context, panel)
+
+
+def draw_tweaking_popover(context: Context, layout: UILayout, tool_props):
+    loops = hasattr(tool_props, 'select_loops')
+    curves = hasattr(tool_props, 'show_curve_handles')
+    row = layout.row(align=True)
+    if loops: row.prop(tool_props, 'select_loops', text='', toggle=True, icon_value=Icon.LOOP.icon_id)
+    if curves: row.prop(tool_props, 'show_curve_handles', toggle=True, text='', icon='IPO_BEZIER')
+    row.popover('RF_PT_TweakCommon')
 
 
 class RFMenu_PT_TweakCommon(bpy.types.Panel):

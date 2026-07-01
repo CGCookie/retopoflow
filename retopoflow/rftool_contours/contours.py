@@ -60,7 +60,7 @@ from ..rfoperators.transform import RFOperator_Translate, sync_projection_from_b
 from ..rfoperators.maximize_watcher import RFOperator_MaximizeWatcher
 
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
-from ..rfpanels.tweaking_panel import draw_tweaking_panel
+from ..rfpanels.tweaking_panel import draw_tweaking_panel, draw_tweaking_popover
 from ..rfpanels.rfpanel_snapping import draw_snapping_panel
 from ..rfpanels.mirror_panel import draw_mirror_panel, draw_mirror_popover
 from ..rfpanels.general_panel import draw_general_panel
@@ -690,16 +690,14 @@ class RFTool_Contours(RFTool_Base):
             # layout.label(text='Insert:')
             layout.prop(props_contours, 'cut_orientation', text='')
             layout.prop(props_contours, 'span_count', text='Spans')
-            layout.prop(props_contours, 'loop_count', text='Cuts')
+            # layout.prop(props_contours, 'loop_count', text='Cuts')
             layout.prop(props_contours, 'curvature_bias', text='Curvature', slider=True)
             layout.prop(props_contours, 'space_evenly', text='Space Evenly', slider=True)
             method_name = props_contours.bl_rna.properties['process_source_method'].enum_items[props_contours.process_source_method].name
             layout.popover('RF_PT_ContoursMethod', text=method_name)
             draw_line_separator(layout)
 
-            row = layout.row(align=True)
-            row.prop(props_contours, 'select_loops', text='Loops', toggle=True)
-            row.popover('RF_PT_TweakCommon')
+            draw_tweaking_popover(context, layout, props_contours)
             layout.popover('RF_PT_Snapping', text='Snapping')
             row = layout.row(align=True)
             row.popover('RF_PT_MeshCleanup', text='Clean Up')

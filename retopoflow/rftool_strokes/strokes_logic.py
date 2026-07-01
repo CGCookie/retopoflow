@@ -38,6 +38,7 @@ from ..common.bmesh_maths import (
     find_closest_point,
     find_sharpest_indices,
     find_sharpest_index,
+    rdp_corner_indices,
     compute_n,
     bmes_get_prevnext_bmvs,
     get_strip_bmvs,
@@ -407,35 +408,14 @@ class Strokes_Logic:
 
         tolerance = self.spacing3D * 0.5
 
-        forced = set(self.important_indices) | {0, l - 1}
-        prev_count = len(forced)
+        prev_count = len(set(self.important_indices) | {0, l - 1})
 
         # Iterative RDP
-        stack = [(0, l - 1)]
-        while stack:
-            i0, i1 = stack.pop()
-            if i1 - i0 <= 1:
-                continue
-            p0, p1 = self.stroke3D[i0], self.stroke3D[i1]
-            seg = p1 - p0
-            seg_len2 = seg.length_squared
-            max_dist, max_k = -1.0, i0 + 1
-            for k in range(i0 + 1, i1):
-                p = self.stroke3D[k]
-                if seg_len2 < 1e-20:
-                    d = (p - p0).length
-                else:
-                    t = max(0.0, min(1.0, (p - p0).dot(seg) / seg_len2))
-                    d = (p - (p0 + t * seg)).length
-                if d > max_dist:
-                    max_dist, max_k = d, k
-            if max_dist < tolerance:
-                continue
-            pt = self.stroke3D[max_k]
-            if not any((pt - self.stroke3D[fi]).length < self.spacing3D for fi in forced if fi != max_k):
-                forced.add(max_k)
-            stack.append((i0, max_k))
-            stack.append((max_k, i1))
+        forced = rdp_corner_indices(
+            self.stroke3D, tolerance,
+            seed_indices=self.important_indices,
+            min_spacing=self.spacing3D,
+        )
 
         if len(forced) == prev_count: return
 

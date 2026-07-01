@@ -104,6 +104,46 @@ def find_sharpest_index(points, *, sharp_radius_percent=0.10):
     sharps.sort(key=lambda s: s[1])
     return sharps[0][0]
 
+def rdp_corner_indices(points, tolerance, *, seed_indices=(), min_spacing=0.0):
+    ''' Iterative Ramer-Douglas-Peucker corner finder.  Returns the sorted indices of
+    points whose perpendicular distance from the chord spanning their enclosing segment exceeds `tolerance`.
+    The endpoints (0 and len-1) and any `seed_indices` are always included. '''
+    l = len(points)
+    if l < 3:
+        forced = set(seed_indices)
+        if l >= 1: forced |= {0, l - 1}
+        return sorted(i for i in forced if 0 <= i < l)
+
+    forced = set(seed_indices) | {0, l - 1}
+    stack = [(0, l - 1)]
+    while stack:
+        i0, i1 = stack.pop()
+        if i1 - i0 <= 1:
+            continue
+        p0, p1 = points[i0], points[i1]
+        seg = p1 - p0
+        seg_len2 = seg.length_squared
+        max_dist, max_k = -1.0, i0 + 1
+        for k in range(i0 + 1, i1):
+            p = points[k]
+            if seg_len2 < 1e-20:
+                d = (p - p0).length
+            else:
+                t = max(0.0, min(1.0, (p - p0).dot(seg) / seg_len2))
+                d = (p - (p0 + t * seg)).length
+            if d > max_dist:
+                max_dist, max_k = d, k
+        if max_dist < tolerance:
+            continue
+        if min_spacing <= 0 or not any(
+            (points[max_k] - points[fi]).length < min_spacing
+            for fi in forced if fi != max_k
+        ):
+            forced.add(max_k)
+        stack.append((i0, max_k))
+        stack.append((max_k, i1))
+    return sorted(forced)
+
 def compute_n(points):
     p0 = points[0]
     return sum((

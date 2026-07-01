@@ -77,6 +77,7 @@ class Icon(Enum):
     ''' Utility class to load image icons on-demand. '''
     SEPARATOR = auto()
     SUPERHIVE = auto()
+    LOOP = auto()
 
     @property
     def icon_id(self) -> int:
