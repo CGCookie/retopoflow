@@ -20,11 +20,20 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
-from typing import Protocol, Literal
+from bpy.types import Object, BlendData
+from typing import Protocol, Literal, cast
 from collections.abc import Callable
 from types import ModuleType
 
-BPY_OP_RETURN = set[Literal['RUNNING_MODAL', 'CANCELLED', 'FINISHED', 'PASS_THROUGH']]
+BPY_OP_RETURN = set[
+    Literal[
+        'RUNNING_MODAL',
+        'CANCELLED',
+        'FINISHED',
+        'PASS_THROUGH'
+    ]
+]
+
 BPY_OP_EXECUTION_CONTEXT = Literal[
     "INVOKE_DEFAULT",
     "INVOKE_REGION_WIN",
@@ -39,6 +48,48 @@ BPY_OP_EXECUTION_CONTEXT = Literal[
     "EXEC_AREA",
     "EXEC_SCREEN",
 ]
+
+BL_SPACE_TYPES = Literal[
+    "EMPTY",
+    "VIEW_3D",
+    "IMAGE_EDITOR",
+    "NODE_EDITOR",
+    "SEQUENCE_EDITOR",
+    "CLIP_EDITOR",
+    "DOPESHEET_EDITOR",
+    "GRAPH_EDITOR",
+    "NLA_EDITOR",
+    "TEXT_EDITOR",
+    "CONSOLE",
+    "INFO",
+    "TOPBAR",
+    "STATUSBAR",
+    "OUTLINER",
+    "PROPERTIES",
+    "FILE_BROWSER",
+    "SPREADSHEET",
+    "PREFERENCES",
+]
+
+BL_REGION_TYPES = Literal[
+    "WINDOW",
+    "HEADER",
+    "CHANNELS",
+    "TEMPORARY",
+    "UI",
+    "TOOLS",
+    "TOOL_PROPS",
+    "ASSET_SHELF",
+    "ASSET_SHELF_HEADER",
+    "PREVIEW",
+    "HUD",
+    "NAVIGATION_BAR",
+    "EXECUTE",
+    "FOOTER",
+    "TOOL_HEADER",
+    "XR",
+]
+
 
 class BpyOperatorCallable(Protocol):
     def __call__(
@@ -110,42 +161,61 @@ class BPY_Timers:
     def unregister(fn : Callable[[], float | None]):
         bpy.app.timers.unregister(fn)
 
-BL_SPACE_TYPES = Literal[
-    "EMPTY",
-    "VIEW_3D",
-    "IMAGE_EDITOR",
-    "NODE_EDITOR",
-    "SEQUENCE_EDITOR",
-    "CLIP_EDITOR",
-    "DOPESHEET_EDITOR",
-    "GRAPH_EDITOR",
-    "NLA_EDITOR",
-    "TEXT_EDITOR",
-    "CONSOLE",
-    "INFO",
-    "TOPBAR",
-    "STATUSBAR",
-    "OUTLINER",
-    "PROPERTIES",
-    "FILE_BROWSER",
-    "SPREADSHEET",
-    "PREFERENCES",
-]
-BL_REGION_TYPES = Literal[
-    "WINDOW",
-    "HEADER",
-    "CHANNELS",
-    "TEMPORARY",
-    "UI",
-    "TOOLS",
-    "TOOL_PROPS",
-    "ASSET_SHELF",
-    "ASSET_SHELF_HEADER",
-    "PREVIEW",
-    "HUD",
-    "NAVIGATION_BAR",
-    "EXECUTE",
-    "FOOTER",
-    "TOOL_HEADER",
-    "XR",
-]
+
+class LibraryData:
+    """
+    Helper "type" for the generator returned by bpy.data.libraries.load().
+    Note...
+    - When _inside_ the generator, the types of following attributes are lists of strings.
+      This is similar to, but different from, bpy.data.
+    - Once _outside_, though, the types change to lists of objects.
+      This is much closer to bpy.data, but still different from.
+    """
+
+    objects : list[str | Object] = []
+
+
+def bpy_data_libraries_load_object(
+    blend_path : str,
+    object_name : str,
+    *,
+    link : bool = False,
+    pack : bool = False,
+    relative : bool = False,
+    set_fake : bool = False,
+    recursive : bool = False,
+    reuse_local_id : bool = False,
+    assets_only : bool = False,
+    clear_asset_data : bool = False,
+    create_liboverrides : bool = False,
+    reuse_liboverrides : bool = False,
+    create_liboverrides_runtime : bool = False,
+) -> Object | None:
+    '''
+    Wrapper function for bpy.data.libraries.load() that better handles type hinting.
+    see: https://docs.blender.org/api/current/bpy.types.BlendDataLibraries.html#bpy.types.BlendDataLibraries.load
+    '''
+
+    with bpy.data.libraries.load(
+        blend_path,
+        link=link,
+        pack=pack,
+        relative=relative,
+        set_fake=set_fake,
+        recursive=recursive,
+        reuse_local_id=reuse_local_id,
+        assets_only=assets_only,
+        clear_asset_data=clear_asset_data,
+        create_liboverrides=create_liboverrides,
+        reuse_liboverrides=reuse_liboverrides,
+        create_liboverrides_runtime=create_liboverrides_runtime,
+    ) as (data_from, data_to): # pyright: ignore[reportUnknownVariableType]
+        data_from = cast(LibraryData, data_from)
+        data_to = cast(LibraryData, data_to)
+        
+        if object_name not in data_from.objects:
+            return None
+
+        data_to.objects = [ object_name ]
+
+    return cast(Object, data_to.objects[0]) # the type of data_to changes outside load() generator

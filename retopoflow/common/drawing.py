@@ -26,7 +26,6 @@ from contextlib import contextmanager
 from math import cos, pi, sin
 from typing import Literal, ClassVar
 
-import bmesh
 import bpy
 import gpu
 from bpy.types import Context, bpy_prop_array
@@ -38,6 +37,7 @@ from gpu.types import (
 )
 from gpu_extras.batch import batch_for_shader
 from mathutils import Color, Matrix, Vector
+from bmesh.types import BMVert, BMEdge
 
 from ...addon_common.common import gpustate
 from ...addon_common.common.blender import get_path_from_addon_common
@@ -211,7 +211,7 @@ class CC_2D_POINTS(CC_DRAW):
         ubos_2D_point.options.colorBorder = cls._border_color
 
     @classmethod
-    def color(cls, c: Color | Color4 | Sequence[float] | None):
+    def color(cls, c: Color | Color4 | bpy_prop_array[float] | Sequence[float] | None):
         if not c:
             return
         ubos_2D_point.options.color = c
@@ -247,7 +247,7 @@ class CC_3D_POINTS(CC_DRAW):
         ubos_3D_point.options.colorBorder = cls._border_color
 
     @classmethod
-    def color(cls, c: Color | Color4 | Sequence[float] | None):
+    def color(cls, c: Color | Color4  | bpy_prop_array[float] | Sequence[float] | None):
         if not c:
             return
         ubos_3D_point.options.color = c
@@ -289,7 +289,7 @@ class CC_2D_LINES(CC_DRAW):
         )
 
     @classmethod
-    def color(cls, c: Color | Color4 | Sequence[float] | None):
+    def color(cls, c: Color | Color4  | bpy_prop_array[float] | Sequence[float] | None):
         if not c:
             return
         ubos_2D_lineseg.options.color0 = c
@@ -373,7 +373,7 @@ class CC_2D_TRIANGLES(CC_DRAW):
         cls._last_p1 = None
 
     @classmethod
-    def color(cls, c: Color | Color4 | Sequence[float] | None):
+    def color(cls, c: Color | Color4  | bpy_prop_array[float] | Sequence[float] | None):
         if c is None:
             return
         ubos_2D_triangle.options.assign(f"color{cls._c}", c)
@@ -405,7 +405,7 @@ class CC_2D_TRIANGLE_FAN(CC_DRAW):
         cls._is_first = True
 
     @classmethod
-    def color(cls, c: Color | Color4 | Sequence[float] | None):
+    def color(cls, c: Color | Color4  | bpy_prop_array[float] | Sequence[float] | None):
         if c is None:
             return
         ubos_2D_triangle.options.assign(f"color{cls._c}", c)
@@ -441,7 +441,7 @@ class CC_3D_TRIANGLES(CC_DRAW):
         cls._last_p1 = None
 
     @classmethod
-    def color(cls, c: Color | Color4 | Sequence[float] | None):
+    def color(cls, c: Color | Color4  | bpy_prop_array[float] | Sequence[float] | None):
         if c is None:
             return
         ubos_3D_triangle.options.assign(f"color{cls._c}", c)
@@ -471,9 +471,22 @@ class Drawing:
     line_base : ClassVar[float]
     _last_fontid : ClassVar[int]
     fontid : ClassVar[int]
-    fontsize : ClassVar[float]
+    fontsize : ClassVar[float | None] = None
     fontsize_scaled : ClassVar[float]
-    last_font_key : ClassVar[tuple[int, float]]
+    last_font_key : ClassVar[tuple[int, float] | None] = None
+
+    line_cache : dict[
+        tuple[int, int],
+        dict[
+            Literal["line height", "line base"],
+            float
+        ]
+    ] = {}
+    size_cache: dict[
+        tuple[str, float, int],
+        dict[Literal["width"] | Literal["height"] | Literal["line height"], float],
+    ] = {}
+
 
     @staticmethod
     def scale(s: float | None) -> float | None:
@@ -637,11 +650,12 @@ class Drawing:
         """
         area = context.area
         radius = Drawing.scale(radius) or radius
+        cx, cy, *_ = center
 
         shader_radial_gradient_2D.bind()
         ubos_radial_gradient_2D.options.MVPMatrix = Drawing.get_pixel_matrix(context)
         ubos_radial_gradient_2D.options.screensize = (area.width, area.height, 0.0, 0.0)
-        ubos_radial_gradient_2D.options.center = (center.x, center.y, 0.0, 0.0)
+        ubos_radial_gradient_2D.options.center = (cx, cy, 0.0, 0.0)
         ubos_radial_gradient_2D.options.color_center = color_center
         ubos_radial_gradient_2D.options.color_edge = color_edge
         ubos_radial_gradient_2D.options.radius_t_easing = (
@@ -768,8 +782,9 @@ class Drawing:
             pos_id = fmt.attr_add(
                 id="pos", comp_type="F32", len=3, fetch_mode="FLOAT"
             )  # Change len to 3
+            assert pos_id is not None
             vbo = GPUVertBuf(len=len(verts), format=fmt)
-            vbo.attr_fill(id=pos_id, data=verts)
+            _ = vbo.attr_fill(id=pos_id, data=verts)
 
             batch = GPUBatch(type="LINE_STRIP", buf=vbo)
             shader = gpu.shader.from_builtin(
@@ -949,7 +964,12 @@ class Drawing:
 
     @staticmethod
     def draw_loop_highlight(
-        context, loop_verts, matrix_world, color, *, skip_verts=None
+        context : Context,
+        loop_verts : Sequence[BMVert],
+        matrix_world : Matrix,
+        color : Color | Color4 | Sequence[float] | bpy_prop_array[float],
+        *,
+        skip_verts : set[BMVert] | None = None,
     ):
         """Draw a dashed highlight along every edge shared by two loop verts.
         skip_verts: verts to keep padding around (line stops short of those endpoints).
@@ -970,8 +990,8 @@ class Drawing:
         def needs_gap(v):
             return skip_verts is None or v in skip_verts
 
-        seen_edges = set()
-        edges_to_draw = []
+        seen_edges : set[BMEdge] = set()
+        edges_to_draw : list[tuple[BMVert, BMVert]] = []
         for bmv in loop_verts:
             if not bmv.is_valid:
                 continue
@@ -980,7 +1000,7 @@ class Drawing:
                     continue
                 seen_edges.add(bme)
                 other = bme.other_vert(bmv)
-                if other in loop_verts:
+                if other and other in loop_verts:
                     edges_to_draw.append((bmv, other))
         if not edges_to_draw:
             return
@@ -999,7 +1019,7 @@ class Drawing:
                 if diff.length < gap0 + gap1:
                     continue
                 d = diff.normalized()
-                draw.vertex(p0 + d * gap0).vertex(p1 - d * gap1)
+                _ = draw.vertex(p0 + d * gap0).vertex(p1 - d * gap1)
 
     # def draw2D_point(context, pt, color, *, radius=1, border=0, borderColor=None):
     #     gpu.state.blend_set('ALPHA')
@@ -1017,20 +1037,13 @@ class Drawing:
     #     batch_2D_point.draw(shader_2D_point)
     #     gpu.shader.unbind()
 
-    fontsize = None
-    last_font_key = None
-    line_cache = {}
-    size_cache: dict[
-        tuple[str, float, int],
-        dict[Literal["width"] | Literal["height"] | Literal["line height"], float],
-    ] = {}
-
     @staticmethod
-    def set_font_size(fontsize: float, fontid=None, force=False) -> float | None:
+    def set_font_size(fontsize: float, fontid : int | str | None = None, force : bool = False) -> float | None:
         if fontid is None:
             fontid = fm._last_fontid
         else:
             fontid = fm.load(fontid)
+        s4 = Drawing.scale(4) or 4
         fontsize_prev = Drawing.fontsize
         fontsize = int(fontsize)
         fontsize_scaled = int(Drawing.scale(fontsize) or fontsize)
@@ -1041,19 +1054,17 @@ class Drawing:
         if cache_key not in Drawing.line_cache:
             # cache away useful details about font (line height, line base)
             # dprint('Caching new scaled font size:', cache_key)
-            all_chars = "".join(
-                [
-                    "abcdefghijklmnopqrstuvwxyz",
-                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
-                    "0123456789",
-                    "!@#$%%^&*()`~[}{]/?=+\\|-_'\",<.>",
-                    "ΑαΒβΓγΔδΕεΖζΗηΘθΙιΚκΛλΜμΝνΞξΟοΠπΡρΣσςΤτΥυΦφΧχΨψΩω",
-                ]
+            all_chars = (
+                "abcdefghijklmnopqrstuvwxyz"
+                "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                "0123456789"
+                "!@#$%%^&*()`~[}{]/?=+\\|-_'\",<.>"
+                "ΑαΒβΓγΔδΕεΖζΗηΘθΙιΚκΛλΜμΝνΞξΟοΠπΡρΣσςΤτΥυΦφΧχΨψΩω"
             )
-            all_caps = all_chars.upper()
+            all_caps : str = all_chars.upper()
             Drawing.line_cache[cache_key] = {
                 "line height": math.ceil(
-                    fm.dimensions(all_chars, fontid=fontid)[1] + Drawing.scale(4)
+                    fm.dimensions(all_chars, fontid=fontid)[1] + s4
                 ),
                 "line base": math.ceil(fm.dimensions(all_caps, fontid=fontid)[1]),
             }
@@ -1111,14 +1122,14 @@ class Drawing:
                 d["height"] = get_height(text)
                 d["line height"] = Drawing.line_height * len(lines)
             Drawing.size_cache[key] = d
-            if False:
-                print("")
-                print("--------------------------------------")
-                print("> computed new size")
-                print(">   key: %s" % str(key))
-                print(">   size: %s" % str(d))
-                print("--------------------------------------")
-                print("")
+            # if False:
+            #     print("")
+            #     print("--------------------------------------")
+            #     print("> computed new size")
+            #     print(">   key: %s" % str(key))
+            #     print(">   size: %s" % str(d))
+            #     print("--------------------------------------")
+            #     print("")
         if size_prev is not None:
             _ = Drawing.set_font_size(size_prev, fontid=fontid)
         return Drawing.size_cache[key][item]

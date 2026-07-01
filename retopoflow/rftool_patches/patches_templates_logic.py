@@ -38,6 +38,7 @@ from ...addon_common.common.colors import Color4
 from ...addon_common.common.maths import Frame, Point, Normal
 from ...addon_common.common.utils import iter_pairs
 from ..common.bmesh import get_bmesh_emesh, bme_other_bmv
+from ..common.bpy_helper import bpy_data_libraries_load_object
 from ..common.drawing import (
     Drawing,
     CC_2D_POINTS,
@@ -81,11 +82,15 @@ class Patches_Template:
         self._process()
 
     def _from_data(self, data : dict[str, list[Sequence[Vector]] | list[Sequence[int]]]):
-        self.vc, self.ec, self.fc = len(data['vertices']), len(data['edges']), len(data['polygons'])
-        self.vps = [ Vector(co) for (co,_no) in data['vertices'] ]
-        self.vns = [ Vector(no) for (_co,no) in data['vertices'] ]
-        self.es  = [ tuple(e)   for e in data['edges'] ]
-        self.fs  = [ tuple(f)   for f in data['polygons'] ]
+        verts = cast(list[tuple[Vector,Vector]], data['vertices'])
+        edges = cast(list[tuple[int,int]], data['edges'])
+        faces = cast(list[Sequence[int]], data['polygons'])
+
+        self.vc, self.ec, self.fc = len(verts), len(edges), len(faces)
+        self.vps = [ Vector(co) for (co,_no) in verts ]
+        self.vns = [ Vector(no) for (_co,no) in verts ]
+        self.es  = [ (i0, i1)   for (i0, i1) in edges ]
+        self.fs  = [ tuple(f)   for f in faces ]
 
     def _from_mesh(self, mesh : Mesh):
         self.vc, self.ec, self.fc = len(mesh.vertices), len(mesh.edges), len(mesh.polygons)
@@ -231,12 +236,15 @@ class Patches_Template:
                 # link asset into a temporary scene (makes finding object easier)
                 print(f'temporarily linking in {object_type} {object_name} from {blend_path}')
                 asset_scene = bpy.data.scenes.new('RF Patches')
-                # link in asset (THIS IS REALLY AWKWARD, BUT SEEMS TO BE THE ONLY WAY?)
-                with bpy.data.libraries.load(blend_path, link=True) as (data_from, data_to):
-                    assert object_name in data_from.objects, f'Could not find {object_name} ({object_type}) in {blend} ({blend_path})'
-                    data_to.objects = [object_name]
-                # the following must be **OUTSIDE** the with above
-                asset_scene.collection.objects.link(data_to.objects[0])  # does NOT return the object linked!
+                # # link in asset (THIS IS REALLY AWKWARD, BUT SEEMS TO BE THE ONLY WAY?)
+                # with bpy.data.libraries.load(blend_path, link=True) as (data_from, data_to):
+                #     assert object_name in data_from.objects, f'Could not find {object_name} ({object_type}) in {blend} ({blend_path})'
+                #     data_to.objects = [object_name]
+                # # the following must be **OUTSIDE** the with above
+                # asset_scene.collection.objects.link(data_to.objects[0])  # does NOT return the object linked!
+                object = bpy_data_libraries_load_object(blend_path, object_name, link=True)
+                assert object, f'Could not find {object_name} ({object_type}) in {blend} ({blend_path})'
+                asset_scene.collection.objects.link(object)  # does NOT return the object linked!
                 asset_object = asset_scene.collection.objects[0]  # should be only one object in temp scene
                 assert asset_object
 
@@ -286,7 +294,7 @@ class Patches_Template:
             draw.color(color_point)
             for pt, c in zip(pts, active.vcs):
                 if not c or not pt: continue
-                draw.vertex(pt)
+                _ = draw.vertex(pt)
 
         with Drawing.draw(context, CC_2D_LINES) as draw:
             draw.color(color_border_mesh)
@@ -297,7 +305,7 @@ class Patches_Template:
             for (e0,e1) in active.es:
                 pt0, pt1 = pts[e0], pts[e1]
                 if not pt0 or not pt1: continue
-                draw.vertex(pt0).vertex(pt1)
+                _ = draw.vertex(pt0).vertex(pt1)
 
             drawn = set()
             for f in active.fs:
@@ -308,7 +316,7 @@ class Patches_Template:
                     drawn.add((e0,e1))
                     pt0, pt1 = pts[e0], pts[e1]
                     if not pt0 or not pt1: continue
-                    draw.vertex(pt0).vertex(pt1)
+                    _ = draw.vertex(pt0).vertex(pt1)
 
             # draw face edges
             draw.line_width(1)
@@ -320,20 +328,24 @@ class Patches_Template:
                     drawn.add((e0,e1))
                     pt0, pt1 = pts[e0], pts[e1]
                     if not pt0 or not pt1: continue
-                    draw.vertex(pt0).vertex(pt1)
+                    _ = draw.vertex(pt0).vertex(pt1)
 
         with Drawing.draw(context, CC_2D_TRIANGLES) as draw:
             draw.color(color_mesh)
             for f in active.fs:
                 if not all(pts[i] for i in f): continue
-                v0 = f[0]
-                pt0 = pts[v0]
-                for (v1, v2) in iter_pairs(f[1:], False):
+                pt0 : Vector | None = None
+                for (v1, v2) in iter_pairs(f, False):
+                    if not pt0:
+                        # haven't found the first non-None point yet
+                        pt0 = pts[v1]
+                        continue
                     pt1, pt2 = pts[v1], pts[v2]
-                    draw.vertex(pt0).vertex(pt1).vertex(pt2)
+                    if pt0 and pt1 and pt2:
+                        _ = draw.vertex(pt0).vertex(pt1).vertex(pt2)
 
 
-class Patches_Context:
+class Patches_Templates_Context:
     """
     All context-related data is stored in this class so it is much
     easier to detele all references to the data, preventing RF from
@@ -355,7 +367,8 @@ class Patches_Context:
     cycle : bool
     sides : list[list[BMVert]]
 
-    def __init__(self, context, *, full_init=False):
+    def __init__(self, context : Context, *, full_init : bool = False):
+        assert context.edit_object
         self.bm, self.em = get_bmesh_emesh(context, ensure_lookup_tables=True)
 
         if full_init:
@@ -443,14 +456,14 @@ class Patches_Context:
                     break
 
 
-class Patches_Logic:
-    ctx : Patches_Context
+class Patches_Template_Logic:
+    ctx : Patches_Templates_Context
     rotate : int
     mirror : bool
     error  : bool
 
     def __init__(self, context : Context):
-        self.ctx = Patches_Context(context, full_init=True)
+        self.ctx = Patches_Templates_Context(context, full_init=True)
         self.rotate = 0
         self.mirror = False
         self.error = False

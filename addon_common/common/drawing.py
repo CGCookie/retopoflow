@@ -42,7 +42,7 @@ from .functools import find_fns
 from .globals import Globals
 from .hasher import Hasher
 from .maths import Point2D, Point, Ray, Direction, Color, Normal, Frame
-from .utils import iter_pairs
+from .utils import iter_pairs, Dict
 from . import gpustate
 
 shaders_initialized = False
@@ -96,7 +96,8 @@ class Drawing:
     @staticmethod
     def initialize():
         Drawing.update_dpi()
-        if Globals.is_set('drawing'): return
+        if Globals.is_set('drawing'):
+            return
         Drawing._creating = True
         Globals.set(Drawing())
         Drawing._creating = False
@@ -319,7 +320,7 @@ class Drawing:
         size_prev : float | None = self.set_font_size(fontsize, fontid=fontid) if fontsize else None
 
         lines = str(text).splitlines()
-        l,t = round(pos[0]),round(pos[1])
+        l, t = round(pos[0]), round(pos[1])
         lh,lb = self.line_height,self.line_base
 
         if dropshadow:
@@ -439,8 +440,10 @@ class Drawing:
         return Ray(o, d)
 
     def Point_to_Point2D(self, p3d) -> Point2D | None:
-        if not self.rgn or not self.r3d: return None
-        return Point2D(location_3d_to_region_2d(self.rgn, self.r3d, p3d))
+        if not self.rgn or not self.r3d:
+            return None
+        pt = location_3d_to_region_2d(self.rgn, self.r3d, p3d)
+        return Point2D(pt) if pt else None
 
     def draw2D_point(
         self,
@@ -457,7 +460,8 @@ class Drawing:
         init_shaders()
         radius_scaled = self.scale(radius) or radius
         border_scaled = self.scale(border) or border
-        if borderColor is None: borderColor = (0,0,0,0)
+        if borderColor is None:
+            borderColor = (0,0,0,0)
         shader_2D_point.bind()
         ubos_2D_point.options.screensize = (self.area.width, self.area.height, 0, 0)
         ubos_2D_point.options.mvpmatrix = self.get_pixel_matrix()
@@ -701,7 +705,7 @@ def init_shaders():
 
     # https://docs.blender.org/api/blender2.8/gpu.html#triangle-with-custom-shader
 
-    def create_shader(fn_glsl):
+    def create_shader(fn_glsl : str) -> tuple[gpu.types.GPUShader, Dict]:
         path_glsl = get_path_from_addon_common('common', 'shaders', fn_glsl)
         txt = open(path_glsl, 'rt').read()
         vert_source, frag_source = gpustate.shader_parse_string(txt)

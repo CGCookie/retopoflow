@@ -19,7 +19,10 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+from __future__ import annotations
+
 import platform
+from typing import cast
 
 import bpy
 from bpy.types import Context, AddonPreferences, UILayout
@@ -38,11 +41,11 @@ class RF_Prefs(AddonPreferences):
     bl_idname : str = addon_name
 
     @staticmethod
-    def get_prefs(context : Context) -> AddonPreferences:
+    def get_prefs(context : Context) -> RF_Prefs:
         addon = context.preferences.addons[addon_name]
         addon_prefs = addon.preferences
         assert addon_prefs
-        return addon_prefs
+        return cast(RF_Prefs, addon_prefs)
 
     """ RF AutoSave """
     enable_autosave: bpy.props.BoolProperty(
@@ -90,6 +93,7 @@ class RF_Prefs(AddonPreferences):
         default=True,
         update=lambda self, context: update_toolbar()
     )
+
     highlight_color: bpy.props.FloatVectorProperty(
         name='Highlight Color',
         description=('The color used by the insert tools when adding new geometry'),
@@ -98,6 +102,7 @@ class RF_Prefs(AddonPreferences):
         min=0,
         max=1,
     )
+
     vertex_size: bpy.props.IntProperty(
         name='Vertex Size',
         description='The visual size of each vertex in the viewport. This is only used when Component Size is enabled under Tool Switching',

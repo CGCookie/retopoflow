@@ -1031,8 +1031,8 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
 
     running_operators : ClassVar[int] = 0
 
-    is_running : bool
-    running_in_area : Area | None
+    is_running : bool = False
+    running_in_area : Area | None = None
 
     @classmethod
     def poll(cls, context : Context) -> bool:
@@ -1062,7 +1062,6 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
     def __init__(self, *args : ..., **kwargs : ...):
         super().__init__(*args, **kwargs)
         print('RFCore_Operator.__init__')
-        self.running_in_area = None
         RFCore_Operator.running_operators += 1
         self.is_running = True
 
