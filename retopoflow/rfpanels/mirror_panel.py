@@ -21,6 +21,7 @@ Created by Jonathan Denning, Jonathan Lampel
 
 
 import bpy
+from bpy.types import Context, UILayout
 from ..preferences import RF_Prefs
 from ..rfoperators.mirror import get_mirror_mod
 from ..common.interface import draw_section_header, draw_section_indent
@@ -113,16 +114,18 @@ def draw_mirror_options(context, layout):
         row.operator('retopoflow.addmirror')
 
 
-def draw_mirror_panel(context, layout):
+def draw_mirror_panel(context : Context, layout : UILayout):
     header, panel = layout.panel(idname='retopoflow_mirror_panel', default_closed=True)
     header.label(text="Mirror")
     if panel:
         draw_mirror_options(context, panel)
 
 
-def draw_mirror_popover(context, layout):
+def draw_mirror_popover(context : Context, layout : UILayout):
     prefs = RF_Prefs.get_prefs(context)
     obj = context.active_object
+    if not obj:
+        return
     mod = get_mirror_mod(obj)
 
     row = layout.row(align=True)

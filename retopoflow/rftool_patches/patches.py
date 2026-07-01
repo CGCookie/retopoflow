@@ -31,7 +31,6 @@ from bpy.types import (
     WorkSpaceTool,
     Event,
 )
-from bpy_extras.view3d_utils import location_3d_to_region_2d
 from bmesh.types import BMVert, BMEdge
 from mathutils import Vector
 
@@ -39,12 +38,9 @@ from ..rfglobals import RFGlobals
 from ..rfoperators.topo_rotate import RFOperator_TopoRotate
 from ..rftool_base import RFTool_Base
 
-from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.resetter import Resetter
 
 from ..common.bpy_helper import bpy_ops_retopoflow, BL_SPACE_TYPES, BL_REGION_TYPES
-from ..common.bmesh import get_bmesh_emesh, bme_midpoint, get_boundary_strips_cycles
-from ..common.drawing import Drawing
 from ..common.icons import get_path_to_blender_icon
 from ..common.operator import (
     execute_operator,
@@ -65,22 +61,24 @@ from ..rfpanels.help_panel import draw_help_panel
 
 
 # from . import patches_templates
+from .patches_logic import Patches_Logic
 
 
-
-class RFOperator_Patches_Insert(RFOperator_Execute):
-    bl_idname : str = 'retopoflow.patches_insert'
+class RFOperator_Patches_Insert_Corner(RFOperator_Execute):
+    bl_idname : str = 'retopoflow.patches_insert_corner'
     bl_label : str = 'Insert Patch'
     bl_description : str = 'Fill in hole with patch'
     bl_options : set[str] = set()
 
     rf_keymaps : RFKeyMaps = [
-        (bl_idname, {'type': 'F', 'value': 'PRESS'}, None)
+        # (bl_idname, {'type': 'F', 'value': 'PRESS'}, None),
+        (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS', 'ctrl': 1, 'shift': 0}, None),
     ]
     rf_status : dict[str, Sequence[str]] = { }
 
     def execute(self, context : Context) -> set[str]:
-        print('RFOperator_Patches_Insert.execute')
+        print('RFOperator_Patches_Insert_Corner.execute')
+
         return {'FINISHED'}
 
 
@@ -112,16 +110,7 @@ class RFOperator_Patches_Selection_Overlay(RFOverlay_Base, RFOperator):
     bl_description : str = 'Overlay info about selected loops and strips'
     bl_options : set[str] = { 'INTERNAL' }
 
-    depsgraph_version : int = -42
-
-    # Points that will act as corners for patch, where keys are either a...
-    # - int >= 0 corresponding to index of BMVert or
-    # - int <  0 indicating a corner that is not yet associated with BMVert (will be new BMVert on commit)
-    # and values are location in world space.
-    #
-    # IMPORTANT: must not keep reference to bmesh elements, because they will invalidate
-    #       whenever depsgraph changes!  Instead, keep track of them via their indices.
-    corners : dict[int, Vector] = {}
+    logic : Patches_Logic
 
     def is_done(self):
         RFCore = RFGlobals.RFCore_None
@@ -132,41 +121,14 @@ class RFOperator_Patches_Selection_Overlay(RFOverlay_Base, RFOperator):
         _ = bpy_ops_retopoflow('patches_selection_overlay', 'INVOKE_DEFAULT')
 
     def init(self, _context : Context, _event : Event):
-        self.depsgraph_version = -42
+        self.logic = Patches_Logic()
 
     def update(self, context : Context, event : Event) -> set[str]:
         return {'CANCELLED'} if self.is_done() else {'PASS_THROUGH'}
 
     def draw_postpixel_overlay(self):
-        RFCore = RFGlobals.RFCore_None
-        context = bpy.context
-        if not RFCore or self.is_done() or not context.edit_object:
-            return
-
-        rgn, r3d = context.region, context.region_data
-        M = context.edit_object.matrix_world
-
-        if self.depsgraph_version != RFCore.depsgraph_version:
-            self.depsgraph_version = RFCore.depsgraph_version
-            bm, _ = get_bmesh_emesh(bpy.context, ensure_lookup_tables=True)
-            if isinstance(bmv_active := bm.select_history.active, BMVert):
-                # add active element to collection of corner BMVerts
-                self.corners[bmv_active.index] = M @ bmv_active.co
-            len_verts = len(bm.verts)
-            self.corners = {
-                i: pt
-                for (i, pt) in self.corners.items()
-                if i < len_verts and (bmv := bm.verts[i]) and bmv.select
-            }
-
-        Drawing.draw2D_points(
-            context,
-            [ location_3d_to_region_2d(rgn, r3d, pt) for pt in self.corners.values() ],
-            (1, 1, 0, 1),
-            radius=12,
-        )
-
-
+        self.logic.update()
+        self.logic.draw()
 
 
 
@@ -181,7 +143,7 @@ class RFTool_Patches(RFTool_Base):
 
     bl_keymap : BLKeyMaps = chain_rf_keymaps(
         RFOperator_Patches,
-        RFOperator_Patches_Insert,
+        RFOperator_Patches_Insert_Corner,
         # RFOperator_Patches_Insert_Template,
         # RFOperator_PatchesBrush_Adjust,
         RFOperator_TopoRotate,
