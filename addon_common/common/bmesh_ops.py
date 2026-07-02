@@ -68,6 +68,12 @@ def get_all_selected(bm : BMesh) -> dict[BMElemType, set[BMVert]|set[BMEdge]|set
         BMFace: get_all_selected_bmfaces(bm),
     }
 
+def any_selected_bmverts(bm : BMesh) -> bool:
+    return any(
+        bmv.select and not bmv.hide
+        for bmv in bm.verts
+    )
+
 def get_all_selected_bmverts(bm : BMesh) -> set[BMVert]:
     return { bmv for bmv in bm.verts if bmv.select and not bmv.hide }
 def get_all_selected_bmedges(bm : BMesh) -> set[BMEdge]:

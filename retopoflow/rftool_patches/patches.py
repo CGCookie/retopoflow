@@ -22,28 +22,35 @@ Created by Jonathan Denning, Jonathan Lampel
 # pyright: reportUninitializedInstanceVariable = false
 
 
+from typing import cast
 from collections.abc import Sequence
 
-import bpy
 from bpy.types import (
     Context,
     UILayout,
     WorkSpaceTool,
     Event,
 )
-from bmesh.types import BMVert, BMEdge
 from mathutils import Vector
+
 
 from ..rfglobals import RFGlobals
 from ..rfoperators.topo_rotate import RFOperator_TopoRotate
 from ..rftool_base import RFTool_Base
 
 from ...addon_common.common.resetter import Resetter
+from ..common.raycast import (
+    nearest_point_valid_sources,
+    raycast_valid_sources,
+    raycast_point_valid_sources,
+    mouse_from_event,
+    vec_forward,
+)
 
 from ..common.bpy_helper import bpy_ops_retopoflow, BL_SPACE_TYPES, BL_REGION_TYPES
 from ..common.icons import get_path_to_blender_icon
 from ..common.operator import (
-    execute_operator,
+    execute_operator, invoke_operator,
     RFOperator,
     RFOperator_Execute,
     RFKeyMaps,
@@ -64,22 +71,51 @@ from ..rfpanels.help_panel import draw_help_panel
 from .patches_logic import Patches_Logic
 
 
-class RFOperator_Patches_Insert_Corner(RFOperator_Execute):
-    bl_idname : str = 'retopoflow.patches_insert_corner'
-    bl_label : str = 'Insert Patch'
-    bl_description : str = 'Fill in hole with patch'
-    bl_options : set[str] = set()
+# class RFOperator_Patches_Insert_Corner(RFOperator_Execute):
+#     bl_idname : str = 'retopoflow.patches_insert_corner'
+#     bl_label : str = 'Insert Patch'
+#     bl_description : str = 'Fill in hole with patch'
+#     bl_options : set[str] = set()
 
-    rf_keymaps : RFKeyMaps = [
-        # (bl_idname, {'type': 'F', 'value': 'PRESS'}, None),
-        (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS', 'ctrl': 1, 'shift': 0}, None),
-    ]
-    rf_status : dict[str, Sequence[str]] = { }
+#     rf_keymaps : RFKeyMaps = [
+#         # (bl_idname, {'type': 'F', 'value': 'PRESS'}, None),
+#         (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS', 'ctrl': 1, 'shift': 0}, None),
+#     ]
+#     rf_status : dict[str, Sequence[str]] = { }
 
-    def execute(self, context : Context) -> set[str]:
-        print('RFOperator_Patches_Insert_Corner.execute')
+#     def execute(self, context : Context) -> set[str]:
+#         print('RFOperator_Patches_Insert_Corner.execute')
+#         Patches_Logic.insert_corner(Vector((0,0,0)))
 
-        return {'FINISHED'}
+#         return {'FINISHED'}
+
+@invoke_operator(
+    'patches_insert_corner',
+    'Insert new corner',
+    description='Insert a new corner',
+    options={'INTERNAL', 'UNDO'},
+    keymaps=[
+        (
+            'retopoflow.patches_insert_corner',
+            { 'type': 'LEFTMOUSE', 'value': 'PRESS', 'ctrl': 1, 'shift': 0 },
+            None
+        ),
+    ],
+)
+def insert_corner(context : Context, event : Event):
+    print('patches_insert_corner')
+    mouse = mouse_from_event(event)
+    hit = raycast_valid_sources(
+        context,
+        mouse,
+        respect_clip_planes=True,
+    )
+    co_local = cast(Vector, hit['co_local']) if hit else None
+    if not co_local:
+        return
+
+    Patches_Logic.insert_corner(co_local)
+    RFGlobals.RFCore.tag_redraw_areas()
 
 
 class RFOperator_Patches(RFOperator):
@@ -143,7 +179,8 @@ class RFTool_Patches(RFTool_Base):
 
     bl_keymap : BLKeyMaps = chain_rf_keymaps(
         RFOperator_Patches,
-        RFOperator_Patches_Insert_Corner,
+        # RFOperator_Patches_Insert_Corner,
+        insert_corner,
         # RFOperator_Patches_Insert_Template,
         # RFOperator_PatchesBrush_Adjust,
         RFOperator_TopoRotate,

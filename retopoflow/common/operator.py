@@ -21,7 +21,7 @@ Created by Jonathan Denning, Jonathan Lampel
 
 from __future__ import annotations
 from functools import singledispatch
-from typing import Self, ClassVar, Protocol, Any, cast, Literal, ParamSpec, TypeVar
+from typing import Self, ClassVar, Protocol, Any, cast, Literal, ParamSpec, TypeVar, TypeAlias
 from collections.abc import Sequence, Callable, Iterable
 from inspect import signature
 
@@ -93,13 +93,14 @@ class RFRegisterClass:
     def unregister(cls): pass
 
 
-RFKeyMap = tuple[
+RFKeyMap : TypeAlias = tuple[
     str,
     dict[str, str | int | float | bool],
     dict[str, str | tuple[str,...] | Callable[[Context], bool]] | None,
 ]
-RFKeyMaps = list[RFKeyMap]
-BLKeyMaps = tuple[RFKeyMap, ...]
+RFKeyMaps : TypeAlias = list[RFKeyMap]
+BLKeyMaps : TypeAlias = tuple[RFKeyMap, ...]
+
 
 
 DEBUG_PRINT = False
@@ -616,6 +617,7 @@ def create_operator(
     fn_exec     : Operator_Execute_Function | None = None,
     fn_modal    : Operator_Modal_Function | None = None,
     options     : set[str] | None = None,
+    keymaps     : RFKeyMaps | None = None,
 ) -> RFOperator:
 
     if fn_invoke:
@@ -673,6 +675,7 @@ def create_operator(
         bl_space_type  : str = "VIEW_3D"
         bl_region_type : str = "TOOLS"
         bl_options : set[str] = options or set()
+        rf_keymaps : RFKeyMaps = keymaps or list()
 
         @classmethod
         def poll(cls, context : Context) -> bool:
@@ -703,6 +706,7 @@ def invoke_operator(
     fn_poll     : Operator_Poll_Function    | None = None,
     fn_exec     : Operator_Execute_Function | None = None,
     fn_modal    : Operator_Modal_Function   | None = None,
+    keymaps     : RFKeyMaps | None = None,
 ) -> Callable[[Operator_Invoke_Function], Operator_Invoke_Function]:
     idname = name.lower().removeprefix('retpoflow.')
     def get(fn : Operator_Invoke_Function) -> Operator_Invoke_Function:
@@ -716,9 +720,11 @@ def invoke_operator(
             fn_exec=fn_exec,
             fn_modal=fn_modal,
             options=options,
+            keymaps=keymaps,
         )
         # add bl_idname attribute to function
         setattr(fn, 'bl_idname', idname_to_retopoflow_bl_idname(idname))
+        setattr(fn, 'rf_keymaps', keymaps)
         return fn
     return get
 
@@ -731,6 +737,7 @@ def execute_operator(
     fn_poll     : Operator_Poll_Function | None = None,
     fn_invoke   : Operator_Invoke_Function | None = None,
     fn_modal    : Operator_Modal_Function | None = None,
+    keymaps     : RFKeyMaps | None = None,
 ) -> Callable[[Operator_Execute_Function], Operator_Execute_Function]:
     idname = name.lower().removeprefix('retopoflow.')
     def get(fn : Operator_Execute_Function) -> Operator_Execute_Function:
@@ -744,9 +751,11 @@ def execute_operator(
             fn_invoke=fn_invoke,
             fn_modal=fn_modal,
             options=options,
+            keymaps=keymaps,
         )
         # add bl_idname attribute to function
         setattr(fn, 'bl_idname', idname_to_retopoflow_bl_idname(idname))
+        setattr(fn, 'rf_keymaps', keymaps)
         return fn
     return get
 
@@ -758,6 +767,7 @@ def modal_operator(
     options     : set[str] | None = None,
     fn_poll     : Operator_Poll_Function | None = None,
     fn_invoke   : Operator_Invoke_Function | None = None,
+    keymaps     : RFKeyMaps | None = None,
 ) -> Callable[[Operator_Modal_Function], Operator_Modal_Function]:
     idname = name.lower().removeprefix('retopoflow.')
     def fn_execute(self : Operator, context : Context) -> set[str]:
@@ -775,9 +785,11 @@ def modal_operator(
             fn_poll=fn_poll,
             fn_invoke=fn_invoke,
             options=options,
+            keymaps=keymaps,
         )
         # add bl_idname attribute to function
         setattr(fn, 'bl_idname', idname_to_retopoflow_bl_idname(idname))
+        setattr(fn, 'rf_keymaps', keymaps)
         return fn
     return get
 
@@ -846,9 +858,38 @@ class OperatorPropertyWrapper:
         )
 
 
-def chain_rf_keymaps(*classes : type[RFOperator_Base], extra : RFKeyMaps | None = None) -> BLKeyMaps:
+RFOperator_Type : TypeAlias = type[RFOperator_Base]
+
+Chainable_Keymaps : TypeAlias = (
+    RFOperator_Type
+    | RFKeyMap | RFKeyMaps
+    | Operator_Invoke_Function | Operator_Execute_Function | Operator_Modal_Function
+    | None
+)
+
+def chain_rf_keymaps(
+    *classes_or_keymaps : Chainable_Keymaps,
+    extra : RFKeyMaps | None = None,
+) -> BLKeyMaps:
+    def rf_keymaps(class_keymaps : Chainable_Keymaps) -> RFKeyMaps:
+        match class_keymaps:
+            case None:
+                return []
+            case tuple():  # RFKeyMap
+                return [ class_keymaps ]
+            case list():  # RFKeyMaps
+                return class_keymaps
+            case type():  # RFOperator_Type
+                return class_keymaps.rf_keymaps
+            case fn if callable(fn):  # Operator_XXX_Function
+                return cast(RFKeyMaps, getattr(fn, 'rf_keymaps'))
+            case _:
+                assert False, f'Unhandled type {type(class_keymaps)} ({class_keymaps})'
+
     keymaps = [
-        keymap for cls in classes for keymap in cls.rf_keymaps
+        keymap
+        for ck in classes_or_keymaps
+        for keymap in rf_keymaps(ck)
     ]
 
     if extra:
