@@ -281,6 +281,7 @@ class SharedStatusbarKeymap:
         sub = layout.row(align=True)
         for icon in self.get_icons():
             sub.label(text='', icon=icon)
+            if is_macOS: continue
             if icon == 'EVENT_CTRL':
                 sub.separator(factor=1.5)
             elif icon == 'EVENT_ALT':
@@ -337,16 +338,6 @@ SHARED_STATUSBAR_KEYMAPS__POST_TOOL = (
         filter_op_props={'name': 'RF_MT_Tools'}
     ),
 
-    SharedStatusbarKeymap(
-        label="Open Docs",
-        op_id="3D View | retopoflow.launch_help"
-    ),
-
-    SharedStatusbarKeymap(
-        label="Report Issue",
-        op_id="3D View | retopoflow.launch_newissue"
-    ),
-
     # SharedStatusbarKeymap(label="Knife", icons=['EVENT_K']), # static version
     SharedStatusbarKeymap( # dynamic version
         label="Knife",
@@ -360,6 +351,16 @@ SHARED_STATUSBAR_KEYMAPS__POST_TOOL = (
         op_id="Mesh | wm.context_toggle",
         filter_op_props={'data_path': 'tool_settings.use_proportional_edit'},
         poll_tools=('POLYSTRIPS', 'STROKES')
+    ),
+
+    SharedStatusbarKeymap(
+        label="Open Docs",
+        op_id="3D View | retopoflow.launch_help"
+    ),
+
+    SharedStatusbarKeymap(
+        label="Report Issue",
+        op_id="3D View | retopoflow.launch_newissue"
     ),
 )
 
@@ -438,6 +439,8 @@ def draw_rftool_statusbar(statusbar: Header, context: Context, tool: type[RFTool
         op_id = op_id.split('.')[-1]
 
         km_label = op_props.get('km_label', None)
+        if isinstance(km_label, Callable):
+            km_label = km_label(context)
         if not isinstance(km_label, str):
             op = getattr(bpy.ops.retopoflow, op_id, None)
             if not op or not hasattr(op, 'get_rna_type'): continue
@@ -451,13 +454,15 @@ def draw_rftool_statusbar(statusbar: Header, context: Context, tool: type[RFTool
 
         event_type = km_event['type']
         event_value = km_event['value']
+        statusbar_event_value = op_props.get('km_status_event_value', event_value)
         if not isinstance(event_type, str) or not isinstance(event_value, str): continue
+        if not isinstance(statusbar_event_value, str):
+            statusbar_event_value = event_value
 
         for mod_key in ('ctrl', 'shift', 'alt'):
             if mod_key in km_event and bool(km_event[mod_key]) or f'LEFT_{mod_key.upper()}' == event_type:
                 row.label(text='', icon=f'EVENT_{mod_key.upper()}') # pyright: ignore[reportArgumentType]
-                if is_macOS:
-                    continue
+                if is_macOS: continue
                 elif mod_key == 'ctrl':
                     row.separator(factor=1.5)
                 elif mod_key == 'alt':
@@ -467,13 +472,13 @@ def draw_rftool_statusbar(statusbar: Header, context: Context, tool: type[RFTool
         if event_type.endswith('MOUSE') and not event_type.startswith(('M', 'W')):
             mouse_button_key: str = event_type[0].upper() # L->'LMB', M->'MMB', R->'RMB'
             icon = f'MOUSE_{mouse_button_key}MB'
-            if event_value == 'DOUBLE_CLICK' and mouse_button_key == 'L':
+            if statusbar_event_value == 'DOUBLE_CLICK' and mouse_button_key == 'L':
                 if bpy.app.version >= (4, 3, 0):
                     # MOUSE_LMB_2X did not show up until Blender 4.3
                     # https://docs.blender.org/api/4.2/bpy_types_enum_items/icon_items.html
                     # https://docs.blender.org/api/4.3/bpy_types_enum_items/icon_items.html
                     icon += '_2X'
-            elif event_value == 'CLICK_DRAG':
+            elif statusbar_event_value == 'CLICK_DRAG':
                 icon += '_DRAG'
             row.label(text='', icon=icon) # pyright: ignore[reportArgumentType]
         if 'WHEEL' in event_type:

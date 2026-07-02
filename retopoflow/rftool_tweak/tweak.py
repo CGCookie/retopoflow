@@ -24,6 +24,7 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy
 from bpy.types import Context, Event, UILayout, WorkSpaceTool
+from typing import Any
 
 from ..rfglobals import RFGlobals
 from ..rftool_base import RFTool_Base
@@ -60,6 +61,18 @@ RFBrush_Tweak, RFOperator_TweakBrush_Adjust = create_falloff_brush(
     fn_disable=lambda event: event.shift and not event.ctrl,
 )
 
+
+def poll_props(context: Context, prop: str, value: Any) -> bool:
+    ws = context.workspace
+    if not ws: return False
+    tool = ws.tools.from_space_view3d_mode('EDIT_MESH', create=False)
+    if not tool: return False
+    props = tool.operator_properties('retopoflow.tweak')
+    return bool(props and getattr(props, prop) == value)
+
+def poll_loops(context): return poll_props(context, 'brush_type','NUDGE') and poll_props(context, 'nudge_loops', True)
+
+
 class RFOperator_Tweak(RFOperator):
     bl_idname = "retopoflow.tweak"
     bl_label = 'Tweak'
@@ -69,10 +82,21 @@ class RFOperator_Tweak(RFOperator):
     bl_options = {'UNDO', 'INTERNAL'}
 
     rf_keymaps : RFKeyMaps = [
-        (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS'},                              {'km_context': 'init', 'km_label': 'Tweak'}),
-        (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS', 'ctrl': True},                {'km_context': 'init', 'km_label': 'Tweak (Invert Pinch/Magnify)'}),  # blocks Blender's Ctrl+LMB Select Shortest Path
-        (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS', 'alt': True},                 {'km_context': 'init', 'km_label': 'Tweak (Toggle Loops)'}),           # blocks Blender's Alt+LMB Move Camera
-        (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS', 'alt': True, 'ctrl': True},   {'km_context': 'init', 'km_label': 'Tweak (Toggle Loops + Invert Pinch/Magnify)'}),
+        (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS'},
+            {'km_context': 'init', 'km_label': lambda ctx: 'Tweak Loops' if poll_loops(ctx) else 'Tweak', 'km_status_event_value': 'CLICK_DRAG'}
+        ),
+        (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS', 'alt': True}, # blocks Blender's Alt+LMB Move Camera
+            {
+                'km_context': 'init',
+                'km_label': lambda ctx: 'Tweak' if poll_loops(ctx) else 'Tweak Loops',
+                'km_status_event_value': 'CLICK_DRAG',
+                'km_poll': lambda ctx: poll_props(ctx, 'brush_type','NUDGE')
+            }
+        ),
+        (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS', 'ctrl': True}, # blocks Blender's Ctrl+LMB Select Shortest Path
+            {'km_context': 'init', 'km_label': 'Invert', 'km_poll': lambda ctx: poll_props(ctx, 'brush_type','PINCH_MAGNIFY')}
+        ),
+        (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS', 'alt': True, 'ctrl': True}, None),
     ]
     rf_status : list[str] = ['LMB: Tweak']
 

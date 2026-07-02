@@ -103,7 +103,7 @@ class RFRegisterClass:
 RFKeyMap = tuple[
     str,
     dict[str, str | int | float | bool],
-    dict[str, str | tuple[str,...] | Callable[[Context], bool]] | None,
+    dict[str, str | tuple[str,...] | Callable[[Context], bool] | Callable[[Context], str]] | None,
 ]
 RFKeyMaps = list[RFKeyMap]
 BLKeyMaps = tuple[RFKeyMap, ...]
