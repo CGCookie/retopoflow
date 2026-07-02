@@ -21,6 +21,7 @@ Created by Jonathan Denning, Jonathan Lampel
 
 # pyright: reportUninitializedInstanceVariable = false
 
+from __future__ import annotations
 
 import os
 import random
@@ -106,7 +107,7 @@ from ..common.raycast import (
     size2D_to_size,
 )
 
-from .patches_logic import Patches_Logic, Patches_Template
+from .patches_templates_logic import Patches_Template_Logic, Patches_Template
 
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
 from ..rfpanels.tweaking_panel import draw_tweaking_panel
@@ -184,7 +185,62 @@ class Orientations(Enum):
 
 
 
-class Patches_Orientations:
+def draw_settings(context : Context, layout : UILayout, tool : WorkSpaceTool):
+    props_patches : OperatorProperties = tool.operator_properties(RFOperator_Patches_Insert_Template.bl_idname)
+
+    if context.region.type == 'TOOL_HEADER':
+        layout.label(text="Insert:")
+        row = layout.row(align=True)
+        row.prop(props_patches, 'orientation', text='')
+        if props_patches.orientation in {'RAYCAST', 'SCREEN'}:
+            row.prop(props_patches, 'scale', text='')
+
+    else:
+        header, panel = layout.panel(idname='patches_insert_panel', default_closed=False)
+        header.label(text="Insert")
+        if panel:
+            panel.prop(props_patches, 'orientation', text='Method')
+            if props_patches.orientation in {'RAYCAST', 'SCREEN'}:
+                panel.prop(props_patches, 'scale', text='Radius')
+
+def activate(cls, context : Context):
+    attempts = 3
+
+    @BPY_Timers.register(first_interval=0.25)
+    def delayed_settings(): # pyright: ignore[reportUnusedFunction]
+        nonlocal attempts
+
+        assert cls.resetter
+
+        space_data = context.space_data
+        asset_libs = context.preferences.filepaths.asset_libraries
+
+        if 'Retopoflow Patches Templates' not in asset_libs:
+            _ = bpy.types.AssetLibraryCollection.new(
+                name="Retopoflow Patches Templates",
+                directory=ASSETS_PATH,
+            )
+            # asset_libs['Retopoflow Assets'].import_method = 'LINK'
+
+        # this can happen if context is not quite right, so find space that we can
+        # ex: after saving
+        if hasattr(space_data, 'show_region_asset_shelf'):
+            try:
+                cls.resetter['space_data.show_region_asset_shelf'] = True
+                return
+            except Exception as _exception:
+                pass
+
+        attempts -= 1
+        return 0.25 if attempts > 0 else None
+
+    Patches_Template.activate(context, None, None, None)  # asset shelf will have nothing selected initially
+    #return super().activate(context)
+
+
+
+
+class Patches_Template_Orientations:
     orientations : list[tuple[str, str, str, int]] = [
         # (identifier, name, description, icon, number)  or  (identifier, name, description, number)
         # must have number?
@@ -197,7 +253,7 @@ class Patches_Orientations:
 
     @staticmethod
     def get_next_mode(mode : str) -> str:
-        modes = Patches_Orientations.orientations
+        modes = Patches_Template_Orientations.orientations
         idx = next((i for (i,m) in enumerate(modes) if m[0] == mode), None)
         return modes[(idx + 1) % len(modes)][0] if idx is not None else modes[0][0]
 
@@ -214,7 +270,7 @@ class Patches_Orientations:
             bl_description : str = f'Set Patches Insert Mode to {label}'
 
             def execute(self, context : Context):
-                Patches_Orientations.orientation = value
+                Patches_Template_Orientations.orientation = value
                 context.area.tag_redraw()
                 return {'FINISHED'}
 
@@ -261,10 +317,10 @@ class RFOperator_Patches_Insert_Template(RFOperator):
     }
 
     orientation: OperatorPropertyWrapper.enum(
-        Patches_Orientations, 'orientation',
+        Patches_Template_Orientations, 'orientation',
         name='Orientation',
         description='Orientation for Patches',
-        items=Patches_Orientations.orientations,
+        items=Patches_Template_Orientations.orientations,
         default="RAYCAST",
     )
 
@@ -315,7 +371,7 @@ class RFOperator_Patches_Insert_Template(RFOperator):
     )
 
     actions : Actions
-    logic : Patches_Logic | None
+    logic : Patches_Template_Logic | None
     bm : BMesh
     em : Mesh
     M : Matrix
@@ -335,9 +391,7 @@ class RFOperator_Patches_Insert_Template(RFOperator):
 
         self.actions = Actions.get_instance(context)
         self.km_context = 'ready'
-        RFTool_Patches.rf_brush.set_operator(self)
-        RFTool_Patches.rf_brush.reset_nearest(context)
-        self.logic = Patches_Logic(context)
+        self.logic = Patches_Template_Logic(context)
 
         self.bm, self.em = get_bmesh_emesh(context)
         self.M = context.edit_object.matrix_world # pyright: ignore[reportConstantRedefinition]
@@ -362,11 +416,9 @@ class RFOperator_Patches_Insert_Template(RFOperator):
         self.logic = None
         self.set_statusbar_override(None)
         self.km_context = 'ready'
-        RFTool_Patches.rf_brush.set_operator(None)
-        RFTool_Patches.rf_brush.reset_nearest(context)
 
     def reset(self):
-        RFTool_Patches.rf_brush.reset()
+        pass
 
     def update_orientation(self, context : Context, _event : Event, *, point_screen : Vector | None = None):
         # force update if we don't have any orientation data
@@ -388,17 +440,17 @@ class RFOperator_Patches_Insert_Template(RFOperator):
                     ps : list[Vector] = []
                     zs : list[Vector] = []
                     dist_count : int = 1
-                    dist_sum : float = hit['distance']
+                    dist_sum : float = cast(float, hit['distance'])
                     for i in range(100):
                         rad = 2.0 * pi * i / 100
                         p = point_screen + Vector((cos(rad) * self.scale, sin(rad) * self.scale))
                         nhit = raycast_valid_sources(context, p, respect_clip_planes=True)
                         if not nhit:
                             continue
-                        sz = size2D_to_size(context, nhit['distance'])
+                        sz = size2D_to_size(context, cast(float, nhit['distance']))
                         if sz is None:
                             continue
-                        delta : float = nhit['distance'] - dist_sum / dist_count
+                        delta : float = cast(float, nhit['distance']) - dist_sum / dist_count
                         toss = 'TOSS' if delta < -self.scale * sz else ''
                         rst = 'RESET' if delta > self.scale * sz else ''
                         # print(f'{nhit["distance"]:0.4f} {dist_sum/dist_count:0.4f} {delta:+0.4f} {self.scale*sz:0.4f} {toss or rst}')
@@ -410,19 +462,19 @@ class RFOperator_Patches_Insert_Template(RFOperator):
                             dist_count = 0
                             dist_sum = 0
                         dist_count += 1
-                        dist_sum += nhit['distance']
-                        ps.append(nhit['co_world'])
-                        zs.append(nhit['no_world'])
+                        dist_sum += cast(float, nhit['distance'])
+                        ps.append(cast(Vector, nhit['co_world']))
+                        zs.append(cast(Vector, nhit['no_world']))
 
                     if not ps or not zs:
-                        p = hit['co_world']
-                        z = hit['no_world']
+                        p = cast(Vector, hit['co_world'])
+                        z = cast(Vector, hit['no_world'])
                     else:
                         p = sum(ps, Vector((0,0,0))) / len(ps)
                         z = sum(zs, Vector((0,0,0))).normalized()
 
                 case 'SCREEN':
-                    p = hit['co_world']
+                    p = cast(Vector, hit['co_world'])
                     d = direction_from_point(context, point_screen)
                     if not d:
                         return
@@ -433,13 +485,13 @@ class RFOperator_Patches_Insert_Template(RFOperator):
                     if not hasattr(self, warning):
                         setattr(self, warning, True)
                         print(warning)
-                    p = hit['co_world']
+                    p = cast(Vector, hit['co_world'])
                     z = Vector((0,0,1))
 
             p_local = (self.Mi @ point_to_bvec4(p)).xyz
             z_local = (self.Mi @ direction_to_bvec4(z)).xyz
             if size is None:
-                size = size2D_to_size(context, hit['distance'])
+                size = size2D_to_size(context, cast(float, hit['distance']))
             if size is None:
                 return
         else:
@@ -448,7 +500,7 @@ class RFOperator_Patches_Insert_Template(RFOperator):
             size = self.orientation_data.size
             p_local = self.orientation_data.co_local
             z_local = self.orientation_data.z_local
-            point_screen = location_3d_to_region_2d(context.region, context.region_data, hit['co_world'])
+            point_screen = location_3d_to_region_2d(context.region, context.region_data, cast(Vector, hit['co_world']))
             if not point_screen:
                 return
 
@@ -469,7 +521,7 @@ class RFOperator_Patches_Insert_Template(RFOperator):
                     if x*x + y*y <= 1: break
                 pt : Vector = point_screen + Vector((x, y)) * self.scale
                 nhit = raycast_valid_sources(context, pt, respect_clip_planes=True)
-            co = frame.w2l_point(nhit['co_local'])
+            co = frame.w2l_point(cast(Vector, nhit['co_local']))
             height = max(height, -co.z) * self.scale * size
         # print(f'{height:0.4f}')
 
@@ -515,7 +567,7 @@ class RFOperator_Patches_Insert_Template(RFOperator):
             normal_to_bvec3(self.Mit @ normal_to_bvec4(frame.l2w_normal(n * mirror))),
         )
 
-    def snap(self, ptnos:Sequence[tuple[Point|Vector, Normal|Vector]], inds:Sequence[int]):
+    def snap(self, ptnos:list[tuple[Point|Vector, Normal|Vector]], inds:Sequence[int]):
         if not self.orientation_data:
             return
 
@@ -578,7 +630,7 @@ class RFOperator_Patches_Insert_Template(RFOperator):
 
             match event.type:
                 case 'M':
-                    self.orientation = Patches_Orientations.get_next_mode(self.orientation)
+                    self.orientation = Patches_Template_Orientations.get_next_mode(self.orientation)
 
                 case 'G' | 'LEFTMOUSE':
                     self.switch_to_grab(context, event)
@@ -802,17 +854,9 @@ class RFOperator_Patches_Insert_Template(RFOperator):
 
 
 
-@execute_operator('patches_activate_template', 'Patches: Activate Template from Asset Shelf')
-def activate_template(self : Operator, context : Context):
-    Patches_Template.activate(
-        context,
-        self.relative_asset_identifier,
-        self.asset_library_identifier,
-        self.asset_library_type,
-    )
 
-class RFAssetShelf_Patches(RFAssetShelf):
-    bl_idname : str = 'VIEW3D_AST_Retopoflow_Patches'
+class RFAssetShelf_Patches_Templates(RFAssetShelf):
+    bl_idname : str = 'VIEW3D_AST_Retopoflow_Patches_Templates'
     bl_category : str = 'Patches Templates'
 
     bl_activate_operator : str = 'retopoflow.patches_activate_template'
@@ -840,8 +884,19 @@ class RFAssetShelf_Patches(RFAssetShelf):
         RFCore = RFGlobals.RFCore_None
         if not RFCore:
             return False
-        return RFCore.selected_RFTool_idname == RFTool_Patches.bl_idname
+        return RFCore.selected_RFTool_idname == 'retopoflow.patches'
 
+
+
+@execute_operator('patches_activate_template', 'Patches: Activate Template from Asset Shelf')
+def activate_template(self : Operator, context : Context):
+    assert isinstance(self, RFOperator_Patches_Drag_Template)
+    Patches_Template.activate(
+        context,
+        self.relative_asset_identifier,
+        self.asset_library_identifier,
+        self.asset_library_type,
+    )
 
 
 
@@ -979,15 +1034,17 @@ class RFOperator_Patches_Drag_Template(RFOperator):
             return None
         if not self.mouse_ray or not self.mouse_ray[1]:
             return None
+        if not context.edit_object:
+            return None
 
         z : Vector
-        back : Vector = self.mouse_hit['no_world']
+        back = cast(Vector, self.mouse_hit['no_world'])
         match self.orientation:
             case Orientations.SCREEN:
                 z = -self.mouse_ray[1].xyz
 
             case Orientations.NORMAL:
-                z = self.mouse_hit['no_world']
+                z = cast(Vector, self.mouse_hit['no_world'])
 
             case Orientations.PERPENDICULAR_Y_POSITIVE:
                 up = view_up_direction(context)
@@ -1014,21 +1071,21 @@ class RFOperator_Patches_Drag_Template(RFOperator):
 
         return z
 
-    def compute_points(self, context : Context) -> list[list[Vector|None]]:
+    def compute_points(self, context : Context) -> Sequence[tuple[Vector,Vector]|tuple[None, None]]:
         if not self.mouse_hit:
-            return [ [None, None] for _v in self.vps ]
+            return [ (None, None) for _v in self.vps ]
         if not context.edit_object:
-            return [ [None, None] for _v in self.vps ]
+            return [ (None, None) for _v in self.vps ]
 
         M = context.edit_object.matrix_world
         Mi = M.inverted_safe()
         Mit = Mi.transposed()
         # Mt = M.transposed()
 
-        fo : Vector = self.mouse_hit['co_local']
+        fo = cast(Vector, self.mouse_hit['co_local'])
         fz = self.compute_orientation(context)
         if not fz:
-            return [ [None, None] for _v in self.vps ]
+            return [ (None, None) for _v in self.vps ]
         fz = (M @ direction_to_bvec4(fz)).xyz
 
         fx = view_up_direction(context).cross(fz).normalized()
@@ -1036,11 +1093,11 @@ class RFOperator_Patches_Drag_Template(RFOperator):
         f = Frame(fo, x=fx, y=fy, z=fz)
         f.rotate_about_z(self.rotate)
 
-        def xform(f : Frame, p : Vector, n : Vector, _c : float) -> list[Vector|None]:
+        def xform(f : Frame, p : Vector, n : Vector, _c : float) -> tuple[Vector, Vector]:
             # transform v
             p = M @ f.l2w_point(p * self.scale)
             n = Mit @ f.l2w_normal(n)
-            return [p,n]
+            return (p, n)
 
             # # raycast to surface
             # if not c:
@@ -1195,7 +1252,7 @@ class RFOperator_Patches_Drag_Template(RFOperator):
 
         ptnos = self.compute_points(context)
         # project to screen
-        pts = [ location_3d_to_region_2d(context.region, context.region_data, pt) if pt else None for (pt,no) in ptnos ]
+        pts = [ location_3d_to_region_2d(context.region, context.region_data, pt) if pt else None for (pt,_no) in ptnos ]
 
         theme : ThemeView3D = context.preferences.themes[0].view_3d
         props = RF_Prefs.get_prefs(context)
@@ -1254,6 +1311,10 @@ class RFOperator_Patches_Drag_Template(RFOperator):
         self.mouse_hit = raycast_valid_sources(context, self.mouse, respect_clip_planes=True)
         self.mouse_ray = ray_from_mouse(context, event)
 
+        space = context.space_data
+        if not isinstance(space, SpaceView3D):
+            return {'CANCELLED'}
+
         if event.type == 'ESC' and event.value == 'PRESS':
             if isinstance(context.space_data, SpaceView3D):
                 context.space_data.show_region_asset_shelf = True
@@ -1266,7 +1327,7 @@ class RFOperator_Patches_Drag_Template(RFOperator):
                 ptnos = self.compute_points(context)
                 bm, em = get_bmesh_emesh(context, ensure_lookup_tables=True)
                 bmvs : list[BMVert | None] = [
-                    bm.verts.new(pt.xyz) if pt else None for (pt, _) in ptnos
+                    bm.verts.new(pt.xyz) if pt else None for (pt, _no) in ptnos
                 ]
                 for (i0, i1) in self.es:
                     bmv0, bmv1 = bmvs[i0], bmvs[i1]
@@ -1281,7 +1342,7 @@ class RFOperator_Patches_Drag_Template(RFOperator):
                     if v is not None: bmops.select(bm, v)
                 bmops.flush_selection(bm, em)
 
-            context.space_data.show_region_asset_shelf = True
+            space.show_region_asset_shelf = True
             return {'FINISHED'}
 
         if event.value == 'PRESS':

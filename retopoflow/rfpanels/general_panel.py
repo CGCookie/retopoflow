@@ -20,6 +20,7 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
+from bpy.types import Context, UILayout
 from .interface_panel import draw_ui_options
 from .tool_switching_panel import draw_tool_switching_options
 
@@ -36,7 +37,7 @@ def draw_general_options(context, layout):
         draw_tool_switching_options(context, panel)
 
 
-def draw_general_panel(context, layout):
+def draw_general_panel(context : Context, layout : UILayout):
     header, panel = layout.panel(idname='general_panel_common', default_closed=True)
     header.label(text="General")
     if panel:

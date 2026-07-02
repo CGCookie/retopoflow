@@ -31,7 +31,6 @@ from bpy.types import (
     WorkSpaceTool,
     Event,
 )
-from bpy_extras.view3d_utils import location_3d_to_region_2d
 from bmesh.types import BMVert, BMEdge
 from mathutils import Vector
 
@@ -39,12 +38,9 @@ from ..rfglobals import RFGlobals
 from ..rfoperators.topo_rotate import RFOperator_TopoRotate
 from ..rftool_base import RFTool_Base
 
-from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.resetter import Resetter
 
 from ..common.bpy_helper import bpy_ops_retopoflow, BL_SPACE_TYPES, BL_REGION_TYPES
-from ..common.bmesh import get_bmesh_emesh, bme_midpoint, get_boundary_strips_cycles
-from ..common.drawing import Drawing
 from ..common.icons import get_path_to_blender_icon
 from ..common.operator import (
     execute_operator,
@@ -64,21 +60,25 @@ from ..rfpanels.general_panel import draw_general_panel
 from ..rfpanels.help_panel import draw_help_panel
 
 
+# from . import patches_templates
+from .patches_logic import Patches_Logic
 
 
-class RFOperator_Patches_Insert(RFOperator_Execute):
-    bl_idname : str = 'retopoflow.patches_insert'
+class RFOperator_Patches_Insert_Corner(RFOperator_Execute):
+    bl_idname : str = 'retopoflow.patches_insert_corner'
     bl_label : str = 'Insert Patch'
     bl_description : str = 'Fill in hole with patch'
     bl_options : set[str] = set()
 
     rf_keymaps : RFKeyMaps = [
-        (bl_idname, {'type': 'F', 'value': 'PRESS'}, None)
+        # (bl_idname, {'type': 'F', 'value': 'PRESS'}, None),
+        (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS', 'ctrl': 1, 'shift': 0}, None),
     ]
     rf_status : dict[str, Sequence[str]] = { }
 
     def execute(self, context : Context) -> set[str]:
-        print('execute!')
+        print('RFOperator_Patches_Insert_Corner.execute')
+
         return {'FINISHED'}
 
 
@@ -93,12 +93,14 @@ class RFOperator_Patches(RFOperator):
     rf_keymaps : RFKeyMaps = []
 
     def init(self, context : Context, event : Event):
-        pass
+        print('RFOperator_Patches.init')
 
     def finish(self, context : Context):
+        print('RFOperator_Patches.finish')
         pass
 
     def update(self, context : Context, event : Event) -> set[str]:
+        print('RFOperator_Patches.update')
         return {'PASS_THROUGH'}
 
 
@@ -108,10 +110,7 @@ class RFOperator_Patches_Selection_Overlay(RFOverlay_Base, RFOperator):
     bl_description : str = 'Overlay info about selected loops and strips'
     bl_options : set[str] = { 'INTERNAL' }
 
-    depsgraph_version : int = -42
-
-    corners : dict[int, Vector] = {}
-    selected_boundaries : tuple[list[tuple[list[Vector], list[Vector]]], list[tuple[list[Vector], list[Vector]]]] = ([],[])
+    logic : Patches_Logic
 
     def is_done(self):
         RFCore = RFGlobals.RFCore_None
@@ -122,61 +121,14 @@ class RFOperator_Patches_Selection_Overlay(RFOverlay_Base, RFOperator):
         _ = bpy_ops_retopoflow('patches_selection_overlay', 'INVOKE_DEFAULT')
 
     def init(self, _context : Context, _event : Event):
-        self.depsgraph_version = -42
+        self.logic = Patches_Logic()
 
     def update(self, context : Context, event : Event) -> set[str]:
         return {'CANCELLED'} if self.is_done() else {'PASS_THROUGH'}
 
     def draw_postpixel_overlay(self):
-        RFCore = RFGlobals.RFCore_None
-        context = bpy.context
-        if not RFCore or self.is_done() or not context.edit_object:
-            return
-
-        rgn, r3d = context.region, context.region_data
-        M = context.edit_object.matrix_world
-
-        print(RFCore.depsgraph_version)
-        if self.depsgraph_version != RFCore.depsgraph_version:
-            self.depsgraph_version = RFCore.depsgraph_version
-
-            # find selected boundary strips
-            bm, _ = get_bmesh_emesh(bpy.context, ensure_lookup_tables=True)
-            sel_bmes = [ bme for bme in bmops.get_all_selected_bmedges(bm) ]
-            # filter selected edges to only boundaries
-            sel_bmes = [ bme for bme in sel_bmes if bme.is_wire or bme.is_boundary ]
-            if len(sel_bmes) < 1000:
-                bmes_strips, bmes_cycles = get_boundary_strips_cycles(sel_bmes)
-                strips = [
-                    ([bme_midpoint(bme) for bme in strip], [bmv.co for bme in strip for bmv in bme.verts])
-                    for strip in bmes_strips
-                ]
-                cycles = [
-                    ([bme_midpoint(bme) for bme in cycle], [bmv.co for bme in cycle for bmv in bme.verts])
-                    for cycle in bmes_cycles
-                ]
-                if len(strips) + len(cycles) <= 5:
-                    self.selected_boundaries = (strips, cycles)
-                else:
-                    self.selected_boundaries = ([], [])
-            else:
-                self.selected_boundaries = ([], [])
-
-            if isinstance(bmv_active := bm.select_history.active, BMVert):
-                self.corners[bmv_active.index] = M @ bmv_active.co
-            len_verts = len(bm.verts)
-            self.corners = {
-                i: pt
-                for (i, pt) in self.corners.items()
-                if i < len_verts and (bmv := bm.verts[i]) and bmv.select
-            }
-
-        pts = [
-            location_3d_to_region_2d(rgn, r3d, pt) for pt in self.corners.values()
-        ]
-        Drawing.draw2D_points(context, pts, (1, 1, 0, 1), radius=12)
-
-
+        self.logic.update()
+        self.logic.draw()
 
 
 
@@ -191,7 +143,7 @@ class RFTool_Patches(RFTool_Base):
 
     bl_keymap : BLKeyMaps = chain_rf_keymaps(
         RFOperator_Patches,
-        RFOperator_Patches_Insert,
+        RFOperator_Patches_Insert_Corner,
         # RFOperator_Patches_Insert_Template,
         # RFOperator_PatchesBrush_Adjust,
         RFOperator_TopoRotate,
@@ -202,24 +154,11 @@ class RFTool_Patches(RFTool_Base):
 
     @staticmethod
     def draw_settings(context : Context, layout : UILayout, tool : WorkSpaceTool):
-        # props_patches : OperatorProperties = tool.operator_properties(RFOperator_Patches_Insert_Template.bl_idname)
+        # patches_templates.draw_settings(context, layout, tool)
 
         if context.region.type == 'TOOL_HEADER':
             pass
-            # layout.label(text="Insert:")
-            # row = layout.row(align=True)
-            # row.prop(props_patches, 'orientation', text='')
-            # if props_patches.orientation in {'RAYCAST', 'SCREEN'}:
-            #     row.prop(props_patches, 'scale', text='')
-
         else:
-            # header, panel = layout.panel(idname='patches_insert_panel', default_closed=False)
-            # header.label(text="Insert")
-            # if panel:
-            #     panel.prop(props_patches, 'orientation', text='Method')
-            #     if props_patches.orientation in {'RAYCAST', 'SCREEN'}:
-            #         panel.prop(props_patches, 'scale', text='Radius')
-
             draw_cleanup_panel(context, layout)
             draw_tweaking_panel(context, layout)
             draw_mirror_panel(context, layout)
@@ -230,38 +169,7 @@ class RFTool_Patches(RFTool_Base):
     def activate(cls, context : Context):
         cls.resetter = Resetter('Patches')
 
-        # attempts = 3
-
-        # @BPY_Timers.register(first_interval=0.25)
-        # def delayed_settings(): # pyright: ignore[reportUnusedFunction]
-        #     nonlocal attempts
-
-        #     assert cls.resetter
-
-        #     space_data = context.space_data
-        #     asset_libs = context.preferences.filepaths.asset_libraries
-
-        #     if 'Retopoflow Patches Templates' not in asset_libs:
-        #         _ = bpy.types.AssetLibraryCollection.new(
-        #             name="Retopoflow Patches Templates",
-        #             directory=ASSETS_PATH,
-        #         )
-        #         # asset_libs['Retopoflow Assets'].import_method = 'LINK'
-
-        #     # this can happen if context is not quite right, so find space that we can
-        #     # ex: after saving
-        #     if hasattr(space_data, 'show_region_asset_shelf'):
-        #         try:
-        #             cls.resetter['space_data.show_region_asset_shelf'] = True
-        #             return
-        #         except Exception as _exception:
-        #             pass
-
-        #     attempts -= 1
-        #     return 0.25 if attempts > 0 else None
-
-        # Patches_Template.activate(context, None, None, None)  # asset shelf will have nothing selected initially
-        # #return super().activate(context)
+        # patches_templates.activate(cls, context)
 
     @classmethod
     def deactivate(cls, context : Context):

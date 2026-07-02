@@ -20,10 +20,11 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
+from bpy.types import Context, UILayout
 from ..common.icons import Icon
 from ..common.interface import draw_section_indent
 
-def draw_help(context, layout):
+def draw_help(context : Context, layout : UILayout):
     row = layout.row()
     draw_section_indent(context, row)
     col = row.column()
@@ -41,7 +42,7 @@ def draw_help(context, layout):
     ).url = 'https://blendermarket.com/products/retopoflow'
 
 
-def draw_help_panel(context, layout):
+def draw_help_panel(context : Context, layout : UILayout):
     header, panel = layout.panel(idname='help_panel_common', default_closed=True)
     header.label(text="Help")
     if panel:
@@ -54,7 +55,9 @@ class RFMenu_PT_Help(bpy.types.Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'HEADER'
 
-    def draw(self, context):
+    def draw(self, context : Context):
+        if not self.layout:
+            return
         draw_help(context, self.layout)
 
 def register():

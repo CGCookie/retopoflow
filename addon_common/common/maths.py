@@ -2197,8 +2197,7 @@ def clamp(v : float, min_v : float, max_v : float) -> float:
 def clamp_int(v : int, min_v : int, max_v : int) -> int:
     return max(min_v, min(max_v, v))
 
-
-def mid(v0, v1, v2):
+def mid(v0:float|int, v1:float|int, v2:float|int) -> float|int:
     v0,v1 = min(v0,v1),max(v0,v1)
     v1,v2 = min(v1,v2),max(v1,v2)
     v0,v1 = min(v0,v1),max(v0,v1)

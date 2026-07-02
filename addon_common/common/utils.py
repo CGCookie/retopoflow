@@ -531,7 +531,7 @@ class Dict():
     def __str__(self):  return str(self.__dict__['__d'])
     def __repr__(self): return repr(self.__dict__['__d'])
     def values(self):   return self.__dict__['__d'].values()
-    def __iter__(self): return iter(self.__dict__['__d'])
+    def __iter__(self) -> Iterator[str]: return iter(self.__dict__['__d'])
 
 def has_duplicates(lst):
     l = len(lst)

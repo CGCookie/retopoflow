@@ -22,17 +22,29 @@ Created by Jonathan Denning, Jonathan Williamson
 import blf
 from bpy.types import Preferences
 
-from typing import ClassVar
+from typing import ClassVar, Literal, TypeAlias
 from collections.abc import Callable, Sequence
 
 from . import gpustate
 from .blender_preferences import get_preferences
 from .debug import dprint
 
-# https://docs.blender.org/api/current/blf.html
+
+FONT_OPTIONS : set[int] = { blf.ROTATION, blf.CLIPPING, blf.SHADOW, blf.MONOCHROME, blf.WORD_WRAP }
+FONT_OPTION_TYPE : TypeAlias = Literal[1, 2, 4, 64, 128] # blf.ROTATION, blf.CLIPPING, blf.SHADOW, blf.MONOCHROME, blf.WORD_WRAP (resp.)
+
+FONT_LEVELS : set[int] = {0, 3, 5, 6}
+FONT_LEVEL_TYPE : TypeAlias = Literal[0, 3, 5, 6]  # none, 3x3, 5x5, outline (resp.)
+
 
 class FontManager:
-    _cache : ClassVar[dict[str|int, int]] = {0:0}
+    """
+    Helper class for working with fonts.
+
+    see: https://docs.blender.org/api/current/blf.html
+    """
+
+    _cache : ClassVar[dict[str|int, int]] = { }
     _last_fontid : ClassVar[int] = 0
     _prefs : ClassVar[Preferences] = get_preferences()
 
@@ -45,18 +57,25 @@ class FontManager:
 
     @staticmethod
     def load(val : str | int | None, load_callback : Callable[[int], None] | None = None) -> int:
-        if val is None:
-            fontid = FontManager._last_fontid
-        else:
-            if val not in FontManager._cache:
-                # note: loading the same file multiple times is not a problem.
-                #       blender is smart enough to cache
-                fontid = blf.load(val)
-                print(f'Addon Common: Loaded font id={fontid}: {val}')
-                FontManager._cache[val] = fontid
-                FontManager._cache[fontid] = fontid
-                if load_callback: load_callback(fontid)
-            fontid = FontManager._cache[val]
+        match val:
+            case None:
+                fontid = FontManager._last_fontid
+
+            case str():
+                if val not in FontManager._cache:
+                    # note: loading the same file multiple times is not a problem; blender is smart enough to cache
+                    fontid = blf.load(val)
+                    print(f'Addon Common: Loaded font {val} as id {fontid}')
+                    FontManager._cache[val] = fontid
+                    FontManager._cache[fontid] = fontid
+                    if load_callback:
+                        load_callback(fontid)
+                fontid = FontManager._cache[val]
+
+            case int():
+                # assert val in FontManager._cache, f'Expected font id {val} to have been loaded already ({FontManager._cache.keys()})'
+                fontid = FontManager._cache.get(val, 0)  # fallback to Blender's default font (0)
+
         FontManager._last_fontid = fontid
         return fontid
 
@@ -67,12 +86,15 @@ class FontManager:
                 continue
             print('Unloading font "%s" as id %d' % (name, fontid))
             blf.unload(name)
-        FontManager._cache = {}
+
+        FontManager._cache.clear()
         FontManager._last_fontid = 0
 
     @staticmethod
     def unload(filename : str):
-        assert filename in FontManager._cache
+        if filename not in FontManager._cache:
+            return
+
         fontid = FontManager._cache[filename]
         dprint('Unloading font "%s" as id %d' % (filename, fontid))
         blf.unload(filename)
@@ -98,8 +120,15 @@ class FontManager:
         return blf.dimensions(FontManager.load(fontid), text)
 
     @staticmethod
-    def disable(option : int, fontid : str | int | None = None):
-        assert option in {blf.ROTATION, blf.CLIPPING, blf.SHADOW, blf.MONOCHROME, blf.WORD_WRAP}, f'Expected {option=} to be blf.ROTATION, blf.CLIPPING, blf.SHADOW, blf.MONOCHROME, blf.WORD_WRAP'
+    def assert_font_option(option : FONT_OPTION_TYPE):
+        assert option in FONT_OPTIONS, (
+            f'Expected {option=} to be {blf.ROTATION=}, {blf.CLIPPING=}, '
+            f'{blf.SHADOW=}, {blf.MONOCHROME=}, {blf.WORD_WRAP=}'
+        )
+
+    @staticmethod
+    def disable(option : FONT_OPTION_TYPE, fontid : str | int | None = None):
+        FontManager.assert_font_option(option)
         blf.disable(FontManager.load(fontid), option)
 
     @staticmethod
@@ -121,8 +150,10 @@ class FontManager:
     @staticmethod
     def draw(text : str, xyz : Sequence[float] | None = None, fontsize : float | None = None, fontid : int | str | None = None):
         fontid = FontManager.load(fontid)
-        if xyz: blf.position(fontid, *xyz)
-        if fontsize: FontManager.size(fontsize, fontid=fontid)
+        if xyz:
+            blf.position(fontid, *xyz)
+        if fontsize:
+            FontManager.size(fontsize, fontid=fontid)
         blf.draw(fontid, text)
 
     @staticmethod
@@ -134,8 +165,8 @@ class FontManager:
         gpustate.blend(blend_eqn)      # restore blend settings
 
     @staticmethod
-    def enable(option : int, fontid : str | int | None = None):
-        assert option in {blf.ROTATION, blf.CLIPPING, blf.SHADOW, blf.MONOCHROME, blf.WORD_WRAP}, f'Expected {option=} to be blf.ROTATION, blf.CLIPPING, blf.SHADOW, blf.MONOCHROME, blf.WORD_WRAP'
+    def enable(option : FONT_OPTION_TYPE, fontid : str | int | None = None):
+        FontManager.assert_font_option(option)
         blf.enable(FontManager.load(fontid), option)
 
     @staticmethod
@@ -163,8 +194,8 @@ class FontManager:
         blf.rotation(FontManager.load(fontid), angle)
 
     @staticmethod
-    def shadow(level : int, rgba : Sequence[float], fontid : str | int | None = None):
-        assert level in {0, 3, 5, 6}, f'Expected {level=} to be 0, 3, 5, 6'
+    def shadow(level : FONT_LEVEL_TYPE, rgba : Sequence[float], fontid : str | int | None = None):
+        assert level in FONT_LEVELS, f'Expected {level=} to be {FONT_LEVELS}'
         blf.shadow(FontManager.load(fontid), level, *rgba)
 
     @staticmethod

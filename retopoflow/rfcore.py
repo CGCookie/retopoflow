@@ -26,9 +26,9 @@ import bmesh
 from bpy.types import Context, Menu, Event, Depsgraph, Scene, Area, Region, Space, SpaceView3D, RegionView3D, Screen, Header
 
 import time
-import traceback
-from typing import Any, ClassVar
+from typing import ClassVar
 from collections.abc import Sequence, Callable
+from textwrap import dedent
 
 from . import rfglobals
 
@@ -38,7 +38,7 @@ from ..addon_common.common.resetter import Resetter
 from ..config.theme import Theme
 from ..config.keymaps import alter_user_keymaps, restore_user_keymaps
 from .common.bmesh import get_object_bmesh, get_bmesh_emesh, clear_object_bmesh
-from .common.bpy_helper import bpy_ops_retopoflow
+from .common.bpy_helper import bpy_ops_retopoflow, BL_SPACE_TYPES
 from .common.operator import RFOperator_Base, RFOperator, RFOperator_Execute, RFRegisterClass, RFAssetShelf
 from .common.raycast import prep_raycast_valid_sources, iter_all_valid_sources
 from .common.accel import SourceCache
@@ -63,8 +63,6 @@ from .rftool_patches.patches       import RFTool_Patches
 from .rftool_tweak.tweak           import RFTool_Tweak
 from .rftool_relax.relax           import RFTool_Relax
 
-RFTools : dict[str, type[RFTool_Base]] = { rft.bl_idname: rft for rft in RFTool_Base.get_all_RFTools() }
-# print(f'RFTools: {list(RFTools.keys())}')
 
 from .rfpanels import (
     general_panel, help_panel, menu_mesh, mesh_cleanup_panel, masking_panel, mirror_panel,
@@ -83,6 +81,11 @@ from .rfoperators.newtarget import RFCore_NewTarget_Cursor, RFCore_NewTarget_Act
 
 from ..addon_common.autosave.autosave import AutoSave
 
+
+RFTools : dict[str, type[RFTool_Base]] = {
+    rft.bl_idname: rft for rft in RFTool_Base.get_all_RFTools()
+}
+# print(f'RFTools: {list(RFTools.keys())}')
 
 
 TEST_XMESH : bool = False
@@ -191,9 +194,9 @@ class RFCore:
 
     @staticmethod
     def unregister():
-        print(f'RFCore.unregister')
+        print('RFCore.unregister')
         if not RFCore._is_registered:
-            print(f'  ALREADY UNREGISTERED!!')
+            print('  ALREADY UNREGISTERED!!')
             return
         RFCore._is_registered = False
 
@@ -205,7 +208,7 @@ class RFCore:
             RFCore._original_bmesh_update_edit_mesh = None
 
         # unwrap tool change function, also before the early-return so activate_by_id is always removed
-        fn_unwrap : Callable[[], None] | None = getattr(RFCore, '_unwrap_activate_tool')
+        fn_unwrap : Callable[[], None] | None = getattr(RFCore, '_unwrap_activate_tool', None)
         if fn_unwrap:
             fn_unwrap()
             setattr(RFCore, '_unwrap_activate_tool', None)
@@ -222,8 +225,8 @@ class RFCore:
         try:
             RFCore.stop()
         except ReferenceError as e:
-            print(f'Caught ReferenceError while trying to unregister')
-            debugger.print_exception()
+            print(f'Caught ReferenceError while trying to unregister {e}')
+            _ = debugger.print_exception()
 
         # Clean up bmesh cache.
         clear_object_bmesh()
@@ -385,8 +388,20 @@ class RFCore:
             pass
 
     @staticmethod
-    def tool_changed(context : Context, _space_type, idname : str, **kwargs):
-        # print(f'tool_changed(context, {_space_type=}, {idname=}, {kwargs=})')
+    def tool_changed(
+        context : Context,
+        space_type : BL_SPACE_TYPES,
+        idname : str,
+        *,
+        as_fallback : bool = False
+    ):
+        """
+        Wraps bl_ui.space_toolsystem_common.activate_by_id so we can know when one of
+        the Retopoflow tools has been selected (activates RF) or another tool has
+        been selected (deactivates RF).
+        """
+
+        # print(f'tool_changed(context, {_space_type=}, {idname=}, {as_fallback=})')
 
         if RFCore.is_paused:
             return
@@ -404,7 +419,8 @@ class RFCore:
                 RFCore.quick_switch_to_reset(RFCore.selected_RFTool_idname)
                 return
 
-            if context.area.type == 'VIEW_3D': RFCore.start(context)
+            if context.area.type == 'VIEW_3D':
+                RFCore.start(context)
             else:
                 started = False
                 for wm in bpy.data.window_managers:
@@ -430,12 +446,17 @@ class RFCore:
                 rftool.activate(context)
                 if rftool.rf_overlay:
                     if not context.region:
-                        print('')
-                        print('')
-                        print('>>>>>>>> NO context.region <<<<<<<<<<')
-                        print('tool_changed')
-                        print(f'  {context=} {context.area=} {context.region=}')
-                        print(f'  {bpy.context=} {bpy.context.area=} {bpy.context.region=}')
+                        print(dedent(f'''
+                            RFCore.tool_changed: issue detected!
+                              {context=} {context.area=} {context.region=}
+                              {bpy.context=} {bpy.context.area=} {bpy.context.region=}
+                              {space_type=} {idname=} {as_fallback=}
+                              {rftool.rf_idname=}
+
+                            >>>>>>>> NO context.region <<<<<<<<<<
+
+                            Attempting RFCore.quick_switch_to_reset
+                        '''))
                         # this can happen if RF tool is selected when .blend file is saved
                         # try switching to different tool then switch back later?
                         RFCore.quick_switch_to_reset(rftool.rf_idname) # bpy.context.scene.retopoflow.saved_tool)
@@ -696,14 +717,21 @@ class RFCore:
     @staticmethod
     def is_top_modal(context : Context) -> bool:
         op_name = RFCore_Operator.bl_label
-        ops = [op.name for op in context.window.modal_operators]
+        ops = [ op.name for op in context.window.modal_operators ]
+
         match ops:
+            case [top, *_] if top == op_name:
+                # top operator is RFCore_Operator
+                return True
+
+            case [top, second, *_] if top in IGNORED_TOP_OPERATORS and second == op_name:
+                # top operator is ignorable and second is RFCore_Operator
+                return True
+
             case []:
+                # no operators are currently running modal!?  this should never happen!
                 return False
-            case [top, *_]:
-                return top == op_name
-            case [top, second, *_]:
-                return top in IGNORED_TOP_OPERATORS and second == op_name
+
             case _:
                 return False
 
@@ -1033,8 +1061,8 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
 
     running_operators : ClassVar[int] = 0
 
-    is_running : bool
-    running_in_area : Area | None
+    is_running : bool = False
+    running_in_area : Area | None = None
 
     @classmethod
     def poll(cls, context : Context) -> bool:
@@ -1064,7 +1092,6 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
     def __init__(self, *args : ..., **kwargs : ...):
         super().__init__(*args, **kwargs)
         print('RFCore_Operator.__init__')
-        self.running_in_area = None
         RFCore_Operator.running_operators += 1
         self.is_running = True
 
