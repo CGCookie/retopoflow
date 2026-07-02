@@ -33,22 +33,16 @@ from collections.abc import Sequence
 
 from ..rfoverlay_base import RFOverlay_Base
 from .overlays import overlay_names
+from .curve_chain_providers import ChainProvider, ChainSpec
 
 from ..rfglobals import RFGlobals
 from ..common.bpy_helper import bpy_ops_retopoflow
 from ..common.operator import RFOperator
-from ..common.bmesh import (
-    get_bmesh_emesh,
-    bme_length,
-    get_boundary_strips_cycles,
-    bme_unshared_bmv,
-    bmes_shared_bmv,
-)
-from ..common.bmesh_maths import get_strip_bmvs, rdp_corner_indices
+from ..common.bmesh import get_bmesh_emesh
+from ..common.bmesh_maths import rdp_corner_indices
 from ..common.maths import map_range, clamp
 from ..common.drawing import Drawing
 from ..common.raycast import is_point_hidden, mouse_from_event
-from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.bezier import CubicBezier, CubicBezierSpline
 from ...addon_common.common.blender_cursors import Cursors
 
@@ -83,8 +77,8 @@ CORNER_MIN_SPACING_FACTOR = 0.01
 # instead of running into its (partially transparent) center
 KNOT_RADIUS = 14
 TANGENT_RADIUS = 12
-# shared draw colors for the curve/handles -- used here AND by
-# RFOperator_Strokes_CurveEdit's own live-drag preview (strokes.py), so a
+# shared draw colors for the curve/handles -- used here AND by the shared
+# curve-edit operator's own live-drag preview (rfoperators/curve_edit.py), so a
 # handle can't visibly change color the instant a drag starts just because
 # the two draw call sites drifted out of sync with each other
 CURVE_LINE_COLOR = (1.0, 1.0, 0.0, 0.5)
@@ -135,7 +129,7 @@ RFCORE_OPERATOR_BL_IDNAME = _internal_bl_idname('retopoflow.core')
 
 def density_to_bend_tolerance(density : float) -> float:
     '''
-    Maps Strokes' curve_handle_density property (0.1 to 1.0) to the bend
+    Maps the curve_handle_density property (0.1 to 1.0) to the bend
     tolerance factor passed to rdp_corner_indices, geometrically (not
     linearly) interpolated between 0.5 (few control points) and 0.01 (more):
     tolerance is a threshold RDP compares a deviation against multiplicatively
@@ -188,17 +182,17 @@ def get_label_pos(context : Context, lbl : str, cos : Sequence[Vector]) -> Vecto
     return location_3d_to_region_2d(rgn, r3d, M @ pt3d)
 
 
-def create_loopstrip_curve_overlay(
+def create_curve_overlay(
     opname : str,
     rftool_idname : str,
     idname : str,
     label : str,
-    only_boundary : bool,
+    providers : Sequence[ChainProvider],
 ) -> type[RFOverlay_Base]:
 
     overlay_names.add(label)
 
-    class RFOperator_LoopStrip_Curve_Overlay(RFOverlay_Base):
+    class RFOperator_Curve_Overlay(RFOverlay_Base):
         bl_idname : ClassVar[str] = f'retopoflow.{idname}'
         bl_label : ClassVar[str] = label
         bl_description : ClassVar[str] = 'Overlay curve control handles for selected loops and strips'
@@ -241,7 +235,7 @@ def create_loopstrip_curve_overlay(
             self.curves = []
             self.chains = []
             self.label_data = []
-            self._curve_struct_cache = {}  # bmv_indices tuple -> {'knots','corner_set','cos'}
+            self._curve_struct_cache = {}  # cache_key -> {'knots','corner_set','cos'}
 
         def init(self, _context : Context, _event : Event):
             cls = type(self)
@@ -277,18 +271,22 @@ def create_loopstrip_curve_overlay(
 
         # ------------------------------------------------------------------ data
 
-        def _tool_props(self, context : Context):
-            active_tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
-            return active_tool.operator_properties(rftool_idname)
+        def _curve_props(self, context : Context):
+            # scene-level, not a tool operator property -- every tool that
+            # builds a curve overlay shares one set of density/corner-angle/
+            # visibility settings, so switching tools doesn't reset them and
+            # two tools editing chains from the same selection always agree
+            # on how a curve is fit (see rfprops_curve_handles.py)
+            return context.scene.retopoflow.curve_handles
 
         def _curve_handles_enabled(self, context : Context) -> bool:
-            return self._tool_props(context).show_curve_handles
+            return self._curve_props(context).show_curve_handles
 
         def _bend_tolerance_factor(self, context : Context) -> float:
-            return density_to_bend_tolerance(self._tool_props(context).curve_handle_density)
+            return density_to_bend_tolerance(self._curve_props(context).curve_handle_density)
 
         def _sharp_corner_angle(self, context : Context) -> float:
-            return self._tool_props(context).curve_corner_angle
+            return self._curve_props(context).curve_corner_angle
 
         def update_data(self, context : Context) -> bool:
             RFCore = RFGlobals.RFCore_None
@@ -331,9 +329,11 @@ def create_loopstrip_curve_overlay(
             if external_ops:
                 return False
 
-            # curve_handle_density/curve_corner_angle are tool properties, not
-            # scene data -- dragging either doesn't bump depsgraph_version, so
-            # both are checked for separately here to still force a rebuild
+            # curve_handle_density/curve_corner_angle live on a plain
+            # PropertyGroup (context.scene.retopoflow.curve_handles), not
+            # mesh/object data -- dragging either doesn't bump
+            # depsgraph_version, so both are checked for separately here to
+            # still force a rebuild
             # (see _build_curve's own check against the cached structure's
             # tunables for why that's needed too, not just bypassing this
             # early-out). Bundled as one tuple so a future third tunable is
@@ -363,26 +363,26 @@ def create_loopstrip_curve_overlay(
             self.label_data = []
 
             bm, _ = get_bmesh_emesh(context, ensure_lookup_tables=True)
-            sel_bmes = list(bmops.get_all_selected_bmedges(bm))
-            if only_boundary or any(bme.is_wire or bme.is_boundary for bme in sel_bmes):
-                sel_bmes = [bme for bme in sel_bmes if bme.is_wire or bme.is_boundary]
 
-            if not sel_bmes or len(sel_bmes) >= 1000:
-                return True
-
-            strips, cycles = get_boundary_strips_cycles(sel_bmes)
-            if len(strips) + len(cycles) > 5:
-                return True
-
-            avg_len = sum(bme_length(bme) for bme in sel_bmes) / len(sel_bmes)
+            # providers are tried in priority order, and the first one to
+            # find anything wins outright -- later providers aren't even
+            # called. This is how "faces win" is implemented for the
+            # PolyStrips/Strokes providers list: QuadStripChainProvider
+            # first means a selection containing quad strips shows ONLY
+            # strip curves, never also sprouting loop curves on the same
+            # selection's boundary edges. It also means the two providers'
+            # own bail-out budgets (max chains, max elements) never need to
+            # be combined -- only one of them is ever actually consulted.
+            specs : list[ChainSpec] = []
+            for provider in providers:
+                result = provider.collect(context, bm)
+                if result:
+                    specs.extend(result)
+                    break
 
             active_keys = set()
-            for strip in strips:
-                self._add_chain(self._strip_bmvs(strip, cyclic=False), cyclic=False, avg_len=avg_len,
-                                 bend_tolerance_factor=bend_tolerance_factor, sharp_angle=sharp_angle, active_keys=active_keys)
-            for cycle in cycles:
-                self._add_chain(self._strip_bmvs(cycle, cyclic=True), cyclic=True, avg_len=avg_len,
-                                 bend_tolerance_factor=bend_tolerance_factor, sharp_angle=sharp_angle, active_keys=active_keys)
+            for spec in specs:
+                self._add_chain(spec, bend_tolerance_factor=bend_tolerance_factor, sharp_angle=sharp_angle, active_keys=active_keys)
 
             # drop cached structure for chains that are no longer selected
             self._curve_struct_cache = {
@@ -391,47 +391,27 @@ def create_loopstrip_curve_overlay(
 
             return True
 
-        def _strip_bmvs(self, strip, *, cyclic):
-            if not strip:
-                return []
-            if len(strip) == 1:
-                return list(strip[0].verts)
-            if cyclic:
-                start = bmes_shared_bmv(strip[-1], strip[0])
-                if not start:
-                    return []
-                bmvs = get_strip_bmvs(strip, start)
-                if len(bmvs) > 1 and bmvs[0] == bmvs[-1]:
-                    bmvs = bmvs[:-1]  # drop duplicated wrap vert
-                return bmvs
-            start = bme_unshared_bmv(strip[0], strip[1])
-            return get_strip_bmvs(strip, start)
+        def _add_chain(self, spec : ChainSpec, *, bend_tolerance_factor, sharp_angle, active_keys):
+            self.label_data.append((spec.label[0], spec.label[1], spec.points))
 
-        def _add_chain(self, bmvs, *, cyclic, avg_len, bend_tolerance_factor, sharp_angle, active_keys):
-            if not bmvs:
-                return
-            cos = [bmv.co.copy() for bmv in bmvs]
-            if cyclic:
-                self.label_data.append(('Loop', len(bmvs), cos))
-            else:
-                self.label_data.append(('Strip', len(bmvs) - 1, cos))
+            if len(spec.points) < spec.min_spline_points:
+                return  # not enough points in a row to build a curve
 
-            if len(bmvs) < 5:
-                return  # need 5+ verts in a row to build a curve
-
-            cache_key = tuple(bmv.index for bmv in bmvs)
-            active_keys.add(cache_key)
+            active_keys.add(spec.cache_key)
             spline, handles = self._build_curve(
-                cos, cyclic=cyclic, avg_len=avg_len, bend_tolerance_factor=bend_tolerance_factor,
-                sharp_angle=sharp_angle, cache_key=cache_key,
+                spec.points, cyclic=spec.cyclic, avg_len=spec.avg_len,
+                bend_tolerance_factor=bend_tolerance_factor, sharp_angle=sharp_angle,
+                cache_key=spec.cache_key,
             )
             if spline is None or not spline.cbs:
                 return
 
             self.curves.append(spline)
             self.chains.append({
-                'bmv_indices': [bmv.index for bmv in bmvs],
-                'cyclic': cyclic,
+                'deform_bmv_indices': spec.deform_bmv_indices,
+                'cache_key': spec.cache_key,
+                'current_points': spec.current_points,
+                'cyclic': spec.cyclic,
                 'handles': handles,
             })
 
@@ -768,7 +748,7 @@ def create_loopstrip_curve_overlay(
             # vert's position defines it) unless it's a smooth, non-endpoint
             # junction -- those are "free": draggable to reshape the curve
             # without pinning any vert to the exact handle position (see
-            # RFOperator_Strokes_CurveEdit.init)
+            # the shared curve-edit operator's init())
             if cyclic:
                 for i in range(nseg):
                     j = (i - 1) % nseg
@@ -911,4 +891,4 @@ def create_loopstrip_curve_overlay(
                 if free_knot_pts2d:
                     Drawing.draw2D_points(context, free_knot_pts2d, FREE_KNOT_FILL_COLOR, radius=KNOT_RADIUS, border=2, borderColor=KNOT_BORDER_COLOR)
 
-    return type(opname, (RFOperator_LoopStrip_Curve_Overlay, RFOperator), {})
+    return type(opname, (RFOperator_Curve_Overlay, RFOperator), {})

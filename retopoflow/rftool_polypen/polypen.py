@@ -22,6 +22,10 @@ Created by Jonathan Denning, Jonathan Lampel
 import bpy
 
 from ..rfglobals import RFGlobals
+from ..rfoverlay_base import RFOverlay_Base
+from ..rfoverlays.curve_overlay import create_curve_overlay
+from ..rfoverlays.curve_chain_providers import QuadStripChainProvider, LoopStripChainProvider
+from ..rfoperators.curve_edit import create_curve_edit_operator
 from ..rftool_base import RFTool_Base
 from ..common.icons import get_path_to_blender_icon
 from ..common.operator import execute_operator, RFOperator, RFRegisterClass, chain_rf_keymaps, OperatorPropertyWrapper, poll_retopoflow, RFKeyMaps, BLKeyMaps
@@ -239,6 +243,27 @@ def switch_rftool(context):
     RFTool_PolyPen.activate_tool(context)
 
 
+RFOperator_PolyPen_Overlay = create_curve_overlay(
+    'RFOperator_PolyPen_Selection_Overlay',
+    'retopoflow.polypen',  # must match RFTool_base.bl_idname
+    'polypen_overlay',
+    'PolyPen Selected Overlay',
+    # faces win: a selection containing quad strips shows only strip curves;
+    # loop curves only appear when the selection is edges-only. Same list,
+    # same order as Strokes/PolyStrips -- one selection-driven system
+    # regardless of which tool is active.
+    [QuadStripChainProvider(), LoopStripChainProvider(only_boundary=True)],
+)
+
+RFOperator_PolyPen_Edit = create_curve_edit_operator(
+    'RFOperator_PolyPen_CurveEdit',
+    'polypen_edit',
+    'Edit PolyPen Curve',
+    'Drag curve control handles to reshape a selected quad strip or edge loop',
+    get_overlay=lambda: RFTool_PolyPen.rf_overlay,
+)
+
+
 class RFTool_PolyPen(RFTool_Base):
     bl_idname = "retopoflow.polypen"
     bl_label = "PolyPen"
@@ -246,11 +271,14 @@ class RFTool_PolyPen(RFTool_Base):
     bl_icon = get_path_to_blender_icon('polypen')
     bl_widget = None
     rf_operator_idname : str | None = 'retopoflow.polypen'
+    rf_supports_curve_handles = True
+    rf_overlay : type[RFOverlay_Base] | None = RFOperator_PolyPen_Overlay
 
     props = None  # needed to reset properties
 
     bl_keymap : BLKeyMaps = chain_rf_keymaps(
         RFOperator_PolyPen,
+        RFOperator_PolyPen_Edit,
         RFOperator_MaximizeWatcher,
         RFOperator_Translate,
         RFOperator_Relax_QuickSwitch,

@@ -20,34 +20,28 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
-import bmesh
-from mathutils import Vector
-from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_location_3d
 
 from ..rfoverlay_base import RFOverlay_Base
 from ..rfglobals import RFGlobals
 
 from ..rfbrushes.stroke_brush import create_stroke_brush
-from ..rfoverlays.quadstrip_selection_overlay import create_quadstrip_selection_overlay
+from ..rfoverlays.curve_overlay import create_curve_overlay
+from ..rfoverlays.curve_chain_providers import QuadStripChainProvider, LoopStripChainProvider
+from ..rfoperators.curve_edit import create_curve_edit_operator
 
 from ..rftool_base import RFTool_Base
-from ..common.bmesh import get_bmesh_emesh
-from ..common.drawing import Drawing
 from ..common.icons import get_path_to_blender_icon
-from ..common.maths import view_forward_direction, proportional_edit, xform_direction, view_right_direction
-from ..common.raycast import raycast_point_valid_sources, mouse_from_event
-from ..common.raycast import nearest_point_valid_sources
+from ..common.raycast import raycast_point_valid_sources
 from ..common.operator import (
     execute_operator,
     RFOperator, RFOperator_Execute, RFKeyMap, RFKeyMaps, BLKeyMaps,
     chain_rf_keymaps,
     OperatorPropertyWrapper, poll_retopoflow,
 )
-from ...addon_common.common import gpustate
 from ...addon_common.common.blender import event_modifier_check
 from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.debug import debugger
-from ...addon_common.common.maths import Frame, Direction2D, Color, sign_threshold
+from ...addon_common.common.maths import Direction2D
 from ...addon_common.common.resetter import Resetter
 from ...addon_common.common.utils import iter_pairs
 
@@ -68,7 +62,6 @@ from ..common.interface import draw_line_separator
 
 from ..preferences import RF_Prefs
 
-import heapq
 from functools import wraps
 
 
@@ -307,263 +300,12 @@ class RFOperator_PolyStrips_Insert(
 
 
 
-class RFOperator_PolyStrips_Edit(RFOperator):
-    bl_idname = 'retopoflow.polystrips_edit'
-    bl_label = 'Insert PolyStrip'
-    bl_description = 'Insert quad strip'
-    bl_options = { 'REGISTER', 'UNDO', 'INTERNAL' }
-
-    rf_keymaps : RFKeyMaps = [
-        (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS'}, None),
-    ]
-
-    @classmethod
-    def can_start(cls, context):
-        i = RFTool_PolyStrips.rf_overlay.instance
-        return False if not i else getattr(i, 'hovering', False)
-
-    def init(self, context, event):
-        RFOperator_PolyStrips_Insert.logic = None
-
-        self.curves = RFTool_PolyStrips.rf_overlay.instance.curves
-        self.hovering = RFTool_PolyStrips.rf_overlay.instance.hovering
-        self.strips_indices = RFTool_PolyStrips.rf_overlay.instance.strips_indices
-
-        RFTool_PolyStrips.rf_overlay.pause_update()
-        RFTool_PolyStrips.rf_overlay.instance.depsgraph_version = None
-
-        mouse = mouse_from_event(event)
-        M, Mi = context.edit_object.matrix_world, context.edit_object.matrix_world.inverted_safe()
-
-        use_proportional_edit = context.tool_settings.use_proportional_edit
-
-        self.mirror = set()
-        self.mirror_clip = False
-        self.mirror_threshold = Vector((0, 0, 0))
-        for mod in context.edit_object.modifiers:
-            if mod.type != 'MIRROR': continue
-            if not mod.use_clip: continue
-            if mod.use_axis[0]: self.mirror.add('x')
-            if mod.use_axis[1]: self.mirror.add('y')
-            if mod.use_axis[2]: self.mirror.add('z')
-            mt, scale = mod.merge_threshold, context.edit_object.scale
-            self.mirror_threshold = Vector(( mt / scale.x, mt / scale.y, mt / scale.z ))
-            self.mirror_clip = mod.use_clip
-
-        self.bm, self.em = get_bmesh_emesh(bpy.context, ensure_lookup_tables=True)
-        self.M, self.Mi = M, Mi
-        self.fwd = xform_direction(Mi, view_forward_direction(context))
-        self.right = xform_direction(Mi, view_right_direction(context))
-        self.curve = self.curves[self.hovering[0]]
-        self.curve.tessellate_uniform()
-        strip_inds = self.strips_indices[self.hovering[0]]
-        bmfs = [ self.bm.faces[i] for i in strip_inds]
-        bmvs = [ bmv for bmf in bmfs for bmv in bmf.verts ]
-        # gather neighboring geo
-        if bmvs and use_proportional_edit:
-            connected_only = context.tool_settings.use_proportional_connected
-            if connected_only:
-                all_bmvs = {}
-                # NOTE: an exception is thrown if BMVerts are compared, so we are adding in bmv.index
-                #       into tuple to break ties with same distances before bmvs are compared
-                queue = [(0, bmv.index, bmv) for bmv in bmvs]
-                while queue:
-                    (d, _, bmv) = heapq.heappop(queue)
-                    if bmv in all_bmvs: continue
-                    all_bmvs[bmv] = d
-                    for bmf in bmv.link_faces:
-                        for bmv_ in bmf.verts:
-                            heapq.heappush(queue, (d + (M @ bmv.co - M @ bmv_.co).length, bmv_.index, bmv_))
-            else:
-                cos_sel = [M @ bmv.co for bmv in bmvs]
-                all_bmvs = {}
-                for bmv in self.bm.verts:
-                    co = M @ bmv.co
-                    d = min((co - co_sel).length for co_sel in cos_sel)
-                    all_bmvs[bmv] = d
-        else:
-            all_bmvs = { bmv: 0.0 for bmv in bmvs }
-        # all data is local to edit!
-        data = {}
-        if use_proportional_edit:
-            bmv_selected_count = 0
-            bmv_merged_2d_coords = Vector((0.0, 0.0))
-            bmv_merged_3d_coords = Vector((0.0, 0.0, 0.0))
-            rgn, r3d = context.region, context.region_data
-        for (bmv, distance) in all_bmvs.items():
-            t = self.curve.approximate_t_at_point_tessellation(bmv.co)
-            o = self.curve.eval(t)
-            z = Vector(self.curve.eval_derivative(t)).normalized()
-            f = Frame(o, x=self.fwd, z=z)
-            data[bmv.index] = (
-                t,
-                f.w2l_point(bmv.co),
-                Vector(bmv.co),
-                distance,
-            )
-            # Proportional Edit Origin.
-            if use_proportional_edit and bmv.select:
-                bmv_selected_count += 1
-                co_world = M @ bmv.co
-                bmv_merged_3d_coords += co_world
-                screen_co = location_3d_to_region_2d(rgn, r3d, co_world)
-                if screen_co:
-                    bmv_merged_2d_coords += screen_co
-
-        if use_proportional_edit:
-            self.selection_origin_3d = bmv_merged_3d_coords / bmv_selected_count  # used to calculate proportional edit radius.
-            self.selection_origin_2d = bmv_merged_2d_coords / bmv_selected_count  # used for the 2D circle origin.
-
-        self.grab = {
-            'mouse':    Vector(mouse),
-            'current':  Vector(mouse),
-            'curve':    self.hovering[0],
-            'handle':   self.hovering[1],
-            'prev':     self.hovering[2],
-            'data':     data,
-            'matrices': [self.M, self.Mi],
-            'fwd':      self.fwd,
-            'only':     None,
-        }
-
-    def finish(self, context):
-        RFTool_PolyStrips.rf_overlay.unpause_update()
-
-    def update(self, context, event):
-        curve = self.curve
-        data = self.grab['data']
-        bm, em = self.bm, self.em
-
-        if event.type == 'LEFTMOUSE' and event.value == 'RELEASE':
-            return {'FINISHED'}
-
-        if event.type in {'ESC', 'RIGHTMOUSE'}:
-            curve.p0, curve.p1, curve.p2, curve.p3 = self.grab['prev']
-            for bmv_idx in data:
-                t, pt_curve_orig, pt_edit_orig, factor = data[bmv_idx]
-                bm.verts[bmv_idx].co = pt_edit_orig
-            bmesh.update_edit_mesh(em)
-            context.area.tag_redraw()
-            return {'CANCELLED'}
-        if event.type in {'WHEELDOWNMOUSE', 'WHEELUPMOUSE'}:
-            if event.type in {'WHEELUPMOUSE'}:
-                context.tool_settings.proportional_distance *= 0.90
-            if event.type in {'WHEELDOWNMOUSE'}:
-                context.tool_settings.proportional_distance /= 0.90
-            if self.grab['only']:
-                for bmv_idx in self.grab['only']:
-                    bm.verts[bmv_idx].co = data[bmv_idx][2]
-            self.grab['only'] = None
-
-        mouse = mouse_from_event(event)
-        self.grab['current'] = mouse
-        delta = Vector(mouse) - self.grab['mouse']
-        rgn, r3d = context.region, context.region_data
-        M, Mi = self.grab['matrices']
-        fwd = self.grab['fwd']
-        prop_use = context.tool_settings.use_proportional_edit
-        prop_dist_world = context.tool_settings.proportional_distance
-        prop_falloff = context.tool_settings.proportional_edit_falloff
-
-        def xform(pt0_cur_edit, pt1_cur_edit=None):
-            pt0_cur_world  = M @ pt0_cur_edit
-            pt0_cur_screen = location_3d_to_region_2d(rgn, r3d, pt0_cur_world)
-            pt0_new_screen = pt0_cur_screen + delta
-            if pt1_cur_edit is None:
-                pt0_new_world = region_2d_to_location_3d(rgn, r3d, pt0_new_screen, pt0_cur_world)
-                pt0_new_edit  = Mi @ pt0_new_world
-                return pt0_new_edit
-            pt0_new_world = raycast_point_valid_sources(context, pt0_new_screen, respect_clip_planes=True)
-            if not pt0_new_world: return (pt0_cur_edit, pt1_cur_edit)
-            pt0_new_edit = Mi @ pt0_new_world
-            pt1_new_edit = pt1_cur_edit + (pt0_new_edit - pt0_cur_edit)
-            return (pt0_new_edit, pt1_new_edit)
-
-        p0, p1, p2, p3 = self.grab['prev']
-        curve = self.curves[self.grab['curve']]
-        if self.grab['handle'] == 0: curve.p0, curve.p1 = xform(p0, p1)
-        if self.grab['handle'] == 1: curve.p1 = xform(p1)
-        if self.grab['handle'] == 2: curve.p2 = xform(p2)
-        if self.grab['handle'] == 3: curve.p3, curve.p2 = xform(p3, p2)
-
-        if self.grab['only'] is None:
-            self.grab['only'] = [
-                bmv_idx
-                for bmv_idx in data
-                if data[bmv_idx][3] <= prop_dist_world
-            ]
-
-        for bmv_idx in self.grab['only']:
-            bmv = bm.verts[bmv_idx]
-            t, pt_curve_orig, pt_edit_orig, distance = data[bmv_idx]
-            if distance > prop_dist_world: continue
-            if prop_use:
-                dist = max(1 - distance / prop_dist_world, 0)
-                factor = proportional_edit(prop_falloff, dist)
-            else:
-                factor = 1
-            o = curve.eval(t)
-            z = Vector(curve.eval_derivative(t)).normalized()
-            f = Frame(o, x=fwd, z=z)
-            pt_edit_new = M @ f.l2w_point(pt_curve_orig)
-            pt_edit_new = pt_edit_orig + (pt_edit_new - pt_edit_orig) * factor
-            co = nearest_point_valid_sources(context, pt_edit_new, world=False, respect_clip_planes=True) or pt_edit_orig
-
-            if self.mirror:
-                t = self.mirror_threshold
-                zero = {
-                    'x': ('x' in self.mirror and (sign_threshold(co.x, t.x) != sign_threshold(pt_edit_orig.x, t.x) or sign_threshold(pt_edit_orig.x, t.x) == 0)),
-                    'y': ('y' in self.mirror and (sign_threshold(co.y, t.y) != sign_threshold(pt_edit_orig.y, t.y) or sign_threshold(pt_edit_orig.y, t.y) == 0)),
-                    'z': ('z' in self.mirror and (sign_threshold(co.z, t.z) != sign_threshold(pt_edit_orig.z, t.z) or sign_threshold(pt_edit_orig.z, t.z) == 0)),
-                }
-                # iteratively zero out the component
-                for _ in range(1000):
-                    d = 0
-                    if zero['x']: co.x, d = co.x * 0.95, max(abs(co.x), d)
-                    if zero['y']: co.y, d = co.y * 0.95, max(abs(co.y), d)
-                    if zero['z']: co.z, d = co.z * 0.95, max(abs(co.z), d)
-                    co_world = M @ Vector((*co, 1.0))
-                    co_world_snapped = nearest_point_valid_sources(context, co_world.xyz / co_world.w, world=True, respect_clip_planes=True)
-                    if not co_world_snapped: break
-                    co = Mi @ co_world_snapped
-                    if d < 0.001: break  # break out if change was below threshold
-                if zero['x']: co.x = 0
-                if zero['y']: co.y = 0
-                if zero['z']: co.z = 0
-
-            bmv.co = co
-
-
-        bmesh.update_edit_mesh(em)
-        context.area.tag_redraw()
-        return {'RUNNING_MODAL'}
-
-
-    def draw_postpixel(self, context):
-        ''' Draw proportional edit circle in 2D space. '''
-        if not context.tool_settings.use_proportional_edit: return
-        gpustate.blend('ALPHA')
-        rgn, r3d = context.region, context.region_data
-
-        pt = self.selection_origin_3d + context.tool_settings.proportional_distance * self.right
-        radius = location_3d_to_region_2d(rgn, r3d, pt)[0] - self.selection_origin_2d[0]
-        if self.grab['handle'] in {0, 3}:
-            # Drag handles.
-            center = self.selection_origin_2d
-        else:
-            # Curve manipulation handles.
-            center = location_3d_to_region_2d(rgn, r3d, self.grab['prev'][self.grab['handle']])
-
-        # Internally Blender proportional editing circle is based on the 3d view grid color.
-        # default grid color: Color((0.33,0.33,0.33,0.5))
-        col_off = 20/255
-        color_in = Color((0.33+col_off,0.33+col_off,0.33+col_off,1.0))  # lighter than grid color. full alpha
-        color_out = Color((0.33-col_off,0.33-col_off,0.33-col_off,1.0))  # darker than grid color. full alpha
-
-        gpustate.blend('ALPHA')
-        Drawing.draw2D_smooth_circle(context, center, radius, color_out, width=3)
-        Drawing.draw2D_smooth_circle(context, center, radius-1, color_in, width=1)
-        gpustate.blend('NONE')
+def _reset_insert_logic(self, context, event):
+    # a fresh curve edit invalidates the redo-panel state of whatever strip
+    # insertion produced this geometry -- wheel-scroll count/width redo
+    # shortcuts (see RFOperator_PolyStrips_Insert.create_redo_operator) must
+    # not resurrect a stale insert after the strip's curve has been reshaped
+    RFOperator_PolyStrips_Insert.logic = None
 
 
 class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator):
@@ -702,6 +444,28 @@ def switch_rftool(context):
     RFTool_PolyStrips.activate_tool(context)
 
 
+RFOperator_PolyStrips_Overlay = create_curve_overlay(
+    'RFOperator_PolyStrips_Selection_Overlay',
+    'retopoflow.polystrips',  # must match RFTool_base.bl_idname
+    'polystrips_overlay',
+    'PolyStrips Selected Overlay',
+    # faces win: a selection containing quad strips shows only strip curves;
+    # loop curves only appear when the selection is edges-only. Same list,
+    # same order as Strokes -- one selection-driven system regardless of
+    # which tool is active.
+    [QuadStripChainProvider(), LoopStripChainProvider(only_boundary=True)],
+)
+
+RFOperator_PolyStrips_Edit = create_curve_edit_operator(
+    'RFOperator_PolyStrips_CurveEdit',
+    'polystrips_edit',
+    'Edit PolyStrip',
+    'Drag curve control handles to reshape a selected quad strip',
+    get_overlay=lambda: RFTool_PolyStrips.rf_overlay,
+    on_init=_reset_insert_logic,
+)
+
+
 class RFTool_PolyStrips(RFTool_Base):
     bl_idname : str = "retopoflow.polystrips"
     bl_label : str = "PolyStrips"
@@ -710,14 +474,9 @@ class RFTool_PolyStrips(RFTool_Base):
     bl_widget : str | None = None
 
     rf_operator_idname : str | None = 'retopoflow.polystrips'
+    rf_supports_curve_handles = True
     rf_brush = RFBrush_Strokes()
-    rf_overlay : type[RFOverlay_Base] | None = create_quadstrip_selection_overlay(
-        'RFOperator_PolyStrips_Selection_Overlay',
-        'retopoflow.polystrips',  # must match RFTool_base.bl_idname
-        'polystrips_overlay',
-        'PolyStrips Selected Overlay',
-        True,
-    )
+    rf_overlay : type[RFOverlay_Base] | None = RFOperator_PolyStrips_Overlay
 
     props = None  # needed to reset properties
 
