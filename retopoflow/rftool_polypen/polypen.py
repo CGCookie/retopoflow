@@ -28,7 +28,16 @@ from ..rfoverlays.curve_chain_providers import QuadStripChainProvider, LoopStrip
 from ..rfoperators.curve_edit import create_curve_edit_operator
 from ..rftool_base import RFTool_Base
 from ..common.icons import get_path_to_blender_icon
-from ..common.operator import execute_operator, RFOperator, RFRegisterClass, chain_rf_keymaps, OperatorPropertyWrapper, poll_retopoflow, RFKeyMaps, BLKeyMaps
+from ..common.operator import (
+    execute_operator,
+    RFOperator,
+    RFRegisterClass,
+    chain_rf_keymaps,
+    OperatorPropertyWrapper,
+    poll_retopoflow,
+    RFKeyMaps,
+    BLKeyMaps,
+)
 from ...addon_common.common.resetter import Resetter
 from ...addon_common.common.blender import event_modifier_check
 

@@ -65,10 +65,10 @@ from .rftool_relax.relax           import RFTool_Relax
 
 
 from .rfpanels import (
+    # MUST IMPORT THIS _AFTER_ THE RFTOOLS ABOVE TO MAINTAIN ORDER!
     general_panel, help_panel, menu_mesh, mesh_cleanup_panel, masking_panel, mirror_panel,
     relax_algorithm_panel, tweaking_panel, rfpanel_snapping, tools_pie, rfmenu_context,
-    rfpanel_countours_method, rfpanel_stroke # MUST IMPORT THIS _AFTER_ THE RFTOOLS ABOVE TO MAINTAIN ORDER!
-
+    rfpanel_countours_method, rfpanel_stroke,
 )
 
 from . import preferences

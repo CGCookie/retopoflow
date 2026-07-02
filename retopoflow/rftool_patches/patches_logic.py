@@ -23,6 +23,7 @@ Created by Jonathan Denning, Jonathan Lampel
 
 
 from __future__ import annotations
+from typing import ClassVar
 
 import bpy
 from bpy_extras.view3d_utils import location_3d_to_region_2d
@@ -31,57 +32,59 @@ from mathutils import Vector
 
 from ..rfglobals import RFGlobals
 
+from ...addon_common.common import bmesh_ops as bmops
 from ..common.bmesh import get_bmesh_emesh
 from ..common.drawing import Drawing
 
 
 
 class Patches_Logic:
-    depsgraph_version : int = -42
+    depsgraph_version : ClassVar[int] = -42
 
-    # Points that will act as corners for patch, where keys are either a...
-    # - int >= 0 corresponding to index of BMVert or
-    # - int <  0 indicating a corner that is not yet associated with BMVert (will be new BMVert on commit)
+    # Points that will act as corners for patch, where keys are index of BMVert
     # and values are location in world space.
     #
     # IMPORTANT: must not keep reference to bmesh elements, because they will invalidate
     #       whenever depsgraph changes!  Instead, keep track of them via their indices.
-    corners : dict[int, Vector] = {}
+    corners : ClassVar[dict[int, Vector]] = {}
 
-    def __init__(self):
-        pass
-
-    def update(self):
-        RFCore = RFGlobals.RFCore_None
-        if not RFCore:
-            return
-
-        if self.depsgraph_version == RFCore.depsgraph_version:
-            return
-
+    @staticmethod
+    def update():
+        RFCore = RFGlobals.RFCore
         context = bpy.context
         edit_object = context.edit_object
-        if not edit_object:
-            return
-
+        assert edit_object
         M = edit_object.matrix_world
-        self.depsgraph_version = RFCore.depsgraph_version
+
+        if Patches_Logic.depsgraph_version == RFCore.depsgraph_version:
+            return
+        Patches_Logic.depsgraph_version = RFCore.depsgraph_version
 
         bm, _ = get_bmesh_emesh(context, ensure_lookup_tables=True)
 
         if isinstance(bmv_active := bm.select_history.active, BMVert):
             # add active element to collection of corner BMVerts
-            self.corners[bmv_active.index] = M @ bmv_active.co
+            Patches_Logic.corners[bmv_active.index] = M @ bmv_active.co
 
         # filter previous corners to those that are still selected
         len_verts = len(bm.verts)
-        self.corners = {
-            i: pt
-            for (i, pt) in self.corners.items()
+        Patches_Logic.corners = {
+            i: (M @ bmv.co)
+            for i in Patches_Logic.corners
             if i < len_verts and (bmv := bm.verts[i]) and bmv.select
         }
 
-    def draw(self):
+
+    @staticmethod
+    def insert_corner(co_local : Vector):
+        bm, em = get_bmesh_emesh(bpy.context)
+        bmv = bm.verts.new(co_local)
+        bmops.select(bm, bmv)
+        bmops.flush_selection(bm, em)
+        Patches_Logic.update()
+
+    @staticmethod
+    def draw():
         context = bpy.context
         rgn, r3d = context.region, context.region_data
 
@@ -89,7 +92,7 @@ class Patches_Logic:
             context,
             [
                 location_3d_to_region_2d(rgn, r3d, pt)
-                for pt in self.corners.values()
+                for pt in Patches_Logic.corners.values()
             ],
             (1, 1, 0, 1),
             radius=12,
