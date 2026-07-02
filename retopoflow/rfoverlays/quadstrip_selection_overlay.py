@@ -36,7 +36,7 @@ from .overlays import overlay_names
 from ..rfglobals import RFGlobals
 from ..common.bpy_helper import bpy_ops_retopoflow
 from ..common.operator import RFOperator
-from ..common.bmesh import get_bmesh_emesh, bme_midpoint, bmfs_shared_bme, quad_bmf_opposite_bme
+from ..common.bmesh import get_bmesh_emesh, bme_midpoint, bmf_midpoint, bmfs_shared_bme
 from ..common.drawing import Drawing
 from ..common.raycast import is_point_hidden, mouse_from_event
 from ...addon_common.common import bmesh_ops as bmops
@@ -216,15 +216,13 @@ def create_quadstrip_selection_overlay(
             # crawl sel_bmfs to find strips
             strips = get_quadstrips(sel_bmfs)
             self.selected_strips = [
+                [ bmf_midpoint(strip[0]) ] +
                 [
-                    bme_midpoint(quad_bmf_opposite_bme(strip[0], bmfs_shared_bme(strip[0], strip[1])))
-                ] + [
                     bme_midpoint(bme01)
                     for (bmf0, bmf1) in iter_pairs(strip, False)
                     if (bme01 := bmfs_shared_bme(bmf0, bmf1))
-                ] + [
-                    bme_midpoint(quad_bmf_opposite_bme(strip[-1], bmfs_shared_bme(strip[-1], strip[-2])))
-                ]
+                ] +
+                [ bmf_midpoint(strip[-1]) ]
                 for strip in strips
             ]
             self.strips_indices = [
