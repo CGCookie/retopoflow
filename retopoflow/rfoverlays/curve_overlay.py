@@ -413,6 +413,7 @@ def create_curve_overlay(
                 'current_points': spec.current_points,
                 'cyclic': spec.cyclic,
                 'handles': handles,
+                'interior_bmv_indices': spec.interior_bmv_indices,
             })
 
         def _build_curve(self, cos, *, cyclic, avg_len, bend_tolerance_factor, sharp_angle, cache_key):

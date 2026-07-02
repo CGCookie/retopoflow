@@ -43,6 +43,64 @@ from ..rfoverlays.curve_overlay import (
 )
 
 
+# dragging a handle on a closed loop only directly moves the loop's own
+# verts -- a selected patch's INTERIOR verts (enclosed by the loop but not
+# part of it) are interpolated instead, via graph-Laplacian relaxation over
+# the real mesh edges (each interior vert -> weighted average of its
+# neighbors, boundary verts pinned at their curve-driven positions). This is
+# warm-started every frame (verts hold last frame's result, not reset), so
+# after an initial settle a handful of iterations is enough to track a
+# boundary that's only moving a little each frame; a full drag is cheap even
+# though no iteration count here is a rigorous convergence guarantee.
+INTERIOR_RELAX_ITERATIONS = 10
+# extra settling pass on release, since a fast drag-and-release may not have
+# had enough per-frame iterations to fully catch up to the final boundary shape
+INTERIOR_RELAX_FINAL_ITERATIONS = 40
+
+
+def _relax_interior_verts(bm, interior, iterations):
+    '''
+    Gauss-Seidel graph-Laplacian relaxation -- but over each vert's
+    DISPLACEMENT from its own original position, not its absolute position.
+    A real mesh's interior isn't generally already sitting at the flat
+    "average of its neighbors" shape (it may follow curved source-surface
+    detail the boundary loop alone doesn't capture) -- relaxing absolute
+    position would immediately pull it toward that flat shape the instant a
+    drag starts, regardless of how little the boundary has actually moved,
+    which reads as a jump. Relaxing displacement instead means zero boundary
+    movement propagates as zero interior displacement -- nothing moves until
+    the boundary actually does, and only the CHANGE spreads inward, riding on
+    top of whatever detail was already there.
+
+    Weighted by each edge's ORIGINAL (pre-drag) length rather than uniformly,
+    so a neighbor that was already close has proportionally more say than one
+    that was far away -- a plain unweighted average is more prone to visible
+    overlap/folding under a large deformation, since it treats a stretched-
+    out neighbor exactly the same as a close one. This reduces (but -- being
+    a linear method, same as Blender's own Lattice modifier -- cannot fully
+    eliminate) fold-over on sufficiently extreme edits; only a non-linear,
+    locally-rotation-aware scheme (As-Rigid-As-Possible-style) would.
+    '''
+    indices = interior['indices']
+    neighbors = interior['neighbors']
+    orig_co = interior['orig_co']
+    displacement = interior['displacement']
+    boundary_orig_co = interior['boundary_orig_co']
+    for _ in range(iterations):
+        for idx in indices:
+            nbrs = neighbors[idx]
+            if not nbrs:
+                continue
+            total = Vector((0.0, 0.0, 0.0))
+            weight_sum = 0.0
+            for (n, w) in nbrs:
+                d = displacement[n] if n in displacement else (bm.verts[n].co - boundary_orig_co[n])
+                total = total + d * w
+                weight_sum += w
+            displacement[idx] = total / weight_sum
+            bm.verts[idx].co = orig_co[idx] + displacement[idx]
+
+
 def _segment_arc_length(cb, fn_dist):
     return sum(d for _, _, d in cb.get_tessellate_uniform(fn_dist))
 
@@ -272,6 +330,46 @@ def create_curve_edit_operator(
                 self.selection_origin_3d = None
                 self.selection_origin_2d = None
 
+            # a closed loop tracing a selected patch's perimeter carries the
+            # patch's own INTERIOR verts too (see LoopStripChainProvider) --
+            # those aren't driven by the curve directly; instead their
+            # DISPLACEMENT from this original position is relaxed each frame
+            # (see _relax_interior_verts), with neighbors outside this
+            # chain's own boundary+interior sets excluded so the patch can't
+            # "leak" into unrelated geometry it's merely adjacent to
+            self.interior = None
+            interior_bmv_indices = self.chain.get('interior_bmv_indices')
+            if interior_bmv_indices:
+                allowed = set(self.chain['deform_bmv_indices']) | set(interior_bmv_indices)
+                neighbors = {}
+                orig_co = {}
+                for idx in interior_bmv_indices:
+                    bmv = self.bm.verts[idx]
+                    orig_co[idx] = Vector(bmv.co)
+                    # weighted by (original) edge length -- see
+                    # _relax_interior_verts for why not a plain average
+                    neighbors[idx] = [
+                        (other.index, 1.0 / max((other.co - bmv.co).length, 1e-6))
+                        for bme in bmv.link_edges
+                        if (other := bme.other_vert(bmv)).index in allowed
+                    ]
+                # boundary neighbors' ORIGINAL position, needed to turn their
+                # current (curve-driven) position into a displacement each
+                # frame -- every boundary vert of this chain is guaranteed to
+                # already be a key in `data` (built above from deform_bmv_indices)
+                boundary_orig_co = {
+                    idx: data[idx][2]
+                    for idx in self.chain['deform_bmv_indices']
+                    if idx in data
+                }
+                self.interior = {
+                    'indices': list(interior_bmv_indices),
+                    'neighbors': neighbors,
+                    'orig_co': orig_co,
+                    'displacement': { idx: Vector((0.0, 0.0, 0.0)) for idx in interior_bmv_indices },
+                    'boundary_orig_co': boundary_orig_co,
+                }
+
             self.grab = {
                 'mouse':   Vector(mouse),
                 'current': Vector(mouse),
@@ -347,11 +445,63 @@ def create_curve_edit_operator(
                     if T_moved.length > 1e-9 and peer_len > 1e-9:
                         setattr(cbs[peer_seg], peer_attr, K - T_moved.normalized() * peer_len)
 
+        def _mirror_clamp(self, context, co, pt_edit_orig, M, Mi):
+            ''' If `co` crossed a clipped mirror plane this frame (relative to
+            `pt_edit_orig`, its position before this frame's move), iteratively
+            pull it back onto the plane while keeping it snapped to source. '''
+            if not self.mirror:
+                return co
+            th = self.mirror_threshold
+            zero = {
+                'x': ('x' in self.mirror and (sign_threshold(co.x, th.x) != sign_threshold(pt_edit_orig.x, th.x) or sign_threshold(pt_edit_orig.x, th.x) == 0)),
+                'y': ('y' in self.mirror and (sign_threshold(co.y, th.y) != sign_threshold(pt_edit_orig.y, th.y) or sign_threshold(pt_edit_orig.y, th.y) == 0)),
+                'z': ('z' in self.mirror and (sign_threshold(co.z, th.z) != sign_threshold(pt_edit_orig.z, th.z) or sign_threshold(pt_edit_orig.z, th.z) == 0)),
+            }
+            # iteratively zero out the component
+            for _ in range(1000):
+                d = 0
+                if zero['x']: co.x, d = co.x * 0.95, max(abs(co.x), d)
+                if zero['y']: co.y, d = co.y * 0.95, max(abs(co.y), d)
+                if zero['z']: co.z, d = co.z * 0.95, max(abs(co.z), d)
+                co_world = M @ Vector((*co, 1.0))
+                co_world_snapped = nearest_point_valid_sources(context, co_world.xyz / co_world.w, world=True, respect_clip_planes=True)
+                if not co_world_snapped: break
+                co = Mi @ co_world_snapped
+                if d < 0.001: break  # break out if change was below threshold
+            if zero['x']: co.x = 0
+            if zero['y']: co.y = 0
+            if zero['z']: co.z = 0
+            return co
+
+        def _relax_interior(self, context, iterations):
+            ''' Runs the interior-vert Laplacian relaxation (see
+            _relax_interior_verts) if this chain has one, then snaps each
+            interior vert to source and applies the same mirror clamp the
+            boundary loop's own verts get, for consistency. Called after the
+            boundary verts are updated each frame -- interior verts always
+            follow the boundary's CURRENT shape (including whatever
+            proportional-edit falloff was applied to it), never the raw
+            handle delta directly. '''
+            interior = self.interior
+            if not interior:
+                return
+            bm = self.bm
+            _relax_interior_verts(bm, interior, iterations)
+            for idx in interior['indices']:
+                bmv = bm.verts[idx]
+                co = nearest_point_valid_sources(context, bmv.co, world=False, respect_clip_planes=True) or bmv.co
+                bmv.co = self._mirror_clamp(context, co, interior['orig_co'][idx], self.M, self.Mi)
+
         def update(self, context, event):
             data = self.grab['data']
             bm, em = self.bm, self.em
 
             if event.type == 'LEFTMOUSE' and event.value == 'RELEASE':
+                # a fast drag-and-release may not have accumulated enough
+                # per-frame iterations to fully catch up to the final
+                # boundary shape -- settle harder now that it's the last chance
+                self._relax_interior(context, INTERIOR_RELAX_FINAL_ITERATIONS)
+                bmesh.update_edit_mesh(em)
                 return {'FINISHED'}
 
             if event.type in {'ESC', 'RIGHTMOUSE'}:
@@ -360,6 +510,9 @@ def create_curve_edit_operator(
                     cb.p0, cb.p1, cb.p2, cb.p3 = (Vector(p) for p in pts)
                 for bmv_idx in data:
                     bm.verts[bmv_idx].co = data[bmv_idx][2]
+                if self.interior:
+                    for idx, orig in self.interior['orig_co'].items():
+                        bm.verts[idx].co = orig
                 bmesh.update_edit_mesh(em)
                 context.area.tag_redraw()
                 return {'CANCELLED'}
@@ -440,30 +593,9 @@ def create_curve_edit_operator(
                 pt_edit_new = M @ f.l2w_point(pt_curve_orig)
                 pt_edit_new = pt_edit_orig + (pt_edit_new - pt_edit_orig) * factor
                 co = nearest_point_valid_sources(context, pt_edit_new, world=False, respect_clip_planes=True) or pt_edit_orig
+                bmv.co = self._mirror_clamp(context, co, pt_edit_orig, M, Mi)
 
-                if self.mirror:
-                    th = self.mirror_threshold
-                    zero = {
-                        'x': ('x' in self.mirror and (sign_threshold(co.x, th.x) != sign_threshold(pt_edit_orig.x, th.x) or sign_threshold(pt_edit_orig.x, th.x) == 0)),
-                        'y': ('y' in self.mirror and (sign_threshold(co.y, th.y) != sign_threshold(pt_edit_orig.y, th.y) or sign_threshold(pt_edit_orig.y, th.y) == 0)),
-                        'z': ('z' in self.mirror and (sign_threshold(co.z, th.z) != sign_threshold(pt_edit_orig.z, th.z) or sign_threshold(pt_edit_orig.z, th.z) == 0)),
-                    }
-                    # iteratively zero out the component
-                    for _ in range(1000):
-                        d = 0
-                        if zero['x']: co.x, d = co.x * 0.95, max(abs(co.x), d)
-                        if zero['y']: co.y, d = co.y * 0.95, max(abs(co.y), d)
-                        if zero['z']: co.z, d = co.z * 0.95, max(abs(co.z), d)
-                        co_world = M @ Vector((*co, 1.0))
-                        co_world_snapped = nearest_point_valid_sources(context, co_world.xyz / co_world.w, world=True, respect_clip_planes=True)
-                        if not co_world_snapped: break
-                        co = Mi @ co_world_snapped
-                        if d < 0.001: break  # break out if change was below threshold
-                    if zero['x']: co.x = 0
-                    if zero['y']: co.y = 0
-                    if zero['z']: co.z = 0
-
-                bmv.co = co
+            self._relax_interior(context, INTERIOR_RELAX_ITERATIONS)
 
             bmesh.update_edit_mesh(em)
             context.area.tag_redraw()

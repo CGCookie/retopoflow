@@ -53,6 +53,7 @@ class ChainSpec:
     __slots__ = (
         'points', 'cyclic', 'cache_key', 'deform_bmv_indices', 'label',
         'min_spline_points', 'coupled', 'avg_len', 'current_points',
+        'interior_bmv_indices',
     )
 
     def __init__(
@@ -66,6 +67,7 @@ class ChainSpec:
         coupled : bool,
         avg_len : float,
         current_points : Callable[[BMesh], list[Vector] | None],
+        interior_bmv_indices : list[int] = (),
     ):
         self.points = points
         self.cyclic = cyclic
@@ -76,6 +78,14 @@ class ChainSpec:
         self.coupled = coupled
         self.avg_len = avg_len
         self.current_points = current_points
+        # verts of selected faces enclosed by this chain (only meaningful
+        # for a cyclic, vertex-coupled chain tracing a selected patch's
+        # perimeter) that aren't part of the chain itself -- dragging a
+        # handle doesn't move these directly, but the edit operator
+        # interpolates them from the chain's motion. Empty for chains with
+        # no enclosed patch (an open strip, or a loop with nothing selected
+        # inside it).
+        self.interior_bmv_indices = list(interior_bmv_indices)
 
 
 class ChainProvider:
@@ -86,6 +96,30 @@ class ChainProvider:
         ''' None = selection too large / not usable -- bail without adding
         any chains this update (distinct from an empty list). '''
         raise NotImplementedError
+
+
+def _enclosed_selected_faces(loop_bmes, sel_bmfs : set) -> set:
+    ''' Flood-fills from the selected faces touching a closed loop's edges,
+    through other selected faces, without crossing the loop itself -- the
+    connected component of the selection that this specific loop encloses.
+    Two disjoint selected patches produce two separate loops (get_boundary_
+    strips_cycles groups by edge connectivity), so seeding per-loop rather
+    than flooding the whole selection at once keeps each loop's interior
+    correctly scoped to just its own patch. '''
+    loop_edge_set = set(loop_bmes)
+    seeds = { f for bme in loop_bmes for f in bme.link_faces if f in sel_bmfs }
+    visited = set(seeds)
+    queue = list(seeds)
+    while queue:
+        f = queue.pop()
+        for e in f.edges:
+            if e in loop_edge_set:
+                continue  # don't cross the boundary being edited
+            for nf in e.link_faces:
+                if nf in sel_bmfs and nf not in visited:
+                    visited.add(nf)
+                    queue.append(nf)
+    return visited
 
 
 class LoopStripChainProvider(ChainProvider):
@@ -140,7 +174,10 @@ class LoopStripChainProvider(ChainProvider):
             spec = self._make_spec(self._strip_bmvs(strip, cyclic=False), cyclic=False, avg_len=avg_len)
             if spec: specs.append(spec)
         for cycle in cycles:
-            spec = self._make_spec(self._strip_bmvs(cycle, cyclic=True), cyclic=True, avg_len=avg_len)
+            spec = self._make_spec(
+                self._strip_bmvs(cycle, cyclic=True), cyclic=True, avg_len=avg_len,
+                loop_bmes=cycle, sel_bmfs=sel_bmfs,
+            )
             if spec: specs.append(spec)
         return specs
 
@@ -160,12 +197,17 @@ class LoopStripChainProvider(ChainProvider):
         start = bme_unshared_bmv(strip[0], strip[1])
         return get_strip_bmvs(strip, start)
 
-    def _make_spec(self, bmvs, *, cyclic, avg_len) -> ChainSpec | None:
+    def _make_spec(self, bmvs, *, cyclic, avg_len, loop_bmes=None, sel_bmfs=None) -> ChainSpec | None:
         if not bmvs:
             return None
         cos = [bmv.co.copy() for bmv in bmvs]
         bmv_indices = [bmv.index for bmv in bmvs]
         label = ('Loop', len(bmvs)) if cyclic else ('Strip', len(bmvs) - 1)
+
+        interior_bmv_indices = []
+        if cyclic and loop_bmes and sel_bmfs:
+            enclosed = _enclosed_selected_faces(loop_bmes, sel_bmfs)
+            interior_bmv_indices = sorted({v.index for f in enclosed for v in f.verts} - set(bmv_indices))
 
         def current_points(bm : BMesh, _indices : tuple = tuple(bmv_indices)) -> list[Vector] | None:
             return [bm.verts[i].co.copy() for i in _indices]
@@ -180,6 +222,7 @@ class LoopStripChainProvider(ChainProvider):
             coupled=True,
             avg_len=avg_len,
             current_points=current_points,
+            interior_bmv_indices=interior_bmv_indices,
         )
 
 
