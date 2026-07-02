@@ -38,6 +38,7 @@ from .curve_chain_providers import ChainProvider, ChainSpec
 from ..rfglobals import RFGlobals
 from ..common.bpy_helper import bpy_ops_retopoflow
 from ..common.operator import RFOperator
+from ..rftool_statusbar import SharedStatusbarKeymap
 from ..common.bmesh import get_bmesh_emesh
 from ..common.bmesh_maths import rdp_corner_indices
 from ..common.maths import map_range, clamp
@@ -260,7 +261,16 @@ def create_curve_overlay(
             self.hovering = self.hovered_handle(context, mouse)
             if self.hovering:
                 if not was_hovering:
-                    self.set_statusbar_override(('LMB: Edit Curve', ))
+                    # Alt/Alt+Shift work the same whether a knot or one of
+                    # its tangent handles is hovered -- grabbing a tangent
+                    # redirects to its own knot (see apply_handle /
+                    # _knot_for_tangent), so the hint doesn't need to
+                    # branch on which kind is under the mouse
+                    self.set_statusbar_override((
+                        SharedStatusbarKeymap(label='Edit Curve', icons=['MOUSE_LMB_DRAG']),
+                        SharedStatusbarKeymap(label='Scale', icons=['MOUSE_LMB_DRAG', 'EVENT_ALT']),
+                        SharedStatusbarKeymap(label='Rotate', icons=['MOUSE_LMB_DRAG', 'EVENT_ALT', 'EVENT_SHIFT']),
+                    ))
                 Cursors.set('hand')
             else:
                 if was_hovering:
@@ -414,6 +424,12 @@ def create_curve_overlay(
                 'cyclic': spec.cyclic,
                 'handles': handles,
                 'interior_bmv_indices': spec.interior_bmv_indices,
+                # True when points are real verts (an edge loop/strip); False
+                # when they're DERIVED from faces (e.g. a quad-strip
+                # centerline) -- see the Alt-scale "taper" handle interaction,
+                # which only makes sense for a chain with its own strip width
+                # to narrow/widen (a vertex-coupled chain has no such width)
+                'coupled': spec.coupled,
             })
 
         def _build_curve(self, cos, *, cyclic, avg_len, bend_tolerance_factor, sharp_angle, cache_key):

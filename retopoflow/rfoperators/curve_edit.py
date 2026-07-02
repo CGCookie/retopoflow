@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import bmesh
 import heapq
+import math
 from mathutils import Vector
 from bpy.types import Context, Event
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_location_3d
@@ -171,6 +172,16 @@ def create_curve_edit_operator(
 
         rf_keymaps : RFKeyMaps = [
             (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS'}, None),
+            # separate entries so Alt+drag-to-scale and Alt+Shift+drag-to-
+            # rotate (see apply_handle) also start when their modifiers are
+            # already held before the click -- Blender's keymap_items.new()
+            # defaults every unlisted modifier to False, so the plain entry
+            # above only ever matches with both up; once the modal operator
+            # is running it keeps getting all events regardless of keymap,
+            # which is why toggling a modifier mid-drag already worked
+            # without this
+            (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS', 'alt': True}, None),
+            (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS', 'alt': True, 'shift': True}, None),
         ]
 
         @classmethod
@@ -187,6 +198,9 @@ def create_curve_edit_operator(
             self.spline = self.curves[chain_idx]
             self.handle = self.chain['handles'][handle_idx]
             self.snapshot = snapshot
+            # set by apply_handle when Alt+dragging a knot -- see _scale_handles
+            self.taper_scale = None
+            self.taper_t = None
 
             get_overlay().pause_update()
             get_overlay().instance.depsgraph_version = None
@@ -231,6 +245,16 @@ def create_curve_edit_operator(
                     # other side of the junction too (see apply_handle), so its
                     # verts need the same arc-length tracking as this handle's own
                     self.touched_segs.add(self.handle['g1_peer'][0])
+                # Alt-dragging a tangent redirects to scaling/rotating the knot
+                # it belongs to (see apply_handle/_knot_for_tangent), which can
+                # reshape the segment on the OTHER side of that knot too -- cover
+                # it here so those verts still track arc-length correctly if Alt
+                # is held (or gets toggled on mid-drag). A no-op for a normal,
+                # non-Alt tangent drag, since that segment's shape doesn't
+                # actually change then
+                knot_h = self._knot_for_tangent(self.handle)
+                if knot_h:
+                    self.touched_segs |= { seg for seg, _ in knot_h['move'] }
 
             # a "free" knot isn't a vertex -- nothing should be forced to sit
             # exactly on it, or bunch up as it moves. Its two flanking segments
@@ -404,12 +428,37 @@ def create_curve_edit_operator(
                         cached['cos'] = new_cos
             get_overlay().unpause_update()
 
-        def apply_handle(self, context, delta, rgn, r3d, M, Mi):
+        def apply_handle(self, context, delta, rgn, r3d, M, Mi, alt, shift):
             h = self.handle
             cbs = self.spline.cbs
             idx_of = {'p0': 0, 'p1': 1, 'p2': 2, 'p3': 3}
             def orig(seg, attr):
                 return Vector(self.snapshot[seg][idx_of[attr]])
+
+            # reset each frame -- only a knot currently being Alt-dragged
+            # (without Shift) sets these (see _scale_handles), and the
+            # per-vert taper in update() must turn off the instant that
+            # stops being true
+            self.taper_scale = None
+            self.taper_t = None
+
+            # Alt/Alt+Shift always act on a KNOT -- if the user grabbed one
+            # of its tangent handles instead, redirect to the knot it
+            # belongs to, so users don't have to remember which of the two
+            # to click
+            if alt:
+                knot_h = h if h['kind'] == 'knot' else self._knot_for_tangent(h)
+                if knot_h is not None:
+                    kseg0, kattr0 = knot_h['pos']
+                    kpt_orig = orig(kseg0, kattr0)
+                    kpt_screen = location_3d_to_region_2d(rgn, r3d, M @ kpt_orig)
+                    if kpt_screen is None:
+                        return
+                    if shift:
+                        self._rotate_handles(knot_h, kseg0, kattr0, kpt_orig, kpt_screen, delta, rgn, r3d, M, Mi, orig, cbs)
+                    else:
+                        self._scale_handles(knot_h, kseg0, kattr0, kpt_orig, delta, rgn, r3d, M, orig, cbs)
+                    return
 
             seg0, attr0 = h['pos']
             pt_orig = orig(seg0, attr0)
@@ -444,6 +493,172 @@ def create_curve_edit_operator(
                     peer_len = (peer_orig_pt - K).length
                     if T_moved.length > 1e-9 and peer_len > 1e-9:
                         setattr(cbs[peer_seg], peer_attr, K - T_moved.normalized() * peer_len)
+
+        def _knot_for_tangent(self, h):
+            ''' The KNOT handle that owns this tangent handle (has it listed
+            in its own 'move'), so Alt-dragging a tangent scales/rotates
+            exactly as if its own knot had been grabbed instead -- users
+            shouldn't need to remember which of the two to click (see
+            apply_handle). Every tangent belongs to exactly one knot by
+            construction (see _build_handles), so this should always find a
+            match; None is only a defensive fallback. '''
+            pos = h['pos']
+            for other in self.chain['handles']:
+                if other['kind'] == 'knot' and pos in other['move']:
+                    return other
+            return None
+
+        def _handle_pivot(self, h, orig):
+            ''' The knot at the FAR end of the segment referenced by this
+            knot handle's first flanking tangent -- v3 PolyStrips' "outerP",
+            i.e. the far corner of the affected strip. A stable,
+            well-separated point to measure an Alt-drag gesture (scale or
+            rotate) against, since the drag itself starts ON the knot being
+            edited, leaving it unusable as its own reference (near-zero
+            distance, undefined angle). Returns None if this handle has no
+            flanking tangent to reference (shouldn't happen for a knot, but
+            matches _scale_handles'/_rotate_handles' existing guard). '''
+            if not h['move']:
+                return None
+            ref_seg, ref_attr = h['move'][0]
+            pivot_seg, pivot_attr = (ref_seg, 'p0') if ref_attr == 'p2' else (ref_seg, 'p3')
+            return orig(pivot_seg, pivot_attr)
+
+        def _scale_handles(self, h, seg0, attr0, pt_orig, delta, rgn, r3d, M, orig, cbs):
+            '''
+            Alt+drag on a knot: pin the knot at its snapshot position, and
+            either scale its flanking tangent handles' LENGTHS (not
+            direction) by a common factor, or -- on a face-derived chain --
+            taper the strip's width instead (see below); never both, so the
+            two effects don't compound into what'd look like one uneven one.
+
+            Ported from v3 PolyStrips' own corner-scale gesture: the scale
+            factor is the ratio of the mouse's CURRENT screen-space distance
+            from a fixed pivot (_handle_pivot) to its distance from that same
+            pivot when the drag started. v3 only ever grabs the tangent
+            handle itself to scale, never the knot, so its pivot and its
+            drag start are already two different (and far apart) points;
+            grabbing the knot here instead means the pivot has to be found
+            one step further out to get that same separation. A prior
+            version measured against the reference handle's own (much
+            shorter) length instead, which made the gesture oversensitive --
+            small mouse moves swung the scale a lot, and since growing is
+            unbounded (unlike shrinking, which self-limits at 0), it was
+            easy to overshoot into extreme, visibly-broken handle lengths
+            well before the drag felt "done".
+            '''
+            pivot_orig = self._handle_pivot(h, orig)
+            if pivot_orig is None:
+                return
+            pivot_screen = location_3d_to_region_2d(rgn, r3d, M @ pivot_orig)
+            if pivot_screen is None:
+                return
+            mouse_start = Vector(self.grab['mouse'])
+            mouse_now = mouse_start + delta
+            ref_dist = (mouse_start - pivot_screen).length
+            if ref_dist < 1e-6:
+                return
+            scale = max(0.0, (mouse_now - pivot_screen).length / ref_dist)
+
+            # the knot itself never moves under Alt -- only whichever of
+            # handles/taper applies below does
+            for (seg, attr) in h['set']:
+                setattr(cbs[seg], attr, pt_orig.copy())
+
+            if self.chain.get('coupled', True):
+                # a vertex-coupled (edge-loop) chain has no "width" to
+                # taper -- reshape the curve itself instead, by scaling the
+                # knot's own tangent handles, each from its own original
+                # length as its own 100% reference (not a shared absolute
+                # length), which is what "equally" means here
+                for (seg, attr) in h['move']:
+                    orig_h = orig(seg, attr)
+                    setattr(cbs[seg], attr, pt_orig + (orig_h - pt_orig) * scale)
+            else:
+                # a face-derived (uncoupled) chain's knot is a derived
+                # centerline point, and its handles just describe that
+                # centerline's path -- reshaping them here would bend the
+                # strip's spine as a side effect of tapering its width,
+                # compounding into a result that isn't a clean taper. Leave
+                # the curve exactly as it started instead (undoing any
+                # non-Alt move from earlier in the same drag, e.g. if Alt
+                # was pressed partway through) and taper the verts' width
+                # against that fixed curve instead -- see update()'s
+                # per-vert loop, gated on self.taper_scale/self.taper_t
+                for (seg, attr) in h['move']:
+                    setattr(cbs[seg], attr, orig(seg, attr))
+                self.taper_scale = scale
+                self.taper_t = float(seg0 if attr0 == 'p0' else seg0 + 1)
+
+        def _rotate_handles(self, h, seg0, attr0, pt_orig, pt_screen, delta, rgn, r3d, M, Mi, orig, cbs):
+            '''
+            Alt+Shift-drag on a knot: pin the knot at its snapshot position
+            and rotate its flanking tangent handles by a common angle around
+            it, instead of moving or scaling them -- reshapes the curve's
+            tangent DIRECTION at that knot while preserving each handle's
+            own length. Unlike _scale_handles, this applies the SAME way
+            regardless of whether the chain is face-derived: there's no
+            separate "taper" concept for a rotation, since reshaping the
+            curve's direction is already exactly what should happen to a
+            strip's spine too, and the existing per-vert curve-following in
+            update() already carries that reshape through to every vert
+            (coupled or not) on its own.
+
+            The rotation angle is measured the same way _scale_handles
+            measures its scale ratio: via the same stable, far pivot
+            (_handle_pivot), tracking how much the mouse's own angular
+            position around THAT pivot has changed since the drag started
+            -- it can't be measured around the dragged knot itself, since
+            the drag starts ON the knot, leaving its own angle undefined at
+            the start. The measured angle is then applied by rotating each
+            handle -- from its own original screen position -- around the
+            KNOT itself (its true anchor), matching v3 PolyStrips' own
+            rotate gesture (a screen-space rotation, then re-settled in 3D;
+            tangent handles here already move freely in the view plane
+            rather than snapping to source, same as a direct drag).
+            '''
+            pivot_orig = self._handle_pivot(h, orig)
+            if pivot_orig is None:
+                return
+            pivot_screen = location_3d_to_region_2d(rgn, r3d, M @ pivot_orig)
+            if pivot_screen is None:
+                return
+            mouse_start = Vector(self.grab['mouse'])
+            mouse_now = mouse_start + delta
+            v0 = mouse_start - pivot_screen
+            v1 = mouse_now - pivot_screen
+            if v0.length < 1e-6 or v1.length < 1e-6:
+                return
+            angle = math.atan2(v0.x, v0.y) - math.atan2(v1.x, v1.y)
+            cos_a, sin_a = math.cos(angle), math.sin(angle)
+
+            # the knot itself never moves under Alt -- only its handles do
+            for (seg, attr) in h['set']:
+                setattr(cbs[seg], attr, pt_orig.copy())
+
+            for (seg, attr) in h['move']:
+                orig_h = orig(seg, attr)
+                orig_h_screen = location_3d_to_region_2d(rgn, r3d, M @ orig_h)
+                if orig_h_screen is None:
+                    continue
+                d = orig_h_screen - pt_screen
+                rotated_screen = Vector((
+                    pt_screen.x + d.x * cos_a - d.y * sin_a,
+                    pt_screen.y + d.x * sin_a + d.y * cos_a,
+                ))
+                new_world = region_2d_to_location_3d(rgn, r3d, rotated_screen, M @ orig_h)
+                setattr(cbs[seg], attr, Mi @ new_world)
+
+        def _taper_weight(self, t, nseg):
+            ''' 1.0 exactly at the Alt-scaled knot's own parameter, falling
+            off LINEARLY to 0.0 by the adjacent knots (one full segment of
+            parameter `t` away on either side) -- a localized taper centered
+            on the dragged knot, not a uniform width change across the whole
+            chain. Wraps around for a cyclic chain. '''
+            dist = abs(t - self.taper_t)
+            if self.chain['cyclic']:
+                dist = min(dist, nseg - dist)
+            return max(0.0, 1.0 - dist)
 
         def _mirror_clamp(self, context, co, pt_edit_orig, M, Mi):
             ''' If `co` crossed a clipped mirror plane this frame (relative to
@@ -537,7 +752,13 @@ def create_curve_edit_operator(
             prop_dist_world = context.tool_settings.proportional_distance
             prop_falloff = context.tool_settings.proportional_edit_falloff
 
-            self.apply_handle(context, delta, rgn, r3d, M, Mi)
+            self.apply_handle(context, delta, rgn, r3d, M, Mi, event.alt, event.shift)
+
+            # _scale_handles only ever sets taper_scale on a face-derived
+            # (uncoupled) chain -- a vertex-coupled chain has no "width" to
+            # taper, since its verts already sit ON the curve, so Alt
+            # reshapes its handles instead (see _scale_handles)
+            taper_active = self.taper_scale is not None
 
             if self.grab['only'] is None:
                 self.grab['only'] = [
@@ -590,7 +811,17 @@ def create_curve_edit_operator(
                 if z.length < 1e-9: z = Vector((0, 0, 1))
                 z.normalize()
                 f = Frame(o, x=fwd, z=z)
-                pt_edit_new = M @ f.l2w_point(pt_curve_orig)
+                local_pt = pt_curve_orig
+                if taper_active:
+                    w = self._taper_weight(t, nseg)
+                    if w > 0:
+                        # pt_curve_orig is already expressed as an offset FROM
+                        # the curve (see Frame.w2l_point in init()), so scaling
+                        # it directly scales this vert's own perpendicular
+                        # distance from the curve -- i.e. the strip's width
+                        # at this point, not its position along the curve
+                        local_pt = pt_curve_orig * (1 + (self.taper_scale - 1) * w)
+                pt_edit_new = M @ f.l2w_point(local_pt)
                 pt_edit_new = pt_edit_orig + (pt_edit_new - pt_edit_orig) * factor
                 co = nearest_point_valid_sources(context, pt_edit_new, world=False, respect_clip_planes=True) or pt_edit_orig
                 bmv.co = self._mirror_clamp(context, co, pt_edit_orig, M, Mi)

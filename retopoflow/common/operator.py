@@ -21,9 +21,16 @@ Created by Jonathan Denning, Jonathan Lampel
 
 from __future__ import annotations
 from functools import singledispatch
-from typing import Self, ClassVar, Protocol, Any, cast, Literal, ParamSpec, TypeVar
+from typing import Self, ClassVar, Protocol, Any, cast, Literal, ParamSpec, TypeVar, TYPE_CHECKING
 from collections.abc import Sequence, Callable, Iterable
 from inspect import signature
+
+if TYPE_CHECKING:
+    # type-checking only -- rftool_statusbar.py transitively imports this
+    # module (via rftool_base.py), so importing it back here for real would
+    # be circular; from __future__ import annotations above means this
+    # annotation is never evaluated at runtime anyway
+    from ..rftool_statusbar import SharedStatusbarKeymap
 
 import bpy
 from bpy.types import (
@@ -214,7 +221,7 @@ class RFOperator_KeymapContext(RFOperator_KeymapContext_Helper, RFOperator_Base)
         update=RFOperator_KeymapContext_Helper.update_km_context,
     )
 
-    def set_statusbar_override(self, status: str | Sequence[str] | None):
+    def set_statusbar_override(self, status: str | SharedStatusbarKeymap | Sequence[str | SharedStatusbarKeymap] | None):
         RFCore = RFGlobals.RFCore_None
         if not RFCore:
             return

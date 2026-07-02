@@ -26,14 +26,20 @@ This document contains details about what has changed in Retopoflow in version 4
 - Added Ctrl Scroll after extruding in Contours to adjust segment count
 - Increased max span count in Contours
 
+- Improved PolyStrips curve handles
+- Expanded the curve handle system to work with edge loops and selection patches
+- The curve handles are now available when working in Strokes and PolyPen as well
+
 - Stokes now snaps its span sides to nearby connected vertices
     - This makes it so Strokes can fill holes without creating overlapping verts
-- Strokes can now be edited with curve handles like PolyStrips
 - Strokes now places verts at sharp angles in the drawn stroke
 - Strokes now projects in world space, fixing spacing and redo issues
 - Strokes can now use world space units as the span length
 - Closed loops drawn with Strokes have a new slider to make them perfectly circular
 - Switched Strokes and PolyStrips brush size hotkey to Shift F to free up F for filling
+
+- Added Nudge, Nudge Loops, and Pinch / Magnify modes to Tweak tool
+    - Nudge is now the default instead of Grab
 
 - All Retopoflow tools now respect Blender's Alt+B clipping region
     - Useful for isolating areas while working

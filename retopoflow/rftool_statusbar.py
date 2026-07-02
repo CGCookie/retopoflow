@@ -44,19 +44,7 @@ from .rftool_base import RFTool_Base
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ #
 
 class StatusbarYield:
-    """
-    Temporarily hide RF's custom status bar so Blender can show native operator reports.
-
-    Intercept bmesh.update_edit_mesh in rfcore.register() to track the last time
-    RF's own Python code pushed a mesh change.  Built-in C operators (e.g. Merge by Distance,
-    Remove Doubles) never call Python's bmesh.update_edit_mesh, so a geometry depsgraph
-    update that arrives more than 0.2 s after the last RF mesh write must have come from an
-    external operator. We temporarily yield the status bar so its report is visible.
-
-    Detection is skipped while an RF brush operator is mid-stroke (Relax/Tweak actively
-    painting), because those tools stamp _last_rf_mesh_update_time continuously and the
-    0.2 s threshold would never be exceeded anyway.
-    """
+    """ Temporarily hide RF's custom status bar so Blender can show native operator reports. """
 
     _yield_until: float = 0.0
 
@@ -139,19 +127,37 @@ is_macOS = 'macOS' in platform.platform()
 # MARK: Helper Functions
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ #
 
-re_status_entry = re.compile(r'((?P<icon>LMB|MMB|RMB): *)?(?P<text>.*)')
+re_status_entry = re.compile(r'((?P<icon>[A-Z][A-Z0-9_]*): *)?(?P<text>.*)')
 status_map_icons : dict[str, str] = {
     'LMB': 'MOUSE_LMB',
     'MMB': 'MOUSE_MMB',
     'RMB': 'MOUSE_RMB',
 }
+
+valid_icon_names : set[str] | None = None
+def get_valid_icon_names() -> set[str]:
+    global valid_icon_names
+    if valid_icon_names is None:
+        try:
+            icon_param = bpy.types.UILayout.bl_rna.functions['label'].parameters['icon']
+            valid_icon_names = set(icon_param.enum_items.keys())
+        except Exception as e:
+            print(f'RF: could not introspect Blender icon list ({e}); only LMB/MMB/RMB status hints will show an icon')
+            valid_icon_names = set(status_map_icons.values())
+    return valid_icon_names
+
 def parse_status_entry(status_entry: str) -> tuple[str, str]:
     match = re_status_entry.match(status_entry)
     if not match:
         return 'NONE', ''
     icon = match.group('icon')
     text = match.group('text')
-    return status_map_icons.get(icon, icon), text
+    if icon is None:
+        return 'NONE', text
+    resolved = status_map_icons.get(icon, icon)
+    if resolved not in get_valid_icon_names():
+        return 'NONE', status_entry # Use plain text if no icon was found
+    return resolved, text
 
 
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ #
@@ -392,9 +398,14 @@ def draw_rftool_statusbar(statusbar: Header, context: Context, tool: type[RFTool
     if km_status_override:
         if isinstance(km_status_override, tuple | list):
             for status in km_status_override:
-                icon, text = parse_status_entry(status)
-                row.label(text=text, icon=icon) # pyright: ignore[reportArgumentType]
-                row.separator()
+                if isinstance(status, SharedStatusbarKeymap):
+                    status._draw_icons(context, row)
+                else:
+                    icon, text = parse_status_entry(status)
+                    row.label(text=text, icon=icon) # pyright: ignore[reportArgumentType]
+                    row.separator()
+        elif isinstance(km_status_override, SharedStatusbarKeymap):
+            km_status_override._draw_icons(context, row)
         elif isinstance(km_status_override, str):
             icon, text = parse_status_entry(km_status_override)
             row.label(text=text, icon=icon) # pyright: ignore[reportArgumentType]

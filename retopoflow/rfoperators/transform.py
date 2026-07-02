@@ -164,7 +164,7 @@ class RFOperator_Translate(SourceSnapMixin, RFOperator):
     )
     use_update_normals: bpy.props.BoolProperty(
         name='Update Normals',
-        description='Update the normals of the affected faces to try to keep them facing outwards',
+        description="Update the normals of the affected faces to try to keep them facing outwards. Disabled when using Blender's native transform",
         default=True
     )
 
