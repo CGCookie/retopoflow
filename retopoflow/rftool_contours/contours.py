@@ -497,7 +497,9 @@ class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
         (bl_idname, {'type': 'LEFT_CTRL',  'value': 'PRESS'}, None),
         (bl_idname, {'type': 'RIGHT_CTRL', 'value': 'PRESS'}, None),
 
-        (bl_idname, {'type': 'LEFTMOUSE', 'value': 'CLICK',        'ctrl': True}, {'km_context': ('init', 'ready'), 'km_label': 'Insert Strip'}),  # prevents object selection with Ctrl+LMB Click
+        (bl_idname, {'type': 'LEFTMOUSE', 'value': 'CLICK', 'ctrl': True}, # prevents object selection with Ctrl+LMB Click
+            {'km_context': ('init', 'ready'), 'km_label': 'Insert Cut', 'km_status_event_value': 'CLICK_DRAG'}
+        ),
         (bl_idname, {'type': 'LEFTMOUSE', 'value': 'DOUBLE_CLICK', 'ctrl': True}, None),
 
         # below is needed to handle case when CTRL is pressed when mouse is initially outside area
@@ -650,10 +652,8 @@ class RFOperator_Contours_Twist(RFRegisterClass, bpy.types.Operator):
 
 
 RFOperator_Contours_Twist.rf_keymaps = [
-    (
-        'retopoflow.contours_twist',
-        {'type': 'R', 'value': 'PRESS', 'alt': True},
-        {'km_context': ('init', 'ready'), 'km_label': 'Adjust Twist'}
+    ('retopoflow.contours_twist', {'type': 'R', 'value': 'PRESS', 'alt': True},
+        {'km_context': ('init'), 'km_label': 'Twist Loops'}
     ),
 ]
 

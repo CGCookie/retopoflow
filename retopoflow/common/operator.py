@@ -21,9 +21,11 @@ Created by Jonathan Denning, Jonathan Lampel
 
 from __future__ import annotations
 from functools import singledispatch
-from typing import Self, ClassVar, Protocol, Any, cast, Literal, ParamSpec, TypeVar, TypeAlias
+from typing import Self, ClassVar, Protocol, Any, cast, Literal, ParamSpec, TypeVar, TypeAlias, TYPE_CHECKING
 from collections.abc import Sequence, Callable, Iterable
 from inspect import signature
+
+if TYPE_CHECKING: from ..rftool_statusbar import SharedStatusbarKeymap # Only used for type definition, avoids circular import
 
 import bpy
 from bpy.types import (
@@ -96,7 +98,7 @@ class RFRegisterClass:
 RFKeyMap : TypeAlias = tuple[
     str,
     dict[str, str | int | float | bool],
-    dict[str, str | tuple[str,...] | Callable[[Context], bool]] | None,
+    dict[str, str | tuple[str,...] | Callable[[Context], bool] | Callable[[Context], str]] | None,
 ]
 RFKeyMaps : TypeAlias = list[RFKeyMap]
 BLKeyMaps : TypeAlias = tuple[RFKeyMap, ...]
@@ -215,7 +217,7 @@ class RFOperator_KeymapContext(RFOperator_KeymapContext_Helper, RFOperator_Base)
         update=RFOperator_KeymapContext_Helper.update_km_context,
     )
 
-    def set_statusbar_override(self, status: str | Sequence[str] | None):
+    def set_statusbar_override(self, status: str | SharedStatusbarKeymap | Sequence[str | SharedStatusbarKeymap] | None):
         RFCore = RFGlobals.RFCore_None
         if not RFCore:
             return

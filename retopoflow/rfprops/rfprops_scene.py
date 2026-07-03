@@ -24,6 +24,7 @@ import bpy
 from ..common.viewport import update_retopo_overlay
 from ..rfoperators.mirror import update_nodes_preview, update_mirror_mod
 from .rfprops_snapping import RFProps_Snapping
+from .rfprops_curve_handles import RFProps_CurveHandles
 
 
 class RFProps_Scene(bpy.types.PropertyGroup):
@@ -297,11 +298,16 @@ class RFProps_Scene(bpy.types.PropertyGroup):
     """ Hard Surface Snapping """
     snapping: bpy.props.PointerProperty(type=RFProps_Snapping)
 
+    """ Curve Handles """
+    curve_handles: bpy.props.PointerProperty(type=RFProps_CurveHandles)
+
 def register():
     bpy.utils.register_class(RFProps_Snapping)
+    bpy.utils.register_class(RFProps_CurveHandles)
     bpy.utils.register_class(RFProps_Scene)
     bpy.types.Scene.retopoflow = bpy.props.PointerProperty(type=RFProps_Scene)
 
 def unregister():
     bpy.utils.unregister_class(RFProps_Scene)
+    bpy.utils.unregister_class(RFProps_CurveHandles)
     bpy.utils.unregister_class(RFProps_Snapping)

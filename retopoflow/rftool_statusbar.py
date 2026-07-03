@@ -44,19 +44,7 @@ from .rftool_base import RFTool_Base
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ #
 
 class StatusbarYield:
-    """
-    Temporarily hide RF's custom status bar so Blender can show native operator reports.
-
-    Intercept bmesh.update_edit_mesh in rfcore.register() to track the last time
-    RF's own Python code pushed a mesh change.  Built-in C operators (e.g. Merge by Distance,
-    Remove Doubles) never call Python's bmesh.update_edit_mesh, so a geometry depsgraph
-    update that arrives more than 0.2 s after the last RF mesh write must have come from an
-    external operator. We temporarily yield the status bar so its report is visible.
-
-    Detection is skipped while an RF brush operator is mid-stroke (Relax/Tweak actively
-    painting), because those tools stamp _last_rf_mesh_update_time continuously and the
-    0.2 s threshold would never be exceeded anyway.
-    """
+    """ Temporarily hide RF's custom status bar so Blender can show native operator reports. """
 
     _yield_until: float = 0.0
 
@@ -139,19 +127,37 @@ is_macOS = 'macOS' in platform.platform()
 # MARK: Helper Functions
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ #
 
-re_status_entry = re.compile(r'((?P<icon>LMB|MMB|RMB): *)?(?P<text>.*)')
+re_status_entry = re.compile(r'((?P<icon>[A-Z][A-Z0-9_]*): *)?(?P<text>.*)')
 status_map_icons : dict[str, str] = {
     'LMB': 'MOUSE_LMB',
     'MMB': 'MOUSE_MMB',
     'RMB': 'MOUSE_RMB',
 }
+
+valid_icon_names : set[str] | None = None
+def get_valid_icon_names() -> set[str]:
+    global valid_icon_names
+    if valid_icon_names is None:
+        try:
+            icon_param = bpy.types.UILayout.bl_rna.functions['label'].parameters['icon']
+            valid_icon_names = set(icon_param.enum_items.keys())
+        except Exception as e:
+            print(f'RF: could not introspect Blender icon list ({e}); only LMB/MMB/RMB status hints will show an icon')
+            valid_icon_names = set(status_map_icons.values())
+    return valid_icon_names
+
 def parse_status_entry(status_entry: str) -> tuple[str, str]:
     match = re_status_entry.match(status_entry)
     if not match:
         return 'NONE', ''
     icon = match.group('icon')
     text = match.group('text')
-    return status_map_icons.get(icon, icon), text
+    if icon is None:
+        return 'NONE', text
+    resolved = status_map_icons.get(icon, icon)
+    if resolved not in get_valid_icon_names():
+        return 'NONE', status_entry # Use plain text if no icon was found
+    return resolved, text
 
 
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ #
@@ -275,6 +281,7 @@ class SharedStatusbarKeymap:
         sub = layout.row(align=True)
         for icon in self.get_icons():
             sub.label(text='', icon=icon)
+            if is_macOS: continue
             if icon == 'EVENT_CTRL':
                 sub.separator(factor=1.5)
             elif icon == 'EVENT_ALT':
@@ -331,16 +338,6 @@ SHARED_STATUSBAR_KEYMAPS__POST_TOOL = (
         filter_op_props={'name': 'RF_MT_Tools'}
     ),
 
-    SharedStatusbarKeymap(
-        label="Open Docs",
-        op_id="3D View | retopoflow.launch_help"
-    ),
-
-    SharedStatusbarKeymap(
-        label="Report Issue",
-        op_id="3D View | retopoflow.launch_newissue"
-    ),
-
     # SharedStatusbarKeymap(label="Knife", icons=['EVENT_K']), # static version
     SharedStatusbarKeymap( # dynamic version
         label="Knife",
@@ -354,6 +351,16 @@ SHARED_STATUSBAR_KEYMAPS__POST_TOOL = (
         op_id="Mesh | wm.context_toggle",
         filter_op_props={'data_path': 'tool_settings.use_proportional_edit'},
         poll_tools=('POLYSTRIPS', 'STROKES')
+    ),
+
+    SharedStatusbarKeymap(
+        label="Open Docs",
+        op_id="3D View | retopoflow.launch_help"
+    ),
+
+    SharedStatusbarKeymap(
+        label="Report Issue",
+        op_id="3D View | retopoflow.launch_newissue"
     ),
 )
 
@@ -392,9 +399,14 @@ def draw_rftool_statusbar(statusbar: Header, context: Context, tool: type[RFTool
     if km_status_override:
         if isinstance(km_status_override, tuple | list):
             for status in km_status_override:
-                icon, text = parse_status_entry(status)
-                row.label(text=text, icon=icon) # pyright: ignore[reportArgumentType]
-                row.separator()
+                if isinstance(status, SharedStatusbarKeymap):
+                    status._draw_icons(context, row)
+                else:
+                    icon, text = parse_status_entry(status)
+                    row.label(text=text, icon=icon) # pyright: ignore[reportArgumentType]
+                    row.separator()
+        elif isinstance(km_status_override, SharedStatusbarKeymap):
+            km_status_override._draw_icons(context, row)
         elif isinstance(km_status_override, str):
             icon, text = parse_status_entry(km_status_override)
             row.label(text=text, icon=icon) # pyright: ignore[reportArgumentType]
@@ -427,6 +439,8 @@ def draw_rftool_statusbar(statusbar: Header, context: Context, tool: type[RFTool
         op_id = op_id.split('.')[-1]
 
         km_label = op_props.get('km_label', None)
+        if isinstance(km_label, Callable):
+            km_label = km_label(context)
         if not isinstance(km_label, str):
             op = getattr(bpy.ops.retopoflow, op_id, None)
             if not op or not hasattr(op, 'get_rna_type'): continue
@@ -440,13 +454,15 @@ def draw_rftool_statusbar(statusbar: Header, context: Context, tool: type[RFTool
 
         event_type = km_event['type']
         event_value = km_event['value']
+        statusbar_event_value = op_props.get('km_status_event_value', event_value)
         if not isinstance(event_type, str) or not isinstance(event_value, str): continue
+        if not isinstance(statusbar_event_value, str):
+            statusbar_event_value = event_value
 
         for mod_key in ('ctrl', 'shift', 'alt'):
             if mod_key in km_event and bool(km_event[mod_key]) or f'LEFT_{mod_key.upper()}' == event_type:
                 row.label(text='', icon=f'EVENT_{mod_key.upper()}') # pyright: ignore[reportArgumentType]
-                if is_macOS:
-                    continue
+                if is_macOS: continue
                 elif mod_key == 'ctrl':
                     row.separator(factor=1.5)
                 elif mod_key == 'alt':
@@ -456,13 +472,13 @@ def draw_rftool_statusbar(statusbar: Header, context: Context, tool: type[RFTool
         if event_type.endswith('MOUSE') and not event_type.startswith(('M', 'W')):
             mouse_button_key: str = event_type[0].upper() # L->'LMB', M->'MMB', R->'RMB'
             icon = f'MOUSE_{mouse_button_key}MB'
-            if event_value == 'DOUBLE_CLICK' and mouse_button_key == 'L':
+            if statusbar_event_value == 'DOUBLE_CLICK' and mouse_button_key == 'L':
                 if bpy.app.version >= (4, 3, 0):
                     # MOUSE_LMB_2X did not show up until Blender 4.3
                     # https://docs.blender.org/api/4.2/bpy_types_enum_items/icon_items.html
                     # https://docs.blender.org/api/4.3/bpy_types_enum_items/icon_items.html
                     icon += '_2X'
-            elif event_value == 'CLICK_DRAG':
+            elif statusbar_event_value == 'CLICK_DRAG':
                 icon += '_DRAG'
             row.label(text='', icon=icon) # pyright: ignore[reportArgumentType]
         if 'WHEEL' in event_type:

@@ -33,22 +33,17 @@ from collections.abc import Sequence
 
 from ..rfoverlay_base import RFOverlay_Base
 from .overlays import overlay_names
+from .curve_chain_providers import ChainProvider, ChainSpec
 
 from ..rfglobals import RFGlobals
 from ..common.bpy_helper import bpy_ops_retopoflow
 from ..common.operator import RFOperator
-from ..common.bmesh import (
-    get_bmesh_emesh,
-    bme_length,
-    get_boundary_strips_cycles,
-    bme_unshared_bmv,
-    bmes_shared_bmv,
-)
-from ..common.bmesh_maths import get_strip_bmvs, rdp_corner_indices
+from ..rftool_statusbar import SharedStatusbarKeymap
+from ..common.bmesh import get_bmesh_emesh
+from ..common.bmesh_maths import rdp_corner_indices
 from ..common.maths import map_range, clamp
 from ..common.drawing import Drawing
 from ..common.raycast import is_point_hidden, mouse_from_event
-from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.bezier import CubicBezier, CubicBezierSpline
 from ...addon_common.common.blender_cursors import Cursors
 
@@ -83,8 +78,8 @@ CORNER_MIN_SPACING_FACTOR = 0.01
 # instead of running into its (partially transparent) center
 KNOT_RADIUS = 14
 TANGENT_RADIUS = 12
-# shared draw colors for the curve/handles -- used here AND by
-# RFOperator_Strokes_CurveEdit's own live-drag preview (strokes.py), so a
+# shared draw colors for the curve/handles -- used here AND by the shared
+# curve-edit operator's own live-drag preview (rfoperators/curve_edit.py), so a
 # handle can't visibly change color the instant a drag starts just because
 # the two draw call sites drifted out of sync with each other
 CURVE_LINE_COLOR = (1.0, 1.0, 0.0, 0.5)
@@ -96,6 +91,16 @@ KNOT_BORDER_COLOR = (0.0, 0.0, 0.0, 0.5)
 # a knot whose position is NOT coupled to any vertex (see _build_handles) is
 # distinguished by fill only -- its border tint is the same as a normal knot's
 FREE_KNOT_FILL_COLOR = (0.5, 0.5, 0.5, 1.0)
+# a knot resolved as 'automatic' (see the handle-type system in _build_curve)
+# -- called out in bright yellow, distinct from free/coupled fill, so it's
+# easy to spot which knots are self-recomputing vs frozen while testing
+AUTO_KNOT_FILL_COLOR = (1, 1, 1, 1.0)
+# an Automatic knot's own tangent handles (dots + control-polygon spokes) are
+# hidden by default -- they're fully recomputed from neighbor geometry every
+# frame (see _recompute_typed_handles in curve_edit.py), so showing them to
+# the user invites dragging something that's about to be overwritten. Flip on
+# to see them anyway while debugging that recompute.
+DEBUG_SHOW_AUTO_HANDLES = False
 # once a chain's knot placement (corners/auto-knots) is derived, it's cached and
 # reused -- recomputing positions/handle lengths from current verts every time,
 # but NOT re-running corner-detection -- so edits don't cause the control points
@@ -106,7 +111,7 @@ REBUILD_DEVIATION_FACTOR = 4.0
 # a segment is left untouched by a refit -- instead of being refit fresh -- if
 # its interior verts already average less deviation from its existing curve
 # than this fraction of the average edge length (see _well_fit_segments).
-SEGMENT_KEEP_FIT_TOLERANCE = 0.15
+SEGMENT_KEEP_FIT_TOLERANCE = 1
 # minimum seconds between rebuilds triggered by curve_handle_density/
 # curve_corner_angle changing -- dragging either fires far more update_data
 # calls than there are actual distinct values worth rebuilding for, so a
@@ -135,7 +140,7 @@ RFCORE_OPERATOR_BL_IDNAME = _internal_bl_idname('retopoflow.core')
 
 def density_to_bend_tolerance(density : float) -> float:
     '''
-    Maps Strokes' curve_handle_density property (0.1 to 1.0) to the bend
+    Maps the curve_handle_density property (0.1 to 1.0) to the bend
     tolerance factor passed to rdp_corner_indices, geometrically (not
     linearly) interpolated between 0.5 (few control points) and 0.01 (more):
     tolerance is a threshold RDP compares a deviation against multiplicatively
@@ -188,17 +193,17 @@ def get_label_pos(context : Context, lbl : str, cos : Sequence[Vector]) -> Vecto
     return location_3d_to_region_2d(rgn, r3d, M @ pt3d)
 
 
-def create_loopstrip_curve_overlay(
+def create_curve_overlay(
     opname : str,
     rftool_idname : str,
     idname : str,
     label : str,
-    only_boundary : bool,
+    providers : Sequence[ChainProvider],
 ) -> type[RFOverlay_Base]:
 
     overlay_names.add(label)
 
-    class RFOperator_LoopStrip_Curve_Overlay(RFOverlay_Base):
+    class RFOperator_Curve_Overlay(RFOverlay_Base):
         bl_idname : ClassVar[str] = f'retopoflow.{idname}'
         bl_label : ClassVar[str] = label
         bl_description : ClassVar[str] = 'Overlay curve control handles for selected loops and strips'
@@ -241,7 +246,19 @@ def create_loopstrip_curve_overlay(
             self.curves = []
             self.chains = []
             self.label_data = []
-            self._curve_struct_cache = {}  # bmv_indices tuple -> {'knots','corner_set','cos'}
+            self._curve_struct_cache = {}  # cache_key -> {'knots','corner_set','cos'}
+            # cache_key -> {vert_index -> 'aligned'|'vector'|'automatic'} -- a
+            # user's explicit handle-type choice (V-key toggle) or implicit
+            # choice (dragging a tangent handle by hand pins it 'aligned'; see
+            # curve_edit.py). Absent entries resolve to a default in
+            # _build_curve (forced 'vector' for a sharp/endpoint knot,
+            # 'automatic' otherwise) -- see resolve_type there. Kept OUTSIDE
+            # _curve_struct_cache (which is a memoized BUILD RESULT, rebuilt
+            # wholesale on a structural change) because this is externally-
+            # mutated, always-current desired state, analogous to a scene
+            # property -- see _build_curve's tunables fold-in for how a
+            # change here still forces a rebuild
+            self._handle_type_overrides = {}
 
         def init(self, _context : Context, _event : Event):
             cls = type(self)
@@ -266,7 +283,16 @@ def create_loopstrip_curve_overlay(
             self.hovering = self.hovered_handle(context, mouse)
             if self.hovering:
                 if not was_hovering:
-                    self.set_statusbar_override(('LMB: Edit Curve', ))
+                    # Alt/Alt+Shift work the same whether a knot or one of
+                    # its tangent handles is hovered -- grabbing a tangent
+                    # redirects to its own knot (see apply_handle /
+                    # _knot_for_tangent), so the hint doesn't need to
+                    # branch on which kind is under the mouse
+                    self.set_statusbar_override((
+                        SharedStatusbarKeymap(label='Edit Curve', icons=['MOUSE_LMB_DRAG']),
+                        SharedStatusbarKeymap(label='Scale Control Point', icons=['EVENT_ALT', 'MOUSE_LMB_DRAG']),
+                        SharedStatusbarKeymap(label='Rotate Control Point', icons=['EVENT_ALT', 'EVENT_SHIFT', 'MOUSE_LMB_DRAG']),
+                    ))
                 Cursors.set('hand')
             else:
                 if was_hovering:
@@ -277,18 +303,22 @@ def create_loopstrip_curve_overlay(
 
         # ------------------------------------------------------------------ data
 
-        def _tool_props(self, context : Context):
-            active_tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
-            return active_tool.operator_properties(rftool_idname)
+        def _curve_props(self, context : Context):
+            # scene-level, not a tool operator property -- every tool that
+            # builds a curve overlay shares one set of density/corner-angle/
+            # visibility settings, so switching tools doesn't reset them and
+            # two tools editing chains from the same selection always agree
+            # on how a curve is fit (see rfprops_curve_handles.py)
+            return context.scene.retopoflow.curve_handles
 
         def _curve_handles_enabled(self, context : Context) -> bool:
-            return self._tool_props(context).show_curve_handles
+            return self._curve_props(context).show_curve_handles
 
         def _bend_tolerance_factor(self, context : Context) -> float:
-            return density_to_bend_tolerance(self._tool_props(context).curve_handle_density)
+            return density_to_bend_tolerance(self._curve_props(context).curve_handle_density)
 
         def _sharp_corner_angle(self, context : Context) -> float:
-            return self._tool_props(context).curve_corner_angle
+            return self._curve_props(context).curve_corner_angle
 
         def update_data(self, context : Context) -> bool:
             RFCore = RFGlobals.RFCore_None
@@ -331,9 +361,11 @@ def create_loopstrip_curve_overlay(
             if external_ops:
                 return False
 
-            # curve_handle_density/curve_corner_angle are tool properties, not
-            # scene data -- dragging either doesn't bump depsgraph_version, so
-            # both are checked for separately here to still force a rebuild
+            # curve_handle_density/curve_corner_angle live on a plain
+            # PropertyGroup (context.scene.retopoflow.curve_handles), not
+            # mesh/object data -- dragging either doesn't bump
+            # depsgraph_version, so both are checked for separately here to
+            # still force a rebuild
             # (see _build_curve's own check against the cached structure's
             # tunables for why that's needed too, not just bypassing this
             # early-out). Bundled as one tuple so a future third tunable is
@@ -363,81 +395,81 @@ def create_loopstrip_curve_overlay(
             self.label_data = []
 
             bm, _ = get_bmesh_emesh(context, ensure_lookup_tables=True)
-            sel_bmes = list(bmops.get_all_selected_bmedges(bm))
-            if only_boundary or any(bme.is_wire or bme.is_boundary for bme in sel_bmes):
-                sel_bmes = [bme for bme in sel_bmes if bme.is_wire or bme.is_boundary]
 
-            if not sel_bmes or len(sel_bmes) >= 1000:
-                return True
-
-            strips, cycles = get_boundary_strips_cycles(sel_bmes)
-            if len(strips) + len(cycles) > 5:
-                return True
-
-            avg_len = sum(bme_length(bme) for bme in sel_bmes) / len(sel_bmes)
+            # providers are tried in priority order, and the first one to
+            # find anything wins outright -- later providers aren't even
+            # called. This is how "faces win" is implemented for the
+            # PolyStrips/Strokes providers list: QuadStripChainProvider
+            # first means a selection containing quad strips shows ONLY
+            # strip curves, never also sprouting loop curves on the same
+            # selection's boundary edges. It also means the two providers'
+            # own bail-out budgets (max chains, max elements) never need to
+            # be combined -- only one of them is ever actually consulted.
+            specs : list[ChainSpec] = []
+            for provider in providers:
+                result = provider.collect(context, bm)
+                if result:
+                    specs.extend(result)
+                    break
 
             active_keys = set()
-            for strip in strips:
-                self._add_chain(self._strip_bmvs(strip, cyclic=False), cyclic=False, avg_len=avg_len,
-                                 bend_tolerance_factor=bend_tolerance_factor, sharp_angle=sharp_angle, active_keys=active_keys)
-            for cycle in cycles:
-                self._add_chain(self._strip_bmvs(cycle, cyclic=True), cyclic=True, avg_len=avg_len,
-                                 bend_tolerance_factor=bend_tolerance_factor, sharp_angle=sharp_angle, active_keys=active_keys)
+            for spec in specs:
+                self._add_chain(spec, bend_tolerance_factor=bend_tolerance_factor, sharp_angle=sharp_angle, active_keys=active_keys)
 
             # drop cached structure for chains that are no longer selected
             self._curve_struct_cache = {
                 k: v for k, v in self._curve_struct_cache.items() if k in active_keys
             }
+            self._handle_type_overrides = {
+                k: v for k, v in self._handle_type_overrides.items() if k in active_keys
+            }
 
             return True
 
-        def _strip_bmvs(self, strip, *, cyclic):
-            if not strip:
-                return []
-            if len(strip) == 1:
-                return list(strip[0].verts)
-            if cyclic:
-                start = bmes_shared_bmv(strip[-1], strip[0])
-                if not start:
-                    return []
-                bmvs = get_strip_bmvs(strip, start)
-                if len(bmvs) > 1 and bmvs[0] == bmvs[-1]:
-                    bmvs = bmvs[:-1]  # drop duplicated wrap vert
-                return bmvs
-            start = bme_unshared_bmv(strip[0], strip[1])
-            return get_strip_bmvs(strip, start)
+        def _add_chain(self, spec : ChainSpec, *, bend_tolerance_factor, sharp_angle, active_keys):
+            self.label_data.append((spec.label[0], spec.label[1], spec.points))
 
-        def _add_chain(self, bmvs, *, cyclic, avg_len, bend_tolerance_factor, sharp_angle, active_keys):
-            if not bmvs:
-                return
-            cos = [bmv.co.copy() for bmv in bmvs]
-            if cyclic:
-                self.label_data.append(('Loop', len(bmvs), cos))
-            else:
-                self.label_data.append(('Strip', len(bmvs) - 1, cos))
+            if len(spec.points) < spec.min_spline_points:
+                return  # not enough points in a row to build a curve
 
-            if len(bmvs) < 5:
-                return  # need 5+ verts in a row to build a curve
-
-            cache_key = tuple(bmv.index for bmv in bmvs)
-            active_keys.add(cache_key)
+            active_keys.add(spec.cache_key)
             spline, handles = self._build_curve(
-                cos, cyclic=cyclic, avg_len=avg_len, bend_tolerance_factor=bend_tolerance_factor,
-                sharp_angle=sharp_angle, cache_key=cache_key,
+                spec.points, cyclic=spec.cyclic, avg_len=spec.avg_len,
+                bend_tolerance_factor=bend_tolerance_factor, sharp_angle=sharp_angle,
+                cache_key=spec.cache_key,
             )
             if spline is None or not spline.cbs:
                 return
 
             self.curves.append(spline)
             self.chains.append({
-                'bmv_indices': [bmv.index for bmv in bmvs],
-                'cyclic': cyclic,
+                'deform_bmv_indices': spec.deform_bmv_indices,
+                'cache_key': spec.cache_key,
+                'current_points': spec.current_points,
+                'cyclic': spec.cyclic,
+                'avg_len': spec.avg_len,
                 'handles': handles,
+                'interior_bmv_indices': spec.interior_bmv_indices,
+                'deform_bmv_rungs': spec.deform_bmv_rungs,
+                # True when points are real verts (an edge loop/strip); False
+                # when they're DERIVED from faces (e.g. a quad-strip
+                # centerline) -- see the Alt-scale "taper" handle interaction,
+                # which only makes sense for a chain with its own strip width
+                # to narrow/widen (a vertex-coupled chain has no such width)
+                'coupled': spec.coupled,
             })
 
         def _build_curve(self, cos, *, cyclic, avg_len, bend_tolerance_factor, sharp_angle, cache_key):
             n = len(cos)
-            tunables = (bend_tolerance_factor, sharp_angle)
+            # a handle-type override (V-key toggle, or an implicit pin from
+            # directly dragging a tangent handle -- see curve_edit.py) is
+            # read fresh every call, same as bend_tolerance_factor/sharp_angle,
+            # and folded into `tunables` for the exact same reason: it isn't
+            # reflected by any vert moving, so without this an override
+            # change wouldn't invalidate either shortcut below and the
+            # rebuild it needs to take effect would never happen
+            handle_type_overrides = self._handle_type_overrides.get(cache_key, {})
+            tunables = (bend_tolerance_factor, sharp_angle, tuple(sorted(handle_type_overrides.items())))
 
             cached = self._curve_struct_cache.get(cache_key)
             knots = corner_set = None
@@ -454,6 +486,12 @@ def create_loopstrip_curve_overlay(
             # build's spline and handles outright rather than refitting, so a
             # redraw with no edits at all (e.g. just switching tools) can't
             # replace a good fit with a different one for the exact same points.
+            # A handle-type override change can't slip through here: it's part
+            # of `tunables` above, so a mismatch leaves knots=None. Automatic
+            # arms don't need anything recomputed at rest either -- their live
+            # updates happen during the drag itself (see curve_edit.py's
+            # _recompute_typed_handles), so by the time a drag has ended the
+            # spline already holds the final arms.
             if knots is not None and max_dev is not None and max_dev <= avg_len * 1e-6:
                 return cached['spline'], cached['handles']
 
@@ -510,6 +548,32 @@ def create_loopstrip_curve_overlay(
 
                 knots = self._insert_auto_knots(cos, knots, n, cyclic, stroke_length, tol)
 
+            # Resolve each knot's handle TYPE -- Aligned, Vector, or Automatic
+            # (see rfoperators/curve_edit.py's V-key toggle operator) -- from
+            # an explicit override if one exists, else the forced default for
+            # a geometric corner or an open chain's own endpoint (both are
+            # "Vector" and can't be toggled away from it), else "Automatic".
+            # `corner_set` here is always the TRUE, geometry-derived sharp-
+            # angle set (cached/reused as-is above) -- forced_vector is
+            # deliberately computed fresh from it every call, not cached
+            # itself, so a knot the user toggles to Vector doesn't get
+            # mistaken for a forced one on a later build.
+            forced_vector = set(corner_set) | ({0, n - 1} if not cyclic else set())
+            def resolve_handle_type(k):
+                return handle_type_overrides.get(k) or ('vector' if k in forced_vector else 'automatic')
+            # corners_for_fit: knots create_catmull_rom should treat as
+            # corners (independent arms) -- the true geometric ones plus any
+            # the user explicitly toggled to Vector. For the default state
+            # (no overrides) this only adds the open chain's own endpoints,
+            # whose tangents already take the corner-style branch inside
+            # tangent_out/tangent_in regardless (an endpoint has no far-side
+            # arm to smooth against), so a chain with no toggled knots fits
+            # EXACTLY as it did before handle types existed. Automatic vs
+            # Aligned changes nothing at fit time -- the difference is purely
+            # in live drag behavior (see curve_edit.py's
+            # _recompute_typed_handles).
+            corners_for_fit = { k for k in knots if resolve_handle_type(k) == 'vector' }
+
             # the "nothing changed" shortcut above already absorbs every redraw
             # where verts didn't actually move, so the only way to reach this
             # line is a genuine structural rebuild OR a just-completed edit --
@@ -527,7 +591,7 @@ def create_loopstrip_curve_overlay(
             prev_cos = None
             if not fresh_derive and cached.get('spline'):
                 prev_cos = cached['cos']
-                locked_cbs = self._well_fit_segments(cached['spline'], cos, prev_cos, avg_len, n, cyclic, corner_set)
+                locked_cbs = self._well_fit_segments(cached['spline'], cos, prev_cos, avg_len, n, cyclic, corners_for_fit)
                 # handed to create_catmull_rom as *candidates* only (not taken
                 # unconditionally the way locked_cbs is) -- see its own
                 # cached_cbs docs for why a fresh refit still needs a
@@ -536,7 +600,7 @@ def create_loopstrip_curve_overlay(
                 cached_cbs = dict(enumerate(cached['spline'].cbs))
 
             spline = CubicBezierSpline.create_catmull_rom(
-                cos, knots, cyclic=cyclic, corner_indices=corner_set,
+                cos, knots, cyclic=cyclic, corner_indices=corners_for_fit,
                 locked_cbs=locked_cbs, prev_pts=prev_cos, cached_cbs=cached_cbs,
             )
 
@@ -550,14 +614,23 @@ def create_loopstrip_curve_overlay(
             smooth_junctions = set()
             if cyclic:
                 for i in range(nseg):
-                    if knots[(i + 1) % nknots] not in corner_set:
+                    if knots[(i + 1) % nknots] not in corners_for_fit:
                         smooth_junctions.add(i)
             else:
                 for i in range(min(nseg - 1, nknots - 2)):
-                    if knots[i + 1] not in corner_set:
+                    if knots[i + 1] not in corners_for_fit:
                         smooth_junctions.add(i)
 
-            handles = self._build_handles(spline, cyclic, smooth_junctions)
+            handles = self._build_handles(spline, cyclic, smooth_junctions, knots, resolve_handle_type, forced_vector)
+
+            # NOTE: the REST curve deliberately keeps its best-FIT handle
+            # directions (whatever create_catmull_rom/refine_handles produced)
+            # -- NOT Blender's "point-at" directions. Automatic knots only
+            # take on point-at behavior LIVE, and only partway, as their knot
+            # is dragged toward the line between its neighbors (see
+            # curve_edit._recompute_typed_handles); at rest and at the start
+            # of a drag they sit at the good fit, so selecting a curve or
+            # nudging a point never mangles the geometry the fit captured.
 
             # cache the structure AND this build's fit/handles -- unconditionally,
             # since a "cheap refit" pass (fresh_derive=False) still produces a new
@@ -757,35 +830,53 @@ def create_loopstrip_curve_overlay(
             self._split_long_span(cos, ka, best, n, max_span, tol, result)
             self._split_long_span(cos, best, kb, n, max_span, tol, result)
 
-        def _build_handles(self, spline, cyclic, smooth_junctions):
+        def _build_handles(self, spline, cyclic, smooth_junctions, knots, resolve_handle_type, forced_vector):
             cbs = spline.cbs
             nseg = len(cbs)
             handles = []
             if nseg == 0:
                 return handles
 
+            nknots = len(knots)
+
             # a knot is vertex-coupled (dragging it moves a real vert, and that
             # vert's position defines it) unless it's a smooth, non-endpoint
             # junction -- those are "free": draggable to reshape the curve
             # without pinning any vert to the exact handle position (see
-            # RFOperator_Strokes_CurveEdit.init)
+            # the shared curve-edit operator's init())
+            #
+            # 'vert_index' is this knot's position in `knots` translated back
+            # to a vert index (see the handle-type system in _build_curve) --
+            # 'handle_type' its resolved Aligned/Vector/Automatic type, and
+            # 'can_toggle' whether the V-key operator is allowed to cycle it
+            # (False for a geometric corner or an open chain's own endpoint,
+            # which are always Vector -- see forced_vector)
             if cyclic:
                 for i in range(nseg):
                     j = (i - 1) % nseg
+                    k = knots[i]
                     handles.append({'kind':'knot', 'pos':(i,'p0'), 'free': j in smooth_junctions,
-                                    'set':[(j,'p3'), (i,'p0')], 'move':[(j,'p2'), (i,'p1')]})
+                                    'set':[(j,'p3'), (i,'p0')], 'move':[(j,'p2'), (i,'p1')],
+                                    'vert_index': k, 'handle_type': resolve_handle_type(k), 'can_toggle': k not in forced_vector})
             else:
-                handles.append({'kind':'knot', 'pos':(0,'p0'), 'free': False, 'set':[(0,'p0')], 'move':[(0,'p1')]})
+                k0 = knots[0]
+                handles.append({'kind':'knot', 'pos':(0,'p0'), 'free': False, 'set':[(0,'p0')], 'move':[(0,'p1')],
+                                'vert_index': k0, 'handle_type': resolve_handle_type(k0), 'can_toggle': k0 not in forced_vector})
                 for i in range(1, nseg):
+                    k = knots[i]
                     handles.append({'kind':'knot', 'pos':(i,'p0'), 'free': (i - 1) in smooth_junctions,
-                                    'set':[(i-1,'p3'), (i,'p0')], 'move':[(i-1,'p2'), (i,'p1')]})
+                                    'set':[(i-1,'p3'), (i,'p0')], 'move':[(i-1,'p2'), (i,'p1')],
+                                    'vert_index': k, 'handle_type': resolve_handle_type(k), 'can_toggle': k not in forced_vector})
+                kN = knots[-1]
                 handles.append({'kind':'knot', 'pos':(nseg-1,'p3'), 'free': False,
-                                'set':[(nseg-1,'p3')], 'move':[(nseg-1,'p2')]})
+                                'set':[(nseg-1,'p3')], 'move':[(nseg-1,'p2')],
+                                'vert_index': kN, 'handle_type': resolve_handle_type(kN), 'can_toggle': kN not in forced_vector})
 
             for i in range(nseg):
                 # p1: outgoing arm from the junction on the LEFT of segment i
                 # that junction is "after segment (i-1)%nseg" for cyclic, or (i-1) for open
-                h_p1 = {'kind':'tangent', 'pos':(i,'p1'), 'set':[(i,'p1')], 'move':[]}
+                h_p1 = {'kind':'tangent', 'pos':(i,'p1'), 'set':[(i,'p1')], 'move':[],
+                        'owner_vert_index': knots[i % nknots]}
                 left_j = (i - 1) % nseg if cyclic else (i - 1)
                 if (cyclic or i > 0) and left_j in smooth_junctions:
                     h_p1['g1_knot'] = (i, 'p0')
@@ -794,13 +885,47 @@ def create_loopstrip_curve_overlay(
 
                 # p2: incoming arm to the junction on the RIGHT of segment i
                 # that junction is "after segment i"
-                h_p2 = {'kind':'tangent', 'pos':(i,'p2'), 'set':[(i,'p2')], 'move':[]}
+                h_p2 = {'kind':'tangent', 'pos':(i,'p2'), 'set':[(i,'p2')], 'move':[],
+                        'owner_vert_index': knots[(i + 1) % nknots]}
                 if (cyclic or i < nseg - 1) and i in smooth_junctions:
                     h_p2['g1_knot'] = (i, 'p3')
                     h_p2['g1_peer'] = ((i + 1) % nseg, 'p1')
                 handles.append(h_p2)
 
             return handles
+
+        _HANDLE_TYPE_CYCLE = {'aligned': 'vector', 'vector': 'automatic', 'automatic': 'aligned'}
+
+        def set_handle_type(self, cache_key, vert_index, handle_type) -> bool:
+            ''' Sets a knot's handle type override (used by both the V-key
+            toggle and, implicitly, a direct tangent-handle drag pinning its
+            knot to 'aligned' -- see curve_edit.py's apply_handle). Forces the
+            next update_data/build to see this as a change (see the
+            handle_type_overrides fold-in to `tunables` in _build_curve) --
+            without this, a rebuild wouldn't even be attempted until the mesh
+            or scene tunables changed for some unrelated reason. '''
+            overrides = self._handle_type_overrides.setdefault(cache_key, {})
+            if overrides.get(vert_index) == handle_type:
+                return False
+            overrides[vert_index] = handle_type
+            type(self).depsgraph_version = -42
+            return True
+
+        def toggle_handle_type(self, cache_key, vert_index) -> bool:
+            ''' V-key entry point: cycles Aligned -> Vector -> Automatic ->
+            Aligned for the given knot. Caller (the toggle operator) is
+            responsible for checking the hovered handle's own 'can_toggle'
+            first -- this doesn't re-check it, so a forced (corner/endpoint)
+            knot could technically be overridden here too, same as a direct
+            tangent drag can pin one to 'aligned' (see set_handle_type). '''
+            for chain in self.chains:
+                if chain['cache_key'] != cache_key:
+                    continue
+                for h in chain['handles']:
+                    if h['kind'] == 'knot' and h.get('vert_index') == vert_index:
+                        current = h.get('handle_type', 'automatic')
+                        return self.set_handle_type(cache_key, vert_index, self._HANDLE_TYPE_CYCLE[current])
+            return False
 
         # ----------------------------------------------------------- hit-testing
 
@@ -874,7 +999,23 @@ def create_loopstrip_curve_overlay(
 
             for spline, chain in zip(self.curves, self.chains):
                 cbs = spline.cbs
-                for cb in cbs:
+                # an Automatic knot's tangent handles are fully recomputed
+                # from neighbor geometry every frame (_recompute_typed_
+                # handles) -- hide them (dot + control-polygon spoke) by
+                # default so users aren't invited to drag something that's
+                # about to be overwritten; DEBUG_SHOW_AUTO_HANDLES shows them
+                # anyway. A tangent only stores its owner's vert index, not
+                # the owning knot dict, so look handle_type up by vert index.
+                knot_type_by_vert = {
+                    h['vert_index']: h.get('handle_type')
+                    for h in chain['handles'] if h['kind'] == 'knot'
+                }
+                hidden_tangents = set() if DEBUG_SHOW_AUTO_HANDLES else {
+                    h['pos']
+                    for h in chain['handles']
+                    if h['kind'] == 'tangent' and knot_type_by_vert.get(h['owner_vert_index']) == 'automatic'
+                }
+                for i, cb in enumerate(cbs):
                     curve_pts = [
                         location_3d_to_region_2d(rgn, r3d, M @ Vector(cb.eval(v / 20)))
                         for v in range(21)
@@ -888,18 +1029,25 @@ def create_loopstrip_curve_overlay(
                     # edge instead of running into its (partially transparent) center
                     p0_, p1_, p2_, p3_ = (location_3d_to_region_2d(rgn, r3d, M @ Vector(getattr(cb, a))) for a in ('p0','p1','p2','p3'))
                     knot_r, tan_r = Drawing.scale(KNOT_RADIUS/2), Drawing.scale(TANGENT_RADIUS/2)
-                    a0, a1 = shrink_segment(p0_, p1_, knot_r, tan_r)
-                    a2, a3 = shrink_segment(p2_, p3_, tan_r, knot_r)
-                    Drawing.draw2D_lines(context, [a0, a1, a2, a3], CONTROL_POLYGON_COLOR, width=2)
+                    arm_lines = []
+                    if (i, 'p1') not in hidden_tangents:
+                        arm_lines += shrink_segment(p0_, p1_, knot_r, tan_r)
+                    if (i, 'p2') not in hidden_tangents:
+                        arm_lines += shrink_segment(p2_, p3_, tan_r, knot_r)
+                    if arm_lines:
+                        Drawing.draw2D_lines(context, arm_lines, CONTROL_POLYGON_COLOR, width=2)
 
-                knot_pts2d, free_knot_pts2d, tan_pts2d = [], [], []
+                knot_pts2d, free_knot_pts2d, auto_knot_pts2d, tan_pts2d = [], [], [], []
                 for h in chain['handles']:
                     seg, attr = h['pos']
                     p = location_3d_to_region_2d(rgn, r3d, M @ Vector(getattr(cbs[seg], attr)))
                     if not p:
                         continue
                     if h['kind'] != 'knot':
-                        tan_pts2d.append(p)
+                        if h['pos'] not in hidden_tangents:
+                            tan_pts2d.append(p)
+                    elif h.get('handle_type') == 'automatic':
+                        auto_knot_pts2d.append(p)
                     elif h.get('free'):
                         free_knot_pts2d.append(p)
                     else:
@@ -910,5 +1058,7 @@ def create_loopstrip_curve_overlay(
                     Drawing.draw2D_points(context, knot_pts2d, KNOT_FILL_COLOR, radius=KNOT_RADIUS, border=2, borderColor=KNOT_BORDER_COLOR)
                 if free_knot_pts2d:
                     Drawing.draw2D_points(context, free_knot_pts2d, FREE_KNOT_FILL_COLOR, radius=KNOT_RADIUS, border=2, borderColor=KNOT_BORDER_COLOR)
+                if auto_knot_pts2d:
+                    Drawing.draw2D_points(context, auto_knot_pts2d, AUTO_KNOT_FILL_COLOR, radius=KNOT_RADIUS, border=2, borderColor=KNOT_BORDER_COLOR)
 
-    return type(opname, (RFOperator_LoopStrip_Curve_Overlay, RFOperator), {})
+    return type(opname, (RFOperator_Curve_Overlay, RFOperator), {})

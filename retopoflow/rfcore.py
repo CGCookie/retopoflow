@@ -51,7 +51,7 @@ from ..addon_common.common.functools import wrap_function
 from .rftool_base  import RFTool_Base
 from .rfbrush_base import RFBrush_Base
 from .rfoverlays.overlays import overlay_names
-from .rftool_statusbar import draw_rftool_statusbar, StatusbarYield
+from .rftool_statusbar import draw_rftool_statusbar, StatusbarYield, SharedStatusbarKeymap
 
 # NOTE: import order determines tool order
 from .rftool_polypen.polypen       import RFTool_PolyPen
@@ -121,7 +121,7 @@ class RFCore:
     reset_attempts : int = 0
     last_reset_attempt : float = time.time()
     km_context : str | None = None   # context for the active tool keymap (used by the statusbar drawing to filter out keymaps that does not match the current tool context)
-    km_status_override : str | Sequence[str] | None = None   # override for the statusbar text (used to display additional information about the current tool)
+    km_status_override : str | SharedStatusbarKeymap | Sequence[str | SharedStatusbarKeymap] | None = None   # override for the statusbar text (used to display additional information about the current tool)
 
     _last_rf_mesh_update_time: float = 0.0
     _original_bmesh_update_edit_mesh = None   # used to know when to pause statusbar drawing to let Blender info be displayed

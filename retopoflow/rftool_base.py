@@ -42,6 +42,7 @@ class RFTool_Base(WorkSpaceTool):
     rf_brush : RFBrush_Base | None = None
     rf_overlay : type[RFOverlay_Base] | None = None
     rf_operator_idname : str | None = None  # bl_idname of main operator for this RFTool
+    rf_supports_curve_handles : bool = False  # True if rf_overlay is a create_curve_overlay(...) -- see tweaking_panel.py
 
     resetter : ClassVar[Resetter | None] = None
 

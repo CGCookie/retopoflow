@@ -29,16 +29,14 @@ from ..common.icons import Icon
 from ..rftool_base import RFTool_Base
 
 
-def draw_active_tool_options(context, layout):
-    if context.space_data.type == 'PREFERENCES': return
-
+def _active_rftool(context):
     tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
-    if 'retopoflow' not in tool.idname: return
+    if 'retopoflow' not in tool.idname: return None, None
 
     # get RFTool_Base class corresponding to Blender WorkSpaceTool
     # NOTE: tool.idname might not match an operator, so using rf_operator_idname
     rftool = RFTool_Base.get_rftool_by_workspacetool(tool)
-    if not rftool or not rftool.rf_operator_idname: return
+    if not rftool or not rftool.rf_operator_idname: return None, None
 
     try:
         # WorkSpaceTool.operator_properties throws a RunTime Exception if
@@ -46,65 +44,71 @@ def draw_active_tool_options(context, layout):
         tool_props = tool.operator_properties(rftool.rf_operator_idname)
     except Exception as _exception:
         tool_props = None
+    return rftool, tool_props
+
+
+def draw_active_tool_options(context, layout):
+    if context.space_data.type == 'PREFERENCES': return
+
+    rftool, tool_props = _active_rftool(context)
     if not tool_props: return
 
     loops = hasattr(tool_props, 'select_loops')
-    curves = hasattr(tool_props, 'show_curve_handles')
-    if loops or curves:
+    if loops:
         col = layout.column()
         draw_section_header(context, col, tool_props.bl_rna.name)
-        if loops: col.prop(tool_props, 'select_loops', text='Loops Mode')
-        if curves:
-            col.separator()
-            curve_col = col.column(align=True)
-            curve_col.row(heading='Curve Handles').prop(tool_props, 'show_curve_handles', text='Enable')
-            sub = curve_col.column()
-            sub.enabled = tool_props.show_curve_handles
-            sub.prop(tool_props, 'curve_handle_density', text='Density')
-            sub.prop(tool_props, 'curve_corner_angle')
+        col.prop(tool_props, 'select_loops', text='Loops Mode')
+        col.separator()
 
 
 def draw_tweaking_options(context : Context, layout : UILayout):
-    if not context.space_data:
-        return
+    if not context.space_data: return
 
     props = RF_Prefs.get_prefs(context)
 
     layout.use_property_split = True
     layout.use_property_decorate = False
 
+
     draw_active_tool_options(context, layout)
 
-    grid = layout.grid_flow(even_columns=True, even_rows=False)
+    header, panel = layout.panel(idname='RF_transform', default_closed=False)
+    header.label(text='Transform')
+    if panel:
+        if context.area.type != 'PREFERENCES':
+            row = panel.row(heading='Auto Merge')
+            row.prop(context.scene.tool_settings, 'use_mesh_automerge', text='', toggle=False)
+            row.separator(factor=0.5)
+            row2 = row.row()
+            row2.enabled = context.scene.tool_settings.use_mesh_automerge
+            row2.prop(context.scene.tool_settings, 'double_threshold', text='')
 
-    col = grid.column()
-    draw_section_header(context, col, 'Selection')
-    col.prop(props, 'tweaking_distance', text='Distance')
-    row = col.row(heading='Auto Select')
-    row.prop(props, 'tweaking_move_hovered_mouse', text='Mouse')
-    col.prop(props, 'tweaking_move_hovered_keyboard', text='Keyboard')
-
-    col = grid.column()
-    draw_section_header(context, col, 'Transform')
-
-    snapping = context.scene.retopoflow.snapping
-    use_native = (
-        snapping.snap_vertex or snapping.snap_edge or snapping.snap_edge_center
-        or snapping.snap_edge_perpendicular or snapping.snap_face_center
-    )
-    if not use_native:
-        col2 = col.column()
+        snapping = context.scene.retopoflow.snapping
+        use_native = ( snapping.snap_vertex or snapping.snap_edge or snapping.snap_edge_center
+            or snapping.snap_edge_perpendicular or snapping.snap_face_center )
+        col2 = panel.column()
+        col2.enabled = not use_native
         col2.row(heading='Normals').prop(props, 'tweaking_update_normals', text='Update')
-        col.separator()
 
-    if context.area.type != 'PREFERENCES':
-        col.separator()
-        row = col.row(heading='Auto Merge')
-        row.prop(context.scene.tool_settings, 'use_mesh_automerge', text='', toggle=False)
-        row.separator(factor=0.5)
-        row2 = row.row()
-        row2.enabled = context.scene.tool_settings.use_mesh_automerge
-        row2.prop(context.scene.tool_settings, 'double_threshold', text='')
+    header, panel = layout.panel(idname='RF_curve_handles', default_closed=False)
+    curve_props = context.scene.retopoflow.curve_handles
+    header.use_property_split = False
+    header.prop(curve_props, 'show_curve_handles', text='Curve Handles')
+    if panel:
+        sub = panel.column()
+        sub.enabled = curve_props.show_curve_handles
+        sub.prop(curve_props, 'curve_handle_density', text='Density')
+        sub.prop(curve_props, 'curve_corner_angle')
+
+
+    header, panel = layout.panel(idname='RF_selection', default_closed=True)
+    header.label(text='Selection')
+    if panel:
+        col = panel.column()
+        col.prop(props, 'tweaking_distance', text='Distance')
+        row = col.row(heading='Auto Select')
+        row.prop(props, 'tweaking_move_hovered_mouse', text='Mouse')
+        col.prop(props, 'tweaking_move_hovered_keyboard', text='Keyboard')
 
 
 def draw_tweaking_panel(context : Context, layout : UILayout):
@@ -115,11 +119,12 @@ def draw_tweaking_panel(context : Context, layout : UILayout):
 
 
 def draw_tweaking_popover(context: Context, layout: UILayout, tool_props):
+    rftool, _ = _active_rftool(context)
     loops = hasattr(tool_props, 'select_loops')
-    curves = hasattr(tool_props, 'show_curve_handles')
+    curves = getattr(rftool, 'rf_supports_curve_handles', False)
     row = layout.row(align=True)
     if loops: row.prop(tool_props, 'select_loops', text='', toggle=True, icon_value=Icon.LOOP.icon_id)
-    if curves: row.prop(tool_props, 'show_curve_handles', toggle=True, text='', icon='IPO_BEZIER')
+    if curves: row.prop(context.scene.retopoflow.curve_handles, 'show_curve_handles', toggle=True, text='', icon='IPO_BEZIER')
     row.popover('RF_PT_TweakCommon')
 
 
