@@ -910,8 +910,19 @@ def create_curve_edit_operator(
             # Aligned neighbor (its direction is the user's own to keep)
             if prev_h.get('handle_type') in ('automatic', 'vector'):
                 recompute_arm(idx - 1, 'p1')   # prev's outgoing arm faces the dragged knot
+                if prev_h.get('handle_type') == 'automatic':
+                    # an Automatic knot's two arms must stay exactly collinear
+                    # (that's what "Automatic" means -- see point_at_dir's
+                    # unit(b-a)+unit(c-b), which is the SAME direction for
+                    # both of a knot's arms, sign-flipped). Only just updated
+                    # its NEAR arm above; a Vector neighbor's two arms are
+                    # legitimately independent (no such requirement) so this
+                    # only applies when the neighbor is ALSO Automatic.
+                    recompute_arm(idx - 1, 'p2')   # prev's FAR arm, kept in line with the one just updated
             if next_h.get('handle_type') in ('automatic', 'vector'):
                 recompute_arm(idx + 1, 'p2')   # next's incoming arm faces the dragged knot
+                if next_h.get('handle_type') == 'automatic':
+                    recompute_arm(idx + 1, 'p1')   # next's FAR arm, kept in line with the one just updated
 
         def _handle_pivot(self, h, orig):
             ''' The knot at the FAR end of the segment referenced by this
