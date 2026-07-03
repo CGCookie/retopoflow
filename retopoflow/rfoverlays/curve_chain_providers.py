@@ -53,7 +53,7 @@ class ChainSpec:
     __slots__ = (
         'points', 'cyclic', 'cache_key', 'deform_bmv_indices', 'label',
         'min_spline_points', 'coupled', 'avg_len', 'current_points',
-        'interior_bmv_indices',
+        'interior_bmv_indices', 'deform_bmv_rungs',
     )
 
     def __init__(
@@ -68,6 +68,7 @@ class ChainSpec:
         avg_len : float,
         current_points : Callable[[BMesh], list[Vector] | None],
         interior_bmv_indices : list[int] = (),
+        deform_bmv_rungs : dict[int, tuple[Vector, float]] | None = None,
     ):
         self.points = points
         self.cyclic = cyclic
@@ -78,6 +79,17 @@ class ChainSpec:
         self.coupled = coupled
         self.avg_len = avg_len
         self.current_points = current_points
+        # for a face-derived (coupled=False) chain: maps each deform vert to
+        # (midpoint of the perpendicular edge -- "rung" -- it sits on, distance
+        # in rungs from the nearest open end). The edit operator parametrizes a
+        # vert against the curve by its RUNG's position along the centerline
+        # (proximity of this midpoint), not the vert's own nearest point -- so
+        # every vert of a rung shares one t and a wide strip on a tight bend
+        # can't have its verts drift onto the wrong part of the curve. The
+        # end-distance lets it leave the strip's end caps (which genuinely
+        # overhang past the centerline's endpoints) alone. Empty for a
+        # vertex-coupled chain, whose verts ARE the curve points.
+        self.deform_bmv_rungs = deform_bmv_rungs or {}
         # verts of selected faces enclosed by this chain (only meaningful
         # for a cyclic, vertex-coupled chain tracing a selected patch's
         # perimeter) that aren't part of the chain itself -- dragging a
@@ -279,6 +291,52 @@ def _quad_chain_centerline(segment_faces : Sequence[list[BMFace]], *, cyclic : b
         pts += seg_pts
         prev_faces = seg
     return pts
+
+
+def _quad_chain_rung_map(segment_faces : Sequence[list[BMFace]], *, cyclic : bool) -> dict[int, tuple[Vector, float]]:
+    '''
+    Maps every vert of a quad chain to (its rung's midpoint, its distance in
+    rungs from the nearest open end). A "rung" is a perpendicular edge crossing
+    the strip: the boundary cap at each open end, and the edge shared by each
+    consecutive face pair in between. In a clean ladder every vert is an
+    endpoint of exactly one rung, so this assigns each a single along-curve
+    anchor -- the rung midpoint, which (for interior rungs) is itself a point on
+    the centerline. Each topological sub-chain is handled on its own; a
+    spatially-joined seam reads as an open end on both sides (conservative --
+    it just leaves that corner's correction gentler).
+    '''
+    rung_map : dict[int, tuple[Vector, float]] = {}
+    for seg in segment_faces:
+        n = len(seg)
+        if n < 2:
+            continue  # a lone face has no in-chain neighbor to define a rung by
+        rungs : list = []
+        if cyclic:
+            for i in range(n):
+                if bme := bmfs_shared_bme(seg[i], seg[(i + 1) % n]):
+                    rungs.append(bme)
+        else:
+            if (shared_first := bmfs_shared_bme(seg[0], seg[1])) and (cap0 := quad_bmf_opposite_bme(seg[0], shared_first)):
+                rungs.append(cap0)
+            for i in range(n - 1):
+                if bme := bmfs_shared_bme(seg[i], seg[i + 1]):
+                    rungs.append(bme)
+            if (shared_last := bmfs_shared_bme(seg[-2], seg[-1])) and (capN := quad_bmf_opposite_bme(seg[-1], shared_last)):
+                rungs.append(capN)
+        nr = len(rungs)
+        for ri, bme in enumerate(rungs):
+            mid = bme_midpoint(bme)
+            # cyclic ring has no ends, so nothing to protect -- use a large
+            # distance so the end-taper never kicks in
+            end_dist = float(nr) if cyclic else float(min(ri, nr - 1 - ri))
+            for v in bme.verts:
+                # a vert on two rungs shouldn't happen in a clean ladder, but if
+                # it does, keep the nearer-to-an-end anchor so the taper stays
+                # conservative
+                prev = rung_map.get(v.index)
+                if prev is None or end_dist < prev[1]:
+                    rung_map[v.index] = (mid, end_dist)
+    return rung_map
 
 
 def _quad_outer_edge_midpoint(faces : list[BMFace], *, at_start : bool) -> Vector | None:
@@ -576,6 +634,7 @@ class QuadStripChainProvider(ChainProvider):
         n = sum(len(seg) for seg in open_chain['segment_faces'])
         avg_len = max(sum((a - b).length for a, b in iter_pairs(points, False)) / max(len(points) - 1, 1), 1e-6)
         deform_bmv_indices = sorted({bmv.index for f in _flatten(open_chain['segment_faces']) for bmv in f.verts})
+        rung_map = _quad_chain_rung_map(open_chain['segment_faces'], cyclic=False)
         label = ('Strip', n)
 
         def current_points(bm : BMesh, _segments : tuple = tuple(map(tuple, segments))) -> list[Vector] | None:
@@ -595,6 +654,7 @@ class QuadStripChainProvider(ChainProvider):
             coupled=False,
             avg_len=avg_len,
             current_points=current_points,
+            deform_bmv_rungs=rung_map,
         )
 
     def _make_ring_spec(self, faces : list[BMFace]) -> ChainSpec | None:
@@ -604,6 +664,7 @@ class QuadStripChainProvider(ChainProvider):
         avg_len = max(sum((a - b).length for a, b in iter_pairs(points, True)) / max(len(points), 1), 1e-6)
         bmf_indices = [bmf.index for bmf in faces]
         deform_bmv_indices = sorted({bmv.index for bmf in faces for bmv in bmf.verts})
+        rung_map = _quad_chain_rung_map([faces], cyclic=True)
         label = ('Loop', len(faces))
 
         def current_points(bm : BMesh, _indices : tuple = tuple(bmf_indices)) -> list[Vector] | None:
@@ -623,4 +684,5 @@ class QuadStripChainProvider(ChainProvider):
             coupled=False,
             avg_len=avg_len,
             current_points=current_points,
+            deform_bmv_rungs=rung_map,
         )

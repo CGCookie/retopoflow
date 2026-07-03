@@ -25,7 +25,7 @@ from ..rfglobals import RFGlobals
 from ..rfoverlay_base import RFOverlay_Base
 from ..rfoverlays.curve_overlay import create_curve_overlay
 from ..rfoverlays.curve_chain_providers import QuadStripChainProvider, LoopStripChainProvider
-from ..rfoperators.curve_edit import create_curve_edit_operator
+from ..rfoperators.curve_edit import create_curve_edit_operator, create_curve_toggle_handle_type_operator
 from ..rftool_base import RFTool_Base
 from ..common.icons import get_path_to_blender_icon
 from ..common.operator import (
@@ -272,6 +272,13 @@ RFOperator_PolyPen_Edit = create_curve_edit_operator(
     get_overlay=lambda: RFTool_PolyPen.rf_overlay,
 )
 
+RFOperator_PolyPen_ToggleHandleType = create_curve_toggle_handle_type_operator(
+    'polypen_toggle_handle_type',
+    'Toggle Curve Handle Type',
+    'Cycle the hovered curve control point between Aligned, Vector, and Automatic',
+    get_overlay=lambda: RFTool_PolyPen.rf_overlay,
+)
+
 
 class RFTool_PolyPen(RFTool_Base):
     bl_idname = "retopoflow.polypen"
@@ -288,6 +295,7 @@ class RFTool_PolyPen(RFTool_Base):
     bl_keymap : BLKeyMaps = chain_rf_keymaps(
         RFOperator_PolyPen,
         RFOperator_PolyPen_Edit,
+        RFOperator_PolyPen_ToggleHandleType,
         RFOperator_MaximizeWatcher,
         RFOperator_Translate,
         RFOperator_Relax_QuickSwitch,

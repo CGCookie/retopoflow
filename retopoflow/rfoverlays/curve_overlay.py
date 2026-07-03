@@ -91,6 +91,10 @@ KNOT_BORDER_COLOR = (0.0, 0.0, 0.0, 0.5)
 # a knot whose position is NOT coupled to any vertex (see _build_handles) is
 # distinguished by fill only -- its border tint is the same as a normal knot's
 FREE_KNOT_FILL_COLOR = (0.5, 0.5, 0.5, 1.0)
+# a knot resolved as 'automatic' (see the handle-type system in _build_curve)
+# -- called out in bright yellow, distinct from free/coupled fill, so it's
+# easy to spot which knots are self-recomputing vs frozen while testing
+AUTO_KNOT_FILL_COLOR = (1, 1, 0, 1.0)
 # once a chain's knot placement (corners/auto-knots) is derived, it's cached and
 # reused -- recomputing positions/handle lengths from current verts every time,
 # but NOT re-running corner-detection -- so edits don't cause the control points
@@ -101,7 +105,7 @@ REBUILD_DEVIATION_FACTOR = 4.0
 # a segment is left untouched by a refit -- instead of being refit fresh -- if
 # its interior verts already average less deviation from its existing curve
 # than this fraction of the average edge length (see _well_fit_segments).
-SEGMENT_KEEP_FIT_TOLERANCE = 0.15
+SEGMENT_KEEP_FIT_TOLERANCE = 1
 # minimum seconds between rebuilds triggered by curve_handle_density/
 # curve_corner_angle changing -- dragging either fires far more update_data
 # calls than there are actual distinct values worth rebuilding for, so a
@@ -237,6 +241,18 @@ def create_curve_overlay(
             self.chains = []
             self.label_data = []
             self._curve_struct_cache = {}  # cache_key -> {'knots','corner_set','cos'}
+            # cache_key -> {vert_index -> 'aligned'|'vector'|'automatic'} -- a
+            # user's explicit handle-type choice (V-key toggle) or implicit
+            # choice (dragging a tangent handle by hand pins it 'aligned'; see
+            # curve_edit.py). Absent entries resolve to a default in
+            # _build_curve (forced 'vector' for a sharp/endpoint knot,
+            # 'automatic' otherwise) -- see resolve_type there. Kept OUTSIDE
+            # _curve_struct_cache (which is a memoized BUILD RESULT, rebuilt
+            # wholesale on a structural change) because this is externally-
+            # mutated, always-current desired state, analogous to a scene
+            # property -- see _build_curve's tunables fold-in for how a
+            # change here still forces a rebuild
+            self._handle_type_overrides = {}
 
         def init(self, _context : Context, _event : Event):
             cls = type(self)
@@ -268,8 +284,8 @@ def create_curve_overlay(
                     # branch on which kind is under the mouse
                     self.set_statusbar_override((
                         SharedStatusbarKeymap(label='Edit Curve', icons=['MOUSE_LMB_DRAG']),
-                        SharedStatusbarKeymap(label='Scale', icons=['MOUSE_LMB_DRAG', 'EVENT_ALT']),
-                        SharedStatusbarKeymap(label='Rotate', icons=['MOUSE_LMB_DRAG', 'EVENT_ALT', 'EVENT_SHIFT']),
+                        SharedStatusbarKeymap(label='Scale Control Point', icons=['EVENT_ALT', 'MOUSE_LMB_DRAG']),
+                        SharedStatusbarKeymap(label='Rotate Control Point', icons=['EVENT_ALT', 'EVENT_SHIFT', 'MOUSE_LMB_DRAG']),
                     ))
                 Cursors.set('hand')
             else:
@@ -398,6 +414,9 @@ def create_curve_overlay(
             self._curve_struct_cache = {
                 k: v for k, v in self._curve_struct_cache.items() if k in active_keys
             }
+            self._handle_type_overrides = {
+                k: v for k, v in self._handle_type_overrides.items() if k in active_keys
+            }
 
             return True
 
@@ -422,8 +441,10 @@ def create_curve_overlay(
                 'cache_key': spec.cache_key,
                 'current_points': spec.current_points,
                 'cyclic': spec.cyclic,
+                'avg_len': spec.avg_len,
                 'handles': handles,
                 'interior_bmv_indices': spec.interior_bmv_indices,
+                'deform_bmv_rungs': spec.deform_bmv_rungs,
                 # True when points are real verts (an edge loop/strip); False
                 # when they're DERIVED from faces (e.g. a quad-strip
                 # centerline) -- see the Alt-scale "taper" handle interaction,
@@ -434,7 +455,15 @@ def create_curve_overlay(
 
         def _build_curve(self, cos, *, cyclic, avg_len, bend_tolerance_factor, sharp_angle, cache_key):
             n = len(cos)
-            tunables = (bend_tolerance_factor, sharp_angle)
+            # a handle-type override (V-key toggle, or an implicit pin from
+            # directly dragging a tangent handle -- see curve_edit.py) is
+            # read fresh every call, same as bend_tolerance_factor/sharp_angle,
+            # and folded into `tunables` for the exact same reason: it isn't
+            # reflected by any vert moving, so without this an override
+            # change wouldn't invalidate either shortcut below and the
+            # rebuild it needs to take effect would never happen
+            handle_type_overrides = self._handle_type_overrides.get(cache_key, {})
+            tunables = (bend_tolerance_factor, sharp_angle, tuple(sorted(handle_type_overrides.items())))
 
             cached = self._curve_struct_cache.get(cache_key)
             knots = corner_set = None
@@ -451,6 +480,12 @@ def create_curve_overlay(
             # build's spline and handles outright rather than refitting, so a
             # redraw with no edits at all (e.g. just switching tools) can't
             # replace a good fit with a different one for the exact same points.
+            # A handle-type override change can't slip through here: it's part
+            # of `tunables` above, so a mismatch leaves knots=None. Automatic
+            # arms don't need anything recomputed at rest either -- their live
+            # updates happen during the drag itself (see curve_edit.py's
+            # _recompute_typed_handles), so by the time a drag has ended the
+            # spline already holds the final arms.
             if knots is not None and max_dev is not None and max_dev <= avg_len * 1e-6:
                 return cached['spline'], cached['handles']
 
@@ -507,6 +542,32 @@ def create_curve_overlay(
 
                 knots = self._insert_auto_knots(cos, knots, n, cyclic, stroke_length, tol)
 
+            # Resolve each knot's handle TYPE -- Aligned, Vector, or Automatic
+            # (see rfoperators/curve_edit.py's V-key toggle operator) -- from
+            # an explicit override if one exists, else the forced default for
+            # a geometric corner or an open chain's own endpoint (both are
+            # "Vector" and can't be toggled away from it), else "Automatic".
+            # `corner_set` here is always the TRUE, geometry-derived sharp-
+            # angle set (cached/reused as-is above) -- forced_vector is
+            # deliberately computed fresh from it every call, not cached
+            # itself, so a knot the user toggles to Vector doesn't get
+            # mistaken for a forced one on a later build.
+            forced_vector = set(corner_set) | ({0, n - 1} if not cyclic else set())
+            def resolve_handle_type(k):
+                return handle_type_overrides.get(k) or ('vector' if k in forced_vector else 'automatic')
+            # corners_for_fit: knots create_catmull_rom should treat as
+            # corners (independent arms) -- the true geometric ones plus any
+            # the user explicitly toggled to Vector. For the default state
+            # (no overrides) this only adds the open chain's own endpoints,
+            # whose tangents already take the corner-style branch inside
+            # tangent_out/tangent_in regardless (an endpoint has no far-side
+            # arm to smooth against), so a chain with no toggled knots fits
+            # EXACTLY as it did before handle types existed. Automatic vs
+            # Aligned changes nothing at fit time -- the difference is purely
+            # in live drag behavior (see curve_edit.py's
+            # _recompute_typed_handles).
+            corners_for_fit = { k for k in knots if resolve_handle_type(k) == 'vector' }
+
             # the "nothing changed" shortcut above already absorbs every redraw
             # where verts didn't actually move, so the only way to reach this
             # line is a genuine structural rebuild OR a just-completed edit --
@@ -524,7 +585,7 @@ def create_curve_overlay(
             prev_cos = None
             if not fresh_derive and cached.get('spline'):
                 prev_cos = cached['cos']
-                locked_cbs = self._well_fit_segments(cached['spline'], cos, prev_cos, avg_len, n, cyclic, corner_set)
+                locked_cbs = self._well_fit_segments(cached['spline'], cos, prev_cos, avg_len, n, cyclic, corners_for_fit)
                 # handed to create_catmull_rom as *candidates* only (not taken
                 # unconditionally the way locked_cbs is) -- see its own
                 # cached_cbs docs for why a fresh refit still needs a
@@ -533,7 +594,7 @@ def create_curve_overlay(
                 cached_cbs = dict(enumerate(cached['spline'].cbs))
 
             spline = CubicBezierSpline.create_catmull_rom(
-                cos, knots, cyclic=cyclic, corner_indices=corner_set,
+                cos, knots, cyclic=cyclic, corner_indices=corners_for_fit,
                 locked_cbs=locked_cbs, prev_pts=prev_cos, cached_cbs=cached_cbs,
             )
 
@@ -547,14 +608,23 @@ def create_curve_overlay(
             smooth_junctions = set()
             if cyclic:
                 for i in range(nseg):
-                    if knots[(i + 1) % nknots] not in corner_set:
+                    if knots[(i + 1) % nknots] not in corners_for_fit:
                         smooth_junctions.add(i)
             else:
                 for i in range(min(nseg - 1, nknots - 2)):
-                    if knots[i + 1] not in corner_set:
+                    if knots[i + 1] not in corners_for_fit:
                         smooth_junctions.add(i)
 
-            handles = self._build_handles(spline, cyclic, smooth_junctions)
+            handles = self._build_handles(spline, cyclic, smooth_junctions, knots, resolve_handle_type, forced_vector)
+
+            # NOTE: the REST curve deliberately keeps its best-FIT handle
+            # directions (whatever create_catmull_rom/refine_handles produced)
+            # -- NOT Blender's "point-at" directions. Automatic knots only
+            # take on point-at behavior LIVE, and only partway, as their knot
+            # is dragged toward the line between its neighbors (see
+            # curve_edit._recompute_typed_handles); at rest and at the start
+            # of a drag they sit at the good fit, so selecting a curve or
+            # nudging a point never mangles the geometry the fit captured.
 
             # cache the structure AND this build's fit/handles -- unconditionally,
             # since a "cheap refit" pass (fresh_derive=False) still produces a new
@@ -754,35 +824,53 @@ def create_curve_overlay(
             self._split_long_span(cos, ka, best, n, max_span, tol, result)
             self._split_long_span(cos, best, kb, n, max_span, tol, result)
 
-        def _build_handles(self, spline, cyclic, smooth_junctions):
+        def _build_handles(self, spline, cyclic, smooth_junctions, knots, resolve_handle_type, forced_vector):
             cbs = spline.cbs
             nseg = len(cbs)
             handles = []
             if nseg == 0:
                 return handles
 
+            nknots = len(knots)
+
             # a knot is vertex-coupled (dragging it moves a real vert, and that
             # vert's position defines it) unless it's a smooth, non-endpoint
             # junction -- those are "free": draggable to reshape the curve
             # without pinning any vert to the exact handle position (see
             # the shared curve-edit operator's init())
+            #
+            # 'vert_index' is this knot's position in `knots` translated back
+            # to a vert index (see the handle-type system in _build_curve) --
+            # 'handle_type' its resolved Aligned/Vector/Automatic type, and
+            # 'can_toggle' whether the V-key operator is allowed to cycle it
+            # (False for a geometric corner or an open chain's own endpoint,
+            # which are always Vector -- see forced_vector)
             if cyclic:
                 for i in range(nseg):
                     j = (i - 1) % nseg
+                    k = knots[i]
                     handles.append({'kind':'knot', 'pos':(i,'p0'), 'free': j in smooth_junctions,
-                                    'set':[(j,'p3'), (i,'p0')], 'move':[(j,'p2'), (i,'p1')]})
+                                    'set':[(j,'p3'), (i,'p0')], 'move':[(j,'p2'), (i,'p1')],
+                                    'vert_index': k, 'handle_type': resolve_handle_type(k), 'can_toggle': k not in forced_vector})
             else:
-                handles.append({'kind':'knot', 'pos':(0,'p0'), 'free': False, 'set':[(0,'p0')], 'move':[(0,'p1')]})
+                k0 = knots[0]
+                handles.append({'kind':'knot', 'pos':(0,'p0'), 'free': False, 'set':[(0,'p0')], 'move':[(0,'p1')],
+                                'vert_index': k0, 'handle_type': resolve_handle_type(k0), 'can_toggle': k0 not in forced_vector})
                 for i in range(1, nseg):
+                    k = knots[i]
                     handles.append({'kind':'knot', 'pos':(i,'p0'), 'free': (i - 1) in smooth_junctions,
-                                    'set':[(i-1,'p3'), (i,'p0')], 'move':[(i-1,'p2'), (i,'p1')]})
+                                    'set':[(i-1,'p3'), (i,'p0')], 'move':[(i-1,'p2'), (i,'p1')],
+                                    'vert_index': k, 'handle_type': resolve_handle_type(k), 'can_toggle': k not in forced_vector})
+                kN = knots[-1]
                 handles.append({'kind':'knot', 'pos':(nseg-1,'p3'), 'free': False,
-                                'set':[(nseg-1,'p3')], 'move':[(nseg-1,'p2')]})
+                                'set':[(nseg-1,'p3')], 'move':[(nseg-1,'p2')],
+                                'vert_index': kN, 'handle_type': resolve_handle_type(kN), 'can_toggle': kN not in forced_vector})
 
             for i in range(nseg):
                 # p1: outgoing arm from the junction on the LEFT of segment i
                 # that junction is "after segment (i-1)%nseg" for cyclic, or (i-1) for open
-                h_p1 = {'kind':'tangent', 'pos':(i,'p1'), 'set':[(i,'p1')], 'move':[]}
+                h_p1 = {'kind':'tangent', 'pos':(i,'p1'), 'set':[(i,'p1')], 'move':[],
+                        'owner_vert_index': knots[i % nknots]}
                 left_j = (i - 1) % nseg if cyclic else (i - 1)
                 if (cyclic or i > 0) and left_j in smooth_junctions:
                     h_p1['g1_knot'] = (i, 'p0')
@@ -791,13 +879,47 @@ def create_curve_overlay(
 
                 # p2: incoming arm to the junction on the RIGHT of segment i
                 # that junction is "after segment i"
-                h_p2 = {'kind':'tangent', 'pos':(i,'p2'), 'set':[(i,'p2')], 'move':[]}
+                h_p2 = {'kind':'tangent', 'pos':(i,'p2'), 'set':[(i,'p2')], 'move':[],
+                        'owner_vert_index': knots[(i + 1) % nknots]}
                 if (cyclic or i < nseg - 1) and i in smooth_junctions:
                     h_p2['g1_knot'] = (i, 'p3')
                     h_p2['g1_peer'] = ((i + 1) % nseg, 'p1')
                 handles.append(h_p2)
 
             return handles
+
+        _HANDLE_TYPE_CYCLE = {'aligned': 'vector', 'vector': 'automatic', 'automatic': 'aligned'}
+
+        def set_handle_type(self, cache_key, vert_index, handle_type) -> bool:
+            ''' Sets a knot's handle type override (used by both the V-key
+            toggle and, implicitly, a direct tangent-handle drag pinning its
+            knot to 'aligned' -- see curve_edit.py's apply_handle). Forces the
+            next update_data/build to see this as a change (see the
+            handle_type_overrides fold-in to `tunables` in _build_curve) --
+            without this, a rebuild wouldn't even be attempted until the mesh
+            or scene tunables changed for some unrelated reason. '''
+            overrides = self._handle_type_overrides.setdefault(cache_key, {})
+            if overrides.get(vert_index) == handle_type:
+                return False
+            overrides[vert_index] = handle_type
+            type(self).depsgraph_version = -42
+            return True
+
+        def toggle_handle_type(self, cache_key, vert_index) -> bool:
+            ''' V-key entry point: cycles Aligned -> Vector -> Automatic ->
+            Aligned for the given knot. Caller (the toggle operator) is
+            responsible for checking the hovered handle's own 'can_toggle'
+            first -- this doesn't re-check it, so a forced (corner/endpoint)
+            knot could technically be overridden here too, same as a direct
+            tangent drag can pin one to 'aligned' (see set_handle_type). '''
+            for chain in self.chains:
+                if chain['cache_key'] != cache_key:
+                    continue
+                for h in chain['handles']:
+                    if h['kind'] == 'knot' and h.get('vert_index') == vert_index:
+                        current = h.get('handle_type', 'automatic')
+                        return self.set_handle_type(cache_key, vert_index, self._HANDLE_TYPE_CYCLE[current])
+            return False
 
         # ----------------------------------------------------------- hit-testing
 
@@ -889,7 +1011,7 @@ def create_curve_overlay(
                     a2, a3 = shrink_segment(p2_, p3_, tan_r, knot_r)
                     Drawing.draw2D_lines(context, [a0, a1, a2, a3], CONTROL_POLYGON_COLOR, width=2)
 
-                knot_pts2d, free_knot_pts2d, tan_pts2d = [], [], []
+                knot_pts2d, free_knot_pts2d, auto_knot_pts2d, tan_pts2d = [], [], [], []
                 for h in chain['handles']:
                     seg, attr = h['pos']
                     p = location_3d_to_region_2d(rgn, r3d, M @ Vector(getattr(cbs[seg], attr)))
@@ -897,6 +1019,8 @@ def create_curve_overlay(
                         continue
                     if h['kind'] != 'knot':
                         tan_pts2d.append(p)
+                    elif h.get('handle_type') == 'automatic':
+                        auto_knot_pts2d.append(p)
                     elif h.get('free'):
                         free_knot_pts2d.append(p)
                     else:
@@ -907,5 +1031,7 @@ def create_curve_overlay(
                     Drawing.draw2D_points(context, knot_pts2d, KNOT_FILL_COLOR, radius=KNOT_RADIUS, border=2, borderColor=KNOT_BORDER_COLOR)
                 if free_knot_pts2d:
                     Drawing.draw2D_points(context, free_knot_pts2d, FREE_KNOT_FILL_COLOR, radius=KNOT_RADIUS, border=2, borderColor=KNOT_BORDER_COLOR)
+                if auto_knot_pts2d:
+                    Drawing.draw2D_points(context, auto_knot_pts2d, AUTO_KNOT_FILL_COLOR, radius=KNOT_RADIUS, border=2, borderColor=KNOT_BORDER_COLOR)
 
     return type(opname, (RFOperator_Curve_Overlay, RFOperator), {})

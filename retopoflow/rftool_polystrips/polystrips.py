@@ -27,7 +27,7 @@ from ..rfglobals import RFGlobals
 from ..rfbrushes.stroke_brush import create_stroke_brush
 from ..rfoverlays.curve_overlay import create_curve_overlay
 from ..rfoverlays.curve_chain_providers import QuadStripChainProvider, LoopStripChainProvider
-from ..rfoperators.curve_edit import create_curve_edit_operator
+from ..rfoperators.curve_edit import create_curve_edit_operator, create_curve_toggle_handle_type_operator
 
 from ..rftool_base import RFTool_Base
 from ..common.icons import get_path_to_blender_icon
@@ -467,6 +467,13 @@ RFOperator_PolyStrips_Edit = create_curve_edit_operator(
     on_init=_reset_insert_logic,
 )
 
+RFOperator_PolyStrips_ToggleHandleType = create_curve_toggle_handle_type_operator(
+    'polystrips_toggle_handle_type',
+    'Toggle Curve Handle Type',
+    'Cycle the hovered curve control point between Aligned, Vector, and Automatic',
+    get_overlay=lambda: RFTool_PolyStrips.rf_overlay,
+)
+
 
 class RFTool_PolyStrips(RFTool_Base):
     bl_idname : str = "retopoflow.polystrips"
@@ -486,6 +493,7 @@ class RFTool_PolyStrips(RFTool_Base):
         RFOperator_PolyStrips,
         RFOperator_PolyStrips_Insert,
         RFOperator_PolyStrips_Edit,
+        RFOperator_PolyStrips_ToggleHandleType,
         RFOperator_MaximizeWatcher,
         RFOperator_StrokesBrush_Adjust,
         RFOperator_Translate,

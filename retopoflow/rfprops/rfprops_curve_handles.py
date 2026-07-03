@@ -42,7 +42,7 @@ class RFProps_CurveHandles(bpy.types.PropertyGroup):
         subtype='FACTOR',
         min = 0.1,
         max = 1,
-        default = 0.25
+        default = 0.5
     )
     curve_corner_angle: bpy.props.FloatProperty(
         name = 'Corner Angle',

@@ -25,7 +25,7 @@ from ..rfglobals import RFGlobals
 from ..rfbrushes.stroke_brush import create_stroke_brush
 from ..rfoverlays.curve_overlay import create_curve_overlay
 from ..rfoverlays.curve_chain_providers import LoopStripChainProvider, QuadStripChainProvider
-from ..rfoperators.curve_edit import create_curve_edit_operator
+from ..rfoperators.curve_edit import create_curve_edit_operator, create_curve_toggle_handle_type_operator
 
 from ..rftool_base import RFTool_Base
 from ..common.icons import get_path_to_blender_icon
@@ -565,6 +565,13 @@ RFOperator_Strokes_CurveEdit = create_curve_edit_operator(
     get_overlay=lambda: RFTool_Strokes.rf_overlay,
 )
 
+RFOperator_Strokes_ToggleHandleType = create_curve_toggle_handle_type_operator(
+    'strokes_toggle_handle_type',
+    'Toggle Curve Handle Type',
+    'Cycle the hovered curve control point between Aligned, Vector, and Automatic',
+    get_overlay=lambda: RFTool_Strokes.rf_overlay,
+)
+
 @execute_operator('switch_to_strokes', 'RetopoFlow: Switch to Strokes', fn_poll=poll_retopoflow)
 def switch_rftool(context):
     RFTool_Strokes.activate_tool(context)
@@ -589,6 +596,7 @@ class RFTool_Strokes(RFTool_Base):
         RFOperator_Strokes,
         RFOperator_Stroke_Insert,
         RFOperator_Strokes_CurveEdit,
+        RFOperator_Strokes_ToggleHandleType,
         RFOperator_StrokesBrush_Adjust,
         RFOperator_MaximizeWatcher,
         RFOperator_Translate,
