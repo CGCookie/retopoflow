@@ -42,6 +42,7 @@ from ..rfoverlays.curve_overlay import (
     shrink_segment, KNOT_RADIUS, TANGENT_RADIUS,
     CURVE_LINE_COLOR, CONTROL_POLYGON_COLOR, TANGENT_FILL_COLOR, TANGENT_BORDER_COLOR,
     KNOT_FILL_COLOR, KNOT_BORDER_COLOR, FREE_KNOT_FILL_COLOR, AUTO_KNOT_FILL_COLOR,
+    DEBUG_SHOW_AUTO_HANDLES,
 )
 
 
@@ -210,6 +211,14 @@ def create_curve_edit_operator(
             # set by apply_handle when Alt+dragging a knot -- see _scale_handles
             self.taper_scale = None
             self.taper_t = None
+            # set by _recompute_typed_handles while dragging an Automatic knot
+            # with two valid neighbors -- see _deform_verts's use of these to
+            # push the curve-normal blend to full strength on the two segments
+            # flanking the dragged knot as it nears the straight line between
+            # its neighbors. No-op defaults for every other drag kind (tangent
+            # drags, Aligned/Vector knot drags, Alt scale/rotate).
+            self.horizon_factor = 0.0
+            self.horizon_segs = frozenset()
 
             get_overlay().pause_update()
             get_overlay().instance.depsgraph_version = None
@@ -531,6 +540,13 @@ def create_curve_edit_operator(
             # stops being true
             self.taper_scale = None
             self.taper_t = None
+            # reset each frame -- only re-set below if this frame's drag is
+            # an Automatic knot with two valid neighbors (_recompute_typed_
+            # handles); must not linger from a previous frame once that
+            # stops being true (e.g. mid-drag type change isn't possible,
+            # but a stale value must never leak into a DIFFERENT drag)
+            self.horizon_factor = 0.0
+            self.horizon_segs = frozenset()
 
             # Alt/Alt+Shift always act on a KNOT -- if the user grabbed one
             # of its tangent handles instead, redirect to the knot it
@@ -754,6 +770,19 @@ def create_curve_edit_operator(
             signed_now = perp(b1).dot(nrm)
             factor = max(0.0, min(1.0, 1.0 - abs(signed_now) / grab_dist))
             mirrored = signed_now < 0.0
+
+            # expose this frame's horizon proximity to _deform_verts (reset
+            # to 0.0/empty each frame in apply_handle before this runs),
+            # scoped to just the two segments flanking the dragged knot --
+            # prev_h<->dragged_h and dragged_h<->next_h -- since those are
+            # the ones that actually straighten as the knot approaches the
+            # line between its neighbors; segments further out are unrelated
+            # to this specific line.
+            nseg_local = n if cyclic else n - 1
+            seg_prev = (idx - 1) % nseg_local if cyclic else idx - 1
+            seg_next = idx % nseg_local if cyclic else idx
+            self.horizon_factor = factor
+            self.horizon_segs = frozenset((seg_prev, seg_next))
 
             def reflect(v):
                 # mirror across the plane through the line whose normal is the
@@ -1168,7 +1197,12 @@ def create_curve_edit_operator(
             connecting geometry even though the curve/handles are perfectly
             smooth. Composing many small per-frame deltas (each well inside
             the safe range, since real mouse motion doesn't swing a tangent
-            180 degrees in a single event) tracks the true total instead. '''
+            180 degrees in a single event) tracks the true total instead.
+
+            Split into passes rather than one straight-through loop: the
+            RE-CENTERING pass below needs BOTH of a rung's verts' offsets
+            already computed before either can be finalized, so no vert can
+            be written to bmv.co until its whole rung has been visited. '''
             data = self.grab['data']
             rot_state = self.grab['rot']
             bm = self.bm
@@ -1184,6 +1218,16 @@ def create_curve_edit_operator(
             nseg = len(spline.cbs)
             fn_dist = lambda a, b: (a - b).length
             combined_cum = _cumulative_lengths(spline.cbs, self.combined_segs, fn_dist) if self.combined_segs else None
+
+            # Pass 1: compute each vert's (anchor, offset) exactly as before,
+            # but stop short of finalizing bmv.co -- see pass 2 below.
+            # Grouped by `t` (reassigned below, same value as before this
+            # change): every vert of a rung is parametrized from the same
+            # shared rung midpoint (see init()'s rung_map comment), so they
+            # deterministically compute the identical t here -- a reliable,
+            # tolerance-free grouping key.
+            computed = {}
+            rung_groups = {}
             for bmv_idx in self.grab['only']:
                 t, d0, pt_edit_orig, distance, arc_frac, combined_frac, z0, fit_w, end_t, overhang = data[bmv_idx]
                 if arc_frac is None and combined_frac is None:
@@ -1192,7 +1236,6 @@ def create_curve_edit_operator(
                     # control points this drag never moves, so eval(t) can only
                     # ever reproduce the exact same point it's already at
                     continue
-                bmv = bm.verts[bmv_idx]
                 if distance > prop_dist_world: continue
                 if prop_use:
                     dist = max(1 - distance / prop_dist_world, 0)
@@ -1219,6 +1262,11 @@ def create_curve_edit_operator(
                     # or spread them out relative to each other
                     seg = min(int(t), nseg - 1)
                     t = seg + spline.cbs[seg].approximate_t_at_arc_length_fraction(arc_frac, fn_dist)
+                # how close the dragged Automatic knot is to the straight line
+                # between its neighbors (see _recompute_typed_handles), but
+                # only for verts on the two segments that line actually spans
+                # -- see the curve-normal correction below.
+                horizon_boost = self.horizon_factor if seg in self.horizon_segs else 0.0
                 # cap verts (end_t is not None) are parametrized by their
                 # END's t, not their own approximate t, and re-extrapolated
                 # against the LIVE spline every frame -- see init()'s
@@ -1300,15 +1348,62 @@ def create_curve_edit_operator(
                 # horizon, that unprotected rotation could flip/twist the end
                 # faces. Removed in favor of fit_w alone; the extrapolation fix
                 # here is what makes fit_w alone actually correct for end caps.)
+                #
+                # ADDITIONALLY forced toward full strength (blend -> 1) by
+                # horizon_boost as the dragged Automatic knot approaches the
+                # straight line between its neighbors, on top of (not gated
+                # by) fit_w * edit_w -- this is what guarantees the strip
+                # actually goes perfectly flat right when that line goes
+                # perfectly straight, rather than only however much fit_w *
+                # edit_w happens to have reached by that point. Unlike the
+                # fit_w*edit_w path, this deliberately overrides even a
+                # poorly-fit vert (fit_w -> 0 no longer gates it out), since
+                # the goal here is an unconditional guarantee at the straight-
+                # line limit, not a conservative "only touch good fits" nudge.
                 d_len = d.length
-                if fit_w > 0.0 and d_len > 1e-9:
+                if d_len > 1e-9:
                     edit_w = min(z0.angle(z1, 0.0) / CURVE_NORMAL_EDIT_ANGLE, 1.0)
-                    blend = fit_w * edit_w
+                    blend = max(fit_w * edit_w, horizon_boost)
                     if blend > 0.0:
                         d_perp = d_final - d_final.dot(z1) * z1
                         if d_perp.length > 1e-9:
                             d_normal = d_perp * (d_len / d_perp.length)
                             d_final = d_final.lerp(d_normal, blend)
+                computed[bmv_idx] = [o, d_final, horizon_boost, factor, pt_edit_orig]
+                rung_groups.setdefault(t, []).append(bmv_idx)
+
+            # Pass 2: a rung's two verts share one anchor `o`, but the curve-
+            # normal correction above rescales EACH vert's offset back up to
+            # its OWN original length independently -- if the two weren't
+            # perfectly symmetric to begin with (an ordinary small fit
+            # residual: `o` is the nearest point ON the curve to the rung's
+            # midpoint, not necessarily exactly equal to it), that
+            # independent rescale can leave the rung's own center off of `o`
+            # even though each vert's TILT is now individually correct --
+            # visible as a slight skew in the rail edge loops even on an
+            # otherwise dead-straight stretch. Pull the rung's average
+            # offset back to zero (recentering it on `o`), scaled by the
+            # SAME horizon_boost as the tilt correction so it ramps in
+            # together and never touches a rung the horizon blend doesn't
+            # reach. A rung with fewer than 2 of its verts actually computed
+            # this frame (e.g. one excluded by proportional-edit falloff)
+            # has nothing to center against, so it's left alone.
+            for idxs in rung_groups.values():
+                if len(idxs) < 2:
+                    continue
+                boost = computed[idxs[0]][2]
+                if boost <= 0.0:
+                    continue
+                center_off = sum((computed[i][1] for i in idxs), Vector((0.0, 0.0, 0.0))) / len(idxs)
+                if center_off.length < 1e-9:
+                    continue
+                for i in idxs:
+                    computed[i][1] = computed[i][1] - center_off * boost
+
+            # Pass 3: finalize -- unchanged from before this split, just
+            # reading back what pass 1/2 computed instead of running inline.
+            for bmv_idx, (o, d_final, horizon_boost, factor, pt_edit_orig) in computed.items():
+                bmv = bm.verts[bmv_idx]
                 pt_edit_new = M @ (o + d_final)
                 pt_edit_new = pt_edit_orig + (pt_edit_new - pt_edit_orig) * factor
                 co = nearest_point_valid_sources(context, pt_edit_new, world=False, respect_clip_planes=True) or pt_edit_orig
@@ -1320,7 +1415,19 @@ def create_curve_edit_operator(
             if not r3d: return
             M = self.M
             cbs = self.spline.cbs
-            for cb in cbs:
+            # see curve_overlay.py's draw_postpixel_overlay -- same hiding of
+            # an Automatic knot's tangent handles, kept in sync here so a
+            # handle can't visibly appear/disappear the instant a drag starts
+            knot_type_by_vert = {
+                h['vert_index']: h.get('handle_type')
+                for h in self.chain['handles'] if h['kind'] == 'knot'
+            }
+            hidden_tangents = set() if DEBUG_SHOW_AUTO_HANDLES else {
+                h['pos']
+                for h in self.chain['handles']
+                if h['kind'] == 'tangent' and knot_type_by_vert.get(h['owner_vert_index']) == 'automatic'
+            }
+            for i, cb in enumerate(cbs):
                 curve_pts = [location_3d_to_region_2d(rgn, r3d, M @ Vector(cb.eval(v / 20))) for v in range(21)]
                 curve_pts = [p for p in curve_pts if p]
                 draw_curve_line = True
@@ -1328,16 +1435,21 @@ def create_curve_edit_operator(
                     Drawing.draw2D_linestrip(context, curve_pts, CURVE_LINE_COLOR, width=2, stipple=[5,5])
                 p0_, p1_, p2_, p3_ = (location_3d_to_region_2d(rgn, r3d, M @ Vector(getattr(cb, a))) for a in ('p0','p1','p2','p3'))
                 knot_r, tan_r = Drawing.scale(KNOT_RADIUS/2), Drawing.scale(TANGENT_RADIUS/2)
-                a0, a1 = shrink_segment(p0_, p1_, knot_r, tan_r)
-                a2, a3 = shrink_segment(p2_, p3_, tan_r, knot_r)
-                Drawing.draw2D_lines(context, [a0, a1, a2, a3], CONTROL_POLYGON_COLOR, width=2)
+                arm_lines = []
+                if (i, 'p1') not in hidden_tangents:
+                    arm_lines += shrink_segment(p0_, p1_, knot_r, tan_r)
+                if (i, 'p2') not in hidden_tangents:
+                    arm_lines += shrink_segment(p2_, p3_, tan_r, knot_r)
+                if arm_lines:
+                    Drawing.draw2D_lines(context, arm_lines, CONTROL_POLYGON_COLOR, width=2)
             knot_pts2d, free_knot_pts2d, auto_knot_pts2d, tan_pts2d = [], [], [], []
             for h in self.chain['handles']:
                 seg, attr = h['pos']
                 p = location_3d_to_region_2d(rgn, r3d, M @ Vector(getattr(cbs[seg], attr)))
                 if not p: continue
                 if h['kind'] != 'knot':
-                    tan_pts2d.append(p)
+                    if h['pos'] not in hidden_tangents:
+                        tan_pts2d.append(p)
                 elif h.get('handle_type') == 'automatic':
                     auto_knot_pts2d.append(p)
                 elif h.get('free'):

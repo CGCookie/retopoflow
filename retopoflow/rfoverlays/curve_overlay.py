@@ -94,7 +94,13 @@ FREE_KNOT_FILL_COLOR = (0.5, 0.5, 0.5, 1.0)
 # a knot resolved as 'automatic' (see the handle-type system in _build_curve)
 # -- called out in bright yellow, distinct from free/coupled fill, so it's
 # easy to spot which knots are self-recomputing vs frozen while testing
-AUTO_KNOT_FILL_COLOR = (1, 1, 0, 1.0)
+AUTO_KNOT_FILL_COLOR = (1, 1, 1, 1.0)
+# an Automatic knot's own tangent handles (dots + control-polygon spokes) are
+# hidden by default -- they're fully recomputed from neighbor geometry every
+# frame (see _recompute_typed_handles in curve_edit.py), so showing them to
+# the user invites dragging something that's about to be overwritten. Flip on
+# to see them anyway while debugging that recompute.
+DEBUG_SHOW_AUTO_HANDLES = False
 # once a chain's knot placement (corners/auto-knots) is derived, it's cached and
 # reused -- recomputing positions/handle lengths from current verts every time,
 # but NOT re-running corner-detection -- so edits don't cause the control points
@@ -993,7 +999,23 @@ def create_curve_overlay(
 
             for spline, chain in zip(self.curves, self.chains):
                 cbs = spline.cbs
-                for cb in cbs:
+                # an Automatic knot's tangent handles are fully recomputed
+                # from neighbor geometry every frame (_recompute_typed_
+                # handles) -- hide them (dot + control-polygon spoke) by
+                # default so users aren't invited to drag something that's
+                # about to be overwritten; DEBUG_SHOW_AUTO_HANDLES shows them
+                # anyway. A tangent only stores its owner's vert index, not
+                # the owning knot dict, so look handle_type up by vert index.
+                knot_type_by_vert = {
+                    h['vert_index']: h.get('handle_type')
+                    for h in chain['handles'] if h['kind'] == 'knot'
+                }
+                hidden_tangents = set() if DEBUG_SHOW_AUTO_HANDLES else {
+                    h['pos']
+                    for h in chain['handles']
+                    if h['kind'] == 'tangent' and knot_type_by_vert.get(h['owner_vert_index']) == 'automatic'
+                }
+                for i, cb in enumerate(cbs):
                     curve_pts = [
                         location_3d_to_region_2d(rgn, r3d, M @ Vector(cb.eval(v / 20)))
                         for v in range(21)
@@ -1007,9 +1029,13 @@ def create_curve_overlay(
                     # edge instead of running into its (partially transparent) center
                     p0_, p1_, p2_, p3_ = (location_3d_to_region_2d(rgn, r3d, M @ Vector(getattr(cb, a))) for a in ('p0','p1','p2','p3'))
                     knot_r, tan_r = Drawing.scale(KNOT_RADIUS/2), Drawing.scale(TANGENT_RADIUS/2)
-                    a0, a1 = shrink_segment(p0_, p1_, knot_r, tan_r)
-                    a2, a3 = shrink_segment(p2_, p3_, tan_r, knot_r)
-                    Drawing.draw2D_lines(context, [a0, a1, a2, a3], CONTROL_POLYGON_COLOR, width=2)
+                    arm_lines = []
+                    if (i, 'p1') not in hidden_tangents:
+                        arm_lines += shrink_segment(p0_, p1_, knot_r, tan_r)
+                    if (i, 'p2') not in hidden_tangents:
+                        arm_lines += shrink_segment(p2_, p3_, tan_r, knot_r)
+                    if arm_lines:
+                        Drawing.draw2D_lines(context, arm_lines, CONTROL_POLYGON_COLOR, width=2)
 
                 knot_pts2d, free_knot_pts2d, auto_knot_pts2d, tan_pts2d = [], [], [], []
                 for h in chain['handles']:
@@ -1018,7 +1044,8 @@ def create_curve_overlay(
                     if not p:
                         continue
                     if h['kind'] != 'knot':
-                        tan_pts2d.append(p)
+                        if h['pos'] not in hidden_tangents:
+                            tan_pts2d.append(p)
                     elif h.get('handle_type') == 'automatic':
                         auto_knot_pts2d.append(p)
                     elif h.get('free'):
