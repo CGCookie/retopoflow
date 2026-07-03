@@ -528,9 +528,21 @@ def nearest_normal_valid_sources(context, point_world, *, world=True):
     Mt = M.transposed()
     return xform_direction(Mt, best_no_world)
 
-def nearest_point_normal_valid_sources(context, point_world, *, world=True, respect_clip_planes=False):
+def nearest_point_normal_valid_sources(
+    context : Context,
+    point_world : Vector,
+    *,
+    world : bool = True,
+    respect_clip_planes : bool = False,
+) -> tuple[Vector, Vector] | None:
     ''' Closest point and its normal on any valid source, from a single closest_point_on_mesh query per source.
     Returns (co, no) or None. '''
+
+    obj = context.edit_object
+    if not obj:
+        return None
+    obj_M = obj.matrix_world
+    
     best_co_world = None
     best_no_world = None
     best_dist = float('inf')
@@ -549,13 +561,15 @@ def nearest_point_normal_valid_sources(context, point_world, *, world=True, resp
         best_co_world = co_world
         best_no_world = xform_normal(Mit, normal)
         best_dist = dist
-    if best_co_world is None: return None
+
+    if best_co_world is None or best_no_world is None:
+        return None
 
     if world:
         return (best_co_world, best_no_world)
-    M = context.edit_object.matrix_world
-    Mi = M.inverted_safe()
-    Mt = M.transposed()
+
+    Mi = obj_M.inverted_safe()
+    Mt = obj_M.transposed()
     return (point_to_bvec3(xform_point(Mi, best_co_world)), xform_direction(Mt, best_no_world))
 
 
