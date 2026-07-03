@@ -187,7 +187,7 @@ class CC_DRAW:
         pass
 
     @classmethod
-    def vertex(cls, p: Vector) -> type[CC_DRAW]:
+    def vertex(cls, p: Vector | None) -> type[CC_DRAW]:
         return cls
 
 
@@ -217,7 +217,7 @@ class CC_2D_POINTS(CC_DRAW):
         ubos_2D_point.options.color = c
 
     @classmethod
-    def vertex(cls, p: Vector) -> type[CC_2D_POINTS]:
+    def vertex(cls, p: Vector | None) -> type[CC_2D_POINTS]:
         if p:
             ubos_2D_point.options.center = (*p, 0, 1)
             ubos_2D_point.options.update_shader()
@@ -253,7 +253,7 @@ class CC_3D_POINTS(CC_DRAW):
         ubos_3D_point.options.color = c
 
     @classmethod
-    def vertex(cls, p: Vector) -> type[CC_3D_POINTS]:
+    def vertex(cls, p: Vector | None) -> type[CC_3D_POINTS]:
         if p:
             ubos_3D_point.options.center = (*p, 1)
             ubos_3D_point.options.update_shader()
@@ -295,7 +295,7 @@ class CC_2D_LINES(CC_DRAW):
         ubos_2D_lineseg.options.color0 = c
 
     @classmethod
-    def vertex(cls, p: Vector):
+    def vertex(cls, p: Vector | None) -> type[CC_2D_LINES]:
         if p:
             ubos_2D_lineseg.options.assign(f"pos{cls._c}", (*p, 0, 1))
         cls._c = (cls._c + 1) % 2
@@ -306,9 +306,10 @@ class CC_2D_LINES(CC_DRAW):
         return cls
 
     @classmethod
-    def vertices(cls, ps: list[Vector]):
+    def vertices(cls, ps: list[Vector]) -> type[CC_2D_LINES]:
         for p in ps:
             cls.vertex(p)
+        return cls
 
 
 class CC_2D_LINE_STRIP(CC_2D_LINES):
@@ -318,7 +319,7 @@ class CC_2D_LINE_STRIP(CC_2D_LINES):
         cls._last_p = None
 
     @classmethod
-    def vertex(cls, p: Vector) -> type[CC_2D_LINE_STRIP]:
+    def vertex(cls, p: Vector | None) -> type[CC_2D_LINE_STRIP]:
         if cls._last_p is None:
             cls._last_p = p
         else:
@@ -339,7 +340,7 @@ class CC_2D_LINE_LOOP(CC_2D_LINES):
         cls._last_p = None
 
     @classmethod
-    def vertex(cls, p: Vector) -> type[CC_2D_LINE_LOOP]:
+    def vertex(cls, p: Vector | None) -> type[CC_2D_LINE_LOOP]:
         if cls._first_p is None:
             cls._first_p = cls._last_p = p
         else:
@@ -380,7 +381,7 @@ class CC_2D_TRIANGLES(CC_DRAW):
         cls._last_color = c
 
     @classmethod
-    def vertex(cls, p: Vector) -> type[CC_2D_TRIANGLES]:
+    def vertex(cls, p: Vector | None) -> type[CC_2D_TRIANGLES]:
         if p:
             ubos_2D_triangle.options.assign(f"pos{cls._c}", (*p, 0, 1))
         cls._c = (cls._c + 1) % 3
@@ -412,7 +413,7 @@ class CC_2D_TRIANGLE_FAN(CC_DRAW):
         cls._last_color = c
 
     @classmethod
-    def vertex(cls, p: Vector) -> type[CC_2D_TRIANGLE_FAN]:
+    def vertex(cls, p: Vector | None) -> type[CC_2D_TRIANGLE_FAN]:
         if p:
             ubos_2D_triangle.options.assign(f"pos{cls._c}", (*p, 0, 1))
         cls._c += 1
@@ -448,7 +449,7 @@ class CC_3D_TRIANGLES(CC_DRAW):
         cls._last_color = c
 
     @classmethod
-    def vertex(cls, p: Vector) -> type[CC_3D_TRIANGLES]:
+    def vertex(cls, p: Vector | None) -> type[CC_3D_TRIANGLES]:
         if p:
             ubos_3D_triangle.options.assign(f"pos{cls._c}", p)
         cls._c = (cls._c + 1) % 3

@@ -103,7 +103,6 @@ from .patches_logic import Patches_Logic
     ],
 )
 def insert_corner(context : Context, event : Event):
-    print('patches_insert_corner')
     mouse = mouse_from_event(event)
     hit = raycast_valid_sources(
         context,
@@ -116,6 +115,25 @@ def insert_corner(context : Context, event : Event):
 
     Patches_Logic.insert_corner(co_local)
     RFGlobals.RFCore.tag_redraw_areas()
+
+@execute_operator(
+    'patches_commit',
+    'Create patch',
+    description='Create the patch',
+    options={'INTERNAL', 'UNDO'},
+    keymaps=[
+        (
+            'retopoflow.patches_commit',
+            { 'type': 'F', 'value': 'PRESS' },
+            None
+        )
+    ],
+)
+def commit_patch(context : Context):
+    print('X'*100)
+    print('committing patch')
+    print('X'*100)
+    Patches_Logic.commit()
 
 
 class RFOperator_Patches(RFOperator):
@@ -175,12 +193,14 @@ class RFTool_Patches(RFTool_Base):
     bl_description : str = "Retopologize holes!"
     bl_icon : str = get_path_to_blender_icon('patches')
     bl_widget : None = None
+
     rf_operator_idname : str | None = 'retopoflow.patches'
 
     bl_keymap : BLKeyMaps = chain_rf_keymaps(
         RFOperator_Patches,
         # RFOperator_Patches_Insert_Corner,
         insert_corner,
+        commit_patch,
         # RFOperator_Patches_Insert_Template,
         # RFOperator_PatchesBrush_Adjust,
         RFOperator_TopoRotate,
