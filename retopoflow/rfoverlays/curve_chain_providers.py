@@ -68,7 +68,7 @@ class ChainSpec:
         avg_len : float,
         current_points : Callable[[BMesh], list[Vector] | None],
         interior_bmv_indices : list[int] = (),
-        deform_bmv_rungs : dict[int, tuple[Vector, float]] | None = None,
+        deform_bmv_rungs : dict[int, tuple[Vector, float, bool]] | None = None,
     ):
         self.points = points
         self.cyclic = cyclic
@@ -81,14 +81,19 @@ class ChainSpec:
         self.current_points = current_points
         # for a face-derived (coupled=False) chain: maps each deform vert to
         # (midpoint of the perpendicular edge -- "rung" -- it sits on, distance
-        # in rungs from the nearest open end). The edit operator parametrizes a
-        # vert against the curve by its RUNG's position along the centerline
-        # (proximity of this midpoint), not the vert's own nearest point -- so
-        # every vert of a rung shares one t and a wide strip on a tight bend
-        # can't have its verts drift onto the wrong part of the curve. The
-        # end-distance lets it leave the strip's end caps (which genuinely
-        # overhang past the centerline's endpoints) alone. Empty for a
-        # vertex-coupled chain, whose verts ARE the curve points.
+        # in rungs from the nearest open end, whether that rung is a real mesh
+        # boundary edge). The edit operator parametrizes a vert against the
+        # curve by its RUNG's position along the centerline (proximity of this
+        # midpoint), not the vert's own nearest point -- so every vert of a
+        # rung shares one t and a wide strip on a tight bend can't have its
+        # verts drift onto the wrong part of the curve. Distance 0 marks the
+        # chain's own first/last rung -- a genuine strip-end CAP that the edit
+        # operator extrapolates the centerline out to (instead of clamping
+        # short) ONLY when is_boundary is true; if the strip is connected
+        # there instead (the chain's own end isn't the mesh's), those verts
+        # are shared with un-edited faces outside the chain and are left
+        # untouched rather than transformed. Empty for a vertex-coupled
+        # chain, whose verts ARE the curve points.
         self.deform_bmv_rungs = deform_bmv_rungs or {}
         # verts of selected faces enclosed by this chain (only meaningful
         # for a cyclic, vertex-coupled chain tracing a selected patch's
@@ -293,19 +298,27 @@ def _quad_chain_centerline(segment_faces : Sequence[list[BMFace]], *, cyclic : b
     return pts
 
 
-def _quad_chain_rung_map(segment_faces : Sequence[list[BMFace]], *, cyclic : bool) -> dict[int, tuple[Vector, float]]:
+def _quad_chain_rung_map(segment_faces : Sequence[list[BMFace]], *, cyclic : bool) -> dict[int, tuple[Vector, float, bool]]:
     '''
     Maps every vert of a quad chain to (its rung's midpoint, its distance in
-    rungs from the nearest open end). A "rung" is a perpendicular edge crossing
-    the strip: the boundary cap at each open end, and the edge shared by each
-    consecutive face pair in between. In a clean ladder every vert is an
-    endpoint of exactly one rung, so this assigns each a single along-curve
-    anchor -- the rung midpoint, which (for interior rungs) is itself a point on
-    the centerline. Each topological sub-chain is handled on its own; a
+    rungs from the nearest open end, whether that rung is a real mesh
+    boundary edge). A "rung" is a perpendicular edge crossing the strip: the
+    boundary cap at each open end, and the edge shared by each consecutive
+    face pair in between. In a clean ladder every vert is an endpoint of
+    exactly one rung, so this assigns each a single along-curve anchor -- the
+    rung midpoint, which (for interior rungs) is itself a point on the
+    centerline. Each topological sub-chain is handled on its own; a
     spatially-joined seam reads as an open end on both sides (conservative --
     it just leaves that corner's correction gentler).
+
+    is_boundary (`len(bme.link_faces) == 1`) only matters for the chain's own
+    first/last rung (end_dist==0): curve_edit.py only TRANSFORMS that rung's
+    verts when it's true. If the strip is connected there instead (the
+    SELECTION ends, not the mesh), those verts are shared with un-edited
+    faces outside the chain -- moving them would drag that adjacent geometry
+    along, so curve_edit.py leaves them untouched.
     '''
-    rung_map : dict[int, tuple[Vector, float]] = {}
+    rung_map : dict[int, tuple[Vector, float, bool]] = {}
     for seg in segment_faces:
         n = len(seg)
         if n < 2:
@@ -327,15 +340,16 @@ def _quad_chain_rung_map(segment_faces : Sequence[list[BMFace]], *, cyclic : boo
         for ri, bme in enumerate(rungs):
             mid = bme_midpoint(bme)
             # cyclic ring has no ends, so nothing to protect -- use a large
-            # distance so the end-taper never kicks in
+            # distance so end-of-chain handling never kicks in
             end_dist = float(nr) if cyclic else float(min(ri, nr - 1 - ri))
+            is_boundary = len(bme.link_faces) <= 1
             for v in bme.verts:
                 # a vert on two rungs shouldn't happen in a clean ladder, but if
                 # it does, keep the nearer-to-an-end anchor so the taper stays
                 # conservative
                 prev = rung_map.get(v.index)
                 if prev is None or end_dist < prev[1]:
-                    rung_map[v.index] = (mid, end_dist)
+                    rung_map[v.index] = (mid, end_dist, is_boundary)
     return rung_map
 
 
