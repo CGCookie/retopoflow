@@ -1808,7 +1808,7 @@ class Relax_Logic:
                     bmv.co = orig + delta / delta_len * min(snap_dist, delta_len)
 
         # print(f'relaxed {len(verts)} ({len(chk_verts)}) in {time.time() - st} with {strength}')
-        bmesh.update_edit_mesh(self.em)
+        bmesh.update_edit_mesh(self.em, loop_triangles=False)
         # if context.area: context.area.tag_redraw()
 
         if debug_print:
@@ -1871,11 +1871,11 @@ class Relax_Logic:
 
 
     def finish(self, context):
-        bmesh.update_edit_mesh(self.em)
+        bmesh.update_edit_mesh(self.em, loop_triangles=False)
         # context.area.tag_redraw()
 
     def cancel(self, context):
         for (bmv, co) in self.prev_position.items():
             bmv.co = co
-        bmesh.update_edit_mesh(self.em)
+        bmesh.update_edit_mesh(self.em, loop_triangles=False)
         # context.area.tag_redraw()
