@@ -1526,9 +1526,13 @@ def create_curve_toggle_handle_type_operator(
     get_overlay : Callable[[], type],
 ) -> Callable:
     '''
-    Single-press hotkey (V), active only while hovering a curve KNOT: cycles
+    Single-press hotkey (V): while hovering a toggleable curve KNOT, cycles
     its handle type Aligned -> Vector -> Automatic -> Aligned (see the
-    handle-type system in curve_overlay.py's _build_curve/_build_handles).
+    handle-type system in curve_overlay.py's _build_curve/_build_handles);
+    otherwise (nothing hovered, a tangent hovered, or a forced corner/
+    endpoint knot) it still claims the keypress and returns {'CANCELLED'}
+    (see can_toggle/toggle) rather than leaving 'V' unclaimed for Blender's
+    native Rip to pick up.
     A plain execute-once operator rather than a modal RFOperator -- there's
     no drag to track, so the lighter fn_poll/fn_exec pattern used elsewhere
     for single-shot actions (e.g. RFOperator_PinVerts in pinning.py) fits
@@ -1548,12 +1552,21 @@ def create_curve_toggle_handle_type_operator(
         return overlay, chain, handle
 
     def can_toggle(context):
+        # deliberately does NOT also require a toggleable knot to be
+        # hovered: this is the operator's Blender-level poll, and a keymap
+        # item whose poll fails isn't just skipped -- Blender falls through
+        # to the NEXT item bound to the same key, which for 'V' in edit mesh
+        # mode is native Rip. Keeping poll to "is this tool's curve-edit
+        # context even active" (not "is there something to do right now")
+        # means the operator still claims the V press and can return
+        # {'CANCELLED'} itself (see toggle) -- CANCELLED still consumes the
+        # event, just without pushing an undo step, so Rip never fires.
         RFCore = RFGlobals.RFCore_None
         if not RFCore or not RFCore.is_running:
             return False
         if not context.edit_object or context.mode != 'EDIT_MESH':
             return False
-        return _hovered_toggleable_knot() is not None
+        return True
 
     def toggle(context):
         found = _hovered_toggleable_knot()

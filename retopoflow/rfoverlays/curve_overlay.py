@@ -253,6 +253,7 @@ def create_curve_overlay(
                         SharedStatusbarKeymap(label='Edit Curve', icons=['MOUSE_LMB_DRAG']),
                         SharedStatusbarKeymap(label='Scale Control Point', icons=['EVENT_ALT', 'MOUSE_LMB_DRAG']),
                         SharedStatusbarKeymap(label='Rotate Control Point', icons=['EVENT_ALT', 'EVENT_SHIFT', 'MOUSE_LMB_DRAG']),
+                        SharedStatusbarKeymap(label='Toggle Handle Type', icons=['EVENT_V']),
                     ))
                 Cursors.set('hand')
             else:
@@ -685,17 +686,25 @@ def create_curve_overlay(
 
         _HANDLE_TYPE_CYCLE = {'aligned': 'vector', 'vector': 'automatic', 'automatic': 'aligned'}
 
-        def set_handle_type(self, cache_key, vert_index, handle_type) -> bool:
+        def set_handle_type(self, cache_key, vert_index, handle_type, *, reposition=False) -> bool:
             ''' Sets a knot's handle type override (used by both the V-key
             toggle and, implicitly, a direct tangent-handle drag pinning its
             knot to 'aligned' -- see curve_edit.py's apply_handle). Forces the
             next update_data/build to see this as a change (see the
             handle_type_overrides fold-in to `tunables` in _build_curve) --
             without this, a rebuild wouldn't even be attempted until the mesh
-            or scene tunables changed for some unrelated reason. '''
+            or scene tunables changed for some unrelated reason.
+
+            `reposition`, when True, re-aims the knot's two tangent arms to
+            (best-effort) match the new type right away -- see
+            _reposition_handle. Left False for the implicit aligned-pin from
+            dragging a tangent by hand: that call's whole point is to freeze
+            the user's own just-dragged rotation, not recompute it. '''
             overrides = self._handle_type_overrides.setdefault(cache_key, {})
             if overrides.get(vert_index) == handle_type:
                 return False
+            if reposition:
+                self._reposition_handle(cache_key, vert_index, handle_type)
             overrides[vert_index] = handle_type
             type(self).depsgraph_version = -42
             return True
@@ -713,8 +722,91 @@ def create_curve_overlay(
                 for h in chain['handles']:
                     if h['kind'] == 'knot' and h.get('vert_index') == vert_index:
                         current = h.get('handle_type', 'automatic')
-                        return self.set_handle_type(cache_key, vert_index, self._HANDLE_TYPE_CYCLE[current])
+                        return self.set_handle_type(cache_key, vert_index, self._HANDLE_TYPE_CYCLE[current], reposition=True)
             return False
+
+        def _reposition_handle(self, cache_key, vert_index, new_type):
+            '''
+            Re-aims a toggled knot's two tangent arms to (best-effort) match
+            its new handle TYPE while keeping each arm's own LENGTH exactly
+            as it was -- "position" here means distance from the knot, which
+            switching type never needs to change; only the DIRECTION may
+            need to move to satisfy the new type's own constraint. Only
+            called for a knot with two independent arms (an endpoint/corner
+            has one arm, or none, and can't be toggled to begin with -- see
+            'can_toggle' in _build_handles).
+
+            'automatic' arms are left untouched: they only ever take on
+            their own (neighbor-derived) direction LIVE, during a drag (see
+            curve_edit.py's _recompute_typed_handles) -- forcing that
+            direction here at rest would just be discarded (or fought) the
+            next time this same knot is dragged.
+
+            'aligned' arms are re-aimed to the bisector of their CURRENT two
+            directions (one of them flipped, since the pair is meant to face
+            opposite ways) -- the smallest rotation that makes them exactly
+            collinear, so an already-aligned pair (e.g. coming from
+            Automatic, which is collinear by construction) doesn't move at
+            all.
+
+            'vector' arms are re-aimed using the same point-at directions
+            Blender's own Vector handle uses (aim straight at the neighbor
+            each arm faces), but not snapped literally onto them: this
+            measures how far each arm currently sits from ITS OWN point-at
+            direction (as a rotation), averages that offset between the two
+            arms, and applies the AVERAGE to both point-at directions. That
+            keeps the angle BETWEEN the two arms exactly equal to the
+            point-at angle (the same relative angle two literal Vector
+            handles would have) while the pair's own average facing (their
+            shared bisector) barely moves from wherever it already was --
+            e.g. an Aligned pair whose shared axis leans slightly left keeps
+            leaning slightly left, rather than snapping flat onto whatever
+            (possibly very different) direction the polyline's neighbors
+            happen to sit in.
+            '''
+            for chain, spline in zip(self.chains, self.curves):
+                if chain['cache_key'] != cache_key:
+                    continue
+                handle = next(
+                    (h for h in chain['handles'] if h['kind'] == 'knot' and h.get('vert_index') == vert_index),
+                    None,
+                )
+                if handle is None or len(handle.get('move', ())) != 2:
+                    return  # an endpoint (one arm) -- nothing to re-aim
+                (seg_in, attr_in), (seg_out, attr_out) = handle['move']
+                cbs = spline.cbs
+                knot_seg, knot_attr = handle['pos']
+                knot_pos = Vector(getattr(cbs[knot_seg], knot_attr))
+                arm_out = Vector(getattr(cbs[seg_out], attr_out)) - knot_pos
+                arm_in = Vector(getattr(cbs[seg_in], attr_in)) - knot_pos
+                len_out, len_in = arm_out.length, arm_in.length
+                if len_out < 1e-9 or len_in < 1e-9:
+                    return
+                dir_out, dir_in = arm_out.normalized(), arm_in.normalized()
+
+                if new_type == 'aligned':
+                    avg = dir_out.slerp(-dir_in, 0.5)
+                    if avg.length < 1e-9:
+                        return
+                    new_out, new_in = avg.normalized(), -avg.normalized()
+                elif new_type == 'vector':
+                    prev_pos = Vector(cbs[seg_in].p0)
+                    next_pos = Vector(cbs[seg_out].p3)
+                    pa_out, pa_in = next_pos - knot_pos, prev_pos - knot_pos
+                    if pa_out.length < 1e-9 or pa_in.length < 1e-9:
+                        return
+                    pa_out, pa_in = pa_out.normalized(), pa_in.normalized()
+                    offset_out = pa_out.rotation_difference(dir_out)
+                    offset_in = pa_in.rotation_difference(dir_in)
+                    avg_offset = offset_out.slerp(offset_in, 0.5)
+                    new_out = (avg_offset @ pa_out).normalized()
+                    new_in = (avg_offset @ pa_in).normalized()
+                else:
+                    return  # 'automatic' -- left untouched, see docstring
+
+                setattr(cbs[seg_out], attr_out, knot_pos + new_out * len_out)
+                setattr(cbs[seg_in], attr_in, knot_pos + new_in * len_in)
+                return
 
         # ----------------------------------------------------------- hit-testing
 
