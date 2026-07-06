@@ -23,14 +23,17 @@ Created by Jonathan Denning, Jonathan Lampel
 
 
 from __future__ import annotations
-from typing import ClassVar, cast
+from typing import ClassVar, cast, TypeAlias
+from collections.abc import Sequence
 from collections import deque
-from itertools import chain
 
 import bpy
+from bpy.types import Mesh, Context, Event
 from bpy_extras.view3d_utils import location_3d_to_region_2d
-from bmesh.types import BMesh, BMVert, BMEdge, BMFace
+import bmesh
+from bmesh.types import BMesh, BMVert, BMEdge
 from mathutils import Vector, Matrix
+from mathutils.bvhtree import BVHTree
 
 from ..rfglobals import RFGlobals
 
@@ -43,137 +46,205 @@ from ...addon_common.common.unionfind import UnionFind
 from ...addon_common.common.utils import iter_pairs
 from ..common.bmesh import get_bmesh_emesh
 from ..common.drawing import Drawing, CC_2D_LINES, CC_2D_POINTS, CC_2D_TRIANGLES
-from ..common.raycast import nearest_point_normal_valid_sources
+from ..common.raycast import (
+    nearest_point_normal_valid_sources,
+    Raycast,
+    mouse_from_event,
+    size2D_to_size,
+)
 
 DEBUG_PRINT : bool = False
 
+PATCH_VERT : TypeAlias = (
+    int  # BMVert index
+    |
+    tuple[int, int, float, int, int, float] # LERP of four BMVerts
+)
+
 
 class Patch:
-    verts : list[int | tuple[int, int, float, int, int, float]]
-    edges : list[tuple[int, int]]
-    faces : list[tuple[int, int, int, int]]
-    conos : list[tuple[Vector,Vector]]
+    # vertices of patch, either as index of BMVert (int) or as LERP of BMVerts (tuple of inds and weights)
+    # Note: these are indices into bm.verts
+    _verts : list[PATCH_VERT]
+
+    # snapped co and normal (world space) of each vertex
+    _conos : list[tuple[Vector, Vector]]
+
+    # edges that make up patch
+    # Note: these are indices into Patch.verts, **NOT** bm.verts or bm.edges
+    _edges : list[tuple[int, int]]
+    # Note: these are snapped, world coordinates
+    edges : list[tuple[Vector, Vector]]
+
+    # faces that make up patch
+    # Note: these are indices into Patch.verts, **NOT** bm.verts or bm.faces
+    _faces : list[Sequence[int]]
+    # Note: these are snapped, world coordinates
+    faces : list[Sequence[Vector]]
+
+
 
     def __init__(self, bm : BMesh, M : Matrix, sides : list[list[int]]):
         print('New Patch')
+        self._process(bm, M, sides)
 
-        self.verts = []
-        self.conos = []
+    def reset(self):
+        self._verts = []
+        self._conos = []
+        self._edges = []
         self.edges = []
+        self._faces = []
         self.faces = []
+
+    def _process(self, bm : BMesh, M : Matrix, sides : list[list[int]]):
+        context = bpy.context
+
+        self.reset()
 
         match len(sides):
             case 4:
-                self.process_quad(sides)
-
+                self._process_quad(sides)
             case _:
                 print(f'Unhandled number of sides {len(sides)}')
 
-        self.update_pos(bm, M)
 
-    def process_quad(self, sides : list[list[int]]):
+        # compute snapped co and normal (in world space) for each vert of patch
+
+        def get_co(patch_vert : PATCH_VERT) -> Vector:
+            match patch_vert:
+                case int() as i:
+                    return bm.verts[i].co
+
+                case (ia, ic, ac_weight, id, ib, db_weight):
+                    a, c = bm.verts[ia].co, bm.verts[ic].co
+                    d, b = bm.verts[id].co, bm.verts[ib].co
+                    ac = a + (c - a) * ac_weight
+                    db = d + (b - d) * db_weight
+                    return ac + (db - ac) * 0.5
+
+                case _:
+                    assert False, f'Unhandled type {type(patch_vert)} ({patch_vert})'
+
+        def snap(patch_vert : PATCH_VERT) -> tuple[Vector, Vector]:
+            co_local = get_co(patch_vert)
+            cono_world = nearest_point_normal_valid_sources(context, M @ co_local)
+            assert cono_world
+            return cono_world
+
+        self._conos = [ snap(vert) for vert in self._verts ]
+
+
+        # compute edges and faces that make up the patch
+
+        self.edges = [
+            (self._conos[i0][0], self._conos[i1][0])
+            for (i0, i1) in self._edges
+        ]
+        self.faces = [
+            tuple(self._conos[i][0] for i in f)
+            for f in self._faces
+        ]
+
+
+    def _process_quad(self, sides : list[list[int]]):
         assert len(sides) == 4
 
-        if len(sides[0]) != len(sides[2]) or len(sides[3]) != len(sides[1]):
+        side_a, side_b, side_c, side_d = sides
+        la, lb, lc, ld = map(len, sides)
+
+        # can only process 4-sided patch if opposite sides have same number of verts/edges
+        if la != lc or lb != ld:
             return
 
-        w, h = len(sides[0]), len(sides[1])
+        w, h = la, lb
 
         def a(i : int) -> int:
-            return sides[0][i]
+            return side_a[i]
         def b(j : int) -> int:
-            return sides[1][j]
+            return side_b[j]
         def c(i : int) -> int:
-            return sides[2][w-1-i]
+            return side_c[w-1-i]
         def d(j : int) -> int:
-            return sides[3][h-1-j]
+            return side_d[h-1-j]
 
+        # gather info about verts of patch
         for j in range(h):
             for i in range(w):
                 if j == 0:
-                    self.verts.append(a(i))
+                    # along top side (A)
+                    self._verts.append(a(i))
                 elif j == h - 1:
-                    self.verts.append(c(i))
+                    # along bottom side (C)
+                    self._verts.append(c(i))
                 elif i == 0:
-                    self.verts.append(d(j))
+                    # along left side (D)
+                    self._verts.append(d(j))
                 elif i == w - 1:
-                    self.verts.append(b(j))
+                    # along right side (B)
+                    self._verts.append(b(j))
                 else:
-                    self.verts.append((
+                    # somewhere in the middle of patch (not along side)
+                    self._verts.append((
                         a(i), c(i), j / (h - 1),
                         d(j), b(j), i / (w - 1),
                     ))
 
+        # gather info about edges of patch
         for j in range(h):
             for i in range(w - 1):
-                self.edges.append((
+                self._edges.append((
                     j * w + (i + 0),
                     j * w + (i + 1),
                 ))
         for j in range(h - 1):
             for i in range(w):
-                self.edges.append((
+                self._edges.append((
                     (j + 0) * w + i,
                     (j + 1) * w + i,
                 ))
 
+        # gather info about faces of patch
         for j in range(h - 1):
             for i in range(w - 1):
-                self.faces.append((
+                self._faces.append((
                     (j + 0) * w + (i + 0),
                     (j + 0) * w + (i + 1),
                     (j + 1) * w + (i + 1),
                     (j + 1) * w + (i + 0),
                 ))
 
-    def update_pos(self, bm : BMesh, M : Matrix):
-        context = bpy.context
-
-        for vert in self.verts:
-            p : Vector
-
-            match vert:
-                case int() as i:
-                    p = bm.verts[i].co
-
-                case (ia, ic, fac, id, ib, fdb):
-                    a, c = bm.verts[ia].co, bm.verts[ic].co
-                    d, b = bm.verts[id].co, bm.verts[ib].co
-                    ac = a + (c - a) * fac
-                    db = d + (b - d) * fdb
-                    p = ac + (db - ac) * 0.5
-
-            cono = nearest_point_normal_valid_sources(context, M @ p)
-            assert cono
-            self.conos.append(cono)
-
     def commit(self, bm : BMesh, M : Matrix):
         Mi = M.inverted_safe()
 
-        verts0 = [
+        # collect all existing BMVerts
+        verts_existing : list[BMVert | None] = [
             bm.verts[i] if isinstance(i, int) else None
-            for i in self.verts
+            for i in self._verts
         ]
-        verts1 = [
+        # create all new BMVerts, and collect all existing and new BMVerts
+        verts_all : list[BMVert] = [
             bmv if bmv else bm.verts.new(Mi @ cono[0])
-            for (bmv, cono) in zip(verts0, self.conos)
+            for (bmv, cono) in zip(verts_existing, self._conos)
         ]
 
-        for f in self.faces:
-            bmf = bm.faces.new([ verts1[i] for i in f ])
+        for f in self._faces:
+            # get BMVerts of BMFace to create
+            verts = [ verts_all[i] for i in f ]
+            # create BMFace!
+            bmf = bm.faces.new(verts)
+            # check that BMFace is oriented correctly
             bmf.normal_update()
-            no = Vec.average([ self.conos[i][1] for i in f ])
+            no = Vec.average([ self._conos[i][1] for i in f ])
             if bmf.normal.dot(no) < 0:
                 bmf.normal_flip()
 
-        self.verts = []
-        self.faces = []
-        self.pos = []
+        self.reset()
 
 
 class Patches_Logic:
     prev_depsgraph_version : ClassVar[int] = -42
     prev_active_index : int | None = None
+    loose_bmv_indices : set[int] | None = None
 
     # Points that will act as corners for patch, where keys are index of BMVert
     # and values are location in world space.
@@ -181,8 +252,8 @@ class Patches_Logic:
     # IMPORTANT: must not keep reference to bmesh elements, because they will invalidate
     #       whenever depsgraph changes!  Instead, keep track of them via their indices.
     corners : ClassVar[set[int]] = set()
+    corners_new : ClassVar[list[Vector]] = []
     sides : ClassVar[list[list[int]]] = []
-    points_world : ClassVar[dict[int, Vector]] = {}
     patch : ClassVar[Patch | None] = None
 
     @staticmethod
@@ -198,14 +269,17 @@ class Patches_Logic:
         bmops.flush_selection(bm, em) # depsgraph will update...
 
     @staticmethod
-    def update():
+    def update(*, just_modified_corners : bool = False):
         RFCore = RFGlobals.RFCore
         context = bpy.context
         edit_object = context.edit_object
         assert edit_object
         M = edit_object.matrix_world
 
-        if Patches_Logic.prev_depsgraph_version == RFCore.depsgraph_version:
+        if just_modified_corners:
+            pass
+
+        elif Patches_Logic.prev_depsgraph_version == RFCore.depsgraph_version:
             bm, _ = get_bmesh_emesh(context)
             active = bm.select_history.active
             a = active.index if isinstance(active, BMVert) else None
@@ -218,10 +292,19 @@ class Patches_Logic:
 
         else:
             print('depsgraph changed')
+            Patches_Logic.loose_bmv_indices = None
 
         Patches_Logic.prev_depsgraph_version = RFCore.depsgraph_version
-        bm, _ = get_bmesh_emesh(context, ensure_lookup_tables=True)
 
+        bm, _ = get_bmesh_emesh(context, ensure_lookup_tables=True)
+        if not just_modified_corners:
+            Patches_Logic.update_corners(bm)
+        Patches_Logic.update_sides(bm)
+        Patches_Logic.patch = Patch(bm, M, Patches_Logic.sides)
+
+
+    @staticmethod
+    def update_corners(bm : BMesh):
         len_verts = len(bm.verts)
 
         # same number of BMVerts or just inserted BMVert (Patches_Logic.insert_corner)
@@ -235,15 +318,6 @@ class Patches_Logic:
             for i in Patches_Logic.corners
             if i < len_verts and (bmv := bm.verts[i]) and bmv.select
         }
-        Patches_Logic.patch = None
-        Patches_Logic.update_sides(bm)
-        Patches_Logic.points_world = {
-            i: (M @ bmv.co) # update positions because they might have moved
-            for i in chain(Patches_Logic.corners, *Patches_Logic.sides)
-            if (bmv := bm.verts[i]) and bmv.select
-        }
-        Patches_Logic.patch = Patch(bm, M, Patches_Logic.sides)
-
 
     @staticmethod
     def update_sides(bm : BMesh):
@@ -412,22 +486,113 @@ class Patches_Logic:
 
 
     @staticmethod
-    def insert_corner(co_local : Vector):
-        bm, em = get_bmesh_emesh(bpy.context)
-        bmv = bm.verts.new(co_local)
-        bmops.select(bm, bmv)
-        bmops.flush_selection(bm, em) # depsgraph will update...
+    def insert_corner(context : Context, event : Event, *, radius2d : float = 10) -> bool:
+        obj = context.edit_object
+        if not obj:
+            return False
+
+        M = obj.matrix_world
+        rgn, r3d = context.region, context.region_data
+        mouse = mouse_from_event(event)
+        raycast = Raycast(context, mouse, respect_clip_planes=True)
+        if not raycast.hit:
+            return False
+
+        co_local = raycast.co_local
+        distance = raycast.distance
+
+        def proj(p : Vector) -> Vector | None:
+            return location_3d_to_region_2d(rgn, r3d, M @ p)
+
+        m : Vector | None = proj(co_local)  # should be same as mouse
+        assert m
+        radius3d : float = radius2d * (size2D_to_size(context, distance, pt=mouse) or 1)
+
+        bm, em = get_bmesh_emesh(bpy.context, ensure_lookup_tables=True)
+        bvh = BVHTree.FromBMesh(bm)
+
+        if Patches_Logic.loose_bmv_indices is None:
+            Patches_Logic.loose_bmv_indices = {
+                bmv.index
+                for bmv in bm.verts
+                if not bmv.link_faces
+            }
+
+        best_bmv_idx : int = -1
+        best_new_idx : int = -1
+        best_d2d : float = radius2d * radius2d
+
+        def test(co : Vector, bmv_idx : int, new_idx : int):
+            nonlocal best_bmv_idx, best_new_idx, best_d2d
+
+            p = proj(co)
+            if not p:
+                return
+
+            d2d = (m - p).length_squared
+            if d2d >= best_d2d:
+                return
+
+            best_bmv_idx = bmv_idx
+            best_new_idx = new_idx
+            best_d2d = d2d
+
+        # check if any BMVert with at least one BMFace is under mouse
+        for (_co, _no, fidx, _d3d) in bvh.find_nearest_range(co_local, radius3d):
+            for bmv in bm.faces[fidx].verts:
+                if not bmv.hide:
+                    test(bmv.co, bmv.index, -1)
+
+        # check if any BMVert without any BMFace is under mouse
+        for idx in Patches_Logic.loose_bmv_indices:
+            if not (bmv := bm.verts[idx]).hide:
+                test(bmv.co, bmv.index, -1)
+
+        # check if any new corner is under mouse
+        for (idx, co) in enumerate(Patches_Logic.corners_new):
+            test(co, -1, idx)
+
+        # check if we found a BMVert or new corner under mouse
+        if best_bmv_idx >= 0:
+            # found a BMVert under mouse, so check if it is a corner
+            if best_bmv_idx in Patches_Logic.corners:
+                # remove BMVert as corner (do not deselect...)
+                Patches_Logic.corners.discard(best_bmv_idx)
+            else:
+                # add BMVert as corner by (re)selecting it
+                Patches_Logic.corners.add(best_bmv_idx)
+                bmv = bm.verts[best_bmv_idx]
+                bmops.reselect(bm, bmv)         # reselect so it is active
+                bmops.flush_selection(bm, em)   # depsgraph will update...
+
+        elif best_new_idx >= 0:
+            # found a new corner under mouse, so remove it
+            Patches_Logic.corners_new = (
+                Patches_Logic.corners_new[:best_new_idx] +
+                Patches_Logic.corners_new[best_new_idx+1:]
+            )
+
+        else:
+            # cound not find corner under mouse, so add it
+            Patches_Logic.corners_new.append(co_local)
+
+        Patches_Logic.update(just_modified_corners=True)
+        return True
 
     @staticmethod
     def draw():
         context = bpy.context
         rgn, r3d = context.region, context.region_data
 
-        def proj(p : Vector | None) -> Vector | None:
-            return location_3d_to_region_2d(rgn, r3d, p) if p else None
+        def proj(pt_world : Vector) -> Vector | None:
+            return location_3d_to_region_2d(rgn, r3d, pt_world)
 
-        corners = Patches_Logic.corners
-        points_world = Patches_Logic.points_world
+        edit_object = context.edit_object
+        if not edit_object:
+            return
+
+        M = edit_object.matrix_world
+        bm = bmesh.from_edit_mesh(cast(Mesh, edit_object.data))
 
         theme = bpy.context.preferences.themes[0].view_3d
         props = RF_Prefs.get_prefs(context)
@@ -438,42 +603,53 @@ class Patches_Logic:
         color_mesh = theme.face_select
         vertex_size = theme.vertex_size
 
-        with Drawing.draw(context, CC_2D_POINTS) as draw:
-            draw.point_size(vertex_size + 4)
-            draw.color(color_point)
-            for i in corners:
-                _ = draw.vertex(proj(points_world[i]))
-
+        # draw patch
         if (patch := Patches_Logic.patch):
             with Drawing.draw(context, CC_2D_LINES) as draw:
                 draw.line_width(2)
                 draw.stipple(pattern=[5,5], offset=0, color=color_stipple)
                 draw.color(color_border_open)
 
-                for (i0, i1) in patch.edges:
-                    pt0, pt1 = patch.conos[i0][0], patch.conos[i1][0]
-                    if not pt0 or not pt1:
-                        continue
+                for (pt0, pt1) in patch.edges:
                     _ = draw.vertex(proj(pt0))
                     _ = draw.vertex(proj(pt1))
 
             with Drawing.draw(context, CC_2D_TRIANGLES) as draw:
                 draw.color(color_mesh)
 
-                for f in patch.faces:
-                    i0 : int = -1
-                    p0 : Vector | None = None
-                    for (i1, i2) in iter_pairs(f, False):
-                        p1 = patch.conos[i1][0]
-                        if not p1:
-                            continue
-                        if i0 == -1:
-                            i0 = i1
-                            p0 = p1
-                            continue
-                        p2 = patch.conos[i2][0]
-                        if not p0 or not p2:
-                            continue
+                for pts in patch.faces:
+                    p0 = pts[0]
+                    for (p1, p2) in iter_pairs(pts[1:], False):
                         _ = draw.vertex(proj(p0))
                         _ = draw.vertex(proj(p1))
                         _ = draw.vertex(proj(p2))
+
+        # draw corners
+        with Drawing.draw(context, CC_2D_POINTS) as draw:
+            draw.point_size(vertex_size + 4)
+            draw.color(color_point)
+
+            # draw BMVert corners
+            for i in Patches_Logic.corners:
+                bmv = bm.verts[i]
+                if bmv and bmv.select:
+                    _ = draw.vertex(proj(M @ bmv.co))
+
+            # draw new corners
+            for co in Patches_Logic.corners_new:
+                _ = draw.vertex(proj(M @ co))
+
+        # draw sides
+        for side in Patches_Logic.sides:
+            n_verts = len(side)
+            i0 = (n_verts - 1) // 2
+            i1 = (i0 + 1) if n_verts % 2 == 0 else i0
+            co = (bm.verts[side[i0]].co + bm.verts[side[i1]].co) / 2
+            p = proj(M @ co)
+            if p:
+                Drawing.text_draw2D(
+                    f'{n_verts - 1}',
+                    p,
+                    color=(1,1,0,1),
+                    dropshadow=(0,0,0,1),
+                )

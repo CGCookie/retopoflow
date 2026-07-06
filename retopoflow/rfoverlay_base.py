@@ -19,7 +19,22 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+from __future__ import annotations
+from typing import ClassVar
+
 class RFOverlay_Base:
+    instance : ClassVar[RFOverlay_Base | None] = None
+
     @classmethod
     def activate(cls):
         pass
+
+    def __init__(self, *args : ..., **kwargs : ...):
+        super().__init__(*args, **kwargs)
+        cls = type(self)
+        cls.instance = self
+
+    def __del__(self):
+        cls = type(self)
+        if cls.instance is self:
+            cls.instance = None

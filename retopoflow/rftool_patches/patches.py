@@ -20,10 +20,12 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 # pyright: reportUninitializedInstanceVariable = false
+# pyright: reportImplicitOverride = false
+# pyright: reportUnusedParameter = false
+# pyright: reportUnannotatedClassAttribute = false
 
 
 from typing import cast
-from collections.abc import Sequence
 
 from bpy.types import (
     Context,
@@ -40,19 +42,16 @@ from ..rftool_base import RFTool_Base
 
 from ...addon_common.common.resetter import Resetter
 from ..common.raycast import (
-    nearest_point_valid_sources,
     raycast_valid_sources,
-    raycast_point_valid_sources,
     mouse_from_event,
-    vec_forward,
 )
 
-from ..common.bpy_helper import bpy_ops_retopoflow, BL_SPACE_TYPES, BL_REGION_TYPES
+from ..common.bpy_helper import bpy_ops_retopoflow, BL_SPACE_TYPES, BL_REGION_TYPES, BL_OPTIONS
 from ..common.icons import get_path_to_blender_icon
 from ..common.operator import (
-    execute_operator, invoke_operator,
+    execute_operator,
     RFOperator,
-    RFOperator_Execute,
+    RFOperator_Execute, RFOperator_Invoke,
     RFKeyMaps,
     chain_rf_keymaps,
     poll_retopoflow,
@@ -71,69 +70,41 @@ from ..rfpanels.help_panel import draw_help_panel
 from .patches_logic import Patches_Logic
 
 
-# class RFOperator_Patches_Insert_Corner(RFOperator_Execute):
-#     bl_idname : str = 'retopoflow.patches_insert_corner'
-#     bl_label : str = 'Insert Patch'
-#     bl_description : str = 'Fill in hole with patch'
-#     bl_options : set[str] = set()
+class RFOperator_Patches_Insert_Corner(RFOperator_Invoke):
+    bl_idname : str = 'retopoflow.patches_insert_corner'
+    bl_label : str = 'Insert corner'
+    bl_description : str = 'Insert a new corner for patch'
+    bl_options : BL_OPTIONS = { 'INTERNAL', 'UNDO' }
 
-#     rf_keymaps : RFKeyMaps = [
-#         # (bl_idname, {'type': 'F', 'value': 'PRESS'}, None),
-#         (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS', 'ctrl': 1, 'shift': 0}, None),
-#     ]
-#     rf_status : dict[str, Sequence[str]] = { }
-
-#     def execute(self, context : Context) -> set[str]:
-#         print('RFOperator_Patches_Insert_Corner.execute')
-#         Patches_Logic.insert_corner(Vector((0,0,0)))
-
-#         return {'FINISHED'}
-
-@invoke_operator(
-    'patches_insert_corner',
-    'Insert new corner',
-    description='Insert a new corner',
-    options={'INTERNAL', 'UNDO'},
-    keymaps=[
+    rf_keymaps : RFKeyMaps = [
         (
-            'retopoflow.patches_insert_corner',
-            { 'type': 'LEFTMOUSE', 'value': 'PRESS', 'ctrl': 1, 'shift': 0 },
+            bl_idname,
+            { 'type': 'LEFTMOUSE', 'value': 'CLICK', 'ctrl': 1, 'shift': 0 },
             None
         ),
-    ],
-)
-def insert_corner(context : Context, event : Event):
-    mouse = mouse_from_event(event)
-    hit = raycast_valid_sources(
-        context,
-        mouse,
-        respect_clip_planes=True,
-    )
-    co_local = cast(Vector, hit['co_local']) if hit else None
-    if not co_local:
-        return
+    ]
 
-    Patches_Logic.insert_corner(co_local)
-    RFGlobals.RFCore.tag_redraw_areas()
+    def invoke(self, context : Context, event : Event) -> set[str]:
+        return {'FINISHED'} if Patches_Logic.insert_corner(context, event) else {'CANCELLED'}
+        # RFGlobals.RFCore.tag_redraw_areas()
 
-@execute_operator(
-    'patches_commit',
-    'Create patch',
-    description='Create the patch',
-    options={'INTERNAL', 'UNDO'},
-    keymaps=[
-        (
-            'retopoflow.patches_commit',
-            { 'type': 'F', 'value': 'PRESS' },
-            None
-        )
-    ],
-)
-def commit_patch(context : Context):
-    print('X'*100)
-    print('committing patch')
-    print('X'*100)
-    Patches_Logic.commit()
+
+class RFOperator_Patches_Commit_Patch(RFOperator_Execute):
+    bl_idname : str = 'retopoflow.patches_commit'
+    bl_label : str = 'Create patch'
+    bl_description : str = 'Create the patch'
+    bl_options : BL_OPTIONS = { 'INTERNAL', 'UNDO' }
+
+    rf_keymaps : RFKeyMaps = [
+        ( bl_idname, { 'type': 'F', 'value': 'PRESS' }, None ),
+    ]
+
+    def execute(self, context : Context) -> set[str]:
+        print('X'*100)
+        print('committing patch')
+        print('X'*100)
+        Patches_Logic.commit()
+        return { 'FINISHED' }
 
 
 class RFOperator_Patches(RFOperator):
@@ -142,7 +113,7 @@ class RFOperator_Patches(RFOperator):
     bl_description : str = 'Insert patch'
     bl_space_type : BL_SPACE_TYPES = 'VIEW_3D'
     bl_region_type : BL_REGION_TYPES = 'TOOLS'
-    bl_options : set[str] = set()
+    bl_options : BL_OPTIONS = set()
 
     rf_keymaps : RFKeyMaps = []
 
@@ -162,7 +133,7 @@ class RFOperator_Patches_Selection_Overlay(RFOverlay_Base, RFOperator):
     bl_idname : str = 'retopoflow.patches_selection_overlay'
     bl_label : str = 'Patches Selection Overlay'
     bl_description : str = 'Overlay info about selected loops and strips'
-    bl_options : set[str] = { 'INTERNAL' }
+    bl_options : BL_OPTIONS = { 'INTERNAL' }
 
     logic : Patches_Logic
 
@@ -199,8 +170,8 @@ class RFTool_Patches(RFTool_Base):
     bl_keymap : BLKeyMaps = chain_rf_keymaps(
         RFOperator_Patches,
         # RFOperator_Patches_Insert_Corner,
-        insert_corner,
-        commit_patch,
+        RFOperator_Patches_Insert_Corner,
+        RFOperator_Patches_Commit_Patch,
         # RFOperator_Patches_Insert_Template,
         # RFOperator_PatchesBrush_Adjust,
         RFOperator_TopoRotate,

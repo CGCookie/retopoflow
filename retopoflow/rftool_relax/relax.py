@@ -29,7 +29,7 @@ import os
 from itertools import chain
 from random import random
 from bmesh.types import BMVert, BMEdge, BMFace
-from bpy.types import Context, UILayout, WorkSpaceTool
+from bpy.types import Context, UILayout, WorkSpaceTool, Event
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 from mathutils import Vector, Matrix
 from mathutils.bvhtree import BVHTree
@@ -226,10 +226,10 @@ class RFOperator_Relax(RFOperator):
         # self.logic.reset()
         pass
 
-    def check(self, _context : Context) -> bool: # pyright: ignore[reportIncompatibleMethodOverride]
+    def check(self, context : Context) -> bool:
         return True
 
-    def update(self, context, event):
+    def update(self, context : Context, event : Event) -> set[str]:
         self.logic.update(context, event)
 
         if event.type == 'LEFTMOUSE' and event.value == 'RELEASE':
@@ -246,13 +246,14 @@ class RFOperator_Relax(RFOperator):
 
         return {'RUNNING_MODAL'} # allow other operators, such as UNDO!!!
 
-    def finish(self, context):
+    def finish(self, context : Context):
         self.timer.stop()
         self.logic.finish(context)
 
-    def draw_postpixel(self, context):
+    def draw_postpixel(self, context : Context):
         RFCore = RFGlobals.RFCore_None
-        if not RFCore or not RFCore.is_current_area(context): return
+        if not RFCore or not RFCore.is_current_area(context):
+            return
         self.logic.draw(context)
 
 
