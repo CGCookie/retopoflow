@@ -194,7 +194,7 @@ class RFOperator_PolyStrips_Insert(
 
 
     @staticmethod
-    def polystrips_insert(context, radius2D, stroke3D, point3D_0, point3D_1, is_cycle, length2D, snap_bmf0, snap_bmf1, split_angle, mirror_correct):
+    def polystrips_insert(context, radius2D, stroke3D, point3D_0, point3D_1, is_cycle, length2D, snap_bmf0, snap_bmf1, split_angle, mirror_correct, radius3D=None):
         RFOperator_PolyStrips_Insert.logic = PolyStrips_Logic(
             context,
             radius2D,
@@ -205,6 +205,7 @@ class RFOperator_PolyStrips_Insert(
             snap_bmf1,
             split_angle,
             mirror_correct,
+            radius3D=radius3D,
         )
         logic = RFOperator_PolyStrips_Insert.logic
         if logic.error: return
@@ -404,28 +405,40 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
     def reset(self):
         RFTool_PolyStrips.rf_brush.reset()
 
-    def process_stroke(self, context, radius2D, snap_distance, stroke2D, stroke3D, is_cycle, snapped_geo, snapped_mirror, **kwargs):
+    def process_stroke(self, context, radius2D, snap_distance, stroke2D, stroke3D, is_cycle, snapped_geo, snapped_mirror, radius3D=None):
         snap_bmf0, snap_bmf1 = snapped_geo[2]
         p3D_0, p3D_1 = stroke3D[0], stroke3D[-1]
+
+        def extend_cap(pts2D, from_start):
+            # Extend the stroke past its unsnapped end by one brush radius in 3D
+            # so the cap lands about where the brush circle ended on the mesh.
+            p0 = pts2D[0] if from_start else pts2D[-1]
+            search = pts2D if from_start else reversed(pts2D)
+            p1 = next((s for s in search if (s - p0).length >= radius2D), None)
+            if not p1: return pts2D
+            d = Direction2D(p0 - p1)
+            step = radius2D / 100
+            prev3D = raycast_point_valid_sources(context, p0, world=False, respect_clip_planes=True)
+            dist3D = 0.0
+            extension = []
+            for i in range(1, 1001):
+                p = p0 + d * (step * i)
+                pt3D = raycast_point_valid_sources(context, p, world=False, respect_clip_planes=True)
+                if not pt3D: break
+                if prev3D: dist3D += (pt3D - prev3D).length
+                prev3D = pt3D
+                extension.append(p)
+                if radius3D:
+                    if dist3D >= radius3D: break
+                elif step * i >= radius2D:
+                    break
+            if not extension: return pts2D
+            return (list(reversed(extension)) + pts2D) if from_start else (pts2D + extension)
+
         if not snap_bmf0:
-            l = len(stroke2D)
-            p0 = stroke2D[0]
-            p1 = next((s for s in stroke2D if (s - p0).length >= radius2D), None)
-            if p1:
-                d = Direction2D(p0 - p1)
-                for i in range(1, 101):
-                    p = p0 + d * (radius2D * (i / 100))
-                    if not raycast_point_valid_sources(context, p, respect_clip_planes=True): break
-                    stroke2D = [p] + stroke2D
+            stroke2D = extend_cap(stroke2D, True)
         if not snap_bmf1:
-            p0 = stroke2D[-1]
-            p1 = next((s for s in stroke2D[::-1] if (s - p0).length >= radius2D), None)
-            if p1:
-                d = Direction2D(p0 - p1)
-                for i in range(1, 101):
-                    p = p0 + d * (radius2D * (i / 100))
-                    if not raycast_point_valid_sources(context, p, respect_clip_planes=True): break
-                    stroke2D += [p]
+            stroke2D = extend_cap(stroke2D, False)
         length2D = sum((p1-p0).length for (p0,p1) in iter_pairs(stroke2D, is_cycle))
         stroke3D = [raycast_point_valid_sources(context, pt, world=False, respect_clip_planes=True) for pt in stroke2D]
         stroke3D = [pt for pt in stroke3D if pt]
@@ -438,6 +451,7 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
             snap_bmf0, snap_bmf1,
             self.split_angle,
             self.mirror_correct,
+            radius3D=radius3D,
         )
 
     def update(self, context, event):

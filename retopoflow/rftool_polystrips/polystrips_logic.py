@@ -168,7 +168,8 @@ def stroke_angles(stroke, width, split_angle, fn_snap_normal):
 
 
 class PolyStrips_Logic:
-    def __init__(self, context, radius2D, stroke3D_local, point3D_0, point3D_1, is_cycle, length2D, snap_bmf0, snap_bmf1, split_angle, mirror_correct):
+    def __init__(self, context, radius2D, stroke3D_local, point3D_0, point3D_1, is_cycle, length2D,
+                    snap_bmf0, snap_bmf1, split_angle, mirror_correct, radius3D=None):
         # store context data to make it more convenient
         # note: this will be redone whenever create() is called
         self.update_context(context)
@@ -200,7 +201,15 @@ class PolyStrips_Logic:
         #################################
         # initial settings
         self.initial = True
-        self.initial_count = max(2, round(length2D / (2 * radius2D)) + 1)
+        self.radius3D = radius3D
+        if radius3D:
+            length3D_local = sum(
+                (p1 - p0).length
+                for (p0, p1) in iter_pairs(self.stroke3D_local_orig, self.is_cycle)
+            )
+            self.initial_count = max(2, round(length3D_local / (2 * radius3D)) + 1) # radius3D is in local space
+        else:
+            self.initial_count = max(2, round(length2D / (2 * radius2D)) + 1)
         # NOTE: self.initial_width is in world space
         self.initial_width = self.compute_length3D(self.stroke3D_local_orig, self.is_cycle) / (self.initial_count * 2 - 1)
         self.strip_count = 0
