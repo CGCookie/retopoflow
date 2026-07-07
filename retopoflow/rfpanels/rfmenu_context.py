@@ -32,6 +32,10 @@ class RF_MT_ContextMenu(Menu):
         layout.operator("retopoflow.relax_selected", text="Relax Vertices")
         layout.operator_context = 'INVOKE_REGION_WIN'
         layout.operator("retopoflow.twist_loop", text="Twist Loops")
+        # INVOKE (from the line above) is required here -- this operator's
+        # invoke() seeds its `count` from the selected strip's actual current
+        # count, which EXEC would skip, leaving `count` at a stale/default value
+        layout.operator("retopoflow.adjust_segment_count", text="Adjust Segment Count")
 
 
 def draw_context_menu_items(self, context):

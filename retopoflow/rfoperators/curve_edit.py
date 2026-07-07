@@ -360,73 +360,84 @@ def create_curve_edit_operator(
                 # curve. Falls back to the vert itself for coupled chains and
                 # proportional-edit neighbors (neither is in the rung map).
                 rung = rung_map.get(bmv.index)
-                rung_pt = rung[0] if rung else bmv.co
-                t = self.spline.approximate_t_at_point_tessellation(rung_pt, fn_dist)
-                # a strip's boundary CAP rung (end-distance 0) sits past the
-                # centerline's own endpoint -- the centerline runs face-center
-                # to face-center (_interleaved_centerline never includes the
-                # boundary edges), so the curve itself never reaches the cap
-                # and the nearest-point search above just clamps short. Rather
-                # than taper a correction around that gap, extrapolate a
-                # straight extension along the endpoint tangent out to the
-                # cap, so a cap vert's offset lands purely perpendicular to
-                # the tangent -- exactly like any interior vert -- instead of
-                # partly ALONG it. end_t/overhang are fixed per vert (cached
-                # here, like d0/z0) and re-applied against the LIVE spline
-                # each frame in _deform_verts.
-                end_t = None
-                if rung and rung[1] == 0.0:
-                    end_t = 0.0 if t < nseg / 2 else float(nseg)
-                eval_t = t if end_t is None else end_t
-                # store the vert's offset from the curve plus the curve's tangent
-                # HERE (on the pre-drag spline). Each frame the offset is rotated
-                # rigidly by however much this material point's tangent has since
-                # turned (see update()), so the perpendicular cross-section rolls
-                # WITH the curve rather than with the view -- no shear, and exactly
-                # reversible. The original curve is gone once handles move, so z0
-                # must be captured now rather than recomputed later.
-                z0 = Vector(self.spline.eval_derivative(eval_t))
-                if z0.length < 1e-9: z0 = Vector((0, 0, 1))
-                z0.normalize()
-                if end_t is None:
-                    o = self.spline.eval(eval_t)
-                    overhang = 0.0
-                else:
-                    o_end = self.spline.eval(eval_t)
-                    ext_dir = z0 if end_t > 0.0 else -z0
-                    overhang = (rung_pt - o_end).dot(ext_dir)
-                    o = o_end + ext_dir * overhang
-                d0 = Vector(bmv.co) - o
-                # how well this vert's offset already sits in the curve's normal
-                # plane (perpendicular to the tangent) -- 1 = a clean, well-fit
-                # cross-section, 0 = the "offset" actually runs ALONG the curve
-                # (a poor fit). Gates the curve-normal correction in update() so
-                # a bad fit is left alone while a good one gets straightened out
-                # under large edits. Constant per vert, so cached here.
-                d0_len = d0.length
-                fit_w = (1.0 - abs(d0.dot(z0) / d0_len)) if d0_len > 1e-9 else 0.0
-                seg = min(int(t), nseg - 1)
-                arc_frac = None
-                combined_frac = None
-                if self.combined_segs and seg in self.combined_segs:
-                    idx = self.combined_segs.index(seg)
-                    local_frac = self.spline.cbs[seg].approximate_arc_length_fraction_at_t(t - seg, fn_dist)
-                    dist_into_combined = combined_cum[idx] + local_frac * (combined_cum[idx + 1] - combined_cum[idx])
-                    combined_frac = dist_into_combined / max(combined_cum[-1], 1e-9)
-                elif seg in self.touched_segs:
-                    arc_frac = self.spline.cbs[seg].approximate_arc_length_fraction_at_t(t - seg, fn_dist)
-                data[bmv.index] = (
-                    t,
-                    d0,
-                    Vector(bmv.co),
-                    distance,
-                    arc_frac,
-                    combined_frac,
-                    z0,
-                    fit_w,
-                    end_t,
-                    overhang,
-                )
+                # the chain's own first/last rung (end-distance 0) is only
+                # ever TRANSFORMED when it's a genuine mesh boundary edge. If
+                # the strip is connected there instead (the SELECTION ends,
+                # not the mesh -- see _quad_chain_rung_map's is_boundary),
+                # those verts are shared with un-edited faces outside this
+                # chain: moving them would drag that adjacent geometry along
+                # with the edit, so leave them at their pre-drag position by
+                # never giving them a `data` entry at all -- no data entry
+                # means _deform_verts (via self.grab['only'], built from
+                # data's own keys) never touches bmv.co for it.
+                if rung is None or rung[1] != 0.0 or rung[2]:
+                    rung_pt = rung[0] if rung else bmv.co
+                    t = self.spline.approximate_t_at_point_tessellation(rung_pt, fn_dist)
+                    # a strip's boundary CAP rung (end-distance 0) sits past the
+                    # centerline's own endpoint -- the centerline runs face-center
+                    # to face-center (_interleaved_centerline never includes the
+                    # boundary edges), so the curve itself never reaches the cap
+                    # and the nearest-point search above just clamps short. Rather
+                    # than taper a correction around that gap, extrapolate a
+                    # straight extension along the endpoint tangent out to the
+                    # cap, so a cap vert's offset lands purely perpendicular to
+                    # the tangent -- exactly like any interior vert -- instead of
+                    # partly ALONG it. end_t/overhang are fixed per vert (cached
+                    # here, like d0/z0) and re-applied against the LIVE spline
+                    # each frame in _deform_verts.
+                    end_t = None
+                    if rung and rung[1] == 0.0:
+                        end_t = 0.0 if t < nseg / 2 else float(nseg)
+                    eval_t = t if end_t is None else end_t
+                    # store the vert's offset from the curve plus the curve's tangent
+                    # HERE (on the pre-drag spline). Each frame the offset is rotated
+                    # rigidly by however much this material point's tangent has since
+                    # turned (see update()), so the perpendicular cross-section rolls
+                    # WITH the curve rather than with the view -- no shear, and exactly
+                    # reversible. The original curve is gone once handles move, so z0
+                    # must be captured now rather than recomputed later.
+                    z0 = Vector(self.spline.eval_derivative(eval_t))
+                    if z0.length < 1e-9: z0 = Vector((0, 0, 1))
+                    z0.normalize()
+                    if end_t is None:
+                        o = self.spline.eval(eval_t)
+                        overhang = 0.0
+                    else:
+                        o_end = self.spline.eval(eval_t)
+                        ext_dir = z0 if end_t > 0.0 else -z0
+                        overhang = (rung_pt - o_end).dot(ext_dir)
+                        o = o_end + ext_dir * overhang
+                    d0 = Vector(bmv.co) - o
+                    # how well this vert's offset already sits in the curve's normal
+                    # plane (perpendicular to the tangent) -- 1 = a clean, well-fit
+                    # cross-section, 0 = the "offset" actually runs ALONG the curve
+                    # (a poor fit). Gates the curve-normal correction in update() so
+                    # a bad fit is left alone while a good one gets straightened out
+                    # under large edits. Constant per vert, so cached here.
+                    d0_len = d0.length
+                    fit_w = (1.0 - abs(d0.dot(z0) / d0_len)) if d0_len > 1e-9 else 0.0
+                    seg = min(int(t), nseg - 1)
+                    arc_frac = None
+                    combined_frac = None
+                    if self.combined_segs and seg in self.combined_segs:
+                        idx = self.combined_segs.index(seg)
+                        local_frac = self.spline.cbs[seg].approximate_arc_length_fraction_at_t(t - seg, fn_dist)
+                        dist_into_combined = combined_cum[idx] + local_frac * (combined_cum[idx + 1] - combined_cum[idx])
+                        combined_frac = dist_into_combined / max(combined_cum[-1], 1e-9)
+                    elif seg in self.touched_segs:
+                        arc_frac = self.spline.cbs[seg].approximate_arc_length_fraction_at_t(t - seg, fn_dist)
+                    data[bmv.index] = (
+                        t,
+                        d0,
+                        Vector(bmv.co),
+                        distance,
+                        arc_frac,
+                        combined_frac,
+                        z0,
+                        fit_w,
+                        end_t,
+                        overhang,
+                    )
                 if use_proportional_edit and bmv.select:
                     bmv_selected_count += 1
                     co_world = M @ bmv.co
@@ -1518,9 +1529,13 @@ def create_curve_toggle_handle_type_operator(
     get_overlay : Callable[[], type[RFOverlay_Base] | None],
 ) -> Operator_Execute_Function:
     '''
-    Single-press hotkey (V), active only while hovering a curve KNOT: cycles
+    Single-press hotkey (V): while hovering a toggleable curve KNOT, cycles
     its handle type Aligned -> Vector -> Automatic -> Aligned (see the
-    handle-type system in curve_overlay.py's _build_curve/_build_handles).
+    handle-type system in curve_overlay.py's _build_curve/_build_handles);
+    otherwise (nothing hovered, a tangent hovered, or a forced corner/
+    endpoint knot) it still claims the keypress and returns {'CANCELLED'}
+    (see can_toggle/toggle) rather than leaving 'V' unclaimed for Blender's
+    native Rip to pick up.
     A plain execute-once operator rather than a modal RFOperator -- there's
     no drag to track, so the lighter fn_poll/fn_exec pattern used elsewhere
     for single-shot actions (e.g. RFOperator_PinVerts in pinning.py) fits
@@ -1542,12 +1557,21 @@ def create_curve_toggle_handle_type_operator(
         return overlay, chain, handle
 
     def can_toggle(context):
+        # deliberately does NOT also require a toggleable knot to be
+        # hovered: this is the operator's Blender-level poll, and a keymap
+        # item whose poll fails isn't just skipped -- Blender falls through
+        # to the NEXT item bound to the same key, which for 'V' in edit mesh
+        # mode is native Rip. Keeping poll to "is this tool's curve-edit
+        # context even active" (not "is there something to do right now")
+        # means the operator still claims the V press and can return
+        # {'CANCELLED'} itself (see toggle) -- CANCELLED still consumes the
+        # event, just without pushing an undo step, so Rip never fires.
         RFCore = RFGlobals.RFCore_None
         if not RFCore or not RFCore.is_running:
             return False
         if not context.edit_object or context.mode != 'EDIT_MESH':
             return False
-        return _hovered_toggleable_knot() is not None
+        return True
 
     def toggle(context):
         found = _hovered_toggleable_knot()

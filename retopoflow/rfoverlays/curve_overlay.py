@@ -40,7 +40,7 @@ from ..common.bpy_helper import bpy_ops_retopoflow
 from ..common.operator import RFOperator
 from ..rftool_statusbar import SharedStatusbarKeymap
 from ..common.bmesh import get_bmesh_emesh
-from ..common.bmesh_maths import rdp_corner_indices
+from ..common.curve_fit import derive_centerline_knots, density_to_bend_tolerance
 from ..common.maths import map_range, clamp
 from ..common.drawing import Drawing
 from ..common.raycast import is_point_hidden, mouse_from_event
@@ -48,31 +48,10 @@ from ...addon_common.common.bezier import CubicBezier, CubicBezierSpline
 from ...addon_common.common.blender_cursors import Cursors
 
 
-# how far a single cubic segment may span before an auto-knot is inserted, as
-# a fraction of the whole chain's own total length (NOT vert count -- a vert
-# count would make subdividing, which changes nothing about the curve's
-# actual shape, insert more knots just because there are more verts to count).
-# bend-tolerance-driven RDP only adds knots where the chord deviates enough to
-# register as a corner -- a bend that straightens out into a long, genuinely
-# gentle run afterward can leave one segment spanning most of the chain, which
-# forces its handles into an impossible compromise between the bend's own
-# curvature and not distorting the long straight tail (empirically, this is
-# what actually produces the "handle so short it barely shows" look, not the
-# handle-search itself). 0.6 was picked by sweeping candidate values against a
-# batch of synthetic bend shapes: it minimized the worst observed handle-to-
-# chord ratio across all three density settings, while more aggressive values
-# (e.g. 0.2-0.3) start inflating knot count without further improving --
-# or even worsening -- that worst case, since segments that short bring back
-# their own few-interior-point fitting difficulties.
-AUTO_KNOT_MAX_SPAN_FACTOR = 0.6
-# min corner spacing, as a fraction of the chain's own total length -- same
-# reasoning as AUTO_KNOT_MAX_SPAN_FACTOR: avg edge length shrinks under
-# subdivision, which would make RDP more sensitive to the exact same geometry.
-# The corner *tolerance* itself is user-tunable (Strokes' "Density" property,
-# curve_handle_density) rather than fixed -- see density_to_bend_tolerance for
-# the density -> tolerance mapping (min density -> loosest/fewest handles,
-# max density -> tightest/most handles).
-CORNER_MIN_SPACING_FACTOR = 0.01
+# AUTO_KNOT_MAX_SPAN_FACTOR and CORNER_MIN_SPACING_FACTOR (the auto-knot span
+# and min corner spacing, both fractions of the chain's own total length) moved
+# to common/curve_fit.py along with the knot-derivation logic that uses them.
+
 # on-screen radii (pre Drawing.scale) of the knot/tangent handle dots, also used
 # to shorten the control-polygon arm lines so they stop at each dot's edge
 # instead of running into its (partially transparent) center
@@ -136,24 +115,6 @@ def _internal_bl_idname(dotted_idname : str) -> str:
 # RFCore's own always-running top-level modal operator -- see update_data's
 # check against context.window.modal_operators.
 RFCORE_OPERATOR_BL_IDNAME = _internal_bl_idname('retopoflow.core')
-
-
-def density_to_bend_tolerance(density : float) -> float:
-    '''
-    Maps the curve_handle_density property (0.1 to 1.0) to the bend
-    tolerance factor passed to rdp_corner_indices, geometrically (not
-    linearly) interpolated between 0.5 (few control points) and 0.01 (more):
-    tolerance is a threshold RDP compares a deviation against multiplicatively
-    (does it exceed the tolerance, not by how much), so a proportional step in
-    density should be a proportional -- not additive -- step in tolerance. A
-    linear interpolation between 0.5 and 0.01 would spend most of the slider
-    barely changing anything and then collapse abruptly near the top;
-    geometric interpolation keeps each step across the whole slider feeling
-    similarly responsive.
-    '''
-    t = map_range(clamp(density, 0.1, 1.0), 0.1, 1.0, 0.0, 1.0)
-    lo, hi = 0.5, 0.01 # lo = few control points, hi = more
-    return lo * (hi / lo) ** t
 
 
 def shrink_segment(p_from, p_to, shrink_from, shrink_to):
@@ -290,6 +251,7 @@ def create_curve_overlay(
                         SharedStatusbarKeymap(label='Edit Curve', icons=['MOUSE_LMB_DRAG']),
                         SharedStatusbarKeymap(label='Scale Control Point', icons=['EVENT_ALT', 'MOUSE_LMB_DRAG']),
                         SharedStatusbarKeymap(label='Rotate Control Point', icons=['EVENT_ALT', 'EVENT_SHIFT', 'MOUSE_LMB_DRAG']),
+                        SharedStatusbarKeymap(label='Toggle Handle Type', icons=['EVENT_V']),
                     ))
                 Cursors.set('hand')
             else:
@@ -495,56 +457,15 @@ def create_curve_overlay(
 
             fresh_derive = knots is None
             if fresh_derive:
-                # corner/span thresholds below are fractions of the chain's own
-                # total length, NOT of avg_len -- avg_len is per-EDGE, so it
-                # shrinks under subdivision (same shape, more/shorter edges),
-                # which would make RDP more sensitive and auto-knot spans
-                # trigger more often for a curve whose geometry hasn't changed
-                # at all. stroke_length only depends on the curve's own shape.
-                stroke_length = sum(
-                    (Vector(cos[(i + 1) % n]) - Vector(cos[i])).length
-                    for i in range(n if cyclic else n - 1)
+                # sharp-angle + RDP corner detection, local-extremum snapping,
+                # and long-span auto-knots all live in common/curve_fit.py now,
+                # so the Adjust Segment Count operator derives knots IDENTICALLY
+                # -- see derive_centerline_knots for the (verbatim-moved) logic.
+                knots, corner_set = derive_centerline_knots(
+                    cos, cyclic=cyclic,
+                    bend_tolerance_factor=bend_tolerance_factor,
+                    sharp_angle=sharp_angle,
                 )
-                tol = max(stroke_length * bend_tolerance_factor, 1e-6)
-
-                # RDP's chord-deviation test is what decides whether a point becomes
-                # a knot candidate at all -- a sharp but short kink (small arms) can
-                # deviate too little from a distant chord to ever get proposed, even
-                # though its own local angle is clearly a corner. Sharp verts are
-                # found directly by angle first and forced in as seeds, so a genuine
-                # corner always gets a knot regardless of how loose bend_tolerance_
-                # factor (or its user-facing density control) is set.
-                sharp_indices = self._sharp_angle_indices(cos, n, cyclic, sharp_angle)
-                seed = ({0, n - 1} if not cyclic else set()) | sharp_indices
-                corners = rdp_corner_indices(
-                    cos, tol,
-                    seed_indices=seed,
-                    min_spacing=stroke_length * CORNER_MIN_SPACING_FACTOR,
-                    force_endpoints=not cyclic,
-                )
-
-                # RDP picks each corner by max deviation from a chord that may span far
-                # beyond its local bend, so the pick can land beside the true apex. Snap
-                # each (non-endpoint) corner to the point of max deviation from the chord
-                # between its own immediate neighbors -- the true local extremum. Sharp
-                # verts are exact already (that's how they were found), so they're
-                # locked in place along with the strip's own endpoints.
-                locked = ({0, n - 1} if not cyclic else set()) | sharp_indices
-                corners = self._snap_to_local_extrema(cos, corners, n, cyclic, locked)
-
-                # Only verts with a geometrically sharp deflection angle get vector
-                # (independent) handles. RDP knots at smooth verts still get G1 handles.
-                # sharp_indices was already scanned over every vert above; corner_set
-                # is just the knots that happen to land on one.
-                corner_set = set(corners) & sharp_indices
-
-                knots = list(corners)
-                if cyclic and len(knots) < 2:
-                    # ensure enough knots around a smooth loop to capture its shape
-                    step = max(1, n // 4)
-                    knots = sorted(set(knots) | set(range(0, n, step)))
-
-                knots = self._insert_auto_knots(cos, knots, n, cyclic, stroke_length, tol)
 
             # Resolve each knot's handle TYPE -- Aligned, Vector, or Automatic
             # (see rfoperators/curve_edit.py's V-key toggle operator) -- from
@@ -697,137 +618,6 @@ def create_curve_overlay(
                 locked[i] = cb
             return locked
 
-        def _deflection_angle(self, cos, k, n, cyclic):
-            '''
-            Angle between vert k's incoming and outgoing edges, using its immediate
-            neighbors only (not RDP or any chord) -- None for an open strip's own
-            endpoint (no second arm to measure against) or a degenerate (zero-length)
-            neighboring edge, where "angle" isn't a meaningful question.
-            '''
-            if not cyclic and (k == 0 or k == n - 1):
-                return None
-            prev_k = (k - 1) % n if cyclic else k - 1
-            next_k = (k + 1) % n if cyclic else k + 1
-            v_in  = Vector(cos[k])      - Vector(cos[prev_k])
-            v_out = Vector(cos[next_k]) - Vector(cos[k])
-            if v_in.length < 1e-9 or v_out.length < 1e-9:
-                return None
-            return v_in.angle(v_out)
-
-        def _sharp_angle_indices(self, cos, n, cyclic, sharp_angle):
-            ''' Every vert whose own local deflection angle already exceeds
-            `sharp_angle`, independent of RDP's chord-deviation test -- see
-            its call site in _build_curve for why that independence matters. '''
-            return {
-                k for k in range(n)
-                if (angle := self._deflection_angle(cos, k, n, cyclic)) is not None and angle > sharp_angle
-            }
-
-        def _max_dev_index(self, cos, ka, kb, n):
-            '''
-            Index in (ka, kb) -- an extended index range where kb may be >= n for a
-            cyclic wrap -- whose vert has max perpendicular distance from chord
-            cos[ka]-cos[kb]. This is the local "extremum" of that run. Returns None
-            if there's no interior point.
-            '''
-            if kb - ka < 2:
-                return None
-            p0, p1 = Vector(cos[ka % n]), Vector(cos[kb % n])
-            seg = p1 - p0
-            seg_len2 = seg.length_squared
-            best_k, best_d = None, -1.0
-            for kk in range(ka + 1, kb):
-                p = Vector(cos[kk % n])
-                if seg_len2 < 1e-12:
-                    d = (p - p0).length
-                else:
-                    t = max(0.0, min(1.0, (p - p0).dot(seg) / seg_len2))
-                    d = (p - (p0 + t * seg)).length
-                if d > best_d:
-                    best_d, best_k = d, kk
-            return best_k
-
-        def _snap_to_local_extrema(self, cos, knots, n, cyclic, locked, iterations=2):
-            knots = sorted(set(knots))
-            if len(knots) < 3:
-                return knots
-            for _ in range(iterations):
-                m = len(knots)
-                refined = list(knots)
-                changed = False
-                for idx in range(m):
-                    k = knots[idx]
-                    if k in locked:
-                        continue
-                    ka = knots[(idx - 1) % m]
-                    kb = knots[(idx + 1) % m]
-                    if idx == 0:
-                        ka -= n
-                    if idx == m - 1:
-                        kb += n
-                    best = self._max_dev_index(cos, ka, kb, n)
-                    if best is None:
-                        continue
-                    new_k = best % n
-                    if new_k != k:
-                        changed = True
-                    refined[idx] = new_k
-                knots = sorted(set(refined))
-                if not changed:
-                    break
-            return knots
-
-        def _arc_length(self, cos, ka, kb, n):
-            return sum((Vector(cos[k % n]) - Vector(cos[(k - 1) % n])).length for k in range(ka + 1, kb + 1))
-
-        def _insert_auto_knots(self, cos, knots, n, cyclic, stroke_length, tol):
-            knots = sorted(set(knots))
-            if not knots:
-                return knots
-            # a fraction of the chain's own total length, not a vert count, so
-            # subdividing (same shape, more/shorter edges) doesn't add auto-knots
-            # that weren't warranted by the curve's actual geometry
-            max_span = max(stroke_length * AUTO_KNOT_MAX_SPAN_FACTOR, 1e-6)
-            result = set(knots)
-            pairs = list(zip(knots[:-1], knots[1:]))
-            if cyclic:
-                pairs.append((knots[-1], knots[0] + n))  # closing run wraps past the end
-            for ka, kb in pairs:
-                self._split_long_span(cos, ka, kb, n, max_span, tol, result)
-            return sorted(result)
-
-        def _split_long_span(self, cos, ka, kb, n, max_span, tol, result):
-            if self._arc_length(cos, ka, kb, n) <= max_span:
-                return
-            # place the extra knot at the run's true local extremum, not just its
-            # midpoint by vert count, so long bends still get a knot at their apex
-            best = self._max_dev_index(cos, ka, kb, n)
-            if best is None:
-                return
-            # a span this long only earns a backstop knot if it's ALSO
-            # measurably not straight -- using the same tolerance RDP itself
-            # uses to decide "is this deviation big enough to matter" (see
-            # _build_curve). A perfectly (or nearly) straight run has nothing
-            # to gain from extra resolution no matter how long it runs, since
-            # a single cubic segment already represents a straight line
-            # exactly; without this check, any cornerless straight strip
-            # longer than one span would always get split purely because its
-            # one segment trivially covers 100% of its own stroke length.
-            p0, p1 = Vector(cos[ka % n]), Vector(cos[kb % n])
-            seg = p1 - p0
-            seg_len2 = seg.length_squared
-            p = Vector(cos[best % n])
-            if seg_len2 < 1e-12:
-                dev = (p - p0).length
-            else:
-                t = max(0.0, min(1.0, (p - p0).dot(seg) / seg_len2))
-                dev = (p - (p0 + t * seg)).length
-            if dev < tol:
-                return
-            result.add(best % n)
-            self._split_long_span(cos, ka, best, n, max_span, tol, result)
-            self._split_long_span(cos, best, kb, n, max_span, tol, result)
-
         def _build_handles(self, spline, cyclic, smooth_junctions, knots, resolve_handle_type, forced_vector):
             cbs = spline.cbs
             nseg = len(cbs)
@@ -894,17 +684,25 @@ def create_curve_overlay(
 
         _HANDLE_TYPE_CYCLE = {'aligned': 'vector', 'vector': 'automatic', 'automatic': 'aligned'}
 
-        def set_handle_type(self, cache_key, vert_index, handle_type) -> bool:
+        def set_handle_type(self, cache_key, vert_index, handle_type, *, reposition=False) -> bool:
             ''' Sets a knot's handle type override (used by both the V-key
             toggle and, implicitly, a direct tangent-handle drag pinning its
             knot to 'aligned' -- see curve_edit.py's apply_handle). Forces the
             next update_data/build to see this as a change (see the
             handle_type_overrides fold-in to `tunables` in _build_curve) --
             without this, a rebuild wouldn't even be attempted until the mesh
-            or scene tunables changed for some unrelated reason. '''
+            or scene tunables changed for some unrelated reason.
+
+            `reposition`, when True, re-aims the knot's two tangent arms to
+            (best-effort) match the new type right away -- see
+            _reposition_handle. Left False for the implicit aligned-pin from
+            dragging a tangent by hand: that call's whole point is to freeze
+            the user's own just-dragged rotation, not recompute it. '''
             overrides = self._handle_type_overrides.setdefault(cache_key, {})
             if overrides.get(vert_index) == handle_type:
                 return False
+            if reposition:
+                self._reposition_handle(cache_key, vert_index, handle_type)
             overrides[vert_index] = handle_type
             type(self).depsgraph_version = -42
             return True
@@ -922,8 +720,91 @@ def create_curve_overlay(
                 for h in chain['handles']:
                     if h['kind'] == 'knot' and h.get('vert_index') == vert_index:
                         current = h.get('handle_type', 'automatic')
-                        return self.set_handle_type(cache_key, vert_index, self._HANDLE_TYPE_CYCLE[current])
+                        return self.set_handle_type(cache_key, vert_index, self._HANDLE_TYPE_CYCLE[current], reposition=True)
             return False
+
+        def _reposition_handle(self, cache_key, vert_index, new_type):
+            '''
+            Re-aims a toggled knot's two tangent arms to (best-effort) match
+            its new handle TYPE while keeping each arm's own LENGTH exactly
+            as it was -- "position" here means distance from the knot, which
+            switching type never needs to change; only the DIRECTION may
+            need to move to satisfy the new type's own constraint. Only
+            called for a knot with two independent arms (an endpoint/corner
+            has one arm, or none, and can't be toggled to begin with -- see
+            'can_toggle' in _build_handles).
+
+            'automatic' arms are left untouched: they only ever take on
+            their own (neighbor-derived) direction LIVE, during a drag (see
+            curve_edit.py's _recompute_typed_handles) -- forcing that
+            direction here at rest would just be discarded (or fought) the
+            next time this same knot is dragged.
+
+            'aligned' arms are re-aimed to the bisector of their CURRENT two
+            directions (one of them flipped, since the pair is meant to face
+            opposite ways) -- the smallest rotation that makes them exactly
+            collinear, so an already-aligned pair (e.g. coming from
+            Automatic, which is collinear by construction) doesn't move at
+            all.
+
+            'vector' arms are re-aimed using the same point-at directions
+            Blender's own Vector handle uses (aim straight at the neighbor
+            each arm faces), but not snapped literally onto them: this
+            measures how far each arm currently sits from ITS OWN point-at
+            direction (as a rotation), averages that offset between the two
+            arms, and applies the AVERAGE to both point-at directions. That
+            keeps the angle BETWEEN the two arms exactly equal to the
+            point-at angle (the same relative angle two literal Vector
+            handles would have) while the pair's own average facing (their
+            shared bisector) barely moves from wherever it already was --
+            e.g. an Aligned pair whose shared axis leans slightly left keeps
+            leaning slightly left, rather than snapping flat onto whatever
+            (possibly very different) direction the polyline's neighbors
+            happen to sit in.
+            '''
+            for chain, spline in zip(self.chains, self.curves):
+                if chain['cache_key'] != cache_key:
+                    continue
+                handle = next(
+                    (h for h in chain['handles'] if h['kind'] == 'knot' and h.get('vert_index') == vert_index),
+                    None,
+                )
+                if handle is None or len(handle.get('move', ())) != 2:
+                    return  # an endpoint (one arm) -- nothing to re-aim
+                (seg_in, attr_in), (seg_out, attr_out) = handle['move']
+                cbs = spline.cbs
+                knot_seg, knot_attr = handle['pos']
+                knot_pos = Vector(getattr(cbs[knot_seg], knot_attr))
+                arm_out = Vector(getattr(cbs[seg_out], attr_out)) - knot_pos
+                arm_in = Vector(getattr(cbs[seg_in], attr_in)) - knot_pos
+                len_out, len_in = arm_out.length, arm_in.length
+                if len_out < 1e-9 or len_in < 1e-9:
+                    return
+                dir_out, dir_in = arm_out.normalized(), arm_in.normalized()
+
+                if new_type == 'aligned':
+                    avg = dir_out.slerp(-dir_in, 0.5)
+                    if avg.length < 1e-9:
+                        return
+                    new_out, new_in = avg.normalized(), -avg.normalized()
+                elif new_type == 'vector':
+                    prev_pos = Vector(cbs[seg_in].p0)
+                    next_pos = Vector(cbs[seg_out].p3)
+                    pa_out, pa_in = next_pos - knot_pos, prev_pos - knot_pos
+                    if pa_out.length < 1e-9 or pa_in.length < 1e-9:
+                        return
+                    pa_out, pa_in = pa_out.normalized(), pa_in.normalized()
+                    offset_out = pa_out.rotation_difference(dir_out)
+                    offset_in = pa_in.rotation_difference(dir_in)
+                    avg_offset = offset_out.slerp(offset_in, 0.5)
+                    new_out = (avg_offset @ pa_out).normalized()
+                    new_in = (avg_offset @ pa_in).normalized()
+                else:
+                    return  # 'automatic' -- left untouched, see docstring
+
+                setattr(cbs[seg_out], attr_out, knot_pos + new_out * len_out)
+                setattr(cbs[seg_in], attr_in, knot_pos + new_in * len_in)
+                return
 
         # ----------------------------------------------------------- hit-testing
 
