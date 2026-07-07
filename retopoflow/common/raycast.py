@@ -576,7 +576,19 @@ def raycast_multiple_hits(context:Context, origin:Vector, direction:Vector, n:in
         pt = hit
     return hits
 
-def nearest_point_valid_sources(context:Context, point_world:Vector, *, world:bool=True, sources=None, respect_clip_planes:bool=False) -> Vector|None:
+def nearest_point_valid_sources(
+    context : Context,
+    point_world : Vector,
+    *,
+    world : bool = True,
+    sources : Sequence[tuple[BObject, Matrix, Matrix]] | None = None,
+    respect_clip_planes : bool = False,
+) -> Vector | None:
+
+    edit_object = context.edit_object
+    if not edit_object:
+        return None
+
     point_world = Vector((*point_world, 1.0))
     best_hit = None
     best_dist = float('inf')
@@ -585,20 +597,26 @@ def nearest_point_valid_sources(context:Context, point_world:Vector, *, world:bo
     # (obj, matrix_world, matrix_world_inv[, ...]) tuples to avoid re-filtering the view
     # layer and re-inverting matrices on every call.
     if sources is None:
-        sources = ((obj, obj.matrix_world, obj.matrix_world.inverted_safe()) for obj in iter_all_valid_sources(context))
+        sources = [
+            (obj, obj.matrix_world, obj.matrix_world.inverted_safe())
+            for obj in iter_all_valid_sources(context)
+        ]
 
-    # print(f'RAY {ray_world}')
     for src in sources:
         obj, M, Mi = src[0], src[1], src[2]
         point_local = Mi @ point_world
-        result, co, normal, idx = obj.closest_point_on_mesh(point_local.xyz)
-        if not result: continue
+        result, co, _normal, _idx = obj.closest_point_on_mesh(point_local.xyz)
+        if not result:
+            continue
+
         co_world = M @ Vector((*co, 1.0))
         if respect_clip_planes and not is_point_in_clip_region(context, co_world):
             continue
+
         dist = distance_between_locations(point_world, co_world)
-        # print(f'  HIT {obj.name} {co_world} {dist}')
-        if dist >= best_dist: continue
+        if dist >= best_dist:
+            continue
+
         best_hit = co_world
         best_dist = dist
 
@@ -607,9 +625,9 @@ def nearest_point_valid_sources(context:Context, point_world:Vector, *, world:bo
 
     hit = Vector((*point_to_bvec3(best_hit), 1.0))
     if not world:
-        M = context.edit_object.matrix_world
-        Mi = M.inverted_safe()
-        hit = Mi @ hit
+        M_eo = edit_object.matrix_world
+        Mi_eo = M_eo.inverted_safe()
+        hit = Mi_eo @ hit
     return point_to_bvec3(hit)
 
 def nearest_normal_valid_sources(context, point_world, *, world=True):

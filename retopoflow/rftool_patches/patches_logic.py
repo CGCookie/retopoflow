@@ -41,112 +41,124 @@ from ..preferences import RF_Prefs
 
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.colors import Color4
-from ...addon_common.common.maths import Vec
 from ...addon_common.common.unionfind import UnionFind
 from ...addon_common.common.utils import iter_pairs
 from ..common.bmesh import get_bmesh_emesh
 from ..common.drawing import Drawing, CC_2D_LINES, CC_2D_POINTS, CC_2D_TRIANGLES
 from ..common.raycast import (
-    nearest_point_normal_valid_sources,
+    nearest_point_valid_sources,
     Raycast,
     mouse_from_event,
     size2D_to_size,
 )
 
+
 DEBUG_PRINT : bool = False
 
-PATCH_VERT : TypeAlias = (
-    int  # BMVert index
-    |
-    tuple[int, int, float, int, int, float] # LERP of four BMVerts
-)
+
+LERP_WEIGHT : TypeAlias = float
+INDEX_BMVERT : TypeAlias = int
+INDEX_PVERT : TypeAlias = int
+INDEX_CORNER_NEW : TypeAlias = int
+
+PVERT_ARG : TypeAlias = int | tuple['PVERT_ARG', 'PVERT_ARG', float]
+# Note: must quote recursive PVERT_ARG here ^^ and ^^ for Python 3.11 which is used by Blender 4.2
+
+
+class PVert:
+    """
+    Convenience class that handles computing LERPed and snapped positions
+    """
+
+    arg : INDEX_BMVERT | tuple[PVert, PVert, LERP_WEIGHT]
+
+    co : Vector
+    co_snapped_world : Vector
+
+    def __init__(self, context : Context, M : Matrix, bm : BMesh, arg : PVERT_ARG):
+        def wrap(warg : PVERT_ARG | PVert) -> PVert:
+            match warg:
+                case PVert():
+                    return warg
+                case int() as idx:
+                    return PVert(context, M, bm, idx)
+                case (ia0, ia1, weight):
+                    return PVert(context, M, bm, (ia0, ia1, weight))
+                case _: # pyright: ignore[reportUnnecessaryComparison]
+                    assert False, f'Unhandled type {type(arg)} ({arg})' # pyright: ignore[reportUnreachable]
+
+        match arg:
+            case int() as idx:
+                self.arg = idx
+                self.co = bm.verts[idx].co
+
+            case (a0, a1, weight):
+                assert isinstance(a0, (int, PVert, tuple)), f'Unhandled type {type(arg)} ({arg})'
+                assert isinstance(a1, (int, PVert, tuple)), f'Unhandled type {type(arg)} ({arg})'
+                pv0 = wrap(a0)
+                pv1 = wrap(a1)
+                self.arg = ( pv0, pv1, weight)
+                self.co = pv0.co + (pv1.co - pv0.co) * weight
+
+            case _: # pyright: ignore[reportUnnecessaryComparison]
+                assert False, f'Unhandled type {type(arg)} ({arg})' # pyright: ignore[reportUnreachable]
+
+        co_snapped_world = nearest_point_valid_sources(context, M @ self.co)
+        assert co_snapped_world
+        self.co_snapped_world = co_snapped_world
+
+    @property
+    def existing(self) -> bool:
+        return isinstance(self.arg, int)
+
+    def bmv(self, bm : BMesh) -> BMVert | None:
+        return bm.verts[self.arg] if isinstance(self.arg, int) else None
+
 
 
 class Patch:
     # vertices of patch, either as index of BMVert (int) or as LERP of BMVerts (tuple of inds and weights)
     # Note: these are indices into bm.verts
-    _verts : list[PATCH_VERT]
+    _verts : list[PVert]
 
-    # snapped co and normal (world space) of each vertex
-    _conos : list[tuple[Vector, Vector]]
+    # edges and faces that make up patch as indices into _verts
+    # Note: these are indices into Patch._verts, **NOT** bm.verts or bm.edges or bm.faces
+    _edges : list[Sequence[INDEX_PVERT]]    # always exactly two indices
+    _faces : list[Sequence[INDEX_PVERT]]
 
-    # edges that make up patch
-    # Note: these are indices into Patch.verts, **NOT** bm.verts or bm.edges
-    _edges : list[tuple[int, int]]
-    # Note: these are snapped, world coordinates
-    edges : list[tuple[Vector, Vector]]
-
-    # faces that make up patch
-    # Note: these are indices into Patch.verts, **NOT** bm.verts or bm.faces
-    _faces : list[Sequence[int]]
-    # Note: these are snapped, world coordinates
+    # snapped co in world space of each vert, edge, face of patch
+    verts : list[Vector]
+    edges : list[Sequence[Vector]]  # always exactly two vectors
     faces : list[Sequence[Vector]]
-
 
 
     def __init__(self, bm : BMesh, M : Matrix, sides : list[list[int]]):
         print('New Patch')
-        self._process(bm, M, sides)
+        self._process(bpy.context, M, bm, sides)
 
     def reset(self):
         self._verts = []
-        self._conos = []
         self._edges = []
-        self.edges = []
         self._faces = []
+        self.edges = []
         self.faces = []
 
-    def _process(self, bm : BMesh, M : Matrix, sides : list[list[int]]):
-        context = bpy.context
+    def _process(self, context : Context, M : Matrix, bm : BMesh, sides : list[list[int]]):
 
         self.reset()
 
         match len(sides):
             case 4:
-                self._process_quad(sides)
+                self._process_quad(context, M, bm, sides)
             case _:
                 print(f'Unhandled number of sides {len(sides)}')
 
-
-        # compute snapped co and normal (in world space) for each vert of patch
-
-        def get_co(patch_vert : PATCH_VERT) -> Vector:
-            match patch_vert:
-                case int() as i:
-                    return bm.verts[i].co
-
-                case (ia, ic, ac_weight, id, ib, db_weight):
-                    a, c = bm.verts[ia].co, bm.verts[ic].co
-                    d, b = bm.verts[id].co, bm.verts[ib].co
-                    ac = a + (c - a) * ac_weight
-                    db = d + (b - d) * db_weight
-                    return ac + (db - ac) * 0.5
-
-                case _:
-                    assert False, f'Unhandled type {type(patch_vert)} ({patch_vert})'
-
-        def snap(patch_vert : PATCH_VERT) -> tuple[Vector, Vector]:
-            co_local = get_co(patch_vert)
-            cono_world = nearest_point_normal_valid_sources(context, M @ co_local)
-            assert cono_world
-            return cono_world
-
-        self._conos = [ snap(vert) for vert in self._verts ]
+        self.verts = [ pv.co_snapped_world for pv in self._verts ]
+        self.edges = [ (self.verts[i0], self.verts[i1]) for (i0, i1) in self._edges ]
+        self.faces = [ tuple(self.verts[i] for i in f) for f in self._faces ]
 
 
-        # compute edges and faces that make up the patch
-
-        self.edges = [
-            (self._conos[i0][0], self._conos[i1][0])
-            for (i0, i1) in self._edges
-        ]
-        self.faces = [
-            tuple(self._conos[i][0] for i in f)
-            for f in self._faces
-        ]
-
-
-    def _process_quad(self, sides : list[list[int]]):
+    def _process_quad(self, context : Context, M : Matrix, bm : BMesh, sides : list[list[int]]):
         assert len(sides) == 4
 
         side_a, side_b, side_c, side_d = sides
@@ -172,21 +184,25 @@ class Patch:
             for i in range(w):
                 if j == 0:
                     # along top side (A)
-                    self._verts.append(a(i))
+                    self._verts.append(PVert(context, M, bm, a(i)))
                 elif j == h - 1:
                     # along bottom side (C)
-                    self._verts.append(c(i))
+                    self._verts.append(PVert(context, M, bm, c(i)))
                 elif i == 0:
                     # along left side (D)
-                    self._verts.append(d(j))
+                    self._verts.append(PVert(context, M, bm, d(j)))
                 elif i == w - 1:
                     # along right side (B)
-                    self._verts.append(b(j))
+                    self._verts.append(PVert(context, M, bm, b(j)))
                 else:
                     # somewhere in the middle of patch (not along side)
-                    self._verts.append((
-                        a(i), c(i), j / (h - 1),
-                        d(j), b(j), i / (w - 1),
+                    self._verts.append(PVert(
+                        context, M, bm,
+                        (
+                            (a(i), c(i), j / (h - 1)),
+                            (d(j), b(j), i / (w - 1)),
+                            0.5,
+                        ),
                     ))
 
         # gather info about edges of patch
@@ -204,6 +220,7 @@ class Patch:
                 ))
 
         # gather info about faces of patch
+        # TODO: make sure direction is correct here rather than using normals
         for j in range(h - 1):
             for i in range(w - 1):
                 self._faces.append((
@@ -217,56 +234,43 @@ class Patch:
         Mi = M.inverted_safe()
 
         # collect all existing BMVerts
+        # IMPORTANT: must do this before creating new BMVerts so we don't trigger invalidation of indices
         verts_existing : list[BMVert | None] = [
-            bm.verts[i] if isinstance(i, int) else None
-            for i in self._verts
-        ]
-        # create all new BMVerts, and collect all existing and new BMVerts
-        verts_all : list[BMVert] = [
-            bmv if bmv else bm.verts.new(Mi @ cono[0])
-            for (bmv, cono) in zip(verts_existing, self._conos)
+            v.bmv(bm) if v.existing else None
+            for v in self._verts
         ]
 
+        # collect all BMVerts, creating any new BMVerts as needed
+        verts_all : list[BMVert] = [
+            bmv if bmv else bm.verts.new(Mi @ co_world)
+            for (bmv, co_world) in zip(verts_existing, self.verts)
+        ]
+
+        # create all new BMFaces
         for f in self._faces:
-            # get BMVerts of BMFace to create
-            verts = [ verts_all[i] for i in f ]
-            # create BMFace!
-            bmf = bm.faces.new(verts)
-            # check that BMFace is oriented correctly
-            bmf.normal_update()
-            no = Vec.average([ self._conos[i][1] for i in f ])
-            if bmf.normal.dot(no) < 0:
-                bmf.normal_flip()
+            _ = bm.faces.new([ verts_all[i] for i in f ])
 
         self.reset()
 
 
 class Patches_Logic:
-    prev_depsgraph_version : ClassVar[int] = -42
-    prev_active_index : int | None = None
-    loose_bmv_indices : set[int] | None = None
+    depsgraph_version : ClassVar[int] = -42                 # last depsgraph seen, used to trigger processing
+    loose_bmv_indices : set[INDEX_BMVERT] | None = None     # indices of BMVerts with no linked BMFace
+    active_index      : INDEX_BMVERT | None      = None     # index of last active BMVert, used to update corners
 
-    # Points that will act as corners for patch, where keys are index of BMVert
-    # and values are location in world space.
-    #
+    # corners for patch
     # IMPORTANT: must not keep reference to bmesh elements, because they will invalidate
-    #       whenever depsgraph changes!  Instead, keep track of them via their indices.
-    corners : ClassVar[set[int]] = set()
-    corners_new : ClassVar[list[Vector]] = []
-    sides : ClassVar[list[list[int]]] = []
-    patch : ClassVar[Patch | None] = None
+    #            whenever depsgraph changes!  Instead, keep track of them via their indices.
+    corners_bmv : ClassVar[set[INDEX_BMVERT]]     = set()   # corners as indices into bm.verts (existing BMVerts)
+    corners_new : ClassVar[list[Vector]]          = []      # corners as local-space coordinates (new BMVerts)
+    used_bmv    : ClassVar[set[INDEX_BMVERT]]     = set()   # indices of corner BMVerts that are used in >= sides (NOT index into corners_bmv, which is a set)
+    used_new    : ClassVar[set[INDEX_CORNER_NEW]] = set()   # indices of corners_new that are used in >= sides
 
-    @staticmethod
-    def commit():
-        if not Patches_Logic.patch:
-            return
-        context = bpy.context
-        edit_object = context.edit_object
-        assert edit_object
-        M = edit_object.matrix_world
-        bm, em = get_bmesh_emesh(context, ensure_lookup_tables=True)
-        Patches_Logic.patch.commit(bm, M)
-        bmops.flush_selection(bm, em) # depsgraph will update...
+    # detected sides of patch, where ends of each side is a corner
+    sides       : ClassVar[list[list[INDEX_BMVERT]]] = []
+
+    # detected patch based on sides
+    patch       : ClassVar[Patch | None]    = None
 
     @staticmethod
     def update(*, just_modified_corners : bool = False):
@@ -279,22 +283,23 @@ class Patches_Logic:
         if just_modified_corners:
             pass
 
-        elif Patches_Logic.prev_depsgraph_version == RFCore.depsgraph_version:
+        elif Patches_Logic.depsgraph_version == RFCore.depsgraph_version:
             bm, _ = get_bmesh_emesh(context)
             active = bm.select_history.active
             a = active.index if isinstance(active, BMVert) else None
-            if Patches_Logic.prev_active_index == a:
+            if Patches_Logic.active_index == a:
                 return
 
             print('same depsgraph but different active')
-            print(f'  {Patches_Logic.prev_active_index} {a}')
-            Patches_Logic.prev_active_index = a
+            print(f'  {Patches_Logic.active_index} {a}')
+            Patches_Logic.active_index = a
 
         else:
             print('depsgraph changed')
+            # clear cache of "loose" BMVerts, to be regenerated in insert_corner()
             Patches_Logic.loose_bmv_indices = None
 
-        Patches_Logic.prev_depsgraph_version = RFCore.depsgraph_version
+        Patches_Logic.depsgraph_version = RFCore.depsgraph_version
 
         bm, _ = get_bmesh_emesh(context, ensure_lookup_tables=True)
         if not just_modified_corners:
@@ -310,21 +315,23 @@ class Patches_Logic:
         # same number of BMVerts or just inserted BMVert (Patches_Logic.insert_corner)
         if isinstance(bmv_active := bm.select_history.active, BMVert):
             # add active element to collection of corner BMVerts
-            Patches_Logic.corners.add(bmv_active.index)
+            Patches_Logic.corners_bmv.add(bmv_active.index)
 
         # keep only corners that are still selected
-        Patches_Logic.corners = {
+        Patches_Logic.corners_bmv = {
             i
-            for i in Patches_Logic.corners
+            for i in Patches_Logic.corners_bmv
             if i < len_verts and (bmv := bm.verts[i]) and bmv.select
         }
 
     @staticmethod
     def update_sides(bm : BMesh):
-        Patches_Logic.sides = []
+        Patches_Logic.sides.clear()
+        Patches_Logic.used_bmv.clear()
+        Patches_Logic.used_new.clear()
 
         corners : set[BMVert] = {
-            bmv for i in Patches_Logic.corners if (bmv := bm.verts[i])
+            bm.verts[i] for i in Patches_Logic.corners_bmv
         }
         if not corners:
             if DEBUG_PRINT:
@@ -334,56 +341,100 @@ class Patches_Logic:
         # check for cycle
         def get_biggest_cycle() -> list[list[BMVert]] | None:
             cycle : list[list[BMVert]] | None = None
+
             for bmv_init in corners:
                 bmv0 = bmv_init
-                bme0 : BMEdge | None = next(( bme for bme in bmv0.link_edges if bme.select and not bme.hide ), None)
-                if not bme0:
-                    continue
+                for bme0 in bmv0.link_edges:
+                    if bme0.hide or not bme0.select:
+                        continue
 
-                touched_corners = { bmv0 }
-                touched_bmes : set[BMEdge] = set()
-                sides_bmvs : list[list[BMVert]] = []
-                side_bmvs : list[BMVert] = [ bmv0 ]
+                    touched_corners : set[BMVert] = { bmv0 }
+                    touched_bmes : set[BMEdge] = { bme0 }
+                    sides_bmvs : list[list[BMVert]] = []
+                    side_bmvs : list[BMVert] = [ bmv0 ]
 
-                while True:
-                    touched_bmes.add(bme0)
-                    bmv1 : BMVert | None = bme0.other_vert(bmv0)
-                    if not bmv1:
-                        break
-                    side_bmvs.append(bmv1)
-                    if bmv1 in corners:
-                        touched_corners.add(bmv1)
-                        sides_bmvs.append(side_bmvs)
-                        side_bmvs = [ bmv1 ]
-                    if bmv1 == bmv_init:
-                        # possible to not touch all corners!
-                        # return sides_bmvs if len(touched_corners) == len(corners) else None
-                        if not cycle or sum(len(c) for c in cycle) < sum(len(s) for s in sides_bmvs):
-                            cycle = sides_bmvs
-                        break
-                    bme1 = next(( bme for bme in bmv1.link_edges if bme.select and not bme.hide and bme not in touched_bmes ), None)
-                    if not bme1:
-                        break
-                    bmv0, bme0 = bmv1, bme1
-            return cycle
+                    while True:
+                        bmv1 = bme0.other_vert(bmv0)
+                        if not bmv1:
+                            break
+
+                        side_bmvs.append(bmv1)
+
+                        if bmv1 in corners:
+                            touched_corners.add(bmv1)
+                            sides_bmvs.append(side_bmvs)
+                            side_bmvs = [ bmv1 ]
+
+                        if bmv1 == bmv_init:
+                            # possible to not touch all corners!
+                            # return sides_bmvs if len(touched_corners) == len(corners) else None
+                            if not cycle or sum(len(c) for c in cycle) < sum(len(s) for s in sides_bmvs):
+                                cycle = sides_bmvs
+                            break
+
+                        bme1 = next(
+                            (
+                                bme
+                                for bme in bmv1.link_edges
+                                if bme.select and not bme.hide and bme not in touched_bmes
+                            ),
+                            None
+                        )
+                        if not bme1:
+                            break
+
+                        bmv0, bme0 = bmv1, bme1
+                        touched_bmes.add(bme0)
+
+            # need at least 1 side to be a cycle
+            return cycle if cycle and len(cycle) >= 2 else None
+
 
         if (cycle_sides := get_biggest_cycle()):
-            # need at least 1 side to be a cycle
-            if len(cycle_sides) > 1:
-                print('found cycle')
-                if cycle_sides[0][0] == cycle_sides[1][0] or cycle_sides[0][0] == cycle_sides[1][-1]:
-                    # first side is reversed
-                    cycle_sides[0].reverse()
-                for (side0, side1) in zip(cycle_sides[:-1], cycle_sides[1:]):
-                    if side0[-1] == side1[-1]:
-                        # reverse side1 so side0 and side1 are in same direction
-                        side1.reverse()
-                Patches_Logic.sides = [
-                    [ bmv.index for bmv in cycle_side ]
-                    for cycle_side in cycle_sides
+            print('found cycle')
+
+            # make sure direction of sides is consistent
+            if cycle_sides[0][0] == cycle_sides[1][0] or cycle_sides[0][0] == cycle_sides[1][-1]:
+                # first side is reversed
+                cycle_sides[0].reverse()
+            for (side0, side1) in zip(cycle_sides[:-1], cycle_sides[1:]):
+                if side0[-1] == side1[-1]:
+                    # reverse side1 so side0 and side1 are in same direction
+                    side1.reverse()
+
+            # check that cycle is correct direction
+            bmvs : list[BMVert] = [ side[0] for side in cycle_sides ]
+            co_center = sum([bmv.co for bmv in bmvs], Vector((0,0,0))) / len(bmvs)
+            normal_patch = sum(
+                (
+                    (bmv0.co - co_center).cross(bmv1.co - co_center)
+                    for (bmv0, bmv1) in iter_pairs(bmvs, True)
+                ), Vector((0, 0, 0))
+            )
+            normal_corners = sum(
+                ( bmv.normal for bmv in bmvs ),
+                Vector((0, 0, 0))
+            )
+            if normal_patch.dot(normal_corners) < 0:
+                # reverse cycle
+                cycle_sides = [
+                    list(side[::-1])
+                    for side in cycle_sides[::-1]
                 ]
-                return
-            print('found cycle with 1 side...')
+
+            # record sides
+            Patches_Logic.sides = [
+                [ bmv.index for bmv in cycle_side ]
+                for cycle_side in cycle_sides
+            ]
+            Patches_Logic.used_bmv = {
+                bmv.index
+                for cycle_side in cycle_sides
+                for bmv in [cycle_side[0], cycle_side[-1]]
+            }
+            print(Patches_Logic.used_bmv)
+
+            return
 
         graph_corners : dict[BMVert, dict[BMVert, list[BMVert]]] = {
             bmv: {}
@@ -518,12 +569,12 @@ class Patches_Logic:
                 if not bmv.link_faces
             }
 
-        best_bmv_idx : int = -1
-        best_new_idx : int = -1
+        best_idx_bmv : INDEX_BMVERT = -1
+        best_idx_new : INDEX_CORNER_NEW = -1
         best_d2d : float = radius2d * radius2d
 
-        def test(co : Vector, bmv_idx : int, new_idx : int):
-            nonlocal best_bmv_idx, best_new_idx, best_d2d
+        def test(co : Vector, idx_bmv : INDEX_BMVERT, idx_new : INDEX_CORNER_NEW):
+            nonlocal best_idx_bmv, best_idx_new, best_d2d
 
             p = proj(co)
             if not p:
@@ -533,8 +584,8 @@ class Patches_Logic:
             if d2d >= best_d2d:
                 return
 
-            best_bmv_idx = bmv_idx
-            best_new_idx = new_idx
+            best_idx_bmv = idx_bmv
+            best_idx_new = idx_new
             best_d2d = d2d
 
         # check if any BMVert with at least one BMFace is under mouse
@@ -544,32 +595,33 @@ class Patches_Logic:
                     test(bmv.co, bmv.index, -1)
 
         # check if any BMVert without any BMFace is under mouse
-        for idx in Patches_Logic.loose_bmv_indices:
-            if not (bmv := bm.verts[idx]).hide:
-                test(bmv.co, bmv.index, -1)
+        if Patches_Logic.loose_bmv_indices:
+            for idx_bmv in Patches_Logic.loose_bmv_indices:
+                if not (bmv := bm.verts[idx_bmv]).hide:
+                    test(bmv.co, bmv.index, -1)
 
         # check if any new corner is under mouse
-        for (idx, co) in enumerate(Patches_Logic.corners_new):
-            test(co, -1, idx)
+        for (idx_new, co) in enumerate(Patches_Logic.corners_new):
+            test(co, -1, idx_new)
 
         # check if we found a BMVert or new corner under mouse
-        if best_bmv_idx >= 0:
+        if best_idx_bmv >= 0:
             # found a BMVert under mouse, so check if it is a corner
-            if best_bmv_idx in Patches_Logic.corners:
+            if best_idx_bmv in Patches_Logic.corners_bmv:
                 # remove BMVert as corner (do not deselect...)
-                Patches_Logic.corners.discard(best_bmv_idx)
+                Patches_Logic.corners_bmv.discard(best_idx_bmv)
             else:
                 # add BMVert as corner by (re)selecting it
-                Patches_Logic.corners.add(best_bmv_idx)
-                bmv = bm.verts[best_bmv_idx]
+                Patches_Logic.corners_bmv.add(best_idx_bmv)
+                bmv = bm.verts[best_idx_bmv]
                 bmops.reselect(bm, bmv)         # reselect so it is active
                 bmops.flush_selection(bm, em)   # depsgraph will update...
 
-        elif best_new_idx >= 0:
+        elif best_idx_new >= 0:
             # found a new corner under mouse, so remove it
             Patches_Logic.corners_new = (
-                Patches_Logic.corners_new[:best_new_idx] +
-                Patches_Logic.corners_new[best_new_idx+1:]
+                Patches_Logic.corners_new[:best_idx_new] +
+                Patches_Logic.corners_new[best_idx_new+1:]
             )
 
         else:
@@ -598,6 +650,7 @@ class Patches_Logic:
         props = RF_Prefs.get_prefs(context)
         highlight = cast(Vector, props.highlight_color)
         color_point = Color4((highlight[0], highlight[1], highlight[2], 1))
+        color_unused = Color4((1, 0, 0, 1))
         color_border_open = Color4((highlight[0], highlight[1], highlight[2], 1.0))
         color_stipple = Color4((theme.face_select[0], theme.face_select[1], theme.face_select[2], 0))
         color_mesh = theme.face_select
@@ -626,18 +679,33 @@ class Patches_Logic:
 
         # draw corners
         with Drawing.draw(context, CC_2D_POINTS) as draw:
-            draw.point_size(vertex_size + 4)
-            draw.color(color_point)
-
             # draw BMVert corners
-            for i in Patches_Logic.corners:
-                bmv = bm.verts[i]
-                if bmv and bmv.select:
-                    _ = draw.vertex(proj(M @ bmv.co))
+            for idx_bmv in Patches_Logic.corners_bmv:
+                if idx_bmv in Patches_Logic.used_bmv:
+                    draw.point_size(vertex_size + 4)
+                    draw.color(color_point)
+                    _ = draw.vertex(proj(M @ bm.verts[idx_bmv].co))
+                else:
+                    draw.point_size(vertex_size + 4)
+                    draw.color(color_unused)
+                    _ = draw.vertex(proj(M @ bm.verts[idx_bmv].co))
+                    draw.point_size(vertex_size + 1)
+                    draw.color(color_point)
+                    _ = draw.vertex(proj(M @ bm.verts[idx_bmv].co))
 
             # draw new corners
-            for co in Patches_Logic.corners_new:
-                _ = draw.vertex(proj(M @ co))
+            for (idx_new, co) in enumerate(Patches_Logic.corners_new):
+                if idx_new in Patches_Logic.used_new:
+                    draw.point_size(vertex_size + 4)
+                    draw.color(color_point)
+                    _ = draw.vertex(proj(M @ co))
+                else:
+                    draw.point_size(vertex_size + 4)
+                    draw.color(color_unused)
+                    _ = draw.vertex(proj(M @ co))
+                    draw.point_size(vertex_size + 1)
+                    draw.color(color_point)
+                    _ = draw.vertex(proj(M @ co))
 
         # draw sides
         for side in Patches_Logic.sides:
@@ -653,3 +721,15 @@ class Patches_Logic:
                     color=(1,1,0,1),
                     dropshadow=(0,0,0,1),
                 )
+
+    @staticmethod
+    def commit():
+        if not Patches_Logic.patch:
+            return
+        context = bpy.context
+        edit_object = context.edit_object
+        assert edit_object
+        M = edit_object.matrix_world
+        bm, em = get_bmesh_emesh(context, ensure_lookup_tables=True)
+        Patches_Logic.patch.commit(bm, M)
+        bmops.flush_selection(bm, em) # depsgraph will update...
