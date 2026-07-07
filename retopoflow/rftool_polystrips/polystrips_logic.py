@@ -378,6 +378,16 @@ class PolyStrips_Logic:
                     bme for bme in snap_bmf0.edges
                     if bme.is_boundary and any(len(bmv.link_faces)>1 for bmv in bme.verts)
                 ]
+                if len(limit_bmes0) > 1 and len(stroke3D_local) > 1:
+                    # At sharp angle splits the corner sits about equidistant from both sides,
+                    # so connect to the edge in the direction of the stroke instead of closest one.
+                    corner = self.stroke3D_local[i0]
+                    incoming = Direction(corner - self.stroke3D_local[i0 - 1])
+                    outgoing = Direction(stroke3D_local[1] - stroke3D_local[0])
+                    normal = Direction(nearest_normal_valid_sources(context, M @ corner, world=False))
+                    side = Direction(incoming.cross(normal))
+                    outgoing_sign = 1 if side.dot(outgoing) >= 0 else -1
+                    limit_bmes0 = [max(limit_bmes0, key=lambda bme: outgoing_sign * side.dot(bme_midpoint(bme) - corner))]
 
             limit_bmes1 = None
             if i1 == nstroke:
@@ -392,8 +402,10 @@ class PolyStrips_Logic:
                 # extend stroke by self.width
                 i_end = max(0, len(stroke3D_local) - 5)
                 p0,p1 = stroke3D_local[i_end], stroke3D_local[-1]
-                d01 = Direction(p1 - p0)
-                p2 = self.nearest_point(context, p1 + d01 * (self.initial_width / 2))
+                p1_world = M @ p1
+                d01_world = Direction(p1_world - (M @ p0))
+                p2_world = p1_world + d01_world * (self.initial_width / 2) # self.initial_width is world space
+                p2 = self.nearest_point(context, Mi @ p2_world)
                 stroke3D_local += [p2]
 
             snap0 = trim_stroke_to_bmf(stroke3D_local, snap_bmf0, True, limit_bmes0)

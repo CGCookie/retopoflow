@@ -47,6 +47,7 @@ This document contains details about what has changed in Retopoflow in version 4
 - Added new custom icon for Loops tweaking in tool header
 - Cleaned up tool header UI
 - Fixed proportional editing circle size and location
+- Fixed non-uniform scale issues when drawing in PolyStrips
 
 ## 4.1.9
 
