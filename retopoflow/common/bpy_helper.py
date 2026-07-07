@@ -20,12 +20,12 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
-from bpy.types import Object, BlendData
-from typing import Protocol, Literal, cast
+from bpy.types import Object
+from typing import Protocol, Literal, cast, TypeAlias
 from collections.abc import Callable
 from types import ModuleType
 
-BPY_OP_RETURN = set[
+BPY_OP_RETURN : TypeAlias = set[
     Literal[
         'RUNNING_MODAL',
         'CANCELLED',
@@ -34,7 +34,8 @@ BPY_OP_RETURN = set[
     ]
 ]
 
-BPY_OP_EXECUTION_CONTEXT = Literal[
+# see : https://docs.blender.org/api/current/bpy.ops.html#execution-context
+BPY_OP_EXECUTION_CONTEXT : TypeAlias = Literal[
     "INVOKE_DEFAULT",
     "INVOKE_REGION_WIN",
     "INVOKE_REGION_CHANNELS",
@@ -49,7 +50,7 @@ BPY_OP_EXECUTION_CONTEXT = Literal[
     "EXEC_SCREEN",
 ]
 
-BL_SPACE_TYPES = Literal[
+BL_SPACE_TYPES : TypeAlias = Literal[
     "EMPTY",
     "VIEW_3D",
     "IMAGE_EDITOR",
@@ -71,7 +72,7 @@ BL_SPACE_TYPES = Literal[
     "PREFERENCES",
 ]
 
-BL_REGION_TYPES = Literal[
+BL_REGION_TYPES : TypeAlias = Literal[
     "WINDOW",
     "HEADER",
     "CHANNELS",
@@ -90,6 +91,21 @@ BL_REGION_TYPES = Literal[
     "XR",
 ]
 
+# see: https://docs.blender.org/api/current/bpy_types_enum_items/operator_type_flag_items.html#rna-enum-operator-type-flag-items
+BL_OPTIONS : TypeAlias = set[Literal[
+    'REGISTER',             # Display in the info window and support the redo toolbar panel
+    'UNDO',                 # Push an undo event when the operator returns `FINISHED` (needed for operator redo, mandatory if the operator modifies Blender data).
+    'UNDO_GROUPED',         # Push a single undo event for repeated instances of this operator.
+    'BLOCKING',             # Block anything else from using the cursor.
+    'MACRO',                # Use to check if an operator is a macro.
+    'GRAB_CURSOR',          # Use so the operator grabs the mouse focus, enables wrapping when continuous grab is enabled.
+    'GRAB_CURSOR_X',        # Grab, only warping the X axis.
+    'GRAB_CURSOR_Y',        # Grab, only warping the Y axis.
+    'DEPENDS_ON_CURSOR',    # The initial cursor location is used, when running from a menus or buttons the user is prompted to place the cursor before beginning the operation.
+    'PRESET',               # Display a preset button with the operators settings.
+    'INTERNAL',             # Removes the operator from search results
+    'MODAL_PRIORITY',       # Handle events before other modal operators without this option. Use with caution, do not modify data that other modal operators assume is unchanged during their operation.
+]]
 
 class BpyOperatorCallable(Protocol):
     def __call__(
@@ -131,7 +147,7 @@ def bpy_ops_retopoflow(
 # TimerCallback should actually take no args, but pyright complains
 # about "Expected 0 positional arguments" for some reason...
 # TimerCallback = Callable[[], float|None]
-TimerCallback = Callable[..., float|None]
+TimerCallback : TypeAlias = Callable[..., float|None]
 
 class BPY_Timers:
     @staticmethod
@@ -212,7 +228,7 @@ def bpy_data_libraries_load_object(
     ) as (data_from, data_to): # pyright: ignore[reportUnknownVariableType]
         data_from = cast(LibraryData, data_from)
         data_to = cast(LibraryData, data_to)
-        
+
         if object_name not in data_from.objects:
             return None
 

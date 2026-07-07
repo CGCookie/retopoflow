@@ -34,7 +34,8 @@ from ..common.bmesh import get_bmesh_emesh
 from ..common.drawing import Drawing
 from ..common.maths import view_right_direction, xform_direction, proportional_edit
 from ..common.raycast import raycast_point_valid_sources, nearest_point_valid_sources, mouse_from_event
-from ..common.operator import RFOperator, RFKeyMaps, execute_operator
+from ..common.operator import RFOperator, RFKeyMaps, execute_operator, Operator_Execute_Function
+from ..rfoverlay_base import RFOverlay_Base
 from ..rfglobals import RFGlobals
 from ...addon_common.common import gpustate
 from ...addon_common.common.maths import Color, sign_threshold
@@ -157,7 +158,7 @@ def create_curve_edit_operator(
     label : str,
     description : str,
     *,
-    get_overlay : Callable[[], type],
+    get_overlay : Callable[[], type[RFOverlay_Base] | None],
     on_init : Callable[[Context, Event], None] | None = None,
 ) -> type[RFOperator]:
     ''' Shared curve-handle drag operator: works for any overlay built with
@@ -200,7 +201,9 @@ def create_curve_edit_operator(
             return False if not i else bool(getattr(i, 'hovering', False))
 
         def init(self, context, event):
-            overlay = get_overlay().instance
+            overlay_type = get_overlay()
+            assert overlay_type
+            overlay = overlay_type.instance
             self.curves = overlay.curves
             self.chains = overlay.chains
             chain_idx, handle_idx, snapshot = overlay.hovering
@@ -1523,8 +1526,8 @@ def create_curve_toggle_handle_type_operator(
     label : str,
     description : str,
     *,
-    get_overlay : Callable[[], type],
-) -> Callable:
+    get_overlay : Callable[[], type[RFOverlay_Base] | None],
+) -> Operator_Execute_Function:
     '''
     Single-press hotkey (V): while hovering a toggleable curve KNOT, cycles
     its handle type Aligned -> Vector -> Automatic -> Aligned (see the
@@ -1541,7 +1544,9 @@ def create_curve_toggle_handle_type_operator(
     '''
 
     def _hovered_toggleable_knot():
-        overlay = get_overlay().instance
+        overlay_type = get_overlay()
+        assert overlay_type
+        overlay = overlay_type.instance
         if not overlay or not overlay.hovering:
             return None
         chain_idx, handle_idx, _snapshot = overlay.hovering

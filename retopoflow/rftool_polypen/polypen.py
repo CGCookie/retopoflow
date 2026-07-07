@@ -20,6 +20,7 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
+from bpy.types import Context, Event, UILayout, WorkSpaceTool
 
 from ..rfglobals import RFGlobals
 from ..rfoverlay_base import RFOverlay_Base
@@ -54,6 +55,7 @@ from ..rfpanels.general_panel import draw_general_panel
 from ..rfpanels.mirror_panel import draw_mirror_panel, draw_mirror_popover
 from ..rfpanels.help_panel import draw_help_panel
 from ..common.interface import draw_line_separator
+from ..common.bpy_helper import BL_SPACE_TYPES, BL_REGION_TYPES, BL_OPTIONS
 
 from ..preferences import RF_Prefs
 
@@ -61,7 +63,7 @@ from .polypen_logic import PP_Logic
 
 
 class PolyPen_Insert_Modes:
-    insert_modes = [
+    insert_modes : list[tuple[str, str, str, int]] = [
         # (identifier, name, description, icon, number)  or  (identifier, name, description, number)
         # must have number?
         # None is a separator
@@ -71,24 +73,29 @@ class PolyPen_Insert_Modes:
         ("TRI/QUAD",  "Tri/Quad",  "Insert triangles then quads", 0),
         ("QUAD-ONLY", "Quad", "Insert quads only",                4),
     ]
-    insert_mode = 0
+    insert_mode : int = 0
 
     @staticmethod
     def generate_operators():
-        ops_insert = []
-        def gen_insert_mode(idname, label, value):
+        ops_insert : list[tuple[str,str]] = []
+
+        def gen_insert_mode(idname : str, label : str, value : int):
             nonlocal ops_insert
+
             mode_idname = f'polypen_setinsertmode_{idname.lower()}'
             rf_idname = f'retopoflow.{mode_idname}'
             rf_label = label
+
             class RFTool_OT_PolyPen_SetInsertMode:
-                bl_idname = rf_idname
-                bl_label = rf_label
-                bl_description = f'Set PolyPen Insert Mode to {label}'
-                def execute(self, context):
-                    PolyPen_Insert_Modes.set_insert_mode(None, value)
+                bl_idname : str = rf_idname
+                bl_label : str = rf_label
+                bl_description : str = f'Set PolyPen Insert Mode to {label}'
+
+                def execute(self, context : Context) -> set[str]:
+                    PolyPen_Insert_Modes.set_insert_mode(value)
                     context.area.tag_redraw()
                     return {'FINISHED'}
+
             opname = f'RFTool_OT_PolyPen_SetInsertMode_{idname}'
             op = type(opname, (RFTool_OT_PolyPen_SetInsertMode, RFRegisterClass, bpy.types.Operator), {})
             ops_insert += [(rf_idname, rf_label)]
@@ -100,41 +107,53 @@ class PolyPen_Insert_Modes:
         gen_insert_mode('QuadOnly', 'Quad-Only', 4)
 
     @staticmethod
-    def get_insert_mode(self): return PolyPen_Insert_Modes.insert_mode
+    def get_insert_mode() -> int:
+        return PolyPen_Insert_Modes.insert_mode
+
     @staticmethod
-    def set_insert_mode(self, v): PolyPen_Insert_Modes.insert_mode = v
+    def set_insert_mode(v : int):
+        PolyPen_Insert_Modes.insert_mode = v
+
 
 class PolyPen_Quad_Stability:
-    quad_stability = 1
+    quad_stability : float = 1
 
     @staticmethod
     def generate_operators():
-        ops_insert = []
-        def gen_quad_stability(idname, label, value):
+        ops_insert : list[tuple[str,str]] = []
+
+        def gen_quad_stability(idname : str, value : float):
             nonlocal ops_insert
+
             rf_idname = f'retopoflow.polypen_quad_stability_{idname.lower()}'
-            rf_label = label
+            rf_label = f'{value}'
+
             class RFTool_OT_PolyPen_SetQuadStability:
-                bl_idname = rf_idname
-                bl_label = rf_label
-                bl_description = f'Set PolyPen Quad Stability to {label}'
-                def execute(self, context):
-                    PolyPen_Quad_Stability.set_quad_stability(None, float(label))
+                bl_idname : str = rf_idname
+                bl_label : str = rf_label
+                bl_description : str = f'Set PolyPen Quad Stability to {value}'
+
+                def execute(self, context : Context) -> set[str]:
+                    PolyPen_Quad_Stability.set_quad_stability(value)
                     context.area.tag_redraw()
                     return {'FINISHED'}
+
             opname = f'RFTool_OT_PolyPen_SetQuadStability_{idname}'
             op = type(opname, (RFTool_OT_PolyPen_SetQuadStability, RFRegisterClass, bpy.types.Operator), {})
             ops_insert += [(rf_idname, rf_label)]
 
-        gen_quad_stability('quarter',  '0.25',  0)
-        gen_quad_stability('half', '0.5', 1)
-        gen_quad_stability('threequarters', '0.75', 2)
-        gen_quad_stability('full',  '1',  3)
+        gen_quad_stability('quarter', 0.25)
+        gen_quad_stability('half', 0.5)
+        gen_quad_stability('threequarters', 0.75)
+        gen_quad_stability('full', 1.0)
 
     @staticmethod
-    def get_quad_stability(self): return PolyPen_Quad_Stability.quad_stability
+    def get_quad_stability():
+        return PolyPen_Quad_Stability.quad_stability
+
     @staticmethod
-    def set_quad_stability(self, v): PolyPen_Quad_Stability.quad_stability = v
+    def set_quad_stability(v : float):
+        PolyPen_Quad_Stability.quad_stability = v
 
 
 # TODO: DO NOT CALL THIS HERE!  SHOULD ONLY GET CALLED ONCE
@@ -144,12 +163,12 @@ PolyPen_Quad_Stability.generate_operators()
 
 
 class RFOperator_PolyPen(RFOperator):
-    bl_idname = "retopoflow.polypen"
-    bl_label = 'PolyPen'
-    bl_description = 'Create complex topology on vertex-by-vertex basis'
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "TOOLS"
-    bl_options = set()
+    bl_idname : str = "retopoflow.polypen"
+    bl_label : str = 'PolyPen'
+    bl_description : str = 'Create complex topology on vertex-by-vertex basis'
+    bl_space_type : BL_SPACE_TYPES = "VIEW_3D"
+    bl_region_type : BL_REGION_TYPES = "TOOLS"
+    bl_options : BL_OPTIONS = set()
 
     rf_keymaps : RFKeyMaps = [
         (bl_idname, {'type': 'LEFT_CTRL', 'value': 'PRESS'}, {'km_context': 'init', 'km_label': ' Start PolyPen'}),
@@ -157,7 +176,8 @@ class RFOperator_PolyPen(RFOperator):
         # below is needed to handle case when CTRL is pressed when mouse is initially outside area
         (bl_idname, {'type': 'MOUSEMOVE', 'value': 'ANY', 'ctrl': True}, None),
     ]
-    rf_status = {
+
+    rf_status : dict[str, tuple[str]] = {
         'ready': ('LMB: Insert', ),
     }
 
@@ -197,14 +217,18 @@ class RFOperator_PolyPen(RFOperator):
         default = False
     )
 
+    logic : PP_Logic
+    done : bool
+    shift_held : bool
+
     @classmethod
     def can_start(cls, context):
         return not cls.is_running()
 
-    def init(self, context, event):
+    def init(self, context : Context, event : Event):
         # print(f'STARTING POLYPEN')
         self.set_statusbar_override(self.rf_status['ready'])
-        print(f'POLYPEN INIT {self.km_context=}')
+        # print(f'  {self.km_context=}')
         self.logic = PP_Logic(context, event)
         self.tickle(context)
         self.done = False
@@ -213,16 +237,19 @@ class RFOperator_PolyPen(RFOperator):
     def reset(self):
         self.logic.reset()
 
-    def update(self, context, event):
+    def update(self, context : Context, event : Event) -> set[str]:
         if self.shift_held != event.shift:
             self.shift_held = event.shift
             context.area.tag_redraw()
+
         if not event.ctrl:
             self.done = True
+
         if self.done:
             if not self.is_active():
                 # wait until we're active (could happen when transforming)
                 return {'PASS_THROUGH'}
+
             self.logic.cleanup()
             self.set_statusbar_override(None)
             return {'FINISHED'}
@@ -240,10 +267,14 @@ class RFOperator_PolyPen(RFOperator):
 
         return {'PASS_THROUGH'} # allow other operators, such as UNDO!!!
 
-    def draw_postpixel(self, context):
+    def draw_postpixel(self, context : Context):
+        if self.shift_held:
+            return
+
         RFCore = RFGlobals.RFCore_None
-        if not RFCore or not RFCore.is_current_area(context): return
-        if self.shift_held: return
+        if not RFCore or not RFCore.is_current_area(context):
+            return
+
         self.logic.draw(context)
 
 
@@ -281,13 +312,13 @@ RFOperator_PolyPen_ToggleHandleType = create_curve_toggle_handle_type_operator(
 
 
 class RFTool_PolyPen(RFTool_Base):
-    bl_idname = "retopoflow.polypen"
-    bl_label = "PolyPen"
-    bl_description = "Create complex topology on vertex-by-vertex basis"
-    bl_icon = get_path_to_blender_icon('polypen')
-    bl_widget = None
+    bl_idname : str = "retopoflow.polypen"
+    bl_label : str = "PolyPen"
+    bl_description : str = "Create complex topology on vertex-by-vertex basis"
+    bl_icon : str = get_path_to_blender_icon('polypen')
+    bl_widget : str | None = None
     rf_operator_idname : str | None = 'retopoflow.polypen'
-    rf_supports_curve_handles = True
+    rf_supports_curve_handles : bool = True
     rf_overlay : type[RFOverlay_Base] | None = RFOperator_PolyPen_Overlay
 
     props = None  # needed to reset properties
@@ -304,7 +335,8 @@ class RFTool_PolyPen(RFTool_Base):
         RFOperator_Zipper,
     )
 
-    def draw_settings(context, layout, tool):
+    @staticmethod
+    def draw_settings(context : Context, layout : UILayout, tool : WorkSpaceTool):
         prefs = RF_Prefs.get_prefs(context)
         props_polypen = tool.operator_properties(RFOperator_PolyPen.bl_idname)
         RFTool_PolyPen.props = props_polypen
@@ -355,7 +387,7 @@ class RFTool_PolyPen(RFTool_Base):
             draw_help_panel(context, layout)
 
     @classmethod
-    def activate(cls, context):
+    def activate(cls, context : Context):
         # TODO: some of the following might not be needed since we are creating our
         #       own transform operators
         prefs = RF_Prefs.get_prefs(context)
@@ -375,5 +407,5 @@ class RFTool_PolyPen(RFTool_Base):
             cls.resetter['context.tool_settings.mesh_select_mode'] = [True, True, False]
 
     @classmethod
-    def deactivate(cls, context):
+    def deactivate(cls, context : Context):
         cls.resetter.reset()

@@ -23,7 +23,7 @@ import bpy
 
 import time
 import math
-from typing import Callable
+from typing import Callable, cast
 from collections.abc import Sequence, Iterable
 
 from bpy.types import Context, Event, Scene, Region, RegionView3D
@@ -108,24 +108,28 @@ def prettyprint_matrices(*args, format='% 7.3f'):
         line.append(spc + '└' + (' '*(w*8-1)) + ' ┘')
     print('  '.join(line))
 
-def size2D_to_size(context : Context, depth3D : float, *, pt : Vector | Sequence[float] | None = None) -> float | None:
+def size2D_to_size(
+    context : Context,
+    depth3D : float,
+    *,
+    pt : Vector | Sequence[float] | None = None,
+) -> float | None:
     w : float = context.region.width * 0.5
     h : float = context.region.height * 0.5
     scale = min(w, h)
 
     # note: scaling then unscaling helps with numerical instability when clip_start is small
     # find center of screen
-    if not pt:
-        pt = Vector((w, h))
-    else:
-        pt = Vector((pt[0], pt[1]))
-    xy = pt
+    xy = Vector((pt[0], pt[1])) if pt else Vector((w, h))
     xy0, xy1 = xy + Vector((-scale, 0)), xy + Vector((scale, 0))
     xy2, xy3 = xy + Vector((0, -scale)), xy + Vector((0, scale))
     p3d = point2D_to_point(context, xy, depth3D)
     p3d0, p3d1 = point2D_to_point(context, xy0, depth3D), point2D_to_point(context, xy1, depth3D)
     p3d2, p3d3 = point2D_to_point(context, xy2, depth3D), point2D_to_point(context, xy3, depth3D)
-    if not p3d or not p3d0 or not p3d1 or not p3d2 or not p3d3: return None
+
+    if not p3d or not p3d0 or not p3d1 or not p3d2 or not p3d3:
+        return None
+
     # if not p3d0 or not p3d1: return None
     d0, d1 = (p3d0 - p3d).length, (p3d1 - p3d).length
     d2, d3 = (p3d2 - p3d).length, (p3d3 - p3d).length
@@ -319,28 +323,129 @@ def make_hidden_tester(context: Context, obj) -> 'Callable[[Vector, Vector, floa
         return False
     return hidden_tester
 
+
+class Raycast:
+    hit        : bool = False
+    ray_origin : Vector = Vector()
+    ray_dir    : Vector = Vector()
+    ray_world  : tuple[Vector, Vector] = (Vector(), Vector())
+    distance   : float = float('inf')
+    object     : BObject | None = None
+    face_index : int = -1
+    co_local   : Vector = Vector()
+    no_local   : Vector = Vector()
+    co_hit     : Vector = Vector()
+    no_hit     : Vector = Vector()
+    co_world   : Vector = Vector()
+    no_world   : Vector = Vector()
+
+    def __init__(
+        self,
+        context : Context,
+        point : Vector | Sequence[float] | None,
+        *,
+        respect_clip_planes : bool = False,
+    ):
+        if not point:
+            return
+
+        editobj = context.edit_object
+        if not editobj:
+            return
+
+        ray_world = ray_from_point(context, point)
+        ray_origin, ray_dir = ray_world  # 4D: w=1 (point) and w=0 (direction, already normalised)
+        if not ray_origin or not ray_dir:
+            return
+
+        self.ray_origin = ray_origin
+        self.ray_dir = ray_dir
+        self.ray_world = (ray_origin, ray_dir)  # ray based on point_world
+
+        Me = editobj.matrix_world
+        Mei = Me.inverted_safe()
+        Met = Me.transposed()
+
+        for hitobj in iter_all_valid_sources(context):
+            M   = hitobj.matrix_world
+            Mi  = M.inverted_safe()
+            Mit = Mi.transposed()
+            #Mt  = M.transposed()
+
+            current_origin = ray_origin  # 4D point, w=1, advances past rejected hits when clipping
+
+            for _ in range(CLIP_MAX_SKIPS if respect_clip_planes else 1):
+                ray_local = (
+                    Mi @ current_origin,
+                    (Mi @ ray_dir).normalized(),
+                )
+                result, co_hit, no_hit, idx = hitobj.ray_cast(
+                    point_to_bvec3(ray_local[0]),
+                    vector_to_bvec3(ray_local[1]),
+                )
+                if not result:
+                    break
+
+                co_world = point_to_bvec3(M @ point_to_bvec4(co_hit))
+
+                if respect_clip_planes and not is_point_in_clip_region(context, co_world):
+                    # hit is outside the clipping region: advance past it and retry.
+                    dist_to_hit = distance_between_locations(current_origin, co_world)
+                    current_origin = current_origin + ray_dir * (dist_to_hit + CLIP_SKIP_NUDGE)
+                    continue
+
+                # Hit is valid
+                no_hit = no_hit.normalized()
+                no_world  = vector_to_bvec3(Mit @ vector_to_bvec4(no_hit)).normalized()
+                dist = distance_between_locations(ray_origin, co_world)
+                # print(co_hit, dist)
+
+                if self.hit and self.distance <= dist:
+                    break
+
+                co_local = point_to_bvec3(Mei @ point_to_bvec4(co_world))
+                no_local = vector_to_bvec3(Met @ vector_to_bvec4(no_world)).normalized()
+
+                self.hit        = True
+                self.distance   = dist      # world distance between ray origin and hit point
+                self.object     = hitobj    # hit object
+                self.face_index = idx       # hit face index
+                self.co_local   = co_local  # co wrt edit object
+                self.no_local   = no_local  # normal wrt edit object
+                self.co_hit     = co_hit    # co wrt hit object
+                self.no_hit     = no_hit    # normal wrt hit object
+                self.co_world   = co_world  # co wrt world space
+                self.no_world   = no_world  # normal wrt world space
+
+                break
+
+
 def raycast_valid_sources(
     context : Context,
     point : Vector|Sequence[float]|None,
     respect_clip_planes : bool = False
-) -> dict[str,tuple[Vector,Vector]|float|int|object|Vector|Sequence[float]]|None:
+) -> dict[str,tuple[Vector,Vector]|float|int|BObject|Vector|Sequence[float]]|None:
     if not point:
+        return None
+    editobj = context.edit_object
+    if not editobj:
         return None
 
     ray_world = ray_from_point(context, point)
-
-    # print(f'raycast_valid_sources {ray_world=}')
-    if ray_world[0] is None: return None
-
     ray_origin, ray_dir = ray_world  # 4D: w=1 (point) and w=0 (direction, already normalised)
 
-    best = None
+    # print(f'raycast_valid_sources {ray_world=}')
+    if not ray_origin or not ray_dir:
+        return None
 
-    Me = context.edit_object.matrix_world
+
+    best : dict[str,tuple[Vector,Vector]|float|int|BObject|Vector|Sequence[float]]|None = None
+
+    Me = editobj.matrix_world
     Mei = Me.inverted_safe()
     Met = Me.transposed()
-    for obj in iter_all_valid_sources(context):
-        M   = obj.matrix_world
+    for hitobj in iter_all_valid_sources(context):
+        M   = hitobj.matrix_world
         Mi  = M.inverted_safe()
         Mit = Mi.transposed()
         #Mt  = M.transposed()
@@ -352,8 +457,12 @@ def raycast_valid_sources(
                 Mi @ current_origin,
                 (Mi @ ray_dir).normalized(),
             )
-            result, co_hit, no_hit, idx = obj.ray_cast(point_to_bvec3(ray_local[0]), vector_to_bvec3(ray_local[1]))
-            if not result: break
+            result, co_hit, no_hit, idx = hitobj.ray_cast(
+                point_to_bvec3(ray_local[0]),
+                vector_to_bvec3(ray_local[1]),
+            )
+            if not result:
+                break
 
             co_world = point_to_bvec3(M @ point_to_bvec4(co_hit))
 
@@ -369,16 +478,17 @@ def raycast_valid_sources(
             dist = distance_between_locations(ray_origin, co_world)
             # print(co_hit, dist)
 
-            if best and best['distance'] <= dist: break
+            if best and cast(float, best['distance']) <= dist:
+                break
 
             co_local = point_to_bvec3(Mei @ point_to_bvec4(co_world))
             no_local = vector_to_bvec3(Met @ vector_to_bvec4(no_world)).normalized()
 
             best = {
-                'ray_world':  ray_world,  # ray based on point_world
+                'ray_world':  (ray_origin, ray_dir),  # ray based on point_world
                 'distance':   dist,       # world distance between ray origin and hit point
-                'object':     obj,       'face_index': idx,        # hit object and face index
-                'co_local':   co_local,  'no_local':   no_local,   # co and normal wrt to active object
+                'object':     hitobj,    'face_index': idx,        # hit object and face index
+                'co_local':   co_local,  'no_local':   no_local,   # co and normal wrt to edit object
                 'co_hit':     co_hit,    'no_hit':     no_hit,     # co and normal wrt to hit object
                 'co_world':   co_world,  'no_world':   no_world,   # co and normal in world space
             }
@@ -542,7 +652,7 @@ def nearest_point_normal_valid_sources(
     if not obj:
         return None
     obj_M = obj.matrix_world
-    
+
     best_co_world = None
     best_no_world = None
     best_dist = float('inf')

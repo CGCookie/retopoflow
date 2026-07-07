@@ -217,7 +217,10 @@ class RFOperator_KeymapContext(RFOperator_KeymapContext_Helper, RFOperator_Base)
         update=RFOperator_KeymapContext_Helper.update_km_context,
     )
 
-    def set_statusbar_override(self, status: str | SharedStatusbarKeymap | Sequence[str | SharedStatusbarKeymap] | None):
+    def set_statusbar_override(
+        self,
+        status: str | SharedStatusbarKeymap | Sequence[str | SharedStatusbarKeymap] | None,
+    ):
         RFCore = RFGlobals.RFCore_None
         if not RFCore:
             return
@@ -317,7 +320,23 @@ class RFAssetShelf(AssetShelf):
     def can_start(cls, _context : Context) -> bool: return True
 
 
+
 class RFOperator_Execute(RFOperator_KeymapContext):
+    """
+    This class is more decorative and descriptive than anything else.
+    This class is far less built-up than the RFOperator class below.
+    """
+
+    @classmethod
+    def poll(cls, context : Context) -> bool:
+        return poll_retopoflow(context)
+
+class RFOperator_Invoke(RFOperator_KeymapContext):
+    """
+    This class is more decorative and descriptive than anything else.
+    This class is far less built-up than the RFOperator class below.
+    """
+
     @classmethod
     def poll(cls, context : Context) -> bool:
         return poll_retopoflow(context)

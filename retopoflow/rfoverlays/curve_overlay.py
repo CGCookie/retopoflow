@@ -170,7 +170,6 @@ def create_curve_overlay(
         bl_description : ClassVar[str] = 'Overlay curve control handles for selected loops and strips'
         bl_options : ClassVar[set[str]] = { 'INTERNAL' }
 
-        instance : ClassVar[object | None] = None
         depsgraph_version : ClassVar[int] = -42
         paused_update : ClassVar[bool] = False
         paused_overlay : ClassVar[bool] = False
@@ -202,7 +201,6 @@ def create_curve_overlay(
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
             cls = type(self)
-            cls.instance = self
             cls.depsgraph_version = -42
             self.curves = []
             self.chains = []
