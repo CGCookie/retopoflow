@@ -23,9 +23,11 @@ Created by Jonathan Denning, Jonathan Lampel
 
 
 from __future__ import annotations
-from typing import ClassVar, cast, TypeAlias
-from collections.abc import Sequence
+from typing import ClassVar, cast, TypeAlias, Literal, TypeVar, overload
+from collections.abc import Sequence, Generator
 from collections import deque
+from contextlib import contextmanager
+from dataclasses import dataclass
 
 import bpy
 from bpy.types import Mesh, Context, Event
@@ -61,8 +63,26 @@ INDEX_BMVERT : TypeAlias = int
 INDEX_PVERT : TypeAlias = int
 INDEX_CORNER_NEW : TypeAlias = int
 
-PVERT_ARG : TypeAlias = int | tuple['PVERT_ARG', 'PVERT_ARG', float]
-# Note: must quote recursive PVERT_ARG here ^^ and ^^ for Python 3.11 which is used by Blender 4.2
+PATCH_SIDE : TypeAlias = list[INDEX_BMVERT]
+PATCH_SIDES : TypeAlias = list[PATCH_SIDE]
+
+# Note: because some types are not yet defined or defined recursively,
+#       must create special PVERT_ARG_PVERT type and quote PVERT_ARG and PVert
+PVERT_ARG_PVERT : TypeAlias = TypeVar('PVERT_ARG_PVERT', bound='PVert') # pyright: ignore[reportUnknownVariableType]
+PVERT_ARG_INT : TypeAlias = INDEX_BMVERT
+PVERT_ARG_LERP : TypeAlias = tuple[ Literal['lerp'], 'PVERT_ARG', 'PVERT_ARG', float ]
+PVERT_ARG_AVERAGE : TypeAlias = tuple[ Literal['average'], Sequence['PVERT_ARG'] ]
+PVERT_ARG : TypeAlias = PVERT_ARG_INT | PVERT_ARG_LERP | PVERT_ARG_AVERAGE | PVERT_ARG_PVERT # pyright: ignore[reportUnknownVariableType]
+PVERT_TUPLE_ARG : TypeAlias = tuple[PVERT_ARG_INT] | tuple[PVERT_ARG_LERP] | tuple[PVERT_ARG_AVERAGE] | tuple[PVERT_ARG_PVERT]
+
+PATCH_SIDE_PVERTS : TypeAlias = list['PVert']
+PATCH_SIDES_PVERTS : TypeAlias = list[PATCH_SIDE_PVERTS]
+
+
+CO_LOCAL : TypeAlias = Vector
+CO_WORLD : TypeAlias = Vector
+CO_SCREEN : TypeAlias = Vector
+RADIUS : TypeAlias = float
 
 
 class PVert:
@@ -70,50 +90,120 @@ class PVert:
     Convenience class that handles computing LERPed and snapped positions
     """
 
-    arg : INDEX_BMVERT | tuple[PVert, PVert, LERP_WEIGHT]
+    _bm : ClassVar[BMesh | None] = None
 
-    co : Vector
-    co_snapped_world : Vector
+    co : CO_LOCAL               # computed location of PVert
+    idx : INDEX_BMVERT = -1     # -1 indicates that PVert is not based on BMVert
 
-    def __init__(self, context : Context, M : Matrix, bm : BMesh, arg : PVERT_ARG):
-        def wrap(warg : PVERT_ARG | PVert) -> PVert:
-            match warg:
-                case PVert():
-                    return warg
-                case int() as idx:
-                    return PVert(context, M, bm, idx)
-                case (ia0, ia1, weight):
-                    return PVert(context, M, bm, (ia0, ia1, weight))
-                case _: # pyright: ignore[reportUnnecessaryComparison]
-                    assert False, f'Unhandled type {type(arg)} ({arg})' # pyright: ignore[reportUnreachable]
+    @contextmanager
+    @staticmethod
+    def create(bm : BMesh) -> Generator[None, None, None]:
+        try:
+            PVert._bm = bm
+            yield None
+        finally:
+            PVert._bm = None
 
-        match arg:
+
+    ##################################################################################
+    # These __new__ methods provide type hinting for the various ways of creating    #
+    # new PVert objects (specialized constructors).                                  #
+    # Note: new PVerts must be created inside the PVert.create context manager!      #
+    ##################################################################################
+
+    @overload
+    def __new__(cls,
+        pvert : PVert,
+    ) -> PVert:
+        ...
+
+    @overload
+    def __new__(cls,
+        idx : INDEX_BMVERT,
+    ) -> PVert:
+        ...
+
+    @overload
+    def __new__(cls,
+        lerp : Literal['lerp'],
+        pt0 : PVERT_ARG,    # pyright: ignore[reportUnknownParameterType]
+        pt1 : PVERT_ARG,    # pyright: ignore[reportUnknownParameterType]
+        weight: float,
+    ) -> PVert:
+        ...
+
+    @overload
+    def __new__(cls,
+        average : Literal['average'],
+        *pts : PVERT_ARG,   # pyright: ignore[reportUnknownParameterType]
+    ) -> PVert:
+        ...
+
+    @overload
+    def __new__(cls,
+        tupled_args : PVERT_TUPLE_ARG,  # pyright: ignore[reportUnknownParameterType]
+    ) -> PVert:
+        ...
+
+    def __new__(cls,        # pyright: ignore[reportInconsistentOverload]
+        *args : ...,        # pyright: ignore[reportAny]
+    ) -> PVert:
+        """
+        foo
+        """
+        bm = PVert._bm
+        assert bm, 'Must create new PVerts inside the PVert.create(bmesh) context manager'
+
+        assert args, 'Must specify at least one, but no arguments specified'
+
+        match args[0]:
+            case tuple():
+                assert len(args) == 1, f'Expected one argement for tuple, but instead saw {len(args)}: {args}'
+                return PVert(*args[0])
+
+            case PVert() as pvert:
+                return pvert
+
             case int() as idx:
-                self.arg = idx
-                self.co = bm.verts[idx].co
+                pvert = super().__new__(cls)
+                pvert.co = bm.verts[idx].co
+                pvert.idx = idx
+                return pvert
 
-            case (a0, a1, weight):
-                assert isinstance(a0, (int, PVert, tuple)), f'Unhandled type {type(arg)} ({arg})'
-                assert isinstance(a1, (int, PVert, tuple)), f'Unhandled type {type(arg)} ({arg})'
-                pv0 = wrap(a0)
-                pv1 = wrap(a1)
-                self.arg = ( pv0, pv1, weight)
-                self.co = pv0.co + (pv1.co - pv0.co) * weight
+            case 'lerp':
+                assert len(args) == 4, f'Expected three arguments for lerp (pt0, pt1, weight), but instead saw {args[1:]}'
+                pvert0 = PVert(args[1])         # pyright: ignore[reportAny]
+                pvert1 = PVert(args[2])         # pyright: ignore[reportAny]
+                weight = cast(float, args[3])
+                pvert = super().__new__(cls)
+                pvert.co = pvert0.co + (pvert1.co - pvert0.co) * weight
+                return pvert
 
-            case _: # pyright: ignore[reportUnnecessaryComparison]
-                assert False, f'Unhandled type {type(arg)} ({arg})' # pyright: ignore[reportUnreachable]
+            case 'average':
+                assert len(args) > 2, f'Expected at least arguments for lerp, but instead saw {args}'
+                pverts = [ PVert(arg) for arg in args[1:] ]     # pyright: ignore[reportAny]
+                pvert = super().__new__(cls)
+                pvert.co = sum((pv.co for pv in pverts), Vector((0,0,0))) / max(1, len(pverts))
+                return pvert
 
-        co_snapped_world = nearest_point_valid_sources(context, M @ self.co)
-        assert co_snapped_world
-        self.co_snapped_world = co_snapped_world
+            case _: # pyright: ignore[reportAny]
+                assert False, f'Unhandled arguments {args}'
+
 
     @property
-    def existing(self) -> bool:
-        return isinstance(self.arg, int)
+    def from_bmvert(self) -> bool:
+        return self.idx >= 0
 
     def bmv(self, bm : BMesh) -> BMVert | None:
-        return bm.verts[self.arg] if isinstance(self.arg, int) else None
+        return bm.verts[self.idx] if self.idx >= 0 else None
 
+
+@dataclass
+class Patch_Relax_Options:
+    enabled : bool = True
+    iterations : int = 100
+    scale_edge : float = 0.25
+    scale_face : float = 0.25
 
 
 class Patch:
@@ -127,82 +217,253 @@ class Patch:
     _faces : list[Sequence[INDEX_PVERT]]
 
     # snapped co in world space of each vert, edge, face of patch
-    verts : list[Vector]
-    edges : list[Sequence[Vector]]  # always exactly two vectors
-    faces : list[Sequence[Vector]]
+    verts : list[CO_WORLD]
+    edges : list[Sequence[CO_WORLD]]    # always exactly two vectors
+    faces : list[Sequence[CO_WORLD]]
+
+    def __init__(
+        self,
+        bm : BMesh,
+        M : Matrix,
+        sides : PATCH_SIDES,
+        *,
+        relax_options : Patch_Relax_Options | None = None
+    ):
+        self.reset()
+
+        with PVert.create(bm):
+            sides_pverts = [
+                [ PVert(idx) for idx in side ]
+                for side in sides
+            ]
+
+            match sides_pverts:
+                case (side_a, side_b):
+                    self._process_2_sided(side_a, side_b)
+                case (side_a, side_b, side_c):
+                    self._process_3_sided(side_a, side_b, side_c)
+                case (side_a, side_b, side_c, side_d):
+                    self._process_4_sided(side_a, side_b, side_c, side_d)
+                case _:
+                    print(f'Unhandled number of sides {len(sides)}')
+
+        self._snap_and_relax(M, relax_options)
+
+        self.verts = [ M @ pv.co for pv in self._verts ]
+        self.edges = [ (self.verts[i0], self.verts[i1]) for (i0, i1) in self._edges ]
+        self.faces = [ tuple(self.verts[i] for i in f) for f in self._faces ]
 
 
-    def __init__(self, bm : BMesh, M : Matrix, sides : list[list[int]]):
-        print('New Patch')
-        self._process(bpy.context, M, bm, sides)
+    def _snap_and_relax(self, M : Matrix, relax_options : Patch_Relax_Options | None):
+        context = bpy.context
+        Mi = M.inverted_safe()
+
+        def snap(co_local : CO_LOCAL) -> CO_LOCAL:
+            co_world = M @ co_local
+            co_snapped_world = nearest_point_valid_sources(context, co_world) or co_world
+            co_snapped_local = Mi @ co_snapped_world
+            return co_snapped_local
+
+        verts = [ pvert.co for pvert in self._verts ]
+
+        if relax_options and relax_options.enabled:
+            def get_info(inds : Sequence[int]) -> tuple[CO_LOCAL, RADIUS]:
+                vs = [ verts[i] for i in inds ]
+                center = sum(vs, Vector((0,0,0))) / len(vs)
+                radius = sum((v - center).length for v in vs) / len(vs)
+                return (center, radius)
+
+            fixed = [ pvert.from_bmvert for pvert in self._verts ]
+            link_edges : dict[INDEX_PVERT, list[int]] = { i: [] for i in range(len(verts)) }
+            for (i_edge, inds) in enumerate(self._edges):
+                for i in inds:
+                    link_edges[i].append(i_edge)
+            link_faces : dict[INDEX_PVERT, list[int]] = { i: [] for i in range(len(verts)) }
+            for (i_face, inds) in enumerate(self._faces):
+                for i in inds:
+                    link_faces[i].append(i_face)
+
+            for _iteration in range(relax_options.iterations):
+                nverts : list[CO_LOCAL] = []
+                edge_infos = [ get_info(inds) for inds in self._edges ]
+                face_infos = [ get_info(inds) for inds in self._faces ]
+                for (i, co) in enumerate(verts):
+                    if fixed[i]:
+                        nverts.append(co)
+                        continue
+
+                    e = Vector((0,0,0))
+                    for i_edge in link_edges[i]:
+                        c,r = edge_infos[i_edge]
+                        v = co - c
+                        e -= v * (v.length / r)
+                    e *= relax_options.scale_edge
+
+                    f = Vector((0,0,0))
+                    for i_face in link_faces[i]:
+                        c,r = face_infos[i_face]
+                        v = co - c
+                        f -= v * (v.length / r) / len(self._faces[i_face])
+                    f *= relax_options.scale_face
+
+                    nverts.append(co + e + f)
+                verts = nverts
+
+        for (pvert, co) in zip(self._verts, verts):
+            pvert.co = snap(co)
 
     def reset(self):
         self._verts = []
         self._edges = []
         self._faces = []
+
+        self.verts = []
         self.edges = []
         self.faces = []
 
-    def _process(self, context : Context, M : Matrix, bm : BMesh, sides : list[list[int]]):
 
-        self.reset()
+    def _process_2_sided(
+        self,
+        side_a : PATCH_SIDE_PVERTS,
+        side_b : PATCH_SIDE_PVERTS,
+    ):
+        if len(side_a) == len(side_b):
+            # special case
+            n = len(side_a)
+            c0, c1 = side_a[0], side_a[-1]
+            side_b = list(side_b[::-1])
 
-        match len(sides):
-            case 4:
-                self._process_quad(context, M, bm, sides)
-            case _:
-                print(f'Unhandled number of sides {len(sides)}')
+            self._verts.append(PVert(c0))                       # 1
+            for (a,b) in zip(side_a[1:-1], side_b[1:-1]):       # 2*(n-2)
+                self._verts.append(PVert(a))
+                self._verts.append(PVert(b))
+            self._verts.append(PVert(c1))                       # 1
+            # ................................................... above sum = 1 + 2 * (n - 2) + 1 = 2n - 2
 
-        self.verts = [ pv.co_snapped_world for pv in self._verts ]
-        self.edges = [ (self.verts[i0], self.verts[i1]) for (i0, i1) in self._edges ]
-        self.faces = [ tuple(self.verts[i] for i in f) for f in self._faces ]
+            self._verts.append(PVert(                           # 1
+                'lerp',
+                c0,
+                ( 'lerp', side_a[1], side_b[1], 0.5 ),
+                1.5
+            ))
+            for (a,b) in zip(side_a[2:-2], side_b[2:-2]):       # 2*(n-4)
+                self._verts.append(PVert('lerp', a, b, 0.2))
+                self._verts.append(PVert('lerp', a, b, 0.8))
+            self._verts.append(PVert(                           # 1
+                'lerp',
+                c1,
+                ( 'lerp', side_a[-2], side_b[-2], 0.5 ),
+                1.5
+            ))
+            # ................................................... above sum = 1 + 2*(n-4) + 1
 
+            i0 = 0
+            i1 = i0 + 1 + 2 * (n - 2) + 1
+            for i in range(i0+1, i1-4, 2):
+                self._edges += [(i, i+2), (i+1, i+3)]
+            self._edges += [(i0,i0+1), (i0,i0+2), (i0+1,i1), (i0+2, i1), (i1, i1+1), (i1, i1+2)]
+            j0 = 1 + 2 * (n - 2)
+            j1 = j0 + 1 + 1 + 2 * (n - 4)
+            self._edges += [(j0, j0-1), (j0, j0-2), (j0-1, j1), (j0-2, j1), (j1, j1-1), (j1, j1-2)]
+            for i in range(0, 2*(n-4), 2):
+                if i < 2 * (n - 4) - 2:
+                    self._edges += [(i1+1+i, i1+3+i), (i1+2+i, i1+4+i)]
+                self._edges += [(i0+4+i, i1+2+i), (i0+3+i, i1+1+i)]
 
-    def _process_quad(self, context : Context, M : Matrix, bm : BMesh, sides : list[list[int]]):
-        assert len(sides) == 4
-
-        side_a, side_b, side_c, side_d = sides
-        la, lb, lc, ld = map(len, sides)
-
-        # can only process 4-sided patch if opposite sides have same number of verts/edges
-        if la != lc or lb != ld:
             return
 
-        w, h = la, lb
+        print(f'Unhandled 2-sided patch: {len(side_a)}-{len(side_b)}')
 
-        def a(i : int) -> int:
-            return side_a[i]
-        def b(j : int) -> int:
-            return side_b[j]
-        def c(i : int) -> int:
-            return side_c[w-1-i]
-        def d(j : int) -> int:
-            return side_d[h-1-j]
+    def _process_3_sided(
+        self,
+        side_a : PATCH_SIDE_PVERTS,
+        side_b : PATCH_SIDE_PVERTS,
+        side_c : PATCH_SIDE_PVERTS,
+    ):
+        if len(side_a) == 2 and len(side_b) == 2 and len(side_c) == 2:
+            # special case
+            self._verts.append(PVert(side_a[0]))
+            self._verts.append(PVert(side_b[0]))
+            self._verts.append(PVert(side_c[0]))
+            self._edges.append((0, 1))
+            self._edges.append((1, 2))
+            self._edges.append((2, 0))
+            self._faces.append((0, 1, 2))
+            return
+
+        if len(side_a) == 3 and len(side_b) == 3 and len(side_c) == 3:
+            # special case
+            a = side_a[0]
+            b = side_b[0]
+            c = side_c[0]
+            ab = side_a[1]
+            bc = side_b[1]
+            ca = side_c[1]
+            self._verts.append(PVert(a ))  # 0
+            self._verts.append(PVert(ab))  # 1
+            self._verts.append(PVert(b ))  # 2
+            self._verts.append(PVert(bc))  # 3
+            self._verts.append(PVert(c ))  # 4
+            self._verts.append(PVert(ca))  # 5
+            self._verts.append(PVert('lerp', ('lerp', ab, bc, 0.5), ca, 0.33))  # 6
+            self._edges.append((0, 1))
+            self._edges.append((1, 2))
+            self._edges.append((2, 3))
+            self._edges.append((3, 4))
+            self._edges.append((4, 5))
+            self._edges.append((5, 0))
+            self._edges.append((1, 6))
+            self._edges.append((3, 6))
+            self._edges.append((5, 6))
+            self._faces.append((0, 1, 6, 5))
+            self._faces.append((2, 3, 6, 1))
+            self._faces.append((4, 5, 6, 3))
+            return
+
+        print(f'Unhandled 3-sided patch: {len(side_a)}-{len(side_b)}-{len(side_c)}')
+
+
+    def _process_4_sided(
+        self,
+        side_a : PATCH_SIDE_PVERTS,
+        side_b : PATCH_SIDE_PVERTS,
+        side_c : PATCH_SIDE_PVERTS,
+        side_d : PATCH_SIDE_PVERTS,
+    ):
+        # can only process 4-sided patch if opposite sides have same number of verts/edges
+        if len(side_a) != len(side_c) or len(side_b) != len(side_d):
+            print(f'Unhandled 4-sided patch: {len(side_a)}-{len(side_b)}-{len(side_c)}-{len(side_d)}')
+            return
+
+        w, h = len(side_a), len(side_b)
+
+        def a(i : int) -> PVert: return side_a[i]
+        def b(j : int) -> PVert: return side_b[j]
+        def c(i : int) -> PVert: return side_c[w-1-i]
+        def d(j : int) -> PVert: return side_d[h-1-j]
 
         # gather info about verts of patch
         for j in range(h):
             for i in range(w):
                 if j == 0:
                     # along top side (A)
-                    self._verts.append(PVert(context, M, bm, a(i)))
-                elif j == h - 1:
-                    # along bottom side (C)
-                    self._verts.append(PVert(context, M, bm, c(i)))
-                elif i == 0:
-                    # along left side (D)
-                    self._verts.append(PVert(context, M, bm, d(j)))
+                    self._verts.append(PVert(a(i)))
                 elif i == w - 1:
                     # along right side (B)
-                    self._verts.append(PVert(context, M, bm, b(j)))
+                    self._verts.append(PVert(b(j)))
+                elif j == h - 1:
+                    # along bottom side (C)
+                    self._verts.append(PVert(c(i)))
+                elif i == 0:
+                    # along left side (D)
+                    self._verts.append(PVert(d(j)))
                 else:
                     # somewhere in the middle of patch (not along side)
                     self._verts.append(PVert(
-                        context, M, bm,
-                        (
-                            (a(i), c(i), j / (h - 1)),
-                            (d(j), b(j), i / (w - 1)),
-                            0.5,
-                        ),
+                        'lerp',
+                        ('lerp', a(i), c(i), j / (h - 1)),
+                        ('lerp', d(j), b(j), i / (w - 1)),
+                        0.5,
                     ))
 
         # gather info about edges of patch
@@ -233,12 +494,9 @@ class Patch:
     def commit(self, bm : BMesh, M : Matrix):
         Mi = M.inverted_safe()
 
-        # collect all existing BMVerts
+        # collect all existing BMVerts (note: PVert.bmv returns None if PVert was not from BMVert)
         # IMPORTANT: must do this before creating new BMVerts so we don't trigger invalidation of indices
-        verts_existing : list[BMVert | None] = [
-            v.bmv(bm) if v.existing else None
-            for v in self._verts
-        ]
+        verts_existing = [ v.bmv(bm) for v in self._verts ]
 
         # collect all BMVerts, creating any new BMVerts as needed
         verts_all : list[BMVert] = [
@@ -262,7 +520,7 @@ class Patches_Logic:
     # IMPORTANT: must not keep reference to bmesh elements, because they will invalidate
     #            whenever depsgraph changes!  Instead, keep track of them via their indices.
     corners_bmv : ClassVar[set[INDEX_BMVERT]]     = set()   # corners as indices into bm.verts (existing BMVerts)
-    corners_new : ClassVar[list[Vector]]          = []      # corners as local-space coordinates (new BMVerts)
+    corners_new : ClassVar[list[CO_LOCAL]]        = []      # corners as local-space coordinates (new BMVerts)
     used_bmv    : ClassVar[set[INDEX_BMVERT]]     = set()   # indices of corner BMVerts that are used in >= sides (NOT index into corners_bmv, which is a set)
     used_new    : ClassVar[set[INDEX_CORNER_NEW]] = set()   # indices of corners_new that are used in >= sides
 
@@ -552,10 +810,10 @@ class Patches_Logic:
         co_local = raycast.co_local
         distance = raycast.distance
 
-        def proj(p : Vector) -> Vector | None:
+        def proj(p : CO_LOCAL) -> CO_SCREEN | None:
             return location_3d_to_region_2d(rgn, r3d, M @ p)
 
-        m : Vector | None = proj(co_local)  # should be same as mouse
+        m : CO_SCREEN | None = proj(co_local)  # should be same as mouse
         assert m
         radius3d : float = radius2d * (size2D_to_size(context, distance, pt=mouse) or 1)
 
@@ -573,7 +831,7 @@ class Patches_Logic:
         best_idx_new : INDEX_CORNER_NEW = -1
         best_d2d : float = radius2d * radius2d
 
-        def test(co : Vector, idx_bmv : INDEX_BMVERT, idx_new : INDEX_CORNER_NEW):
+        def test(co : CO_LOCAL, idx_bmv : INDEX_BMVERT, idx_new : INDEX_CORNER_NEW):
             nonlocal best_idx_bmv, best_idx_new, best_d2d
 
             p = proj(co)
@@ -636,7 +894,7 @@ class Patches_Logic:
         context = bpy.context
         rgn, r3d = context.region, context.region_data
 
-        def proj(pt_world : Vector) -> Vector | None:
+        def proj(pt_world : CO_WORLD) -> CO_SCREEN | None:
             return location_3d_to_region_2d(rgn, r3d, pt_world)
 
         edit_object = context.edit_object
