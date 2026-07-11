@@ -28,6 +28,8 @@ from collections.abc import Sequence, Generator
 from collections import deque
 from contextlib import contextmanager
 from dataclasses import dataclass
+import time
+from math import cos, radians
 
 import bpy
 from bpy.types import Mesh, Context, Event
@@ -45,6 +47,8 @@ from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.colors import Color4
 from ...addon_common.common.unionfind import UnionFind
 from ...addon_common.common.utils import iter_pairs
+from ...addon_common.common.maths import Plane
+from ...addon_common.ext.circle_fit import standardLSQ
 from ..common.bmesh import get_bmesh_emesh
 from ..common.drawing import Drawing, CC_2D_LINES, CC_2D_POINTS, CC_2D_TRIANGLES
 from ..common.raycast import (
@@ -58,31 +62,33 @@ from ..common.raycast import (
 DEBUG_PRINT : bool = False
 
 
+CO_LOCAL : TypeAlias = Vector
+CO_WORLD : TypeAlias = Vector
+CO_SCREEN : TypeAlias = Vector
+RADIUS : TypeAlias = float
+
 LERP_WEIGHT : TypeAlias = float
 INDEX_BMVERT : TypeAlias = int
 INDEX_PVERT : TypeAlias = int
 INDEX_CORNER_NEW : TypeAlias = int
 
-PATCH_SIDE : TypeAlias = list[INDEX_BMVERT]
-PATCH_SIDES : TypeAlias = list[PATCH_SIDE]
+PATCH_SIDE : TypeAlias = Sequence[INDEX_BMVERT]
+PATCH_SIDES : TypeAlias = Sequence[PATCH_SIDE | None]
 
 # Note: because some types are not yet defined or defined recursively,
 #       must create special PVERT_ARG_PVERT type and quote PVERT_ARG and PVert
-PVERT_ARG_PVERT : TypeAlias = TypeVar('PVERT_ARG_PVERT', bound='PVert') # pyright: ignore[reportUnknownVariableType]
+PVERT_ARG_PVERT : TypeAlias = TypeVar('PVERT_ARG_PVERT', bound='PVert')     # pyright: ignore[reportUnknownVariableType]
 PVERT_ARG_INT : TypeAlias = INDEX_BMVERT
 PVERT_ARG_LERP : TypeAlias = tuple[ Literal['lerp'], 'PVERT_ARG', 'PVERT_ARG', float ]
 PVERT_ARG_AVERAGE : TypeAlias = tuple[ Literal['average'], Sequence['PVERT_ARG'] ]
-PVERT_ARG : TypeAlias = PVERT_ARG_INT | PVERT_ARG_LERP | PVERT_ARG_AVERAGE | PVERT_ARG_PVERT # pyright: ignore[reportUnknownVariableType]
-PVERT_TUPLE_ARG : TypeAlias = tuple[PVERT_ARG_INT] | tuple[PVERT_ARG_LERP] | tuple[PVERT_ARG_AVERAGE] | tuple[PVERT_ARG_PVERT]
+PVERT_ARG_QUAD : TypeAlias = tuple[ Literal['quad'], 'PVERT_ARG', 'PVERT_ARG', 'PVERT_ARG', RADIUS ]
+PVERT_ARG : TypeAlias = PVERT_ARG_PVERT | PVERT_ARG_INT | PVERT_ARG_LERP | PVERT_ARG_AVERAGE | PVERT_ARG_QUAD  # pyright: ignore[reportUnknownVariableType]
+PVERT_TUPLE_ARG : TypeAlias = tuple[PVERT_ARG_PVERT] | tuple[PVERT_ARG_INT] | tuple[PVERT_ARG_LERP] | tuple[PVERT_ARG_AVERAGE] | tuple[PVERT_ARG_QUAD]
 
 PATCH_SIDE_PVERTS : TypeAlias = list['PVert']
-PATCH_SIDES_PVERTS : TypeAlias = list[PATCH_SIDE_PVERTS]
+PATCH_SIDES_PVERTS : TypeAlias = list[PATCH_SIDE_PVERTS | None]
 
 
-CO_LOCAL : TypeAlias = Vector
-CO_WORLD : TypeAlias = Vector
-CO_SCREEN : TypeAlias = Vector
-RADIUS : TypeAlias = float
 
 
 class PVert:
@@ -141,6 +147,16 @@ class PVert:
 
     @overload
     def __new__(cls,
+        quad : Literal['quad'],
+        pt0 : PVERT_ARG,   # pyright: ignore[reportUnknownParameterType]
+        pt1 : PVERT_ARG,   # pyright: ignore[reportUnknownParameterType]
+        pt2 : PVERT_ARG,   # pyright: ignore[reportUnknownParameterType]
+        radius : RADIUS,
+    ) -> PVert:
+        ...
+
+    @overload
+    def __new__(cls,
         tupled_args : PVERT_TUPLE_ARG,  # pyright: ignore[reportUnknownParameterType]
     ) -> PVert:
         ...
@@ -186,6 +202,36 @@ class PVert:
                 pvert.co = sum((pv.co for pv in pverts), Vector((0,0,0))) / max(1, len(pverts))
                 return pvert
 
+            case 'quad':
+                assert len(args) == 5, f'Expected four arguments for quad (pt0, pt1, pt2, radius), but instead saw {args[1:]}'
+                pvert0 = PVert(args[1])         # pyright: ignore[reportAny]
+                pvert1 = PVert(args[2])         # pyright: ignore[reportAny]
+                pvert2 = PVert(args[3])         # pyright: ignore[reportAny]
+                radius = cast(float, args[4])
+                pvert = super().__new__(cls)
+                co0, co1, co2 = pvert0.co, pvert1.co, pvert2.co
+                com = co0 + (co2 - co0) / 2
+                vec1m = (com - co1)
+                len1m = vec1m.length
+                vec10, vec12 = (co0 - co1), (co2 - co1)
+                len10, len12 = vec10.length, vec12.length
+                lenavg = (len10 + len12) / 2
+                scale = abs(radius * 2 - lenavg) / (radius * 2 + lenavg)
+                # print(f'{lenavg=} {radius=}  abs({radius*2-lenavg=}) / ({radius*2+lenavg=}) = {scale} ')
+
+                co3_0 = co1 + vec1m * (2 * scale)
+                co3_1 = co1 + vec1m * (lenavg * scale / len1m)
+
+                # cos(  0°) =  1 -> 1
+                # cos( 90°) =  0 -> 0
+                # cos(180°) = -1 -> 1
+                cos_angle = (vec12 / len12).dot(vec10 / len10)
+                weight = abs(cos_angle)
+
+                co3 = co3_0 + (co3_1 - co3_0) * weight
+                pvert.co = co3
+                return pvert
+
             case _: # pyright: ignore[reportAny]
                 assert False, f'Unhandled arguments {args}'
 
@@ -199,14 +245,16 @@ class PVert:
 
 
 @dataclass
-class Patch_Relax_Options:
-    enabled : bool = True
+class Relax_Options:
+    enabled : bool = False
     iterations : int = 100
-    scale_edge : float = 0.25
-    scale_face : float = 0.25
+    scale_edge : float = 0.05
+    scale_face : float = 0.01
 
 
 class Patch:
+    _plane : Plane
+
     # vertices of patch, either as index of BMVert (int) or as LERP of BMVerts (tuple of inds and weights)
     # Note: these are indices into bm.verts
     _verts : list[PVert]
@@ -227,23 +275,51 @@ class Patch:
         M : Matrix,
         sides : PATCH_SIDES,
         *,
-        relax_options : Patch_Relax_Options | None = None
+        relax_options : Relax_Options | None = None
     ):
+        print(f'Patch({sides})')
         self.reset()
 
+        if not sides:
+            return
+
         with PVert.create(bm):
+            # create initial PVerts
             sides_pverts = [
-                [ PVert(idx) for idx in side ]
+                [ PVert(idx) for idx in side ] if side else None
                 for side in sides
             ]
 
+            plane = Plane.fit_to_points([pv.co for side in sides_pverts if side for pv in side])
+            if not plane:
+                return
+            self._plane = plane
+
             match sides_pverts:
-                case (side_a, side_b):
+                case (side, ):                                              # loop with no corners
+                    assert side
+                    # self._fill_central(side)
+                    # self._fill_parallel(side)
+                    sides_pverts = self._border(sides_pverts)
+                    sides_pverts = self._border(sides_pverts)
+                    sides_pverts = self._border(sides_pverts)
+
+                case (side, None):                                          # loop with 1 corner (teardrop)
+                    assert side
+                    pass
+
+                case (side_a, side_b):                                      # 2-sided loop (2 corners)
+                    assert side_a and side_b
                     self._process_2_sided(side_a, side_b)
-                case (side_a, side_b, side_c):
+
+                case (side_a, side_b, side_c):                              # 3-sided loop (3 corners)
+                    assert side_a and side_b and side_c
                     self._process_3_sided(side_a, side_b, side_c)
+
                 case (side_a, side_b, side_c, side_d):
+                    assert side_a and side_b and side_c and side_d          # 4-sided loop (4 corners)
                     self._process_4_sided(side_a, side_b, side_c, side_d)
+
                 case _:
                     print(f'Unhandled number of sides {len(sides)}')
 
@@ -254,7 +330,8 @@ class Patch:
         self.faces = [ tuple(self.verts[i] for i in f) for f in self._faces ]
 
 
-    def _snap_and_relax(self, M : Matrix, relax_options : Patch_Relax_Options | None):
+    def _snap_and_relax(self, M : Matrix, relax_options : Relax_Options | None):
+        print('snapping...')
         context = bpy.context
         Mi = M.inverted_safe()
 
@@ -264,9 +341,11 @@ class Patch:
             co_snapped_local = Mi @ co_snapped_world
             return co_snapped_local
 
-        verts = [ pvert.co for pvert in self._verts ]
+        verts = [ snap(pvert.co) for pvert in self._verts ]
 
         if relax_options and relax_options.enabled:
+            print('relaxing....')
+            t0 = time.time()
             def get_info(inds : Sequence[int]) -> tuple[CO_LOCAL, RADIUS]:
                 vs = [ verts[i] for i in inds ]
                 center = sum(vs, Vector((0,0,0))) / len(vs)
@@ -284,33 +363,49 @@ class Patch:
                     link_faces[i].append(i_face)
 
             for _iteration in range(relax_options.iterations):
-                nverts : list[CO_LOCAL] = []
                 edge_infos = [ get_info(inds) for inds in self._edges ]
                 face_infos = [ get_info(inds) for inds in self._faces ]
+
+                forces = [Vector((0,0,0)) for _ in verts]
+
                 for (i, co) in enumerate(verts):
-                    if fixed[i]:
-                        nverts.append(co)
-                        continue
-
-                    e = Vector((0,0,0))
+                    goal = sum(edge_infos[i_edge][1] for i_edge in link_edges[i]) / len(link_edges[i])
                     for i_edge in link_edges[i]:
-                        c,r = edge_infos[i_edge]
-                        v = co - c
-                        e -= v * (v.length / r)
-                    e *= relax_options.scale_edge
+                        center = edge_infos[i_edge][0]
+                        vec_center_co = co - center
+                        current = vec_center_co.length
+                        dir_center_co = vec_center_co / max(0.00001, current)
+                        forces[i] += dir_center_co * (relax_options.scale_edge * (goal - current))
 
-                    f = Vector((0,0,0))
-                    for i_face in link_faces[i]:
-                        c,r = face_infos[i_face]
-                        v = co - c
-                        f -= v * (v.length / r) / len(self._faces[i_face])
-                    f *= relax_options.scale_face
+                for inds, info in zip(self._faces, face_infos):
+                    center, R = info
+                    r = R * cos(radians(180 / len(inds)))
+                    goal = r
+                    for (i0, i1) in iter_pairs(inds, True):
+                        co0, co1 = verts[i0], verts[i1]
+                        com = co0 + (co1 - co0) / 2
 
-                    nverts.append(co + e + f)
-                verts = nverts
+                        vec_center_com = com - center
+                        current = vec_center_com.length
+                        dir_center_com = vec_center_com / max(0.00001, current)
+                        forces[i0] += dir_center_com * (relax_options.scale_face * (goal - current))
+                        forces[i1] += dir_center_com * (relax_options.scale_face * (goal - current))
+
+                    for i in inds:
+                        vec_center_co = verts[i] - center
+                        current = vec_center_co.length
+                        dir_center_co = vec_center_co / max(0.00001, current)
+                        forces[i] += dir_center_co * (relax_options.scale_face * (goal - current))
+
+                verts = [
+                    co if fix else snap(co + force)
+                    for (co, fix, force) in zip(verts, fixed, forces)
+                ]
+            t1 = time.time()
+            print(f'  time: {t1-t0:0.4f}secs')
 
         for (pvert, co) in zip(self._verts, verts):
-            pvert.co = snap(co)
+            pvert.co = co
 
     def reset(self):
         self._verts = []
@@ -321,6 +416,76 @@ class Patch:
         self.edges = []
         self.faces = []
 
+    def _compute_max_radius(self, sides : PATCH_SIDES_PVERTS) -> float:
+        return 0
+
+    def _border(self, sides : PATCH_SIDES_PVERTS) -> PATCH_SIDES_PVERTS:
+        if len(sides) == 1:
+            assert sides[0]
+            outer = sides[0][:-1]
+            c = len(outer)
+            center = sum((pv.co for pv in outer), Vector((0,0,0))) / c
+            radius = max((pv.co - center).length for pv in outer)
+            inner = [
+                PVert('quad', outer[(i-1)%c], outer[i], outer[(i+1)%c], radius)
+                for i in range(c)
+            ]
+            i_start = len(self._verts)
+            self._verts.extend(outer)
+            self._verts.extend(inner)
+            for i in range(c):
+                i0 = i_start + i
+                i1 = i_start + (i + 1) % c
+                i2 = i_start + (i + 1) % c + c
+                i3 = i_start + i + c
+                self._edges.extend([ (i0, i1), (i2, i3), (i3, i0) ])
+                self._faces.append((i0, i1, i2, i3))
+            return [inner + [inner[0]]]
+        return sides
+
+
+    def _fill_central(self, side : PATCH_SIDE_PVERTS):
+        print(f'filling loop with {len(side)-1} verts using central point')
+
+        # assuming first and last are the same!
+        self._verts.extend(side[:-1])
+        c = len(side) - 1
+
+        # central point
+        self._verts.append(PVert('average', *side))
+        ic = c
+
+        for i0 in range(0, c, 2):
+            i1, i2 = (i0 + 1) % c, (i0 + 2) % c
+            if i1 == 0:
+                # handle last triangle
+                self._faces.append((ic, i0, i1))
+                self._edges.extend([ (i0, i1), (i1, ic) ])
+            else:
+                self._faces.append((ic, i0, i1, i2))
+                self._edges.extend([ (i0, i1), (i1, i2), (i2, ic) ])
+
+
+    def _fill_parallel(self, side : PATCH_SIDE_PVERTS):
+        print(f'filling loop with {len(side)-1} verts using parallel edges')
+
+        # assuming first and last are the same!
+        self._verts.extend(side[:-1])
+        c = len(side) - 1
+
+        for i0 in range(0, (c - 1) // 2):
+            i1 = i0 + 1
+            i2 = (c - 1) - i0 - 1
+            i3 = (c - 1) - i0
+            if i0 == 0:
+                self._edges.append((i3, i0))
+            if i1 == i2:
+                # handle last triangle
+                self._faces.append((i0, i1, i3))
+                self._edges.extend([ (i0, i1), (i1, i3) ])
+            else:
+                self._faces.append((i0, i1, i2, i3))
+                self._edges.extend([ (i0, i1), (i2, i3), (i1, i2)])
 
     def _process_2_sided(
         self,
@@ -525,7 +690,7 @@ class Patches_Logic:
     used_new    : ClassVar[set[INDEX_CORNER_NEW]] = set()   # indices of corners_new that are used in >= sides
 
     # detected sides of patch, where ends of each side is a corner
-    sides       : ClassVar[list[list[INDEX_BMVERT]]] = []
+    sides       : ClassVar[list[list[INDEX_BMVERT] | None]] = []
 
     # detected patch based on sides
     patch       : ClassVar[Patch | None]    = None
@@ -563,7 +728,7 @@ class Patches_Logic:
         if not just_modified_corners:
             Patches_Logic.update_corners(bm)
         Patches_Logic.update_sides(bm)
-        Patches_Logic.patch = Patch(bm, M, Patches_Logic.sides)
+        Patches_Logic.patch = Patch(bm, M, Patches_Logic.sides, relax_options=Relax_Options())
 
 
     @staticmethod
@@ -591,13 +756,11 @@ class Patches_Logic:
         corners : set[BMVert] = {
             bm.verts[i] for i in Patches_Logic.corners_bmv
         }
-        if not corners:
-            if DEBUG_PRINT:
-                print('no corners')
-            return
 
-        # check for cycle
-        def get_biggest_cycle() -> list[list[BMVert]] | None:
+        #####################################################################################
+        # first, see if there is a selected cycle with at least one corner
+
+        def get_biggest_cycle_with_corners() -> list[list[BMVert]] | None:
             cycle : list[list[BMVert]] | None = None
 
             for bmv_init in corners:
@@ -644,24 +807,23 @@ class Patches_Logic:
                         bmv0, bme0 = bmv1, bme1
                         touched_bmes.add(bme0)
 
-            # need at least 1 side to be a cycle
-            return cycle if cycle and len(cycle) >= 2 else None
+            return cycle
 
+        if (cycle_sides := get_biggest_cycle_with_corners()):
+            print(f'found cycle with {len(cycle_sides)} sides')
 
-        if (cycle_sides := get_biggest_cycle()):
-            print('found cycle')
-
-            # make sure direction of sides is consistent
-            if cycle_sides[0][0] == cycle_sides[1][0] or cycle_sides[0][0] == cycle_sides[1][-1]:
-                # first side is reversed
-                cycle_sides[0].reverse()
-            for (side0, side1) in zip(cycle_sides[:-1], cycle_sides[1:]):
-                if side0[-1] == side1[-1]:
-                    # reverse side1 so side0 and side1 are in same direction
-                    side1.reverse()
+            if len(cycle_sides) >= 2:
+                # make sure directions of sides are consistent
+                if cycle_sides[0][0] == cycle_sides[1][0] or cycle_sides[0][0] == cycle_sides[1][-1]:
+                    # first side is reversed
+                    cycle_sides[0].reverse()
+                for (side0, side1) in zip(cycle_sides[:-1], cycle_sides[1:]):
+                    if side0[-1] == side1[-1]:
+                        # reverse side1 so side0 and side1 are in same direction
+                        side1.reverse()
 
             # check that cycle is correct direction
-            bmvs : list[BMVert] = [ side[0] for side in cycle_sides ]
+            bmvs = [ side[0] for side in cycle_sides ] if len(cycle_sides) > 1 else cycle_sides[0]
             co_center = sum([bmv.co for bmv in bmvs], Vector((0,0,0))) / len(bmvs)
             normal_patch = sum(
                 (
@@ -685,14 +847,103 @@ class Patches_Logic:
                 [ bmv.index for bmv in cycle_side ]
                 for cycle_side in cycle_sides
             ]
+            if len(Patches_Logic.sides) == 1:
+                Patches_Logic.sides.append(None)
+
             Patches_Logic.used_bmv = {
                 bmv.index
                 for cycle_side in cycle_sides
                 for bmv in [cycle_side[0], cycle_side[-1]]
             }
-            print(Patches_Logic.used_bmv)
 
             return
+
+
+        #####################################################################################
+        # next, see if there is a selected cycle with no corners
+
+        def get_biggest_cycle_with_no_corners() -> list[BMVert] | None:
+            cycle : list[BMVert] | None = None
+
+            for bmv_init in bmops.get_all_selected_bmverts(bm):
+                bmv0 = bmv_init
+                for bme0 in bmv0.link_edges:
+                    if bme0.hide or not bme0.select:
+                        continue
+
+                    touched_bmes : set[BMEdge] = { bme0 }
+                    side_bmvs : list[BMVert] = [ bmv0 ]
+
+                    while True:
+                        bmv1 = bme0.other_vert(bmv0)
+                        if not bmv1:
+                            break
+
+                        side_bmvs.append(bmv1)
+
+                        if bmv1 == bmv_init:
+                            # possible to not touch all corners!
+                            # return sides_bmvs if len(touched_corners) == len(corners) else None
+                            if not cycle or len(cycle) < len(side_bmvs):
+                                cycle = side_bmvs
+                            break
+
+                        bme1 = next(
+                            (
+                                bme
+                                for bme in bmv1.link_edges
+                                if bme.select and not bme.hide and bme not in touched_bmes
+                            ),
+                            None
+                        )
+                        if not bme1:
+                            break
+
+                        bmv0, bme0 = bmv1, bme1
+                        touched_bmes.add(bme0)
+
+            return cycle
+
+        if (cycle_side := get_biggest_cycle_with_no_corners()):
+            cycle_sides = [cycle_side]
+            print(f'found cycle with {len(cycle_side)} verts and no corners')
+
+            # check that cycle is correct direction
+            bmvs = cycle_side
+            co_center = sum([bmv.co for bmv in bmvs], Vector((0,0,0))) / len(bmvs)
+            normal_patch = sum(
+                (
+                    (bmv0.co - co_center).cross(bmv1.co - co_center)
+                    for (bmv0, bmv1) in iter_pairs(bmvs, True)
+                ), Vector((0, 0, 0))
+            )
+            normal_corners = sum(
+                ( bmv.normal for bmv in bmvs ),
+                Vector((0, 0, 0))
+            )
+            if normal_patch.dot(normal_corners) < 0:
+                # reverse cycle
+                cycle_sides[0].reverse()
+
+            # record sides
+            Patches_Logic.sides = [
+                [ bmv.index for bmv in cycle_side ]
+                for cycle_side in cycle_sides
+            ]
+            Patches_Logic.used_bmv = {
+                bmv.index
+                for cycle_side in cycle_sides
+                for bmv in [cycle_side[0], cycle_side[-1]]
+            }
+
+            return
+
+
+        #####################################################################################
+        # finally, see if there exists a broken cycle from corners, including either
+        # selected edges between corners or a side that needs to be created
+        #
+        #          NOT YET IMPLEMENTED!
 
         graph_corners : dict[BMVert, dict[BMVert, list[BMVert]]] = {
             bmv: {}
@@ -967,6 +1218,8 @@ class Patches_Logic:
 
         # draw sides
         for side in Patches_Logic.sides:
+            if not side:
+                continue
             n_verts = len(side)
             i0 = (n_verts - 1) // 2
             i1 = (i0 + 1) if n_verts % 2 == 0 else i0
