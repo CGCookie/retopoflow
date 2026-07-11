@@ -168,7 +168,8 @@ def stroke_angles(stroke, width, split_angle, fn_snap_normal):
 
 
 class PolyStrips_Logic:
-    def __init__(self, context, radius2D, stroke3D_local, point3D_0, point3D_1, is_cycle, length2D, snap_bmf0, snap_bmf1, split_angle, mirror_correct):
+    def __init__(self, context, radius2D, stroke3D_local, point3D_0, point3D_1, is_cycle, length2D,
+                    snap_bmf0, snap_bmf1, split_angle, mirror_correct, radius3D=None):
         # store context data to make it more convenient
         # note: this will be redone whenever create() is called
         self.update_context(context)
@@ -200,7 +201,15 @@ class PolyStrips_Logic:
         #################################
         # initial settings
         self.initial = True
-        self.initial_count = max(2, round(length2D / (2 * radius2D)) + 1)
+        self.radius3D = radius3D
+        if radius3D:
+            length3D_local = sum(
+                (p1 - p0).length
+                for (p0, p1) in iter_pairs(self.stroke3D_local_orig, self.is_cycle)
+            )
+            self.initial_count = max(2, round(length3D_local / (2 * radius3D)) + 1) # radius3D is in local space
+        else:
+            self.initial_count = max(2, round(length2D / (2 * radius2D)) + 1)
         # NOTE: self.initial_width is in world space
         self.initial_width = self.compute_length3D(self.stroke3D_local_orig, self.is_cycle) / (self.initial_count * 2 - 1)
         self.strip_count = 0
@@ -369,6 +378,16 @@ class PolyStrips_Logic:
                     bme for bme in snap_bmf0.edges
                     if bme.is_boundary and any(len(bmv.link_faces)>1 for bmv in bme.verts)
                 ]
+                if len(limit_bmes0) > 1 and len(stroke3D_local) > 1:
+                    # At sharp angle splits the corner sits about equidistant from both sides,
+                    # so connect to the edge in the direction of the stroke instead of closest one.
+                    corner = self.stroke3D_local[i0]
+                    incoming = Direction(corner - self.stroke3D_local[i0 - 1])
+                    outgoing = Direction(stroke3D_local[1] - stroke3D_local[0])
+                    normal = Direction(nearest_normal_valid_sources(context, M @ corner, world=False))
+                    side = Direction(incoming.cross(normal))
+                    outgoing_sign = 1 if side.dot(outgoing) >= 0 else -1
+                    limit_bmes0 = [max(limit_bmes0, key=lambda bme: outgoing_sign * side.dot(bme_midpoint(bme) - corner))]
 
             limit_bmes1 = None
             if i1 == nstroke:
@@ -383,8 +402,10 @@ class PolyStrips_Logic:
                 # extend stroke by self.width
                 i_end = max(0, len(stroke3D_local) - 5)
                 p0,p1 = stroke3D_local[i_end], stroke3D_local[-1]
-                d01 = Direction(p1 - p0)
-                p2 = self.nearest_point(context, p1 + d01 * (self.initial_width / 2))
+                p1_world = M @ p1
+                d01_world = Direction(p1_world - (M @ p0))
+                p2_world = p1_world + d01_world * (self.initial_width / 2) # self.initial_width is world space
+                p2 = self.nearest_point(context, Mi @ p2_world)
                 stroke3D_local += [p2]
 
             snap0 = trim_stroke_to_bmf(stroke3D_local, snap_bmf0, True, limit_bmes0)
