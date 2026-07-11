@@ -20,7 +20,9 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
-from bpy.types import Context, KeyMapItem
+from bpy.types import Context, KeyMapItem, OperatorProperties
+from typing import TypeAlias
+from collections.abc import Callable
 
 '''
 Standard US 101 QWERTY Keyboard
@@ -34,42 +36,50 @@ Standard US 101 QWERTY Keyboard
 +-----------------------------------------------------------+
 '''
 
-
-altered_keymap_items = []
-
 #TODO: Cleanup: unify the functions here with those in addon_common/common/useractions.py
 
-def store_keymap_item(km_item, altered):
-    kmi = {
-        'idname': km_item.idname,
-        'type': km_item.type,
-        'value': km_item.value,
-        'any': km_item.any,
-        'shift': km_item.shift,
-        'ctrl': km_item.ctrl,
-        'alt': km_item.alt,
-        'oskey': km_item.oskey,
-        'key_modifier': km_item.key_modifier,
-        'altered': altered
-    }
-    if hasattr(km_item, 'hyper'):
-        kmi['hyper'] = km_item.hyper
-
-    altered_keymap_items.append(kmi)
 
 
-def is_keymap_item_matching(km_item, saved_item):
-    return (km_item.idname == saved_item['idname'] and
-            km_item.type == saved_item['type'] and
-            km_item.value == saved_item['value'] and
-            km_item.any == saved_item['any'] and
-            km_item.shift == saved_item['shift'] and
-            km_item.ctrl == saved_item['ctrl'] and
-            km_item.alt == saved_item['alt'] and
-            km_item.oskey == saved_item['oskey'] and
-            km_item.key_modifier == saved_item['key_modifier'] and
-            (not hasattr(km_item, 'hyper') or km_item.hyper == saved_item['hyper'])
-    )
+KMI_OVERRIDE_OPERATOR_NAME : TypeAlias = str
+KMI_OVERRIDE_TEST_FUNCTION : TypeAlias = Callable[[KeyMapItem], bool]
+
+KMI_OVERRIDE_PROP_KEY : TypeAlias = str
+KMI_OVERRIDE_PROP_VALUE : TypeAlias = ... # pyright: ignore[reportUnknownVariableType]
+KMI_OVERRIDE_PROPS : TypeAlias = dict[KMI_OVERRIDE_PROP_KEY, KMI_OVERRIDE_PROP_VALUE]
+
+KMI_OVERRIDE : TypeAlias = tuple[KMI_OVERRIDE_OPERATOR_NAME, KMI_OVERRIDE_TEST_FUNCTION, KMI_OVERRIDE_PROPS]
+KMI_OVERRIDES : TypeAlias = list[KMI_OVERRIDE]
+
+KMI_KEY : TypeAlias = tuple[...]
+KMI_RESET_FUNCTION = Callable[[], None]
+
+
+retopoflow_keymap_overrides : KMI_OVERRIDES = [  # pyright: ignore[reportUnknownVariableType]
+
+    # Switches alternate pick shortest path behavior since default is blocked by RF
+    (
+        'mesh.shortest_path_pick',
+        lambda kmi: bool(kmi.ctrl) and bool(kmi.shift),
+        { 'use_fill': False },
+    ),
+
+    # Stops boundary loops at inner corners for easier selection in Strokes
+    (
+        'mesh.loop_select',
+        lambda _kmi: bpy.app.version >= (5, 1, 0),
+        { 'delimit_edge_loop': { 'NGONS', 'OUTER_CORNERS', 'INNER_CORNERS' } },
+    ),
+
+    # Prevents loop cuts from snapping to own vertices at small scales
+    (
+        'mesh.loopcut_slide',
+        lambda _kmi: True,
+        { 'TRANSFORM_OT_edge_slide': { 'use_snap_self': False, 'use_snap_edit': False } },
+    ),
+]
+
+
+reset_keymap_items : list[KMI_RESET_FUNCTION] = []
 
 
 # Returns the first matching keymap item. There could be multiple!
@@ -83,7 +93,7 @@ def get_user_keymap_item(context : Context, idname : str) -> KeyMapItem | None:
     for keymap in user.keymaps:
         for km_item in keymap.keymap_items:
             if is_menu:
-                if km_item.idname in menu_idnames and km_item.properties and km_item.properties['name'] == idname:
+                if km_item.idname in menu_idnames and km_item.properties and km_item.properties.get('name', None) == idname:
                     return km_item
             else:
                 if km_item.idname == idname:
@@ -91,65 +101,86 @@ def get_user_keymap_item(context : Context, idname : str) -> KeyMapItem | None:
     return None
 
 
-def alter_user_keymaps(context):
-    wm = context.window_manager
-    for keymap in wm.keyconfigs.user.keymaps:
+def _reset_kmi_properties(
+    km_item : KeyMapItem,
+    delete_keys : set[str],
+    reset_vals : dict[str, ...],
+):
+    # print(f'{km_item.idname}')
+    # print(f'  delete: {delete_keys}')
+    # print(f'  reset:  {reset_vals}')
+
+    kmi_props = km_item.properties
+
+    for key in delete_keys:
+        kmi_props.property_unset(key)
+
+    for (key, val) in reset_vals.items(): # pyright: ignore[reportAny]
+        if not isinstance(val, dict):
+            setattr(kmi_props, key, val)
+
+        elif (p := getattr(kmi_props, key, None)):
+            for (k, v) in val.items(): # pyright: ignore[reportUnknownVariableType]
+                setattr(p, k, v)
+
+def _override_kmi_properties(
+    km_item : KeyMapItem,
+    assign_vals : KMI_OVERRIDE_PROPS,  # pyright: ignore[reportUnknownParameterType]
+):
+    kmi_props = km_item.properties
+
+    # store current keymap operator property and then reassign
+    delete_keys : set[str] = set()
+    reset_vals : dict[str, ...] = {}
+
+    for (key, val) in assign_vals.items(): # pyright: ignore[reportUnknownVariableType]
+        if key not in kmi_props:
+            # NOTE: hasattr(kmi_props, key) is always True if key is a property of operator
+            #       must use key in kmi_props to test if property has a value
+            delete_keys.add(key)
+
+        else:
+            kmi_prop_val = getattr(kmi_props, key) # pyright: ignore[reportAny]
+
+            if not isinstance(val, dict):
+                reset_vals[key] = kmi_prop_val
+
+            else:
+                keys : list[str] = list(kmi_prop_val.keys()) # pyright: ignore[reportAny]
+                reset_vals[key] = {
+                    k: getattr(kmi_prop_val, k) # pyright: ignore[reportAny]
+                    for k in keys
+                }
+
+        if not isinstance(val, dict):
+            # print(f'{km_item.idname}.properties.{key} = {val}')
+            setattr(kmi_props, key, val)
+
+        elif (p := getattr(kmi_props, key, None)):
+            for (k, v) in val.items(): # pyright: ignore[reportUnknownVariableType]
+                setattr(p, k, v)
+
+    reset_keymap_items.append(
+        lambda: _reset_kmi_properties(km_item, delete_keys, reset_vals)
+    )
+
+
+def alter_user_keymaps(context : Context):
+    user_keyconfigs = context.window_manager.keyconfigs.user
+    if not user_keyconfigs:
+        return
+
+    for keymap in user_keyconfigs.keymaps:
         if not hasattr(keymap, 'keymap_items'):
             continue
         for km_item in keymap.keymap_items:
-            # Switches alternate pick shortest path behavior since default is blocked by RF
-            if (km_item.idname == 'mesh.shortest_path_pick' and
-                km_item.ctrl == True and km_item.shift == True and
-                km_item.properties['use_fill'] == True
-            ):
-                store_keymap_item(km_item, {
-                    'use_fill': True
-                })
-                km_item.properties['use_fill'] = False
-
-            # Stops boundary loops at inner corners for easier selection in Strokes
-            elif (km_item.idname == 'mesh.loop_select' and
-                  bpy.app.version >= (5, 1, 0)
-            ):
-                store_keymap_item(km_item, {
-                    'delimit_edge_loop': km_item.properties.delimit_edge_loop
-                })
-                km_item.properties.delimit_edge_loop = {'NGONS', 'OUTER_CORNERS', 'INNER_CORNERS'}
-
-            # Prevents loop cuts from snapping to own vertices at small scales
-            elif (km_item.idname == 'mesh.loopcut_slide'):
-                print([x for x in km_item.properties.keys()])
-                store_keymap_item(km_item, {
-                    'use_snap_self': km_item.properties.TRANSFORM_OT_edge_slide.use_snap_self,
-                    'use_snap_edit': km_item.properties.TRANSFORM_OT_edge_slide.use_snap_edit,
-                })
-                km_item.properties.TRANSFORM_OT_edge_slide.use_snap_self = False
-                km_item.properties.TRANSFORM_OT_edge_slide.use_snap_edit = False
+            for (op_name, test_fn, assign_vals) in retopoflow_keymap_overrides: # pyright: ignore[reportUnknownVariableType]
+                if km_item.idname != op_name or not test_fn(km_item):
+                    continue
+                _override_kmi_properties(km_item, assign_vals)
 
 
-def restore_user_keymaps(context):
-    keymaps_to_change = len(altered_keymap_items)
-    wm = context.window_manager
-    for saved_item in altered_keymap_items:
-        for keymap in wm.keyconfigs.user.keymaps:
-            # if not hasattr(keymap, 'keymap_items'):
-            #     continue
-            for km_item in keymap.keymap_items:
-                if is_keymap_item_matching(km_item, saved_item):
-
-                    if saved_item['idname'] == 'mesh.shortest_path_pick':
-                        km_item.properties['use_fill'] = True
-                        keymaps_to_change -= 1
-
-                    elif saved_item['idname'] == 'mesh.loop_select':
-                        for idx, delimit in enumerate(saved_item['altered']['delimit_edge_loop']):
-                            km_item.properties.delimit_edge_loop = saved_item['altered']['delimit_edge_loop']
-                        keymaps_to_change -= 1
-
-                    elif saved_item['idname'] == 'mesh.loopcut_slide':
-                        km_item.properties.TRANSFORM_OT_edge_slide.use_snap_self = saved_item['altered']['use_snap_self']
-                        km_item.properties.TRANSFORM_OT_edge_slide.use_snap_edit = saved_item['altered']['use_snap_edit']
-                        keymaps_to_change -= 1
-
-                    if keymaps_to_change == 0:
-                        return
+def restore_user_keymaps(_context : Context):
+    for reset in reset_keymap_items:
+        reset()
+    reset_keymap_items.clear()

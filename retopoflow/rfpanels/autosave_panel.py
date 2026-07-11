@@ -19,12 +19,10 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-import bpy
-from ..common.interface import draw_keymap_options, draw_section_header, draw_section_indent
-from ...config.keymaps import get_user_keymap_item
+from bpy.types import Context, UILayout, bpy_struct
 
 
-def draw_autosave(self, context, layout):
+def draw_autosave(self : bpy_struct, context : Context, layout : UILayout):
     layout.use_property_split = True
     layout.use_property_decorate = False
 

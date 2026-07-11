@@ -841,9 +841,13 @@ class Contours_Logic:
             if len(npoints) < 3:
                 raise Exception(f'Not enough points to fit plane: {len(npoints)}')
             nplane_fit = Plane.fit_to_points(npoints)   # local space
-            if plane_fit.n.dot(nplane_fit.n) < 0:
-                nplane_fit.n.negate()  # make sure both planes are oriented the same
-            ncircle_fit = hyperLSQ([list(nplane_fit.w2l_point(pt).xy) for pt in npoints])
+            if not nplane_fit:
+                nplane_fit = plane_fit
+                ncircle_fit = circle_fit
+            else:
+                if plane_fit.n.dot(nplane_fit.n) < 0:
+                    nplane_fit.n.negate()  # make sure both planes are oriented the same
+                ncircle_fit = hyperLSQ([list(nplane_fit.w2l_point(pt).xy) for pt in npoints])
         except Exception as e:
             print(f'CONTOURS WARNING: failed to fit plane/circle for bridge: {e}')
             nplane_fit = plane_fit
@@ -1304,6 +1308,7 @@ class Contours_Logic:
         # compute useful statistics about points
 
         plane_fit = Plane.fit_to_points(points)
+        assert plane_fit
         circle_fit = hyperLSQ([list(plane_fit.w2l_point(pt).xy) for pt in points])
         path_length = sum((pt0 - pt1).length for (pt0, pt1) in iter_pairs(points, cyclic))
 
@@ -1729,6 +1734,7 @@ class Contours_Logic:
             return False
 
         plane_fit = Plane.fit_to_points(points)
+        assert plane_fit
         circle_fit = hyperLSQ([list(plane_fit.w2l_point(pt).xy) for pt in points])
         path_length = sum((pt0 - pt1).length for (pt0, pt1) in iter_pairs(points, cyclic))
 
@@ -1816,6 +1822,7 @@ class Contours_Logic:
         ####################################################################################################
         # compute useful statistics about points
         plane_fit = Plane.fit_to_points(points)
+        assert plane_fit
         circle_fit = hyperLSQ([list(plane_fit.w2l_point(pt).xy) for pt in points])
         path_length = sum((pt0 - pt1).length for (pt0, pt1) in iter_pairs(points, cyclic))
 
@@ -2210,6 +2217,7 @@ class Contours_Logic:
         # compute useful statistics about points
 
         plane_fit = Plane.fit_to_points(points)
+        assert plane_fit
         circle_fit = hyperLSQ([list(plane_fit.w2l_point(pt).xy) for pt in points])
         path_length = sum((pt0 - pt1).length for (pt0, pt1) in iter_pairs(points, cyclic))
 
