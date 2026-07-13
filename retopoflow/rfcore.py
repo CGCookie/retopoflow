@@ -75,7 +75,7 @@ from . import preferences
 from .rfprops import rfprops_scene, rfprops_object
 
 # Operator files need to be imported here in order to be registered, even if they are not used in this file
-from .rfoperators import mesh_cleanup, mirror, pinning, reset_tool_settings, launch_browser, relax_selected, twist, rebuild_sources
+from .rfoperators import mesh_cleanup, mirror, pinning, reset_tool_settings, launch_browser, relax_selected, twist, rebuild_sources, separate_feature_regions
 from .rfoperators.apply_retopo_settings import RFOperator_ApplyRetopoSettings, RFOperator_RestoreRetopoSettings
 from .rfoperators.newtarget import RFCore_NewTarget_Cursor, RFCore_NewTarget_Active
 
@@ -174,6 +174,7 @@ class RFCore:
         ))
 
         bpy.types.VIEW3D_MT_mesh_add.append(RFCore.draw_menu_items)
+        bpy.types.VIEW3D_MT_paint_vertex.append(menu_mesh.draw_paint_vertex_menu_items)
         bpy.types.VIEW3D_MT_edit_mesh_vertices.append(menu_mesh.draw_vertex_menu_items)
         bpy.types.VIEW3D_MT_edit_mesh_edges.append(menu_mesh.draw_edge_menu_items)
         rfmenu_context.register()
@@ -232,6 +233,7 @@ class RFCore:
         clear_object_bmesh()
 
         bpy.types.VIEW3D_MT_mesh_add.remove(RFCore.draw_menu_items)
+        bpy.types.VIEW3D_MT_paint_vertex.remove(menu_mesh.draw_paint_vertex_menu_items)
         bpy.types.VIEW3D_MT_edit_mesh_vertices.remove(menu_mesh.draw_vertex_menu_items)
         bpy.types.VIEW3D_MT_edit_mesh_edges.remove(menu_mesh.draw_edge_menu_items)
         rfmenu_context.unregister()

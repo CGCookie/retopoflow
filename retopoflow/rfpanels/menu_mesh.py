@@ -20,6 +20,11 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 
+def draw_paint_vertex_menu_items(self, context):
+    self.layout.separator()
+    self.layout.operator("retopoflow.segment_mesh")
+
+
 def draw_vertex_menu_items(self, context):
     self.layout.separator()
     self.layout.operator("retopoflow.relax_selected")
