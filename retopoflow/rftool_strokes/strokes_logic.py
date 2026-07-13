@@ -791,6 +791,7 @@ class Strokes_Logic:
         points = [Point(p) for p in positions]
         try:
             plane = Plane.fit_to_points(points)
+            assert plane
             pts2d = [list(plane.w2l_point(p).xy) for p in points]
             cx, cy, r, _ = hyperLSQ(pts2d)
         except Exception:

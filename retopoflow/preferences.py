@@ -29,7 +29,6 @@ from bpy.types import Context, AddonPreferences, UILayout
 from .common.interface import update_toolbar, draw_section_header, draw_section_indent, draw_keymap_options
 from .rfoperators.pinning import toggle_pinning
 from ..config.theme import Theme
-from ..config.keymaps import get_user_keymap_item
 from ..addon_common.autosave.autosave import AutoSave
 
 assert __package__, 'Do not run this Python file directly'

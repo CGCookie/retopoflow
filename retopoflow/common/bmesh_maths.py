@@ -19,8 +19,10 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-import bpy
 import math
+from collections.abc import Sequence
+
+import bpy
 from mathutils import Vector, Matrix
 from bmesh.types import BMVert, BMEdge, BMesh
 from bpy.types import Context, Region, RegionView3D
@@ -391,13 +393,15 @@ def get_bmvert_attribute(bm:BMesh, bmv:BMVert, attribute:str, data_type:str, *, 
         return None
 
 
-def fit_plane_of_verts(verts):
+def fit_plane_of_verts(verts : Sequence[BMVert]) -> tuple[Vector|None, Vector|None]:
     ''' Best-fit plane and center for a collection of BMVerts. '''
     from ...addon_common.common.maths import Plane, Point
     from ...addon_common.ext.circle_fit import hyperLSQ
-    points = [Point(v.co) for v in verts]
+    points = [ Point(v.co) for v in verts ]
     try:
         plane  = Plane.fit_to_points(points)
+        if not plane:
+            return (None, None)
         normal = plane.n.copy()
         try:
             circle = hyperLSQ([list(plane.w2l_point(p).xy) for p in points])

@@ -45,7 +45,7 @@ from ..common.operator import (
     chain_rf_keymaps,
 )
 from ..common.raycast import (
-    raycast_valid_sources, mouse_from_event, nearest_point_valid_sources,
+    raycast_valid_sources, mouse_from_event,
     plane_normal_from_points,
 )
 from ...addon_common.common import bmesh_ops as bmops

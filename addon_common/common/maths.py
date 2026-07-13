@@ -666,8 +666,8 @@ class Ray(Entity3D):
 
 
 class Plane(Entity3D):
-    o : Point
-    n : Normal
+    o : Point | Vector
+    n : Normal | Vector
     d : float
     frame : Frame
 
@@ -682,7 +682,9 @@ class Plane(Entity3D):
         return cls(o, n)
 
     @classmethod
-    def fit_to_points(cls, points: list[Point]):
+    def fit_to_points(cls, points: Sequence[Point|Vector]) -> Plane | None:
+        if len(points) < 3:
+            return None
         center = Point.average(points)
         lpoints = np.matrix([list(co - center) for co in points]).T
         svd = np.linalg.svd(lpoints)
@@ -694,11 +696,11 @@ class Plane(Entity3D):
 
     def __init__(
         self,
-        o : Point,
-        n : Normal | None = None,
-        x : Direction | None = None,
-        y : Direction | None = None,
-        z : Direction | None = None,
+        o : Point | Vector,
+        n : Normal | Vector | None = None,
+        x : Direction | Vector | None = None,
+        y : Direction | Vector | None = None,
+        z : Direction | Vector | None = None,
     ):
         self.o = o
         self.frame = Frame(self.o, x=x, y=y, z=z or n)

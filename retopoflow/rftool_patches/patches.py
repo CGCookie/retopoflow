@@ -24,9 +24,6 @@ Created by Jonathan Denning, Jonathan Lampel
 # pyright: reportUnusedParameter = false
 # pyright: reportUnannotatedClassAttribute = false
 
-
-from typing import cast
-
 from bpy.types import (
     Context,
     UILayout,
@@ -85,6 +82,7 @@ class RFOperator_Patches_Insert_Corner(RFOperator_Invoke):
     ]
 
     def invoke(self, context : Context, event : Event) -> set[str]:
+        context.area.tag_redraw()
         return {'FINISHED'} if Patches_Logic.insert_corner(context, event) else {'CANCELLED'}
         # RFGlobals.RFCore.tag_redraw_areas()
 

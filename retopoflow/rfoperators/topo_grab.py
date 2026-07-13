@@ -42,7 +42,7 @@ from ..common.drawing import (
 )
 from ..common.maths import Point
 from ..common.operator import RFOperator, RFKeyMaps
-from ..common.raycast import nearest_point_valid_sources, raycast_point_valid_sources, vec_right
+from ..common.raycast import raycast_point_valid_sources, vec_right
 
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.maths import Frame
