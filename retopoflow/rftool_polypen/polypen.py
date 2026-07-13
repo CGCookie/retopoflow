@@ -25,7 +25,7 @@ from bpy.types import Context, Event, UILayout, WorkSpaceTool
 from ..rfglobals import RFGlobals
 from ..rfoverlay_base import RFOverlay_Base
 from ..rfoverlays.curve_overlay import create_curve_overlay
-from ..rfoverlays.curve_chain_providers import QuadStripChainProvider, LoopStripChainProvider
+from ..common.curves import QuadStripChainProvider, LoopStripChainProvider
 from ..rfoperators.curve_edit import create_curve_edit_operator, create_curve_toggle_handle_type_operator
 from ..rftool_base import RFTool_Base
 from ..common.icons import get_path_to_blender_icon

@@ -26,7 +26,7 @@ from ..rfglobals import RFGlobals
 
 from ..rfbrushes.stroke_brush import create_stroke_brush
 from ..rfoverlays.curve_overlay import create_curve_overlay
-from ..rfoverlays.curve_chain_providers import QuadStripChainProvider, LoopStripChainProvider
+from ..common.curves import QuadStripChainProvider, LoopStripChainProvider
 from ..rfoperators.curve_edit import create_curve_edit_operator, create_curve_toggle_handle_type_operator
 
 from ..rftool_base import RFTool_Base
@@ -52,6 +52,7 @@ from ..rfoperators.transform import RFOperator_Translate, sync_projection_from_b
 from ..rfoperators.maximize_watcher import RFOperator_MaximizeWatcher
 from ..rfoperators.topo_rotate import RFOperator_TopoRotate
 from ..rfoperators.adjust_segment_count import RFOperator_AdjustSegmentCount
+from ..rfoperators.adjust_strip_width import RFOperator_AdjustStripWidth
 
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
 from ..rfpanels.tweaking_panel import draw_tweaking_panel, draw_tweaking_popover
@@ -95,6 +96,19 @@ def _adjust_selected_strip(context, sign):
         bpy.ops.retopoflow.adjust_segment_count('INVOKE_DEFAULT', True, count=target)
     else:
         bpy.ops.retopoflow.adjust_segment_count('INVOKE_DEFAULT', True, delta=sign)
+
+
+def _adjust_selected_strip_width(context, sign):
+    factor = 0.95 if sign < 0 else 1 / 0.95
+    ops = context.window_manager.operators
+    last = ops[-1] if ops else None
+    if last is not None and last.name == RFOperator_AdjustStripWidth.bl_label:
+        target_start = last.scale_start * factor
+        target_end = last.scale_end * factor
+        bpy.ops.ed.undo()
+        bpy.ops.retopoflow.adjust_strip_width('INVOKE_DEFAULT', True, scale_start=target_start, scale_end=target_end)
+    else:
+        bpy.ops.retopoflow.adjust_strip_width('INVOKE_DEFAULT', True, delta_factor=factor)
 
 
 class RFOperator_PolyStrips_Insert_Keymaps:
@@ -146,50 +160,39 @@ class RFOperator_PolyStrips_Insert(
 
     logic = None
 
-    count0: bpy.props.IntProperty(
+    count: bpy.props.IntProperty(
         name='Count',
-        description='Number of quads in the first quad strip',
+        description='Total number of quads in the strip. Cannot go lower than the number of corners.',
         default=8,
         min=2,
         max=256,
     )
-    width0: bpy.props.FloatProperty(
-        name='Width',
-        description='Width of quads in the first quad strip',
-        min=0.0001,
-        precision=4,
-        step=0.01,
-
+    scale_start: bpy.props.FloatProperty(
+        name='Start Scale',
+        description='Width scale factor at the start of the stroke.',
+        default=1.0,
+        min=0.0,
+        soft_min=0.0,
+        soft_max=5.0,
+        precision=3,
     )
-
-    count1: bpy.props.IntProperty(
-        name='Count',
-        description='Number of quads in the second quad strip',
-        default=8,
-        min=2,
-        max=256,
+    scale_end: bpy.props.FloatProperty(
+        name='End Scale',
+        description='Width scale factor at the end of the stroke.',
+        default=1.0,
+        min=0.0,
+        soft_min=0.0,
+        soft_max=5.0,
+        precision=3,
     )
-    width1: bpy.props.FloatProperty(
-        name='Width',
-        description='Width of quads in the second quad strip',
-        min=0.0001,
-        precision=4,
-        step=0.01,
-    )
-
-    count2: bpy.props.IntProperty(
-        name='Count',
-        description='Number of quads in the third quad strip',
-        default=8,
-        min=2,
-        max=256,
-    )
-    width2: bpy.props.FloatProperty(
-        name='Width',
-        description='Width of quads in the third quad strip',
-        min=0.0001,
-        precision=4,
-        step=0.01,
+    width_interpolation: bpy.props.EnumProperty(
+        name='Interpolation',
+        description='How the width scale transitions from the start of the stroke to the end',
+        items=[
+            ('LINEAR', 'Linear', 'Width scale changes at a constant rate from start to end'),
+            ('SMOOTH', 'Smooth', 'Width scale eases in and out at the start and end'),
+        ],
+        default='LINEAR',
     )
 
 
@@ -211,9 +214,8 @@ class RFOperator_PolyStrips_Insert(
         if logic.error: return
         bpy.ops.retopoflow.polystrips_insert(
             'INVOKE_DEFAULT', True,
-            count0=logic.count0, width0=logic.width0,
-            count1=logic.count1, width1=logic.width1,
-            count2=logic.count2, width2=logic.width2,
+            count=logic.count, scale_start=logic.scale_start, scale_end=logic.scale_end,
+            width_interpolation=logic.width_interpolation,
             split_angle=logic.split_angle,
             mirror_correct=logic.mirror_correct,
         )
@@ -224,9 +226,8 @@ class RFOperator_PolyStrips_Insert(
         if not logic or logic.error: return
         bpy.ops.retopoflow.polystrips_insert(
             'INVOKE_DEFAULT', True,
-            count0=logic.count0, width0=logic.width0,
-            count1=logic.count1, width1=logic.width1,
-            count2=logic.count2, width2=logic.width2,
+            count=logic.count, scale_start=logic.scale_start, scale_end=logic.scale_end,
+            width_interpolation=logic.width_interpolation,
             split_angle=logic.split_angle,
             mirror_correct=logic.mirror_correct,
         )
@@ -239,26 +240,11 @@ class RFOperator_PolyStrips_Insert(
         layout.use_property_split = True
         layout.use_property_decorate = False
 
-        if logic.strip_count == 1:
-            layout.prop(self, 'count0')
-            layout.prop(self, 'width0')
-            layout.prop(self, 'split_angle')
-
-        elif logic.strip_count >= 1:
-            col = layout.column(align=True)
-            col.prop(self, 'count0', text='Strip 1 Count')
-            col.prop(self, 'width0')
-
-            if logic.strip_count >= 2:
-                col = layout.column(align=True)
-                col.prop(self, 'count1', text='Strip 2 Count')
-                col.prop(self, 'width1')
-
-            if logic.strip_count >= 3:
-                col = layout.column(align=True)
-                col.prop(self, 'count2', text='Strip 3 Count')
-                col.prop(self, 'width2')
-
+        if logic.strip_count >= 1:
+            layout.prop(self, 'count')
+            layout.prop(self, 'scale_start')
+            layout.prop(self, 'scale_end')
+            layout.prop(self, 'width_interpolation')
             layout.prop(self, 'split_angle')
 
         if logic.show_mirror_correct:
@@ -267,15 +253,15 @@ class RFOperator_PolyStrips_Insert(
     def execute(self, context):
         try:
             logic = RFOperator_PolyStrips_Insert.logic
-            logic.count0, logic.width0 = self.count0, self.width0
-            logic.count1, logic.width1 = self.count1, self.width1
-            logic.count2, logic.width2 = self.count2, self.width2
+            logic.count = self.count
+            logic.scale_start = self.scale_start
+            logic.scale_end = self.scale_end
+            logic.width_interpolation = self.width_interpolation
             logic.split_angle = self.split_angle
             logic.mirror_correct = self.mirror_correct
             logic.create(context)
-            self.count0, self.width0 = logic.count0, logic.width0
-            self.count1, self.width1 = logic.count1, logic.width1
-            self.count2, self.width2 = logic.count2, logic.width2
+            self.count = logic.count
+            self.scale_start, self.scale_end = logic.scale_start, logic.scale_end
             self.mirror_correct = logic.mirror_correct
         except Exception as e:
             # TODO: revisit how this issue (#1376) is handled.
@@ -310,21 +296,24 @@ class RFOperator_PolyStrips_Insert(
             return wrapped
         return wrapper
 
-    @create_redo_operator('polystrips_insert_count0_decreased', 'Decrease count of quads in first quad strip', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'ctrl': 1}, fallback=lambda context: _adjust_selected_strip(context, -1))
+    @create_redo_operator('polystrips_insert_count0_decreased', 'Decrease quad strip count', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'ctrl': 1}, fallback=lambda context: _adjust_selected_strip(context, -1))
     def decrease_count0(context, logic):
-        logic.count0 -= 1
+        logic.count -= 1
 
-    @create_redo_operator('polystrips_insert_count0_increased', 'Increase count of quads in first quad strip', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'ctrl': 1}, fallback=lambda context: _adjust_selected_strip(context, +1))
+    @create_redo_operator('polystrips_insert_count0_increased', 'Increase quad strip count', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'ctrl': 1}, fallback=lambda context: _adjust_selected_strip(context, +1))
     def increase_count0(context, logic):
-        logic.count0 += 1
+        logic.count += 1
 
-    @create_redo_operator('polystrips_insert_width0_decreased', 'Decrease width of quads in first quad strip', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'shift': 1})
+    @create_redo_operator('polystrips_insert_width0_decreased', 'Decrease quad strip width', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'shift': 1}, fallback=lambda context: _adjust_selected_strip_width(context, -1))
     def decrease_width0(context, logic):
-        logic.width0 *= 0.95
+        # scales both ends together, preserving the start/end gradient shape
+        logic.scale_start *= 0.95
+        logic.scale_end *= 0.95
 
-    @create_redo_operator('polystrips_insert_width0_increased', 'Increase width of quads in first quad strip', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'shift': 1})
+    @create_redo_operator('polystrips_insert_width0_increased', 'Increase quad strip width', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'shift': 1}, fallback=lambda context: _adjust_selected_strip_width(context, +1))
     def increase_width1(context, logic):
-        logic.width0 /= 0.95
+        logic.scale_start /= 0.95
+        logic.scale_end /= 0.95
 
 
 

@@ -164,7 +164,7 @@ def create_curve_edit_operator(
     ''' Shared curve-handle drag operator: works for any overlay built with
     create_curve_overlay, regardless of whether its chains come from real
     edge loops/strips or from a derived centerline (e.g. a quad strip) --
-    see curve_chain_providers.ChainSpec for what makes a chain interchangeable
+    see curves.ChainSpec for what makes a chain interchangeable
     here (deform_bmv_indices, cache_key, current_points). '''
 
     # NOTE: this body class deliberately does NOT inherit from RFOperator --

@@ -24,7 +24,7 @@ import bpy
 from ..rfglobals import RFGlobals
 from ..rfbrushes.stroke_brush import create_stroke_brush
 from ..rfoverlays.curve_overlay import create_curve_overlay
-from ..rfoverlays.curve_chain_providers import LoopStripChainProvider, QuadStripChainProvider
+from ..common.curves import LoopStripChainProvider, QuadStripChainProvider
 from ..rfoperators.curve_edit import create_curve_edit_operator, create_curve_toggle_handle_type_operator
 
 from ..rftool_base import RFTool_Base

@@ -219,6 +219,19 @@ def lerp_map(v : float, vm : float, vM : float, m : float, M : float) -> float:
     f = (v - vm) / (vM - vm)
     return m + f * (M - m)
 
+def interp_piecewise(fracs : list[float], values : list[float], f : float) -> float:
+    ''' Piecewise-linear lookup of `values`, indexed by the monotonic `fracs`
+    (ascending, in [0,1]), at fraction f. Clamps to the ends outside range. '''
+    if f <= fracs[0]:  return values[0]
+    if f >= fracs[-1]: return values[-1]
+    for i in range(1, len(fracs)):
+        if f <= fracs[i]:
+            f0, f1 = fracs[i - 1], fracs[i]
+            span = f1 - f0
+            t = 0.0 if span < 1e-12 else (f - f0) / span
+            return values[i - 1] * (1 - t) + values[i] * t
+    return values[-1]
+
 def xform_point(M : Matrix, p : Point | Vector) -> Vector:
     return point_to_bvec3(M @ bvec_point_to_bvec4(p))
 
@@ -648,3 +661,40 @@ def sample_even(points: list, cyclic: bool, vertex_count: int, path_length: floa
             if not best_npts or len(npts) <= len(best_npts):
                 best_npts = npts
     return best_npts
+
+
+def get_face_adjacency(tris):
+    ''' Shared-edge face pairs (fa, fb) over a triangle index array (T,3). '''
+    edge_of = {}
+    fa, fb = [], []
+    for t in range(len(tris)):
+        a, b, c = int(tris[t, 0]), int(tris[t, 1]), int(tris[t, 2])
+        for u, v in ((a, b), (b, c), (c, a)):
+            k = (u, v) if u < v else (v, u)
+            other = edge_of.pop(k, None)
+            if other is None:
+                edge_of[k] = t
+            else:
+                fa.append(other)
+                fb.append(t)
+    return np.array(fa, dtype=np.int64), np.array(fb, dtype=np.int64)
+
+
+def diffuse_graph_fields(fields, e0, e1, n, iters):
+    ''' Repeated neighbor averaging of per-element fields (n, D) over the undirected edge lists e0/e1. '''
+    deg = np.bincount(np.concatenate([e0, e1]),
+                      minlength=n).astype(np.float64) + 1.0
+    f = np.array(fields, dtype=np.float64)
+    # k iterations approximate a geodesic Gaussian kernel of radius ~ mean_step * sqrt(k).
+    for _ in range(iters):
+        acc = f.copy()
+        np.add.at(acc, e0, f[e1])
+        np.add.at(acc, e1, f[e0])
+        f = acc / deg[:, None]
+    return f
+
+
+def diffusion_iters_for_radius(smoothing_radius, mean_step, cap=400):
+    ''' Diffusion iteration count approximating a geodesic Gaussian blur of `smoothing_radius`
+    on a graph whose mean adjacent-element distance is `mean_step`. '''
+    return int(np.clip(round((smoothing_radius / max(mean_step, 1e-12)) ** 2), 1, cap))

@@ -22,51 +22,40 @@ Created by Jonathan Denning, Jonathan Lampel
 from __future__ import annotations
 
 from mathutils import Vector
-from bmesh.types import BMesh, BMFace, BMEdge, BMVert
+from bmesh.types import BMesh, BMFace, BMVert
 from bpy.types import Context
 
-from .curve_chain_providers import find_quadstrip_chains
 from ..common.bmesh import (
+    get_bmesh_emesh,
     bme_midpoint,
     bme_length,
-    bmfs_shared_bme,
-    quad_bmf_opposite_bme,
     has_mirror_x, has_mirror_y, has_mirror_z, mirror_threshold,
 )
 from ..common.bmesh_maths import check_bmf_normals
-from ..common.curve_fit import fit_centerline_spline, density_to_bend_tolerance
-from ..common.maths import view_forward_direction, xform_direction
+from ..common.curves import find_quadstrip_chains, fit_centerline_spline, ordered_rungs
+from ..common.maths import view_forward_direction, xform_direction, lerp, clamp, interp_piecewise
 from ..common.raycast import nearest_point_valid_sources, nearest_normal_valid_sources
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.maths import Direction, sign_threshold
 from ...addon_common.common.utils import dedup
 
 
-# minimum quads a resegmented strip may have -- matches PolyStrips' own floor
-# (see polystrips_logic count_mins) so scrolling down can't collapse a strip
-# into a single stretched quad
+# minimum quads a resegmented strip may have so it can't collapse into a single stretched quad
 MIN_COUNT = 2
 
 
 class SegmentRecipe:
-    '''
-    Everything the rebuild needs to recreate a strip of a chosen segment count
-    while keeping its shape. The shape data (centerline_cos, half_widths,
-    arc_fracs) is pure Vectors/floats; the live BMesh refs (strip_faces/verts,
-    end?_verts) are captured fresh each operator run and consumed within that
-    same run -- the Adjust Segment Count operator re-detects and re-captures on
-    every scroll (its undo-collapse restores the pristine strip first), so a
-    recipe is never held across an undo, and there are no stale-ref hazards.
-    '''
+    ''' Everything the rebuild needs to recreate a strip of a chosen segment count while keeping its shape. '''
     __slots__ = (
-        'coupled',            # True = edge loop (points ARE verts); False = quad strip
-        'cyclic',             # ring/loop with no end interfaces
-        'current_count',      # N segments (quads) the strip currently has
-        'centerline_cos',     # list[Vector]: the spine to preserve (rung midpoints)
+        'coupled',            # True = edge loop (points ARE verts), False = quad strip
+        'cyclic',
+        'current_count',
+        'centerline_cos',     # list[Vector]: the rung midpoints spine to preserve
         'half_widths',        # list[float]: half the rung width at each spine point
-        'arc_fracs',          # list[float]: each spine point's chord fraction in [0,1]
-        'end0_cos', 'end1_cos',   # (Vector, Vector): the two verts of each end rung; None if cyclic
-        'end0_verts', 'end1_verts',  # (BMVert, BMVert) live refs to reuse if welded; None if cyclic
+        'arc_fracs',          # list[float]: each spine point's chord fraction
+        'corner_indices',     # frozenset[int]: centerline_cos/arc_fracs indices known from topology to bound a sharp corner
+        'end0_cos', 'end1_cos',   # (Vector, Vector): the two verts of each end rung, None if cyclic
+        'end0_verts', 'end1_verts',  # (BMVert, BMVert) live refs to reuse if welded, None if cyclic
         'strip_faces',        # list[BMFace]: the strip's own faces (to delete)
         'strip_verts',        # list[BMVert]: the strip's verts (delete only if wireless)
         'mirror_axes',        # frozenset[str]: mirror axes to keep new verts pinned onto
@@ -79,13 +68,8 @@ class SegmentRecipe:
 
 
 class SegmentGeometryProvider:
-    '''
-    Strategy the Adjust Segment Count operator calls into. A provider knows how
-    to recognise one kind of adjustable geometry in the selection (quad strip
-    now; edge loop later -- see EdgeLoopProvider), capture its shape into a
-    SegmentRecipe, and rebuild it at a new segment count. The operator never
-    branches on the concrete kind -- it just calls detect -> capture -> rebuild.
-    '''
+    ''' Strategy the Adjust Segment Count operator calls into: detect an adjustable chain
+    in the selection, capture its shape into a SegmentRecipe, and rebuild it at a new count. '''
 
     def detect(self, context : Context, bm : BMesh):
         ''' Return a lightweight descriptor for the single adjustable chain in
@@ -96,66 +80,50 @@ class SegmentGeometryProvider:
         ''' Build the geometry-independent shape recipe from live geometry. '''
         raise NotImplementedError
 
-    def rebuild(self, context : Context, bm : BMesh, recipe : SegmentRecipe, count : int) -> list[BMFace]:
-        ''' Replace the strip with `count` segments, retaining shape and every
-        external connection. Returns the new faces to select. '''
+    def rebuild(self, context : Context, bm : BMesh, recipe : SegmentRecipe, count : int, *, scale_start : float = 1.0, scale_end : float = 1.0) -> list[BMFace]:
+        ''' Replace the strip with `count` segments, its rail-to-rail width
+        scaled by `scale_start` at its own start lerping to `scale_end` at its
+        own end, retaining shape and every external connection. Returns the
+        new faces to select. '''
         raise NotImplementedError
 
 
 # ------------------------------------------------------------------ helpers
 
-def _ordered_rungs(faces : list[BMFace], cyclic : bool) -> list[BMEdge]:
-    '''
-    The perpendicular edges crossing the strip, in order: the boundary cap at
-    each open end, plus the edge shared by each consecutive face pair between.
-    (Same construction as curve_chain_providers._quad_chain_rung_map, but kept
-    as an ordered edge list so we can read per-rung width/position.) For N
-    faces: N+1 rungs open, N rungs cyclic.
-    '''
-    rungs : list[BMEdge] = []
-    n = len(faces)
-    if cyclic:
-        for i in range(n):
-            if bme := bmfs_shared_bme(faces[i], faces[(i + 1) % n]):
-                rungs.append(bme)
-    else:
-        if (shared_first := bmfs_shared_bme(faces[0], faces[1])) and (cap0 := quad_bmf_opposite_bme(faces[0], shared_first)):
-            rungs.append(cap0)
-        for i in range(n - 1):
-            if bme := bmfs_shared_bme(faces[i], faces[i + 1]):
-                rungs.append(bme)
-        if (shared_last := bmfs_shared_bme(faces[-2], faces[-1])) and (capN := quad_bmf_opposite_bme(faces[-1], shared_last)):
-            rungs.append(capN)
-    return rungs
-
-
-def _interp(fracs : list[float], values : list[float], f : float) -> float:
-    ''' Piecewise-linear lookup of `values` (indexed by the monotonic `fracs`
-    in [0,1]) at fraction f -- preserves a strip's width taper under resample. '''
-    if f <= fracs[0]:  return values[0]
-    if f >= fracs[-1]: return values[-1]
-    for i in range(1, len(fracs)):
-        if f <= fracs[i]:
-            f0, f1 = fracs[i - 1], fracs[i]
-            span = f1 - f0
-            t = 0.0 if span < 1e-12 else (f - f0) / span
-            return values[i - 1] * (1 - t) + values[i] * t
-    return values[-1]
-
-
 def _vert_is_external(v : BMVert, strip_faces : set) -> bool:
     return any(f not in strip_faces for f in v.link_faces)
+
+
+def _stations_with_reserved_fracs(nstations : int, reserved_fracs : list[float]) -> list[float]:
+    ''' `nstations` ascending fractions in [0,1] (first 0, last 1) that always
+    land on every `reserved_fracs` value, so resampling only grows/shrinks the
+    spans between reserved points (e.g. corners) and never displaces one. '''
+    boundaries = sorted({0.0, 1.0} | {clamp(f, 0.0, 1.0) for f in reserved_fracs})
+    if nstations < len(boundaries):
+        return [i / max(1, nstations - 1) for i in range(nstations)]  # no room to reserve, uniform
+
+    # spread the leftover stations across the spans by length (largest-remainder)
+    extra_total = nstations - len(boundaries)
+    lengths = [b1 - b0 for b0, b1 in zip(boundaries[:-1], boundaries[1:])]
+    total_len = sum(lengths) or 1.0
+    raw_shares = [extra_total * l / total_len for l in lengths]
+    extra = [int(s) for s in raw_shares]
+    leftover = extra_total - sum(extra)
+    order = sorted(range(len(lengths)), key=lambda i: raw_shares[i] - extra[i], reverse=True)
+    for i in order[:leftover]:
+        extra[i] += 1
+
+    fracs = [boundaries[0]]
+    for i, (b0, b1) in enumerate(zip(boundaries[:-1], boundaries[1:])):
+        n_sub = extra[i] + 1  # sub-intervals within this span
+        fracs += [b0 + (b1 - b0) * (k / n_sub) for k in range(1, n_sub + 1)]
+    return fracs
 
 
 # ------------------------------------------------------------------ quad strip
 
 class QuadStripProvider(SegmentGeometryProvider):
-    '''
-    A single selected quad strip (open chain) or ring (cyclic). Its shape is
-    the polyline through the rung midpoints -- fit to a curve and resampled to
-    the new count. See the module docstring for the topology-safety rule that
-    keeps every externally-connected vert/edge locked.
-    '''
+    ''' Fit a curve through a strip or ring's rung midpoints and resample to the new count. '''
 
     MAX_FACES = 1000
 
@@ -166,7 +134,7 @@ class QuadStripProvider(SegmentGeometryProvider):
 
         open_chains, rings = find_quadstrip_chains(sel)
         if len(open_chains) + len(rings) != 1:
-            return None  # zero, or more than one, adjustable chain -- ambiguous
+            return None  # zero, or more than one, adjustable chain - ambiguous
 
         if open_chains:
             seg_faces = open_chains[0]['segment_faces']
@@ -174,22 +142,24 @@ class QuadStripProvider(SegmentGeometryProvider):
                 return None  # v1: single topological sub-chain only (no spatial seam)
             faces = list(seg_faces[0])
             cyclic = False
+            # L-corner pivot positions from the chain walk (find_quadstrip_chains);
+            # rings never turn, so they get none below
+            corner_face_positions = frozenset(open_chains[0]['corner_face_positions'])
         else:
             faces = list(rings[0])
             cyclic = True
+            corner_face_positions = frozenset()
 
         if len(faces) < 2 or set(faces) != set(sel):
             return None  # chain must cover exactly the selection
 
-        rungs = _ordered_rungs(faces, cyclic)
+        rungs = ordered_rungs(faces, cyclic)
         expected = len(faces) if cyclic else len(faces) + 1
         if len(rungs) != expected:
-            return None  # unexpected topology (branch/non-ladder) -- bail
+            return None  # unexpected topology (branch/non-ladder) - bail
 
-        # topology-safety lock rule: only the two end-cap rungs may connect to
-        # geometry outside the strip. Any other external vert (a rail edge or
-        # interior rung tied into other topology, a ring welded along its long
-        # side) means the free region isn't a single clean span -- no-op.
+        # only the two end-cap rungs may connect to geometry outside the strip;
+        # any other external vert means the region isn't a clean span - bail
         strip_faces = set(faces)
         allowed_external = set() if cyclic else (set(rungs[0].verts) | set(rungs[-1].verts))
         strip_verts = {v for f in faces for v in f.verts}
@@ -197,36 +167,22 @@ class QuadStripProvider(SegmentGeometryProvider):
             if v not in allowed_external and _vert_is_external(v, strip_faces):
                 return None
 
-        return {'faces': faces, 'cyclic': cyclic, 'rungs': rungs}
+        return {'faces': faces, 'cyclic': cyclic, 'rungs': rungs, 'corner_face_positions': corner_face_positions}
 
     def capture(self, context, bm, descriptor, *, shape_of : SegmentRecipe | None = None) -> SegmentRecipe:
-        '''
-        `shape_of`, if given, is a previously captured recipe for what a prior
-        detect() confirmed (via is_same_chain) is THIS SAME strip -- its shape
-        fields (centerline_cos/half_widths/arc_fracs/end?_cos/tunables) are
-        reused verbatim instead of re-derived from the current (already-
-        resegmented) geometry. This is what keeps a run of repeated adjusts
-        from shrinking the strip: without it, each rebuild would fit a curve
-        to the PREVIOUS rebuild's rung midpoints, and a fit is generally a
-        little shorter than the polyline it's fit through (it smooths corners)
-        -- fitting a fit's output, over and over, compounds that shrink every
-        single scroll. Reusing the one true original shape means the curve is
-        only ever fit once per session; every scroll just resamples it at a
-        different count, which does not change its length. Only the LIVE
-        handles (strip_faces/strip_verts/end?_verts) are ever taken fresh here
-        -- those must track the actual current geometry so deletion/reuse
-        targets the real verts, not stale references from a prior capture.
-        '''
         faces  = descriptor['faces']
         cyclic = descriptor['cyclic']
         rungs  = descriptor['rungs']
 
+        # live BMesh handles are always taken fresh, even when reusing shape_of --
+        # deletion/reuse must target the current verts, not stale prior refs
         end0_verts = None if cyclic else (rungs[0].verts[0], rungs[0].verts[1])
         end1_verts = None if cyclic else (rungs[-1].verts[0], rungs[-1].verts[1])
         strip_faces = list(faces)
         strip_verts = list({v for f in faces for v in f.verts})
 
         if shape_of is not None:
+            # Reuse the previous shape to avoid compounded shrinking
             return SegmentRecipe(
                 coupled=False,
                 cyclic=cyclic,
@@ -234,6 +190,7 @@ class QuadStripProvider(SegmentGeometryProvider):
                 centerline_cos=shape_of.centerline_cos,
                 half_widths=shape_of.half_widths,
                 arc_fracs=shape_of.arc_fracs,
+                corner_indices=shape_of.corner_indices,
                 end0_cos=shape_of.end0_cos,
                 end1_cos=shape_of.end1_cos,
                 end0_verts=end0_verts,
@@ -257,6 +214,13 @@ class QuadStripProvider(SegmentGeometryProvider):
         total = cum[-1] or 1e-6
         arc_fracs = [c / total for c in cum[:len(centerline_cos)]]
 
+        # a corner face at position c is bounded by rungs c and c+1; force both
+        # as knots so the fit doesn't round the turn (rebuild() also pins a
+        # station at each, keeping the corner's own quad intact)
+        corner_indices = frozenset(
+            i for c in descriptor['corner_face_positions'] for i in (c, c + 1)
+        )
+
         mirror_axes = set()
         if has_mirror_x(context): mirror_axes.add('x')
         if has_mirror_y(context): mirror_axes.add('y')
@@ -271,6 +235,7 @@ class QuadStripProvider(SegmentGeometryProvider):
             centerline_cos=centerline_cos,
             half_widths=half_widths,
             arc_fracs=arc_fracs,
+            corner_indices=corner_indices,
             end0_cos=None if cyclic else (Vector(end0_verts[0].co), Vector(end0_verts[1].co)),
             end1_cos=None if cyclic else (Vector(end1_verts[0].co), Vector(end1_verts[1].co)),
             end0_verts=end0_verts,
@@ -278,20 +243,12 @@ class QuadStripProvider(SegmentGeometryProvider):
             strip_faces=strip_faces,
             strip_verts=strip_verts,
             mirror_axes=frozenset(mirror_axes),
-            bend_tolerance_factor=density_to_bend_tolerance(props.curve_handle_density),
+            bend_tolerance_factor=props.bend_tolerance_factor,
             sharp_angle=props.curve_corner_angle,
         )
 
     def is_same_chain(self, cached : SegmentRecipe, fresh : SegmentRecipe) -> bool:
-        '''
-        Coarse fingerprint check: does `fresh` (just detected/captured from the
-        live selection) look like the same strip `cached` came from, so its
-        shape data is safe to reuse instead of re-deriving it (see capture's
-        `shape_of`)? Guards the undo-collapse in polystrips.py against
-        accidentally applying one strip's cached shape to a different one --
-        e.g. the user adjusts strip A, then selects and scrolls strip B before
-        doing anything else RF would otherwise notice as "a new session".
-        '''
+        ''' Is `fresh` the same strip as `cached`? Guards polystrips's undo-collapse from applying one strip's cached shape to a different one. '''
         if cached is None or cached.cyclic != fresh.cyclic:
             return False
         tol = 1e-4
@@ -312,25 +269,36 @@ class QuadStripProvider(SegmentGeometryProvider):
             abs(total_len(cached.centerline_cos) - total_len(fresh.centerline_cos)) < tol
         )
 
-    def rebuild(self, context, bm, recipe, count) -> list[BMFace]:
-        count  = max(MIN_COUNT, int(count))
+    def rebuild(self, context, bm, recipe, count, *, scale_start : float = 1.0, scale_end : float = 1.0) -> list[BMFace]:
         cyclic = recipe.cyclic
         Mw     = context.edit_object.matrix_world
         fn     = lambda a, b: (a - b).length
 
-        # --- fit the shape-preserving centerline curve
+        # Floor the count at one quad per corner, so a low request can't fall back to corner-losing uniform spacing
+        corner_fracs = set() if cyclic else {
+            recipe.arc_fracs[i] for i in (recipe.corner_indices or ()) if 0 <= i < len(recipe.arc_fracs)
+        }
+        min_count = max(MIN_COUNT, len(corner_fracs) + 1)
+        count = max(min_count, int(count))
+
+        # Fit the shape-preserving centerline.
         spline = fit_centerline_spline(
             recipe.centerline_cos, cyclic=cyclic,
             bend_tolerance_factor=recipe.bend_tolerance_factor,
             sharp_angle=recipe.sharp_angle,
+            forced_sharp_indices=recipe.corner_indices or frozenset(),
         )
         if len(spline) == 0:
             return []
 
-        # --- sample count(+1) arc-length-uniform stations along the curve
+        # Sample arc-length stations. Open chains pin one at each corner's
+        # arc fraction so its quad survives any count and rings stay uniform.
         total = spline.approximate_totlength_uniform(fn) or 1e-6
         nstations = count + 1 if not cyclic else count
-        fracs = [j / count for j in range(nstations)]
+        if cyclic:
+            fracs = [j / count for j in range(nstations)]
+        else:
+            fracs = _stations_with_reserved_fracs(nstations, corner_fracs)
         ts = spline.approximate_ts_at_intervals_uniform([f * total for f in fracs], fn)
         stations = [Vector(spline.eval(t)) for t in ts]
         stations = [
@@ -338,7 +306,7 @@ class QuadStripProvider(SegmentGeometryProvider):
             for p in stations
         ]
 
-        # --- per-station frame (mirror PolyStrips' right-vector construction)
+        # Per-station frame (mirror PolyStrips' right-vector construction)
         normals = [Direction(nearest_normal_valid_sources(context, Mw @ p, world=False) or Vector((0, 0, 1))) for p in stations]
         forwards, backwards = [], []
         for i in range(nstations):
@@ -359,8 +327,7 @@ class QuadStripProvider(SegmentGeometryProvider):
             (Vector(f.cross(n)).normalized() + Vector(n.cross(b)).normalized())
             for (b, f, n) in zip(backwards, forwards, normals)
         ]
-        # sign-propagate the right vectors so "rail 0" stays on one side the
-        # whole way (no pinch/twist) regardless of per-station cross-product sign
+        # Sign-propagate so "rail 0" stays on one side the whole way regardless of each station's cross-product sign
         r_signed = []
         for i, r in enumerate(rights):
             if r.length > 1e-9:
@@ -377,12 +344,13 @@ class QuadStripProvider(SegmentGeometryProvider):
                 r = -r
             r_signed.append(r)
 
-        # --- resample the width taper at the new stations
-        widths = [_interp(recipe.arc_fracs, recipe.half_widths, f) for f in fracs]
+        # Resample the width taper, scaled start -> end along the strip
+        widths = [
+            interp_piecewise(recipe.arc_fracs, recipe.half_widths, f) * (scale_start if cyclic else lerp(f, scale_start, scale_end))
+            for f in fracs
+        ]
 
-        # --- delete the old strip, keeping every externally-connected vert
-        # (delete a strip vert only once it is wireless -- welded end-cap verts
-        # still link a neighbor face, so they survive automatically)
+        # Delete the old strip, keeping externally-connected verts
         for f in recipe.strip_faces:
             if f.is_valid:
                 bm.faces.remove(f)
@@ -390,7 +358,7 @@ class QuadStripProvider(SegmentGeometryProvider):
             if v.is_valid and not v.link_faces:
                 bm.verts.remove(v)
 
-        # --- build the two new rails, reusing any surviving (welded) end verts
+        # Build the two new rails, reusing any welded end verts
         new_verts : list[BMVert] = []
 
         def rail_pair(i):
@@ -424,7 +392,7 @@ class QuadStripProvider(SegmentGeometryProvider):
             rail0.append(v0)
             rail1.append(v1)
 
-        # --- snap new verts to the source, then pin any that land on a mirror plane
+        # Snap new verts to the source, then pin any that land on a mirror plane
         mt = mirror_threshold(context)
         for v in new_verts:
             if snapped := nearest_point_valid_sources(context, Mw @ v.co, world=False, respect_clip_planes=True):
@@ -436,7 +404,7 @@ class QuadStripProvider(SegmentGeometryProvider):
                 0 if 'z' in recipe.mirror_axes and sign_threshold(co.z, mt) == 0 else co.z,
             ))
 
-        # --- create the quads
+        # Create the quads
         new_faces : list[BMFace] = []
         npairs = nstations if cyclic else nstations - 1
         for i in range(npairs):
@@ -447,7 +415,7 @@ class QuadStripProvider(SegmentGeometryProvider):
             try:
                 new_faces.append(bm.faces.new(verts))
             except ValueError:
-                # face already exists (degenerate overlap on a very tight bend) -- skip
+                # Face already exists, probably degenerate overlap on a very tight bend
                 continue
         fwd = xform_direction(Mw.inverted_safe(), view_forward_direction(context))
         check_bmf_normals(fwd, new_faces)
@@ -455,15 +423,27 @@ class QuadStripProvider(SegmentGeometryProvider):
         return new_faces
 
 
+# tried in order, first to recognise the selection wins.
+# Shared by every strip related operator so they agree on what's adjustable.
+ADJUSTABLE_PROVIDERS = [QuadStripProvider()]
+
+
+def detect_adjustable_strip(context : Context):
+    ''' Find the single adjustable chain in the current selection. Returns
+    (bm, em, provider, descriptor) or None. '''
+    bm, em = get_bmesh_emesh(context, ensure_lookup_tables=True)
+    for provider in ADJUSTABLE_PROVIDERS:
+        descriptor = provider.detect(context, bm)
+        if descriptor is not None:
+            return bm, em, provider, descriptor
+    return None
+
+
 class EdgeLoopProvider(SegmentGeometryProvider):
     '''
-    FUTURE (not yet implemented). An edge loop/strip is `coupled` -- its points
-    ARE the verts -- so capture stores centerline_cos = [v.co for v in strip]
-    with no width_profile/frame, and rebuild fits the same curve, resamples to
-    count+1 stations, and creates ONE vert per station joined by `count` edges,
-    reusing the two endpoint verts. No rails, no rung recentering; `count`
-    counts edges, min 1. detect would collect one boundary strip/cycle via
-    curve_chain_providers.LoopStripChainProvider's machinery. Everything else
-    (undo-collapse, keymap gating) is provider-agnostic and unchanged.
+    FUTURE (not implemented). An edge loop is `coupled` (points ARE verts), so
+    capture stores centerline_cos = [v.co for v in strip] and rebuild resamples
+    the curve to count+1 verts joined by `count` edges, reusing the endpoints --
+    no rails or rung recentering. detect via curves.LoopStripChainProvider.
     '''
     pass

@@ -22,49 +22,12 @@ Created by Jonathan Denning, Jonathan Lampel
 import bpy
 
 from ..common.operator import RFOperator_Execute
-from ..common.bmesh import get_bmesh_emesh
-from ..rfoverlays.segment_count_providers import QuadStripProvider, MIN_COUNT
+from ..common.segments import MIN_COUNT, detect_adjustable_strip
 from ...addon_common.common import bmesh_ops as bmops
 
 
-# Providers tried in order; the first that recognises the selection wins. Only
-# quad strips are handled today -- an EdgeLoopProvider slots in here later with
-# no change to this operator (see segment_count_providers).
-_PROVIDERS = [QuadStripProvider()]
-
-
-def _detect(context):
-    ''' Find the single adjustable chain in the current selection. Returns
-    (bm, em, provider, descriptor) or None. '''
-    bm, em = get_bmesh_emesh(context, ensure_lookup_tables=True)
-    for provider in _PROVIDERS:
-        descriptor = provider.detect(context, bm)
-        if descriptor is not None:
-            return bm, em, provider, descriptor
-    return None
-
-
 class RFOperator_AdjustSegmentCount(RFOperator_Execute):
-    '''
-    Generic "adjust segment count": resegment the selected quad strip to a new
-    quad count while retaining its shape and every connection to surrounding
-    topology. REGISTER|UNDO, so it is one undo step with a `count` field the
-    user can also edit via F9. Repeated Ctrl+Scroll in PolyStrips collapses onto
-    THIS single undo step -- the scroll keymap undoes the previous adjust and
-    re-runs at the new count (see rftool_polystrips/polystrips.py).
-
-    That undo-collapse alone isn't enough to keep the strip's shape stable
-    across a long run of scrolls: re-deriving (capturing) the shape fresh on
-    every execute means fitting a curve to whatever the PREVIOUS rebuild left
-    behind, and a fit is generally a little shorter than the polyline it's fit
-    through (it smooths corners) -- fitting a fit's output over and over
-    compounds that shrink each scroll, visibly shrinking the strip over a
-    session. `_cached_shape` fixes this: the strip's shape is captured ONCE,
-    the first time this session touches it, and every later scroll resamples
-    that SAME fit at a different count rather than re-deriving and re-fitting
-    it -- see segment_count_providers.SegmentGeometryProvider.capture's
-    `shape_of` and `is_same_chain`.
-    '''
+    ''' Resample the selected quad strip to a new quad count while retaining its shape. '''
     bl_idname = 'retopoflow.adjust_segment_count'
     bl_label = 'Adjust Segment Count'
     bl_description = 'Adjust the number of segments in the selected strip while retaining its shape'
@@ -77,18 +40,10 @@ class RFOperator_AdjustSegmentCount(RFOperator_Execute):
         min=MIN_COUNT,
         max=512,
     )
-    # set only by a fresh Ctrl+Scroll (the desired +/-1 change); left at its
-    # default 0 for a menu/search click (see invoke's `is_seed`) or a
-    # continuation call, which pass an explicit `count` instead. Never
-    # persisted -- invoke immediately resolves it into the absolute `count`
-    # that actually drives the rebuild and the F9 redo panel.
+    # set only by a fresh Ctrl+Scroll and left at its default 0 for a menu click.
+    # Never persisted as invoke immediately sets it to the existing count of the selection.
     delta: bpy.props.IntProperty(default=0, options={'HIDDEN', 'SKIP_SAVE'})
 
-    # class-level, mirroring RFOperator_PolyStrips_Insert.logic: the pristine
-    # shape captured for whichever strip is currently being adjusted this
-    # session. Never dereference its strip_faces/strip_verts/end?_verts (those
-    # are stale BMesh refs from a past capture) -- only its pure shape fields
-    # are ever read, via capture's `shape_of`.
     _cached_shape = None
 
     def draw(self, context):
@@ -98,14 +53,9 @@ class RFOperator_AdjustSegmentCount(RFOperator_Execute):
         layout.prop(self, 'count')
 
     def invoke(self, context, event):
-        # an explicit `count` means the caller (the Ctrl+Scroll continuation
-        # path in polystrips.py) already knows its target -- run as-is. A
-        # "seed" invocation -- the context menu, operator search, or a fresh
-        # Ctrl+Scroll passing only `delta` -- has no target yet: detect the
-        # strip and seed `count` from its actual current count (offset by
-        # `delta`, 0 for a raw menu/search click).
+        # An explicit `count` means the caller already knows its target so run as-is.
         if not self.properties.is_property_set('count'):
-            found = _detect(context)
+            found = detect_adjustable_strip(context)
             if found is None:
                 self.report({'WARNING'}, 'Adjust Segment Count: select a single quad strip or ring first')
                 return {'CANCELLED'}
@@ -117,7 +67,7 @@ class RFOperator_AdjustSegmentCount(RFOperator_Execute):
         return self.execute(context)
 
     def execute(self, context):
-        found = _detect(context)
+        found = detect_adjustable_strip(context)
         if found is None:
             self.report({'WARNING'}, 'Adjust Segment Count: select a single quad strip or ring first')
             return {'CANCELLED'}
@@ -130,14 +80,8 @@ class RFOperator_AdjustSegmentCount(RFOperator_Execute):
         RFOperator_AdjustSegmentCount._cached_shape = recipe
 
         if self.count == recipe.current_count:
-            # already at this count -- leave the strip untouched. A menu/search
-            # click seeds `count` to exactly this value, so without this guard
-            # every such click would still re-fit and re-snap the whole strip
-            # (never byte-identical to the original even at an unchanged quad
-            # count), visibly jumping the strip for no reason. Still FINISHED
-            # (not CANCELLED) -- the strip is valid, so the F9 redo panel
-            # should stay available to dial `count` to something else.
-            return {'FINISHED'}
+            # Already at this count so don't reshape.
+            return {'FINISHED'} # Not cancelled because it's still a valid result
         new_faces = provider.rebuild(context, bm, recipe, self.count)
         if not new_faces:
             return {'CANCELLED'}

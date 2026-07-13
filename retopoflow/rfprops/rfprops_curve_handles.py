@@ -22,6 +22,8 @@ Created by Jonathan Denning, Jonathan Lampel
 import math
 import bpy
 
+from ..common.maths import map_range, clamp
+
 
 class RFProps_CurveHandles(bpy.types.PropertyGroup):
     '''
@@ -53,6 +55,13 @@ class RFProps_CurveHandles(bpy.types.PropertyGroup):
         max = math.radians(170),
         default = math.radians(50),
     )
+
+    @property
+    def bend_tolerance_factor(self) -> float:
+        '''Proportionally maps curve_handle_density to the bend tolerance factor passed to rdp_corner_indices'''
+        t = map_range(clamp(self.curve_handle_density, 0.1, 1.0), 0.1, 1.0, 0.0, 1.0)
+        lo, hi = 0.5, 0.01  # lo = few control points, hi = more
+        return lo * (hi / lo) ** t
 
 
 def register():

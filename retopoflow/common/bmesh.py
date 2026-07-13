@@ -219,6 +219,8 @@ def bmvs_shared_bme(bmv0 : BMVert, bmv1 : BMVert) -> BMEdge | None:
     return next((bme for bme in bmv0.link_edges if bmv1 in bme.verts), None)
 def bmfs_shared_bme(bmf0 : BMFace, bmf1 : BMFace) -> BMEdge | None:
     return next((bme for bme in bmf0.edges if bme in bmf1.edges), None)
+def bmfs_share_bmv(bmf0 : BMFace, bmf1 : BMFace) -> bool:
+    return not set(bmf0.verts).isdisjoint(bmf1.verts)
 
 def bme_vector(bme:BMEdge) -> Vector:
     bmv0,bmv1 = bme.verts

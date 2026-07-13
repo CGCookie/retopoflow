@@ -26,6 +26,7 @@ This document contains details about what has changed in Retopoflow in version 4
 - Added Ctrl Scroll after extruding in Contours to adjust segment count
 - Increased max span count in Contours
 
+- Added Ctrl and Shift scroll operators to adjust segments and width at any time in PolyStrips
 - Improved PolyStrips curve handles
 - Expanded the curve handle system to work with edge loops and selection patches
 - The curve handles are now available when working in Strokes and PolyPen as well
