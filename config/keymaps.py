@@ -112,6 +112,10 @@ def _reset_kmi_properties(
 
     kmi_props = km_item.properties
 
+    # The km_item can be invalidated between start and restore when Blender rebuilds the user keyconfig.
+    if kmi_props is None:
+        return # Nothing to restore
+
     for key in delete_keys:
         kmi_props.property_unset(key)
 
@@ -128,6 +132,8 @@ def _override_kmi_properties(
     assign_vals : KMI_OVERRIDE_PROPS,  # pyright: ignore[reportUnknownParameterType]
 ):
     kmi_props = km_item.properties
+    if kmi_props is None:
+        return
 
     # store current keymap operator property and then reassign
     delete_keys : set[str] = set()
