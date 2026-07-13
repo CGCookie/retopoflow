@@ -100,7 +100,13 @@ def trim_stroke_to_bmf(stroke, bmf, from_start, limit_bmes=None):
     # split stroke into inside bmf and outside bmf
     if from_start: inside,  outside = stroke[:i], stroke[i:]
     else:          outside, inside  = stroke[:i], stroke[i:]
-    search = inside or ([stroke[0]] if from_start else [stroke[-1]])
+
+    # Connect to the edge the stroke entered through, not whichever edge the end happens to drift closest to.
+    if from_start: # stroke begins inside the face and exits
+        search = inside[-1:] + outside[:1]
+    else: # stroke enters and ends inside
+        search = inside[:2]
+    search = search or ([stroke[0]] if from_start else [stroke[-1]])
 
     # find closest bme of bmf to search part of stroke
     if limit_bmes:
@@ -169,7 +175,8 @@ def stroke_angles(stroke, width, split_angle, fn_snap_normal):
 
 class PolyStrips_Logic:
     def __init__(self, context, radius2D, stroke3D_local, point3D_0, point3D_1, is_cycle, length2D,
-                    snap_bmf0, snap_bmf1, split_angle, mirror_correct, radius3D=None):
+                    snap_bmf0, snap_bmf1, split_angle, mirror_correct,
+                    size_mode='BRUSH', fixed_count=8, span_length=0.1, radius3D=None):
         # store context data to make it more convenient
         # note: this will be redone whenever create() is called
         self.update_context(context)
@@ -202,7 +209,16 @@ class PolyStrips_Logic:
         # initial settings
         self.initial = True
         self.radius3D = radius3D
-        if radius3D:
+        self.size_mode = size_mode
+        self.fixed_count = fixed_count
+        self.span_length = max(0.001, span_length)
+        # NOTE: self.initial_width is in world space
+        length3D_world = self.compute_length3D(self.stroke3D_local_orig, self.is_cycle)
+        if size_mode == 'FIXED':
+            self.initial_count = max(2, fixed_count)
+        elif size_mode == 'LENGTH':
+            self.initial_count = max(2, round(length3D_world / self.span_length) + 1)
+        elif radius3D:
             length3D_local = sum(
                 (p1 - p0).length
                 for (p0, p1) in iter_pairs(self.stroke3D_local_orig, self.is_cycle)
@@ -210,8 +226,7 @@ class PolyStrips_Logic:
             self.initial_count = max(2, round(length3D_local / (2 * radius3D)) + 1) # radius3D is in local space
         else:
             self.initial_count = max(2, round(length2D / (2 * radius2D)) + 1)
-        # NOTE: self.initial_width is in world space
-        self.initial_width = self.compute_length3D(self.stroke3D_local_orig, self.is_cycle) / (self.initial_count * 2 - 1)
+        self.initial_width = length3D_world / (self.initial_count * 2 - 1)
         self.strip_count = 0
         self.count_mins = []
         self.counts = []
@@ -276,6 +291,16 @@ class PolyStrips_Logic:
             t = (k - start_i) / (end_i - start_i)
             fracs[k] = start_f + t * (end_f - start_f)
         return fracs
+
+
+    @staticmethod
+    def _snapped_edge_radius(bmf, pts):
+        ''' Half-length in local space of the snapped face's edge nearest the given stroke points. '''
+        if not bmf or not pts: return None
+        bmes = list(bmf.edges)
+        if not bmes: return None
+        bme = min(bmes, key=lambda bme: min(distance_point_bmedge(pt, bme) for pt in pts))
+        return bme_length(bme) / 2
 
 
     def create(self, context):
@@ -352,6 +377,11 @@ class PolyStrips_Logic:
         if self.snap_bmf1_index is not None:
             snap_bmf_end = self.bm.faces[self.snap_bmf1_index]
 
+        w_snap_start = w_snap_end = None
+        if self.size_mode == 'SNAPPED':
+            w_snap_start = self._snapped_edge_radius(snap_bmf_start, self.stroke3D_local[:3])
+            w_snap_end   = self._snapped_edge_radius(snap_bmf_end,   self.stroke3D_local[-3:])
+
         scale = sum(M.to_scale()) / 3
 
         # break stroke into segments -- cached, since this raycasts a normal at
@@ -381,14 +411,34 @@ class PolyStrips_Logic:
             cumlen_at_index.append(cumlen_at_index[-1] + ((M @ p1) - (M @ p0)).length)
         total_length = cumlen_at_index[-1] or 1.0
 
+        # SNAPPED mode sizes quads to the snapped edge width. Re-derive the quad
+        # count from that width on the first build only, and afterwards the artist's
+        # Count edits / Ctrl+Scroll must win.
+        if self.size_mode == 'SNAPPED' and self.initial:
+            snapped_world = [w * self.edit_scale for w in (w_snap_start, w_snap_end) if w]
+            if snapped_world:
+                avg_w = sum(snapped_world) / len(snapped_world)
+                if avg_w > 0:
+                    self.count_total = max(2, round(total_length / (2 * avg_w)) + 1)
+
         # NOTE: base_width is in local space (self.initial_width is world space)
         base_width = self.initial_width / self.edit_scale
+
+        base0 = base1 = base_width
+        if self.size_mode == 'SNAPPED':
+            if w_snap_start and w_snap_end:
+                base0, base1 = w_snap_start, w_snap_end
+            elif w_snap_start:
+                base0 = base1 = w_snap_start
+            elif w_snap_end:
+                base0 = base1 = w_snap_end
+            # else: neither end snapped -> keep the brush-derived base_width
 
         def width_at(t):
             t = clamp(t, 0, 1)
             if self.width_interpolation == 'SMOOTH':
                 t = t * t * (3 - 2 * t)  # smoothstep: eases in/out at both ends instead of a constant rate
-            return base_width * lerp(t, self.scale_start, self.scale_end)
+            return lerp(t, base0, base1) * lerp(t, self.scale_start, self.scale_end)
 
         # reserve one quad per corner end (sized to the local width) out of the
         # requested total count, then split whatever's left across the remaining
@@ -656,7 +706,9 @@ class PolyStrips_Logic:
                 # width gradient falls out of sync with where the vertex really is
                 v = fracs[i]
                 wg = sample_width(v)
-                if real_snap0 and not real_snap1:
+                if self.size_mode == 'SNAPPED':
+                    w = wg # the gradient already encodes the snapped widths
+                elif real_snap0 and not real_snap1:
                     w = w0 + (wg - w0) * v
                 elif not real_snap0 and real_snap1:
                     w = wg + (w1 - wg) * v
@@ -743,6 +795,10 @@ class PolyStrips_Logic:
         # requested, and the redo panel/scroll shortcuts should reflect that,
         # not silently re-request a total that never matches the mesh
         self.count_total = sum(self.counts)
+
+        # the SNAPPED-derived count and any other first-build-only sizing is now baked into count_total.
+        # Subsequent (redo/scroll) builds must respect the artist's adjustments instead of re-deriving.
+        self.initial = False
 
 
     def update_context(self, context):

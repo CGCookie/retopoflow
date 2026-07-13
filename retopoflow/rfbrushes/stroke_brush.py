@@ -484,12 +484,21 @@ def create_stroke_brush(
 
                 self.stroke3D_left, self.stroke3D_right  = [], []
 
+                # preview half-width in local space. Return None to keep the brush radius.
+                brush_radius3D = self.stroke_radius * size2D_to_size(context, self.stroke_dist[0]) / self.edit_scale
+                w_start = w_end = brush_radius3D
+                get_widths = getattr(self.operator, 'get_preview_widths', None) if self.operator else None
+                if get_widths:
+                    widths = get_widths(context, self)
+                    if widths: w_start, w_end = widths
+
                 # set initial position of left and right sides
                 # Note: if stroke is not long, there is not enough info to determine good left and right sides
                 # TODO: left and right sides could be off high poly mesh!  shrink radius until left and right are both on mesh
+                nspan = max(1, len(self.stroke_original) - 1)
                 for i in range(len(self.stroke_original)):
                     pt2D, pt3D, no = self.stroke_original[i], self.stroke3D_original[i], self.stroke_normal[i]
-                    radius3D = self.stroke_radius * size2D_to_size(context, self.stroke_dist[0]) / self.edit_scale
+                    radius3D = w_start + (w_end - w_start) * (i / nspan)
                     pt3D_prev, pt3D_next = find_stroke3D_point_from(i, -1), find_stroke3D_point_from(i,  1)
                     d_left = no.cross(pt3D_next - pt3D_prev).normalized()
                     self.stroke3D_left  += [pt3D + d_left * radius3D]
@@ -499,15 +508,13 @@ def create_stroke_brush(
                 # if stroke is sufficiently long enough, determine front and back
                 if len(self.stroke3D_left) > 2:
                     pt3D_next, pt3D_prev = self.stroke3D_original[0], find_stroke3D_point_from(0, 1)
-                    radius3D = self.stroke_radius * size2D_to_size(context, self.stroke_dist[0]) / self.edit_scale
-                    v_forward = (pt3D_next - pt3D_prev).normalized() * radius3D
+                    v_forward = (pt3D_next - pt3D_prev).normalized() * w_start
                     self.stroke3D_left_start  = self.stroke3D_left[0]  + v_forward
                     self.stroke3D_right_start = self.stroke3D_right[0] + v_forward
                     self.co_back = (self.stroke3D_left_start + self.stroke3D_right_start) / 2
 
                     pt3D_next, pt3D_prev = self.stroke3D_original[-1], find_stroke3D_point_from(-1, -1)
-                    radius3D = self.stroke_radius * size2D_to_size(context, self.stroke_dist[0]) / self.edit_scale
-                    v_forward = (pt3D_next - pt3D_prev).normalized() * radius3D
+                    v_forward = (pt3D_next - pt3D_prev).normalized() * w_end
                     self.stroke3D_left_end  = self.stroke3D_left[-1]  + v_forward
                     self.stroke3D_right_end = self.stroke3D_right[-1] + v_forward
                     self.co_front = (self.stroke3D_left_end + self.stroke3D_right_end) / 2
@@ -1091,6 +1098,14 @@ def create_stroke_brush(
             thickness = 1.0
             pa = pb - self.push_above * self.hit_ray[1].xyz # * context.region_data.view_distance
 
+            # Brush disc radius, in the same pixel units as stroke_radius.
+            # Returning None keeps the brush radius unchanged.
+            display_radius = self.stroke_radius
+            get_disp = getattr(self.operator, 'get_display_radius', None) if self.operator else None
+            if get_disp and self.hit_scale_below:
+                world_radius = get_disp(context, self)
+                if world_radius: display_radius = world_radius / self.hit_scale_below
+
             gpustate.blend('ALPHA')
             gpustate.depth_mask(False)
 
@@ -1111,11 +1126,11 @@ def create_stroke_brush(
 
             # draw below
             gpustate.depth_test('GREATER')
-            Drawing.draw_circle_3d(pb, n, co * self.below_alpha, self.stroke_radius, scale=self.hit_scale_above, thickness=thickness, viewport_size=viewport_size)
+            Drawing.draw_circle_3d(pb, n, co * self.below_alpha, display_radius, scale=self.hit_scale_above, thickness=thickness, viewport_size=viewport_size)
 
             # draw above
             gpustate.depth_test('LESS_EQUAL')
-            Drawing.draw_circle_3d(pa, n, co, self.stroke_radius, scale=self.hit_scale_below, thickness=thickness, viewport_size=viewport_size)
+            Drawing.draw_circle_3d(pa, n, co, display_radius, scale=self.hit_scale_below, thickness=thickness, viewport_size=viewport_size)
             if draw_leftright:
                 for axes in all_combinations(self.mirror):
                     s = Vector((
@@ -1127,7 +1142,7 @@ def create_stroke_brush(
                         self.matrix_world @ (self.hit_pl * s),
                         self.matrix_world_ti @ (self.hit_nl * s),
                         co,
-                        self.stroke_radius,
+                        display_radius,
                         scale=self.hit_scale_below,
                         thickness=thickness,
                         viewport_size=viewport_size,

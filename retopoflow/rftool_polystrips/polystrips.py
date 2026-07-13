@@ -197,7 +197,7 @@ class RFOperator_PolyStrips_Insert(
 
 
     @staticmethod
-    def polystrips_insert(context, radius2D, stroke3D, point3D_0, point3D_1, is_cycle, length2D, snap_bmf0, snap_bmf1, split_angle, mirror_correct, radius3D=None):
+    def polystrips_insert(context, radius2D, stroke3D, point3D_0, point3D_1, is_cycle, length2D, snap_bmf0, snap_bmf1, split_angle, mirror_correct, size_mode='BRUSH', fixed_count=8, span_length=0.1, radius3D=None):
         RFOperator_PolyStrips_Insert.logic = PolyStrips_Logic(
             context,
             radius2D,
@@ -208,6 +208,9 @@ class RFOperator_PolyStrips_Insert(
             snap_bmf1,
             split_angle,
             mirror_correct,
+            size_mode=size_mode,
+            fixed_count=fixed_count,
+            span_length=span_length,
             radius3D=radius3D,
         )
         logic = RFOperator_PolyStrips_Insert.logic
@@ -356,6 +359,36 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
     }
 
 
+    size_mode: bpy.props.EnumProperty(
+        name='Size Method',
+        description='Controls how the width and quad count of the inserted strip are determined',
+        items=[
+            ('BRUSH',   'Brush',   'Sizes the strip to the brush radius', 0),
+            # ('FIXED',   'Fixed',   'Inserts a fixed number of quads', 1),
+            ('SNAPPED', 'Snapped', 'Sizes the strip to the edges it connects to. Falls back to the brush radius when neither end is snapped', 2),
+            ('LENGTH',  'Length',  'Sizes each quad to match a world space length', 3),
+        ],
+        default='SNAPPED',
+    )
+
+    fixed_count: bpy.props.IntProperty(
+        name='Count',
+        description='Number of quads to create along the strip when Size Method is set to Fixed',
+        default=6,
+        min=2,
+        soft_max=32,
+        max=256,
+    )
+
+    span_length: bpy.props.FloatProperty(
+        name='Length',
+        description='World space length of each quad along the strip when Size Method is set to Length',
+        default=0.1,
+        min=0.001,
+        soft_max=10.0,
+        subtype='DISTANCE',
+    )
+
     brush_radius: OperatorPropertyWrapper.int(
         RFBrush_Strokes, 'stroke_radius',
         name='Radius',
@@ -440,8 +473,79 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
             snap_bmf0, snap_bmf1,
             self.split_angle,
             self.mirror_correct,
+            size_mode=self.size_mode,
+            fixed_count=self.fixed_count,
+            span_length=self.span_length,
             radius3D=radius3D,
         )
+
+    def get_preview_widths(self, context, brush):
+        '''
+        Local-space half-widths (start, end) for the brush's live strip preview,
+        so its rails match the width the insert will actually use in the current
+        size mode, or None to keep the brush radius. The sizing mirrors PolyStrips_Logic
+        so the preview and the result agree.
+        '''
+        mode = self.size_mode
+        if mode == 'BRUSH':
+            return None
+        stroke3D = brush.stroke3D_original
+        if not stroke3D or len(stroke3D) < 2:
+            return None
+        edit_scale = brush.edit_scale or 1.0
+        # stroke3D_original is local space, same with base_width in PolyStrips_Logic
+        length3D_local = sum((p1 - p0).length for (p0, p1) in iter_pairs(stroke3D, False))
+        if length3D_local <= 0:
+            return None
+
+        if mode == 'FIXED':
+            count = max(2, self.fixed_count)
+            w = length3D_local / (count * 2 - 1)
+            return (w, w)
+
+        if mode == 'LENGTH':
+            w = (self.span_length / 2) / edit_scale
+            return (w, w)
+
+        if mode == 'SNAPPED':
+            def snapped_radius(bmf, pts):
+                if not bmf or not getattr(bmf, 'is_valid', False): return None
+                return PolyStrips_Logic._snapped_edge_radius(bmf, pts)
+            w0 = snapped_radius(getattr(brush, 'snap_bmf0', None), stroke3D[:3])
+            w1 = snapped_radius(getattr(brush, 'snap_bmf1', None), stroke3D[-3:])
+            if w0 is None and w1 is None:
+                return None  # nothing snapped, fall back to the brush radius
+            if w0 is None: w0 = w1
+            if w1 is None: w1 = w0
+            return (w0, w1)
+
+        return None
+
+    def get_display_radius(self, context, brush):
+        ''' World space radius for the brush so it previews the size of the insert,
+        or None to keep the brush radius. '''
+        mode = self.size_mode
+        if mode in ('BRUSH', 'FIXED'):
+            return None
+
+        if mode == 'LENGTH':
+            return self.span_length / 2 # span_length is world space length per quad
+
+        if mode == 'SNAPPED':
+            # face under the cursor: the moving end while stroking, else the (hovered) start
+            bmf = getattr(brush, 'snap_bmf1', None) if brush.is_stroking() else getattr(brush, 'snap_bmf0', None)
+            if not bmf:
+                bmf = getattr(brush, 'snap_bmf0', None) or getattr(brush, 'snap_bmf1', None)
+            pt = getattr(brush, 'hit_pl', None)
+            if not bmf or not getattr(bmf, 'is_valid', False) or pt is None:
+                return None
+            r_local = PolyStrips_Logic._snapped_edge_radius(bmf, [pt])
+            if r_local is None:
+                return None
+            # _snapped_edge_radius is local space (bme_length); the disc is world
+            return r_local * (brush.edit_scale or 1.0)
+
+        return None
 
     def update(self, context, event):
         RFCore = RFGlobals.RFCore_None
@@ -539,7 +643,14 @@ class RFTool_PolyStrips(RFTool_Base):
 
         if context.region.type == 'TOOL_HEADER':
             # layout.label(text="Insert:")
-            layout.prop(props_polystrips, 'brush_radius', text="Radius")
+            row = layout.row(align=True)
+            row.prop(props_polystrips, 'size_mode', text='')
+            if props_polystrips.size_mode == 'FIXED':
+                row.prop(props_polystrips, 'fixed_count', text="")
+            elif props_polystrips.size_mode == 'LENGTH':
+                row.prop(props_polystrips, 'span_length', text="")
+            else:
+                row.prop(props_polystrips, 'brush_radius', text="")
             layout.prop(props_polystrips, 'stroke_smoothing', slider=True)
             layout.prop(props_polystrips, 'split_angle')
 
@@ -560,7 +671,13 @@ class RFTool_PolyStrips(RFTool_Base):
             header, panel = layout.panel(idname='polystrips_spans_panel', default_closed=False)
             header.label(text="Insert")
             if panel:
-                panel.prop(props_polystrips, 'brush_radius', text="Radius")
+                panel.prop(props_polystrips, 'size_mode', text='Method')
+                if props_polystrips.size_mode == 'FIXED':
+                    panel.prop(props_polystrips, 'fixed_count', text="Count")
+                elif props_polystrips.size_mode == 'LENGTH':
+                    panel.prop(props_polystrips, 'span_length', text="Length")
+                else:
+                    panel.prop(props_polystrips, 'brush_radius', text="Radius")
                 panel.prop(props_polystrips, 'stroke_smoothing', slider=True)
                 panel.prop(props_polystrips, 'split_angle')
             draw_tweaking_panel(context, layout)
