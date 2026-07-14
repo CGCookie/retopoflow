@@ -19,6 +19,7 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+import colorsys
 import hashlib
 import math
 
@@ -57,11 +58,15 @@ Region count follows the seed threshold; cleanliness follows the size gate —
 one job per dial, both editable in the redo panel.
 '''
 
-SHARP_ANGLE_DEG = 25.0            # absolute sharp-edge wall (density-proof)
+SHARP_ANGLE_DEG = 25.0            # lower wall tier: needs corroboration
+WALL_ANGLE_DEG = 60.0             # upper wall tier: unconditional
+WALL_CORROB_DEG = 4.0             # smoothed-normal angle confirming a wall
 CAVITY_FRACS = (0.25, 0.35, 0.5, 0.7, 1.0, 1.4)
 TURN_FRACS = (0.25, 1.0, 2.5)     # smoothed-normal ladder for turn channels
 K_CAP = 400
 GROWTH_STAGES = 8
+CREST_VETO_FACTOR = 3.0           # band p90 >= this x interface median: veto
+CREST_BAND_FRAC = 0.5             # merge-veto band depth, x feature scale
 
 
 def get_mesh_triangle_arrays(me):
@@ -96,7 +101,7 @@ def compute_energy(co, tris, feature_scale):
     t_areas = 0.5 * cl
     t_centers = (v0 + v1 + v2) / 3.0
 
-    fa, fb = get_face_adjacency(tris)
+    fa, fb, everts = get_face_adjacency(tris, return_everts=True)
     dctr = np.maximum(np.linalg.norm(t_centers[fa] - t_centers[fb], axis=1),
                       1e-12)
     mean_step = float(dctr.mean())
@@ -109,11 +114,13 @@ def compute_energy(co, tris, feature_scale):
     # ridge stands out once the bumps are smoothed away instead of being
     # buried under their much higher local curvature
     ns_ladder = {}
+    k_ladder = {}
     ns = t_normals.copy()
     k_done = 0
     for frac in TURN_FRACS:
         k = diffusion_iters_for_radius(frac * feature_scale, mean_step,
                                         K_CAP)
+        k_ladder[frac] = k
         if k > k_done:
             ns = diffuse_graph_fields(ns, fa, fb, nF, k - k_done)
             k_done = k
@@ -136,8 +143,12 @@ def compute_energy(co, tris, feature_scale):
                 pd = diffuse_graph_fields(pd, fa, fb, nF, k - k_done)
                 k_done = k
             h = ((t_centers - pd) * nsf).sum(axis=1)
+            # the DC window must stay 4x the rung RADIUS (16x iters) even
+            # when the rung hits K_CAP — clamping both to the same ceiling
+            # made background == signal at coarse rungs, cancelling exactly
+            # the broad folds those rungs exist to catch (banana, 2026-07-13)
             h_bg = diffuse_graph_fields(h[:, None], fa, fb, nF,
-                            min(16 * k, K_CAP))[:, 0]
+                            16 * k)[:, 0]
             r = (h - h_bg) / frac
             m = np.abs(r) > best_mag
             best[m] = r[m]
@@ -147,10 +158,37 @@ def compute_energy(co, tris, feature_scale):
     hm = cavity(CAVITY_FRACS)
     hf = cavity(CAVITY_FRACS[:1])
 
+    def mednz(x):
+        a = x[x > 0]
+        return max(float(np.median(a)) if len(a) else 0.0, 1e-30)
+
     # --- pairwise seam energy ---
-    turns = [np.arccos(np.clip((ns_ladder[f][fa] * ns_ladder[f][fb]).sum(1),
-                               -1, 1)) / dctr
-             for f in TURN_FRACS]
+    # turn channels are DC-REMOVED like the cavity rungs (tentacle lesson,
+    # 2026-07-13): raw turn rate is |curvature|, which lights up an entire
+    # blob/sphere as a plateau (violating the sphere test) and buries its
+    # interior's quiet — on blobby meshes the interiors then overlap the
+    # saddle crests and no seed threshold separates them. Subtracting each
+    # rung's diffused background turn keeps only curvature ANOMALIES:
+    # folds fire, constant-curvature caps read ~0.
+    turns = []
+    for frac in TURN_FRACS:
+        nsl = ns_ladder[frac]
+        t_e = np.arccos(np.clip((nsl[fa] * nsl[fb]).sum(1), -1, 1)) / dctr
+        t_f = np.zeros(nF)
+        cnt = np.zeros(nF)
+        np.add.at(t_f, fa, t_e)
+        np.add.at(t_f, fb, t_e)
+        np.add.at(cnt, fa, 1.0)
+        np.add.at(cnt, fb, 1.0)
+        t_bg = diffuse_graph_fields(
+            (t_f / np.maximum(cnt, 1.0))[:, None], fa, fb, nF,
+            16 * k_ladder[frac])[:, 0]
+        # normalize the anomaly against the mesh's typical RAW turn — the
+        # residual's own positive-median is near-zero noise on smooth
+        # meshes and normalizing by it amplified that noise to order 1
+        # (banana facets fragmented, 2026-07-13)
+        turns.append(np.maximum(t_e - 0.5 * (t_bg[fa] + t_bg[fb]), 0.0)
+                     / mednz(t_e))
     cavm = np.abs(hm[fa] - hm[fb]) / dctr
     cavf = np.abs(hf[fa] - hf[fb]) / dctr
     # cavity CREST channel (banana lesson): a broad soft fold is a smooth
@@ -161,11 +199,7 @@ def compute_energy(co, tris, feature_scale):
     # fold line itself and watershed fronts collide at the crest.
     cavv = np.maximum(np.abs(hm[fa]), np.abs(hm[fb]))
 
-    def mednz(x):
-        a = x[x > 0]
-        return max(float(np.median(a)) if len(a) else 0.0, 1e-30)
-
-    w = np.maximum.reduce([t / mednz(t) for t in turns]
+    w = np.maximum.reduce(turns
                           + [cavm / mednz(cavm), cavf / mednz(cavf),
                              cavv / mednz(cavv)])
     E_f = np.zeros(nF)
@@ -183,8 +217,21 @@ def compute_energy(co, tris, feature_scale):
     E_f /= floor
     w /= floor
 
-    cosw = math.cos(math.radians(SHARP_ANGLE_DEG))
-    sharp = (t_normals[fa] * t_normals[fb]).sum(1) < cosw
+    # TWO-TIER WALLS (2026-07-13): raw dihedral >= WALL_ANGLE_DEG is a
+    # wall unconditionally (authored/structural edges — also keeps
+    # low-poly meshes sane, where sub-feature smoothing homogenizes all
+    # normals and would erase a cube's 90-deg edges); the 25-60 deg band,
+    # where decimation slivers and scan crumple live, must be CORROBORATED
+    # by the smoothed-normal field (a real crease survives 0.25x-scale
+    # smoothing, a sliver doesn't). The raw-25-only rule shattered scans
+    # into thousands of pockets (tentacle: 9.1% sharp -> 2629 cells).
+    # Stray one-off steep edges are harmless: growth floods around an
+    # isolated wall edge — only closed wall rings isolate.
+    cos_raw = (t_normals[fa] * t_normals[fb]).sum(1)
+    cos_sm = (nsf[fa] * nsf[fb]).sum(1)
+    sharp = (cos_raw < math.cos(math.radians(WALL_ANGLE_DEG))) \
+        | ((cos_raw < math.cos(math.radians(SHARP_ANGLE_DEG)))
+           & (cos_sm < math.cos(math.radians(WALL_CORROB_DEG))))
     adj_ns = [[] for _ in range(nF)]
     for i in range(len(fa)):
         if sharp[i]:
@@ -195,94 +242,273 @@ def compute_energy(co, tris, feature_scale):
         adj_ns[b].append((a, we))
     order_f = np.argsort(E_f, kind='stable')
     return dict(E_f=E_f, adj_ns=adj_ns, order_f=order_f, t_areas=t_areas,
+                fa=fa, fb=fb, w=w, sharp=sharp, everts=everts,
+                mean_step=mean_step,
                 cav_multi=hm, cav_fine=hf, normals_fine=nsf,
                 normals_coarse=ns_ladder[TURN_FRACS[-1]])
 
 
 def watershed(energy, feature_scale, seed_threshold, seed_area):
-    ''' Stage 2 — seeding and growth over a precomputed energy stage.
-        Cheap relative to stage 1; reruns on every redo-panel tweak.
+    ''' Stage 2 — PERSISTENCE watershed (round 36; replaces staged
+        flooding + timed late seeding + the pocket pass). Initial seeds:
+        quiet connected components clearing the size gate, as before.
+        Then ONE ascending pass over all non-wall edges (argsort — the
+        waterline rises continuously, energy alone decides claim order,
+        no heap): union-find pools grow; when an unclaimed pool meets a
+        seeded one it is absorbed UNLESS it is a persistent basin — its
+        lowest face dips at least `margin` (= seed_threshold) below the
+        connecting pass and it clears the size gate — in which case it
+        seeds instead and the pass edge becomes a boundary. Seeded pools
+        never union: fronts collide mid-pass. Race-free by construction:
+        assignment depends only on the landscape, so a fragment can
+        never straddle a seam whose rim is higher than its interior —
+        interior speckle makes high POINTS, not high RIMS, and a spike
+        with no enclosed dip behind it can neither seed nor leak.
+        Wall-isolated pockets fall out as never-connected pools.
         Returns (face_labels, initial seed labels, region count). '''
     E_f = energy['E_f']
     adj_ns = energy['adj_ns']
-    order_f = energy['order_f']
     t_areas = energy['t_areas']
+    fa, fb = energy['fa'], energy['fb']
+    w, sharp = energy['w'], energy['sharp']
     nF = len(E_f)
     thr = seed_threshold
+    margin = seed_threshold
     min_seed_a = seed_area * feature_scale ** 2
-    lab = np.full(nF, -1, dtype=np.int64)
+
+    parent = np.arange(nF)
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    minE = E_f.astype(np.float64).copy()   # per-root lowest face energy
+    area = t_areas.astype(np.float64).copy()
+    slab = np.full(nF, -1, dtype=np.int64)  # per-root seed label
     nxt = 0
 
-    def seed_components(mask, skip_front_adjacent):
-        # components of `mask` seed if they clear the size gate; LATE seeds
-        # additionally require that no front has reached them (a front-
-        # adjacent quiet fleck just gets claimed naturally)
-        nonlocal nxt
-        visited = np.zeros(nF, bool)
-        for s in np.nonzero(mask)[0]:
-            s = int(s)
-            if visited[s] or lab[s] >= 0:
-                continue
-            comp = [s]
-            visited[s] = True
-            stack = [s]
-            touches = False
-            while stack:
-                f = stack.pop()
-                for nb, _we in adj_ns[f]:
-                    if lab[nb] >= 0:
-                        touches = True
-                    elif mask[nb] and not visited[nb]:
-                        visited[nb] = True
-                        comp.append(nb)
-                        stack.append(nb)
-            if float(t_areas[comp].sum()) >= min_seed_a \
-                    and not (skip_front_adjacent and touches):
-                for f in comp:
-                    lab[f] = nxt
-                nxt += 1
-
-    seed_components(E_f < thr, False)
-    seeds0 = lab.copy()
-    above = E_f[E_f >= thr]
-    stage_ts = np.percentile(above, np.linspace(100.0 / GROWTH_STAGES,
-                                                100.0, GROWTH_STAGES)) \
-        if len(above) else np.array([np.inf])
-    for t_stage in stage_ts:
-        # ascending sweeps up to this stage's waterline: energy decides
-        # claim order, never region ordering
-        for _sweep in range(64):
-            changed = False
-            for f in order_f:
-                f = int(f)
-                if lab[f] >= 0 or E_f[f] > t_stage:
-                    continue
-                best_w, best_l = np.inf, -1
-                for nb, we in adj_ns[f]:
-                    if lab[nb] >= 0 and we < best_w:
-                        best_w, best_l = we, int(lab[nb])
-                if best_l >= 0:
-                    lab[f] = best_l
-                    changed = True
-            if not changed:
-                break
-        seed_components((E_f <= t_stage) & (lab < 0), True)
-    # sharp-edge-isolated pockets become their own regions
-    for s in np.nonzero(lab < 0)[0]:
+    # initial seeds: quiet components clearing the gate (unchanged rule)
+    seeds0 = np.full(nF, -1, dtype=np.int64)
+    quiet = E_f < thr
+    visited = np.zeros(nF, bool)
+    for s in np.nonzero(quiet)[0]:
         s = int(s)
-        if lab[s] >= 0:
+        if visited[s]:
             continue
-        lab[s] = nxt
+        comp = [s]
+        visited[s] = True
         stack = [s]
         while stack:
             f = stack.pop()
             for nb, _we in adj_ns[f]:
-                if lab[nb] < 0:
-                    lab[nb] = nxt
+                if quiet[nb] and not visited[nb]:
+                    visited[nb] = True
+                    comp.append(nb)
                     stack.append(nb)
+        if float(t_areas[comp].sum()) < min_seed_a:
+            continue
+        r0 = find(comp[0])
+        for f in comp[1:]:
+            rf = find(f)
+            if rf != r0:
+                parent[rf] = r0
+                minE[r0] = min(minE[r0], minE[rf])
+                area[r0] += area[rf]
+        slab[r0] = nxt
+        seeds0[comp] = nxt
         nxt += 1
+
+    def qualifies(r, we):
+        return we - minE[r] >= margin and area[r] >= min_seed_a
+
+    def absorb(dst, src):
+        parent[src] = dst
+        minE[dst] = min(minE[dst], minE[src])
+        area[dst] += area[src]
+
+    # the ascending waterline: one sorted pass, persistence decides seeds
+    for ei in np.argsort(w, kind='stable'):
+        ei = int(ei)
+        if sharp[ei]:
+            continue
+        a, b = find(int(fa[ei])), find(int(fb[ei]))
+        if a == b:
+            continue
+        we = float(w[ei])
+        sa, sb = slab[a] >= 0, slab[b] >= 0
+        if sa and sb:
+            continue                     # two fronts collide: boundary
+        if not sa and not sb:
+            # two unclaimed pools meet: the deeper qualifies first (its
+            # dip is at least as large); if both seed, this pass is a
+            # boundary; if one seeds, the other is absorbed or merged
+            lo, hi = (a, b) if minE[a] <= minE[b] else (b, a)
+            if qualifies(lo, we):
+                slab[lo] = nxt
+                nxt += 1
+                if qualifies(hi, we):
+                    slab[hi] = nxt
+                    nxt += 1
+                    continue
+                absorb(lo, hi)
+            elif qualifies(hi, we):
+                slab[hi] = nxt
+                nxt += 1
+                absorb(hi, lo)
+            else:
+                absorb(lo, hi)
+            continue
+        seeded, uns = (a, b) if sa else (b, a)
+        if qualifies(uns, we):
+            slab[uns] = nxt              # persistent hidden basin: seed,
+            nxt += 1                     # and the pass is a boundary
+            continue
+        absorb(seeded, uns)
+
+    # label faces by root; never-connected pools (wall pockets, isolated
+    # islands) become their own regions
+    lab = np.empty(nF, dtype=np.int64)
+    for f in range(nF):
+        r = find(f)
+        if slab[r] < 0:
+            slab[r] = nxt
+            nxt += 1
+        lab[f] = slab[r]
     lab = np.unique(lab, return_inverse=True)[1]
     return lab, seeds0, int(lab.max()) + 1
+
+
+def interface_saliency(idxs, everts, w, sharp):
+    ''' Coherence saliency of one region-pair interface: order its edges
+        into chains via shared mesh verts, take a 5-wide windowed median
+        of the crossing energies along each chain (sharp edges read as
+        walls), and return the 25th percentile — the strength of the
+        weakest COHERENT stretch. A soft true seam is moderately elevated
+        continuously; fragment noise alternates spikes and gaps, so its
+        windowed profile collapses. AUC 0.800 vs the painted boot GT,
+        where the plain median (level-only) scores 0.737. '''
+    if len(idxs) < 5:
+        iw = w[idxs].copy()
+        iw[sharp[idxs]] = np.inf
+        return float(np.median(iw))
+    SENT = 1e3
+    vadj = {}
+    for k, i in enumerate(idxs):
+        for v in everts[i]:
+            vadj.setdefault(int(v), []).append(k)
+    used = set()
+    winmeds = []
+    for k0 in range(len(idxs)):
+        if k0 in used:
+            continue
+        chain = [k0]
+        used.add(k0)
+        for side, v0 in enumerate(everts[idxs[k0]]):
+            v = int(v0)
+            while True:
+                nxts = [e for e in vadj.get(v, []) if e not in used]
+                if not nxts:
+                    break
+                e = nxts[0]
+                used.add(e)
+                if side == 0:
+                    chain.insert(0, e)
+                else:
+                    chain.append(e)
+                ev = everts[idxs[e]]
+                v = int(ev[0]) if int(ev[1]) == v else int(ev[1])
+        prof = np.array([w[idxs[k]] if not sharp[idxs[k]] else SENT
+                         for k in chain])
+        if len(prof) >= 5:
+            winmeds.extend(np.median(prof[max(0, j - 2):j + 3])
+                           for j in range(len(prof)))
+        else:
+            winmeds.extend(prof.tolist())
+    return float(np.percentile(winmeds, 25))
+
+
+def merge_regions(labels, energy, feature_scale, merge_below):
+    ''' Stage 3 — boundary-saliency merge with crest veto. The staged
+        waterlines carve texture-speckled basins into fragments that meet
+        at speckle-level boundaries, while real seams/saddles collide at
+        high energy: dissolve region pairs whose shared interface's MEDIAN
+        crossing energy sits below `merge_below` (floor units). Guards:
+        pairs whose interface is substantially sharp never merge, and the
+        CREST VETO — if a coherent high-energy crest runs through the band
+        around a quiet interface, the territorial line is probably
+        displaced from a nearby seam (a front spilled through a gap), so
+        the merge is blocked instead of compounding the spill. Iterates
+        until stable. Returns (merged labels, region count). '''
+    n0 = int(labels.max()) + 1
+    if merge_below <= 0.0 or n0 < 2:
+        return labels, n0
+    E_f = energy['E_f']
+    fa, fb = energy['fa'], energy['fb']
+    w, sharp = energy['w'], energy['sharp']
+    adj_ns = energy['adj_ns']
+    band_steps = max(1, round(CREST_BAND_FRAC * feature_scale
+                              / max(energy['mean_step'], 1e-12)))
+    parent = np.arange(n0)
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    for _round in range(24):
+        root_of = np.array([find(i) for i in range(n0)])
+        ra, rb = root_of[labels[fa]], root_of[labels[fb]]
+        pairs = {}
+        for i in np.nonzero(ra != rb)[0]:
+            i = int(i)
+            key = (int(ra[i]), int(rb[i]))
+            if key[0] > key[1]:
+                key = (key[1], key[0])
+            pairs.setdefault(key, []).append(i)
+        merged_any = False
+        for (a, b), idxs in pairs.items():
+            if find(a) != a or find(b) != b:
+                continue    # stats stale after an earlier union; next round
+            # COHERENCE saliency (2026-07-13, AUC-selected): the weakest
+            # coherent stretch of the interface profile — separates soft
+            # continuous true seams from spike-and-gap fragment noise
+            # where any level statistic overlaps. Sharp edges read as
+            # walls inside the profile
+            m = interface_saliency(idxs, energy['everts'], w, sharp)
+            if not np.isfinite(m) or m >= merge_below:
+                continue
+            # crest veto: BFS a band around the interface within A+B; a
+            # high-energy crest in the band means this quiet line likely
+            # runs beside a real seam that one region spilled across
+            band = set()
+            for i in idxs:
+                band.add(int(fa[i]))
+                band.add(int(fb[i]))
+            frontier = set(band)
+            for _ in range(band_steps):
+                nxt = set()
+                for f in frontier:
+                    for nb, _we in adj_ns[f]:
+                        if nb not in band \
+                                and root_of[labels[nb]] in (a, b):
+                            band.add(nb)
+                            nxt.add(nb)
+                frontier = nxt
+                if not frontier:
+                    break
+            crest = float(np.percentile(E_f[list(band)], 90))
+            if crest >= CREST_VETO_FACTOR * max(1.0, m):
+                continue
+            parent[b] = a
+            merged_any = True
+        if not merged_any:
+            break
+    root_of = np.array([find(i) for i in range(n0)])
+    merged = np.unique(root_of[labels], return_inverse=True)[1]
+    return merged, int(merged.max()) + 1
 
 
 def segment_faces(co, tris, feature_scale, seed_threshold, seed_area):
@@ -297,19 +523,54 @@ def segment_faces(co, tris, feature_scale, seed_threshold, seed_area):
 def gather_extras(energy, seeds0):
     return dict(cav_multi=energy['cav_multi'], cav_fine=energy['cav_fine'],
                 normals_fine=energy['normals_fine'],
-                normals_coarse=energy['normals_coarse'], seeds=seeds0)
+                normals_coarse=energy['normals_coarse'], seeds=seeds0,
+                fa=energy['fa'], fb=energy['fb'])
 
 
-def palette(n=60):
-    ''' Deterministic label palette (hue wheel, prototype-style). '''
-    rng = np.random.default_rng(11)
+def palette(n=96):
+    ''' Deterministic label palette: golden-ratio hue stepping with varied
+        saturation and value tiers — mutually distinguishable at hundreds
+        of regions (a constant-sat/val hue wheel collides constantly). '''
     cols = np.empty((n, 4))
-    for i, hue in enumerate(rng.random(n)):
-        r = np.clip(abs(hue * 6.0 - 3.0) - 1.0, 0, 1)
-        g = np.clip(2.0 - abs(hue * 6.0 - 2.0), 0, 1)
-        b = np.clip(2.0 - abs(hue * 6.0 - 4.0), 0, 1)
-        cols[i] = (r * 0.6 + 0.35, g * 0.6 + 0.35, b * 0.6 + 0.35, 1.0)
+    for i in range(n):
+        h = (i * 0.61803398875) % 1.0
+        s = 0.50 + 0.45 * ((i * 0.379) % 1.0)
+        v = 0.45 + 0.50 * ((i * 0.283) % 1.0)
+        cols[i] = (*colorsys.hsv_to_rgb(h, s, v), 1.0)
     return cols
+
+
+def region_color_indices(labels, fa, fb, pal):
+    ''' Per-region palette index, assigned greedily (largest region first)
+        so ADJACENT regions always get well-separated colors: a region
+        keeps its default slot unless that lands too close to an already-
+        colored neighbor, in which case it picks among the most distant
+        palette entries (varied by region id to keep global variety). '''
+    n_regions = int(labels.max()) + 1
+    la, lb = labels[fa], labels[fb]
+    m = (la != lb) & (la >= 0) & (lb >= 0)
+    adj = [set() for _ in range(n_regions)]
+    for a, b in zip(la[m], lb[m]):
+        adj[int(a)].add(int(b))
+        adj[int(b)].add(int(a))
+    rgb = pal[:, :3]
+    idx = np.full(n_regions, -1, dtype=np.int64)
+    for r in np.argsort(-np.bincount(labels[labels >= 0],
+                                     minlength=n_regions)):
+        r = int(r)
+        taken = [int(idx[nb]) for nb in adj[r] if idx[nb] >= 0]
+        base = r % len(pal)
+        if not taken:
+            idx[r] = base
+            continue
+        d = np.linalg.norm(rgb[:, None, :] - rgb[None, taken, :],
+                           axis=2).min(axis=1)
+        if d[base] >= 0.35:
+            idx[r] = base
+        else:
+            best = np.argsort(-d)[:8]
+            idx[r] = int(best[r % len(best)])
+    return idx
 
 
 def write_corner_colors(me, tri_loops, name, fcol):
@@ -347,8 +608,23 @@ def diverging_colors(vals):
 def write_attributes(me, tri_loops, face_labels, seam_energy_f, tris,
                       extras, preview='Regions'):
     pal = palette()
+
+    def region_colors(labels):
+        # adjacency-aware colors when the face-pair arrays are available,
+        # so touching regions never share a look-alike color
+        if 'fa' in extras and labels.min() >= 0:
+            idx = region_color_indices(labels, extras['fa'], extras['fb'],
+                                       pal)
+            fcol = np.empty((len(labels), 4))
+            fcol[:] = pal[idx[labels]]
+            return fcol
+        return label_colors(labels, pal)
+
     attr = write_corner_colors(me, tri_loops, 'Regions',
-                                label_colors(face_labels, pal))
+                                region_colors(face_labels))
+    if 'labels_raw' in extras:
+        write_corner_colors(me, tri_loops, 'Regions Raw',
+                            region_colors(extras['labels_raw']))
     write_corner_colors(me, tri_loops, 'Seeds',
                          label_colors(extras['seeds'], pal))
     write_corner_colors(me, tri_loops, 'Cavity Multi',
@@ -420,6 +696,16 @@ class RFOperator_SegmentMesh(RFOperator_Execute):
                      'no region has reached them'),
         default=0.5, min=0.0, max=20.0,
     )
+    merge_below: bpy.props.FloatProperty(
+        name='Merge Below',
+        description=('EXPERIMENTAL: dissolve region boundaries whose '
+                     'median seam energy is below this multiple of the '
+                     'typical surface energy. Soft true seams and fragment '
+                     'noise overlap in energy level, so any nonzero value '
+                     'trades real boundaries for cleanup — 0 (off) is the '
+                     'safe default until a coherence-based criterion lands'),
+        default=0.0, min=0.0, max=10.0, soft_max=4.0,
+    )
     feature_scale: bpy.props.FloatProperty(
         name='Feature Scale',
         description=('Physical size of the features to segment by, in '
@@ -431,7 +717,9 @@ class RFOperator_SegmentMesh(RFOperator_Execute):
         description=('Which output layer to show in the viewport (sets the '
                      'active color attribute)'),
         items=[
-            ('Regions', 'Regions', 'Final region labels'),
+            ('Regions', 'Regions', 'Final region labels (after merging)'),
+            ('Regions Raw', 'Regions Raw',
+             'Watershed regions before the merge pass'),
             ('Seeds', 'Seeds',
              'Initial seed components at the seed threshold, before growth'),
             ('Seam Energy', 'Seam Energy',
@@ -459,6 +747,7 @@ class RFOperator_SegmentMesh(RFOperator_Execute):
         layout.use_property_decorate = False
         layout.prop(self, 'seed_threshold')
         layout.prop(self, 'seed_area')
+        layout.prop(self, 'merge_below')
         layout.prop(self, 'feature_scale')
         layout.prop(self, 'preview')
 
@@ -489,18 +778,27 @@ class RFOperator_SegmentMesh(RFOperator_Execute):
             energy_cache['energy'] = compute_energy(co, tris, scale)
             energy_cache['key'] = key
         energy = energy_cache['energy']
-        # the watershed result is cached too, so a preview-layer change
-        # in the redo panel re-executes near-instantly
+        # the watershed and merge results are cached too, so a preview-layer
+        # change in the redo panel re-executes near-instantly
         ws_key = (self.seed_threshold, self.seed_area)
         if energy_cache.get('ws_key') != ws_key:
             energy_cache['ws'] = watershed(
                 energy, scale, self.seed_threshold, self.seed_area)
             energy_cache['ws_key'] = ws_key
-        labels, seeds0, n_regions = energy_cache['ws']
+            energy_cache.pop('merge_key', None)
+        labels_raw, seeds0, n_raw = energy_cache['ws']
+        if energy_cache.get('merge_key') != self.merge_below:
+            energy_cache['merged'] = merge_regions(
+                labels_raw, energy, scale, self.merge_below)
+            energy_cache['merge_key'] = self.merge_below
+        labels, n_regions = energy_cache['merged']
+        extras = gather_extras(energy, seeds0)
+        extras['labels_raw'] = labels_raw
         write_attributes(me, tri_loops, labels, energy['E_f'], tris,
-                          gather_extras(energy, seeds0), preview=self.preview)
+                         extras, preview=self.preview)
         me.update()
         self.report({'INFO'}, f'Segment Mesh: {n_regions} regions '
-                              f'(feature scale {scale:.4f}'
+                              f'({n_raw} before merge, feature scale '
+                              f'{scale:.4f}'
                               f'{", cached fields" if cached else ""})')
         return {'FINISHED'}

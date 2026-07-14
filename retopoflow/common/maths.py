@@ -663,10 +663,12 @@ def sample_even(points: list, cyclic: bool, vertex_count: int, path_length: floa
     return best_npts
 
 
-def get_face_adjacency(tris):
-    ''' Shared-edge face pairs (fa, fb) over a triangle index array (T,3). '''
+def get_face_adjacency(tris, return_everts=False):
+    ''' Shared-edge face pairs (fa, fb) over a triangle index array (T,3).
+        With return_everts, also returns the shared mesh-edge vert pair
+        (E,2) per adjacency edge — e.g. for chaining boundary edges. '''
     edge_of = {}
-    fa, fb = [], []
+    fa, fb, ev = [], [], []
     for t in range(len(tris)):
         a, b, c = int(tris[t, 0]), int(tris[t, 1]), int(tris[t, 2])
         for u, v in ((a, b), (b, c), (c, a)):
@@ -677,7 +679,12 @@ def get_face_adjacency(tris):
             else:
                 fa.append(other)
                 fb.append(t)
-    return np.array(fa, dtype=np.int64), np.array(fb, dtype=np.int64)
+                ev.append(k)
+    fa = np.array(fa, dtype=np.int64)
+    fb = np.array(fb, dtype=np.int64)
+    if return_everts:
+        return fa, fb, np.array(ev, dtype=np.int64)
+    return fa, fb
 
 
 def diffuse_graph_fields(fields, e0, e1, n, iters):
