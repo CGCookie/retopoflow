@@ -27,7 +27,8 @@ import bpy
 import numpy as np
 
 from ..common.maths import (
-    diffuse_graph_fields, diffusion_iters_for_radius, get_face_adjacency,
+    build_graph_pyramid, diffuse_graph_fields, diffuse_graph_fields_pyramid,
+    get_face_adjacency,
 )
 from ..common.operator import RFOperator_Execute
 
@@ -67,6 +68,10 @@ K_CAP = 400
 GROWTH_STAGES = 8
 CREST_VETO_FACTOR = 3.0           # band p90 >= this x interface median: veto
 CREST_BAND_FRAC = 0.5             # merge-veto band depth, x feature scale
+CREST_HI = 1.75                   # seam-band hysteresis: strong evidence
+CREST_LO = 1.1                    # seam-band hysteresis: support level
+CREST_MIN_LEN = 1.5               # minimum band skeleton length, x scale
+CREST_CONE_COS = 0.5              # bridge-walk cone (~60 deg half-angle)
 
 
 def get_mesh_triangle_arrays(me):
@@ -107,6 +112,17 @@ def compute_energy(co, tris, feature_scale):
     mean_step = float(dctr.mean())
 
     # --- face-native fields ---
+    # MULTIGRID (round 38): all large-radius smoothing runs on a Gaussian
+    # pyramid of the face graph — the (radius/step)^2 fine-iteration
+    # explosion becomes near-constant, and radii no longer saturate at an
+    # iteration cap (K_CAP retired), so large Feature Scales stay honest
+    # on dense meshes. Fine radii (< ~8 steps) remain exact.
+    pyramid = build_graph_pyramid(fa, fb, t_areas, t_centers)
+
+    def smooth(fields, radius):
+        return diffuse_graph_fields_pyramid(fields, radius, fa, fb, nF,
+                                            mean_step, pyramid)
+
     # smoothed-normal ladder: the fine rung feeds the cavity projection and
     # crisp seams; the coarse rungs are what let LARGE soft folds read at
     # all — diffusion cancels oscillatory bump normals (up-then-down nets
@@ -114,16 +130,8 @@ def compute_energy(co, tris, feature_scale):
     # ridge stands out once the bumps are smoothed away instead of being
     # buried under their much higher local curvature
     ns_ladder = {}
-    k_ladder = {}
-    ns = t_normals.copy()
-    k_done = 0
     for frac in TURN_FRACS:
-        k = diffusion_iters_for_radius(frac * feature_scale, mean_step,
-                                        K_CAP)
-        k_ladder[frac] = k
-        if k > k_done:
-            ns = diffuse_graph_fields(ns, fa, fb, nF, k - k_done)
-            k_done = k
+        ns = smooth(t_normals, frac * feature_scale)
         ns_ladder[frac] = ns / np.maximum(
             np.linalg.norm(ns, axis=1, keepdims=True), 1e-30)
     nsf = ns_ladder[TURN_FRACS[0]]
@@ -131,24 +139,14 @@ def compute_energy(co, tris, feature_scale):
     def cavity(fracs):
         # scale-adaptive signed cavity: per-rung DC removal (a limb's own
         # convexity is not a ridge line) + physical gamma=1 normalization,
-        # signed argmax across the ladder
-        pd = t_centers.copy()
-        k_done = 0
+        # signed argmax across the ladder; the DC window is 4x the rung
+        # RADIUS (the 16x-iteration convention, expressed as radius)
         best = np.zeros(nF)
         best_mag = np.zeros(nF)
         for frac in fracs:
-            k = diffusion_iters_for_radius(frac * feature_scale, mean_step,
-                                            K_CAP)
-            if k > k_done:
-                pd = diffuse_graph_fields(pd, fa, fb, nF, k - k_done)
-                k_done = k
+            pd = smooth(t_centers, frac * feature_scale)
             h = ((t_centers - pd) * nsf).sum(axis=1)
-            # the DC window must stay 4x the rung RADIUS (16x iters) even
-            # when the rung hits K_CAP — clamping both to the same ceiling
-            # made background == signal at coarse rungs, cancelling exactly
-            # the broad folds those rungs exist to catch (banana, 2026-07-13)
-            h_bg = diffuse_graph_fields(h[:, None], fa, fb, nF,
-                            16 * k)[:, 0]
+            h_bg = smooth(h[:, None], 4.0 * frac * feature_scale)[:, 0]
             r = (h - h_bg) / frac
             m = np.abs(r) > best_mag
             best[m] = r[m]
@@ -180,9 +178,8 @@ def compute_energy(co, tris, feature_scale):
         np.add.at(t_f, fb, t_e)
         np.add.at(cnt, fa, 1.0)
         np.add.at(cnt, fb, 1.0)
-        t_bg = diffuse_graph_fields(
-            (t_f / np.maximum(cnt, 1.0))[:, None], fa, fb, nF,
-            16 * k_ladder[frac])[:, 0]
+        t_bg = smooth((t_f / np.maximum(cnt, 1.0))[:, None],
+                      4.0 * frac * feature_scale)[:, 0]
         # normalize the anomaly against the mesh's typical RAW turn — the
         # residual's own positive-median is near-zero noise on smooth
         # meshes and normalizing by it amplified that noise to order 1
@@ -243,9 +240,152 @@ def compute_energy(co, tris, feature_scale):
     order_f = np.argsort(E_f, kind='stable')
     return dict(E_f=E_f, adj_ns=adj_ns, order_f=order_f, t_areas=t_areas,
                 fa=fa, fb=fb, w=w, sharp=sharp, everts=everts,
-                mean_step=mean_step,
+                mean_step=mean_step, t_centers=t_centers,
                 cav_multi=hm, cav_fine=hf, normals_fine=nsf,
                 normals_coarse=ns_ladder[TURN_FRACS[-1]])
+
+
+def complete_crests(energy, feature_scale, bridge_gap):
+    ''' Stage 1b — crest-line extraction + completion (round 37): pure
+        topography connects basins around the FADING ENDS of seams (the
+        banana-tip horseshoe), so extract the coherent seam lines and
+        bridge their gaps. Bands = hysteresis components of face energy
+        (support >= CREST_LO containing evidence >= CREST_HI) over
+        non-wall adjacency; each elongated band is skeletonized to its
+        crest path (farthest-point BFS pair); from each path endpoint a
+        direction-smoothed cone walk crosses the fading zone, and if it
+        reaches another band or a wall within `bridge_gap` x scale, the
+        walked faces' edges are stamped up to the band's level — the rim
+        persists where the seam faded. Returns a shallow-copied energy
+        dict with stamped w/E_f plus 'crest_band'/'crest_bridge' masks
+        for the Crest Lines preview layer. '''
+    out = dict(energy)
+    nF = len(energy['E_f'])
+    out['crest_band'] = np.zeros(nF, bool)
+    out['crest_bridge'] = np.zeros(nF, bool)
+    if bridge_gap <= 0.0:
+        return out
+    E_f = energy['E_f']
+    fa, fb = energy['fa'], energy['fb']
+    w, sharp = energy['w'].copy(), energy['sharp']
+    mean_step = energy['mean_step']
+    t_centers = energy['t_centers']
+
+    adj_e = [[] for _ in range(nF)]
+    for i in range(len(fa)):
+        if sharp[i]:
+            continue
+        a, b = int(fa[i]), int(fb[i])
+        adj_e[a].append((b, i))
+        adj_e[b].append((a, i))
+
+    # walls count as connection targets for a bridge
+    wall_touch = np.zeros(nF, bool)
+    wm = sharp.nonzero()[0]
+    wall_touch[fa[wm]] = True
+    wall_touch[fb[wm]] = True
+
+    # 1. hysteresis bands over non-wall adjacency
+    weak = E_f >= CREST_LO
+    band_id = np.full(nF, -1, dtype=np.int64)
+    bands = []
+    for s in np.nonzero(E_f >= CREST_HI)[0]:
+        s = int(s)
+        if band_id[s] >= 0:
+            continue
+        bid = len(bands)
+        comp = [s]
+        band_id[s] = bid
+        stack = [s]
+        while stack:
+            f = stack.pop()
+            for nb, _ei in adj_e[f]:
+                if weak[nb] and band_id[nb] < 0:
+                    band_id[nb] = bid
+                    comp.append(nb)
+                    stack.append(nb)
+        bands.append(comp)
+
+    def bfs_far(comp_set, start):
+        # farthest face from start within the band, with parents
+        dist = {start: 0}
+        parent = {start: -1}
+        frontier = [start]
+        far = start
+        while frontier:
+            nxt = []
+            for f in frontier:
+                for nb, _ei in adj_e[f]:
+                    if nb in comp_set and nb not in dist:
+                        dist[nb] = dist[f] + 1
+                        parent[nb] = f
+                        nxt.append(nb)
+                        if dist[nb] > dist[far]:
+                            far = nb
+            frontier = nxt
+        return far, dist, parent
+
+    budget = max(2, round(bridge_gap * feature_scale / max(mean_step,
+                                                           1e-12)))
+    min_len = CREST_MIN_LEN * feature_scale
+    for bid, comp in enumerate(bands):
+        comp_set = set(comp)
+        out['crest_band'][comp] = True
+        u, _d, _p = bfs_far(comp_set, comp[0])
+        v, dist, parent = bfs_far(comp_set, u)
+        if dist[v] * mean_step < min_len:
+            continue                    # blob-like, not a line
+        path = [v]
+        while parent[path[-1]] >= 0:
+            path.append(parent[path[-1]])
+        stamp = float(np.median(E_f[comp]))
+        for end, inner in ((path[0], path[:6]), (path[-1], path[-6:])):
+            if len(path) < 4:
+                break
+            tangent = t_centers[end] - t_centers[
+                inner[-1] if end is path[0] else inner[0]]
+            tl = np.linalg.norm(tangent)
+            if tl < 1e-12:
+                continue
+            tangent = tangent / tl
+            cur = int(end)
+            walk = []
+            hit = False
+            for _step in range(budget):
+                best, best_dot, best_dir = -1, CREST_CONE_COS, None
+                for nb, _ei in adj_e[cur]:
+                    if band_id[nb] == bid or nb in walk:
+                        continue
+                    d = t_centers[nb] - t_centers[cur]
+                    dl = np.linalg.norm(d)
+                    if dl < 1e-12:
+                        continue
+                    d = d / dl
+                    dot = float(d @ tangent)
+                    if dot > best_dot:
+                        best, best_dot, best_dir = int(nb), dot, d
+                if best < 0:
+                    break
+                walk.append(best)
+                if band_id[best] >= 0 or wall_touch[best]:
+                    hit = True          # bridged to another seam or wall
+                    break
+                tangent = tangent * 0.7 + best_dir * 0.3
+                tangent /= np.linalg.norm(tangent)
+                cur = best
+            if hit and walk:
+                out['crest_bridge'][walk] = True
+                for f in walk:
+                    for _nb, ei in adj_e[f]:
+                        if w[ei] < stamp:
+                            w[ei] = stamp
+
+    E2 = np.zeros(nF)
+    np.maximum.at(E2, fa, w)
+    np.maximum.at(E2, fb, w)
+    out['w'] = w
+    out['E_f'] = E2
+    return out
 
 
 def watershed(energy, feature_scale, seed_threshold, seed_area):
@@ -511,10 +651,12 @@ def merge_regions(labels, energy, feature_scale, merge_below):
     return merged, int(merged.max()) + 1
 
 
-def segment_faces(co, tris, feature_scale, seed_threshold, seed_area):
-    ''' Full pipeline (energy stage + watershed) for one-shot callers.
-        Returns (face_labels, per-face seam energy, region count, extras). '''
-    energy = compute_energy(co, tris, feature_scale)
+def segment_faces(co, tris, feature_scale, seed_threshold, seed_area,
+                  bridge_gap=2.0):
+    ''' Full pipeline (energy + crest completion + watershed) for one-shot
+        callers. Returns (face_labels, energy, region count, extras). '''
+    energy = complete_crests(compute_energy(co, tris, feature_scale),
+                             feature_scale, bridge_gap)
     lab, seeds0, n = watershed(energy, feature_scale, seed_threshold,
                                 seed_area)
     return lab, energy['E_f'], n, gather_extras(energy, seeds0)
@@ -524,7 +666,9 @@ def gather_extras(energy, seeds0):
     return dict(cav_multi=energy['cav_multi'], cav_fine=energy['cav_fine'],
                 normals_fine=energy['normals_fine'],
                 normals_coarse=energy['normals_coarse'], seeds=seeds0,
-                fa=energy['fa'], fb=energy['fb'])
+                fa=energy['fa'], fb=energy['fb'],
+                crest_band=energy.get('crest_band'),
+                crest_bridge=energy.get('crest_bridge'))
 
 
 def palette(n=96):
@@ -627,6 +771,13 @@ def write_attributes(me, tri_loops, face_labels, seam_energy_f, tris,
                             region_colors(extras['labels_raw']))
     write_corner_colors(me, tri_loops, 'Seeds',
                          label_colors(extras['seeds'], pal))
+    if extras.get('crest_band') is not None:
+        # seam bands orange, completed bridges bright green, rest dark
+        ccol = np.full((len(extras['crest_band']), 4), 0.15)
+        ccol[:, 3] = 1.0
+        ccol[extras['crest_band']] = (0.9, 0.55, 0.15, 1.0)
+        ccol[extras['crest_bridge']] = (0.2, 1.0, 0.3, 1.0)
+        write_corner_colors(me, tri_loops, 'Crest Lines', ccol)
     write_corner_colors(me, tri_loops, 'Cavity Multi',
                          diverging_colors(extras['cav_multi']))
     write_corner_colors(me, tri_loops, 'Cavity Fine',
@@ -676,7 +827,7 @@ class RFOperator_SegmentMesh(RFOperator_Execute):
     decimation).
     '''
     bl_idname = 'retopoflow.segment_mesh'
-    bl_label = 'Segment Mesh'
+    bl_label = 'Separate Features'
     bl_description = ('Segment the mesh into regions bounded by ridges, '
                       'crevices, and sharp edges')
     bl_options = {'REGISTER', 'UNDO'}
@@ -695,6 +846,14 @@ class RFOperator_SegmentMesh(RFOperator_Execute):
                      'seed later if the rising waterline grows them while '
                      'no region has reached them'),
         default=0.5, min=0.0, max=20.0,
+    )
+    bridge_gap: bpy.props.FloatProperty(
+        name='Bridge Gaps',
+        description=('Extract coherent seam lines and bridge gaps where '
+                     'they fade out, up to this many feature-scale units — '
+                     'keeps basins fenced at fading seam ends (banana-tip '
+                     'horseshoes). 0 disables'),
+        default=2.0, min=0.0, max=6.0,
     )
     merge_below: bpy.props.FloatProperty(
         name='Merge Below',
@@ -722,6 +881,8 @@ class RFOperator_SegmentMesh(RFOperator_Execute):
              'Watershed regions before the merge pass'),
             ('Seeds', 'Seeds',
              'Initial seed components at the seed threshold, before growth'),
+            ('Crest Lines', 'Crest Lines',
+             'Extracted seam bands (orange) and completed bridges (green)'),
             ('Seam Energy', 'Seam Energy',
              'Floor-normalized seam energy (fixed 0-8x ramp)'),
             ('Cavity Multi', 'Cavity Multi',
@@ -747,6 +908,7 @@ class RFOperator_SegmentMesh(RFOperator_Execute):
         layout.use_property_decorate = False
         layout.prop(self, 'seed_threshold')
         layout.prop(self, 'seed_area')
+        layout.prop(self, 'bridge_gap')
         layout.prop(self, 'merge_below')
         layout.prop(self, 'feature_scale')
         layout.prop(self, 'preview')
@@ -778,23 +940,29 @@ class RFOperator_SegmentMesh(RFOperator_Execute):
             energy_cache['energy'] = compute_energy(co, tris, scale)
             energy_cache['key'] = key
         energy = energy_cache['energy']
-        # the watershed and merge results are cached too, so a preview-layer
-        # change in the redo panel re-executes near-instantly
+        # the crest, watershed, and merge stages are cached too, so a
+        # preview-layer change in the redo panel re-executes near-instantly
+        if energy_cache.get('crest_key') != self.bridge_gap:
+            energy_cache['crested'] = complete_crests(energy, scale,
+                                                      self.bridge_gap)
+            energy_cache['crest_key'] = self.bridge_gap
+            energy_cache.pop('ws_key', None)
+        crested = energy_cache['crested']
         ws_key = (self.seed_threshold, self.seed_area)
         if energy_cache.get('ws_key') != ws_key:
             energy_cache['ws'] = watershed(
-                energy, scale, self.seed_threshold, self.seed_area)
+                crested, scale, self.seed_threshold, self.seed_area)
             energy_cache['ws_key'] = ws_key
             energy_cache.pop('merge_key', None)
         labels_raw, seeds0, n_raw = energy_cache['ws']
         if energy_cache.get('merge_key') != self.merge_below:
             energy_cache['merged'] = merge_regions(
-                labels_raw, energy, scale, self.merge_below)
+                labels_raw, crested, scale, self.merge_below)
             energy_cache['merge_key'] = self.merge_below
         labels, n_regions = energy_cache['merged']
-        extras = gather_extras(energy, seeds0)
+        extras = gather_extras(crested, seeds0)
         extras['labels_raw'] = labels_raw
-        write_attributes(me, tri_loops, labels, energy['E_f'], tris,
+        write_attributes(me, tri_loops, labels, crested['E_f'], tris,
                          extras, preview=self.preview)
         me.update()
         self.report({'INFO'}, f'Segment Mesh: {n_regions} regions '

@@ -701,6 +701,91 @@ def diffuse_graph_fields(fields, e0, e1, n, iters):
     return f
 
 
+def build_graph_pyramid(e0, e1, areas, centers, max_levels=6, min_nodes=400):
+    ''' Gaussian pyramid over a graph for diffuse_graph_fields_pyramid:
+        greedy 1-ring clustering per level (~3-4x node reduction),
+        area-weighted centroids, unique super-node adjacency. Depends only
+        on the graph — build once per mesh, reuse across feature scales. '''
+    levels = []
+    cur_e0, cur_e1 = np.asarray(e0), np.asarray(e1)
+    cur_area = np.asarray(areas, dtype=np.float64)
+    cur_ctr = np.asarray(centers, dtype=np.float64)
+    n = len(cur_area)
+    while len(levels) < max_levels and n > min_nodes:
+        adj = [[] for _ in range(n)]
+        for a, b in zip(cur_e0, cur_e1):
+            adj[int(a)].append(int(b))
+            adj[int(b)].append(int(a))
+        cluster = np.full(n, -1, dtype=np.int64)
+        nc = 0
+        for i in range(n):
+            if cluster[i] >= 0:
+                continue
+            cluster[i] = nc
+            for nb in adj[i]:
+                if cluster[nb] < 0:
+                    cluster[nb] = nc
+            nc += 1
+        if nc >= n:
+            break
+        new_area = np.zeros(nc)
+        np.add.at(new_area, cluster, cur_area)
+        new_ctr = np.zeros((nc, 3))
+        np.add.at(new_ctr, cluster, cur_ctr * cur_area[:, None])
+        new_ctr /= np.maximum(new_area[:, None], 1e-30)
+        ca, cb = cluster[cur_e0], cluster[cur_e1]
+        m = ca != cb
+        if not m.any():
+            break
+        pairs = np.unique(np.stack([np.minimum(ca[m], cb[m]),
+                                    np.maximum(ca[m], cb[m])], axis=1),
+                          axis=0)
+        step = float(np.linalg.norm(new_ctr[pairs[:, 0]]
+                                    - new_ctr[pairs[:, 1]], axis=1).mean())
+        levels.append(dict(cluster=cluster, src_e0=cur_e0, src_e1=cur_e1,
+                           src_n=n, src_area=cur_area,
+                           e0=pairs[:, 0], e1=pairs[:, 1], n=nc, step=step))
+        cur_e0, cur_e1, cur_area, cur_ctr, n = (pairs[:, 0], pairs[:, 1],
+                                                new_area, new_ctr, nc)
+    return levels
+
+
+def diffuse_graph_fields_pyramid(fields, radius, e0, e1, n, mean_step,
+                                 pyramid, fine_k_max=64, polish=2):
+    ''' Smooth per-element fields (n, D) at geodesic `radius`. Small radii
+        run exact fine-graph diffusion; large radii restrict down the
+        pyramid to the coarsest level that still resolves the radius
+        (step <= radius/4), smooth there with (radius/step)^2 iterations
+        (bounded ~16..64 by the level choice), and prolong back up with a
+        few polish iterations per level — replacing the (radius/step)^2
+        fine-iteration explosion with near-constant cost. '''
+    k_fine = max(1, round((radius / max(mean_step, 1e-12)) ** 2))
+    if k_fine <= fine_k_max or not pyramid:
+        return diffuse_graph_fields(fields, e0, e1, n, min(k_fine, 400))
+    f = np.array(fields, dtype=np.float64)
+    used = []
+    for lvl in pyramid:
+        if lvl['step'] > radius / 4.0:
+            break
+        w = lvl['src_area']
+        acc = np.zeros((lvl['n'], f.shape[1]))
+        np.add.at(acc, lvl['cluster'], f * w[:, None])
+        wsum = np.zeros(lvl['n'])
+        np.add.at(wsum, lvl['cluster'], w)
+        f = acc / np.maximum(wsum[:, None], 1e-30)
+        used.append(lvl)
+    if not used:
+        return diffuse_graph_fields(fields, e0, e1, n, min(k_fine, 400))
+    top = used[-1]
+    k = int(np.clip(round((radius / top['step']) ** 2), 1, 256))
+    f = diffuse_graph_fields(f, top['e0'], top['e1'], top['n'], k)
+    for lvl in reversed(used):
+        f = f[lvl['cluster']]
+        f = diffuse_graph_fields(f, lvl['src_e0'], lvl['src_e1'],
+                                 lvl['src_n'], polish)
+    return f
+
+
 def diffusion_iters_for_radius(smoothing_radius, mean_step, cap=400):
     ''' Diffusion iteration count approximating a geodesic Gaussian blur of `smoothing_radius`
     on a graph whose mean adjacent-element distance is `mean_step`. '''
