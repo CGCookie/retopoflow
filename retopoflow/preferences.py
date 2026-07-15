@@ -263,6 +263,22 @@ class RF_Prefs(AddonPreferences):
         default=True,
     )
 
+    """ Tablet Input """
+    #region
+    stroke_min_distance: bpy.props.IntProperty(
+        name='Stroke Sample Distance',
+        description=(
+            'Minimum cursor movement (in pixels) between stroke samples while drawing with PolyStrips and Strokes. '
+            'Higher values reduce lag with high-frequency pen tablets by skipping redundant updates. '
+            'A value of 1 samples every mouse movement.'
+        ),
+        subtype='PIXEL',
+        default=3,
+        min=1,
+        max=50,
+    )
+    #endregion
+
     def draw(self, context : Context):
         layout : UILayout = self.layout
 
@@ -297,6 +313,23 @@ class RF_Prefs(AddonPreferences):
             panel.separator()
             panel.prop(self, 'name_suffix', text='Fallback Suffix')
 
+        header, panel = layout.panel(idname='stroke_tools_prefs', default_closed=True)
+        header.label(text="Tablet Input")
+        if panel:
+            panel.use_property_split = True
+            panel.use_property_decorate = False
+            panel.prop(self, 'stroke_min_distance', text='Ignore Jitter')
+
+            if bpy.app.version >= (4,5,0) and context.preferences.inputs.tablet_api != 'WINTAB' and platform.system() == 'Windows':
+                box = panel.box().column(align=True)
+                box.label(text="Notice for Windows users:", icon='ERROR')
+                box.label(text="If you encounter lag issues while using a tablet, consider switching")
+                box.label(text="to WinTab API in [ Blender Preferences > Input > Tablet > Tablet API ].")
+                row = box.row()
+                row.alignment = 'RIGHT'
+                row.operator('wm.url_open', text='Blender Report').url = 'https://projects.blender.org/blender/blender/issues/144139'
+                row.operator('wm.url_open', text='Retopoflow Report').url = 'https://github.com/CGCookie/retopoflow/issues/1574'
+
         from .rfpanels.tool_switching_panel import draw_tool_switching_options
         header, panel = layout.panel(idname='switching_prefs', default_closed=True)
         header.label(text="Tool Switching")
@@ -315,16 +348,6 @@ class RF_Prefs(AddonPreferences):
             panel.use_property_split = True
             panel.use_property_decorate = False
             panel.prop(self, 'warn_no_sources')
-
-        if bpy.app.version >= (4,5,0) and context.preferences.inputs.tablet_api != 'WINTAB' and platform.system() == 'Windows':
-            box = layout.box().column(align=True)
-            box.label(text="Notice for Windows users:", icon='ERROR')
-            box.label(text="If you encounter lag issues while using a tablet, consider switching")
-            box.label(text="to WinTab API in [ Blender Preferences > Input > Tablet > Tablet API ].")
-            row = box.row()
-            row.alignment = 'RIGHT'
-            row.operator('wm.url_open', text='Blender Report').url = 'https://projects.blender.org/blender/blender/issues/144139'
-            row.operator('wm.url_open', text='Retopoflow Report').url = 'https://github.com/CGCookie/retopoflow/issues/1574'
 
 
 def register():

@@ -36,6 +36,7 @@ from ..common.bmesh import (
 )
 from ..common.bmesh_maths import is_bmvert_hidden
 from ..common.drawing import Drawing
+from ..preferences import RF_Prefs
 from ..common.raycast import raycast_valid_sources, size2D_to_size, mouse_from_event
 from ..common.maths import bvec_point_to_bvec4
 from ..common.operator import RFOperator, RFKeyMaps
@@ -350,6 +351,19 @@ def create_stroke_brush(
             # mouse and self.mouse will be the same as long as we hit a source
             # otherwise, mouse is current spot and self.mouse is last spot we hit
             mouse = mouse_from_event(event)
+
+            # Throttle so high-frequency tablet inputs don't spam recomputes (#1574).
+            if self.is_stroking() and not force:
+                # INBETWEEN_MOUSEMOVE never appends a stroke point, so skip its raycast while stroking.
+                if event.type == 'INBETWEEN_MOUSEMOVE':
+                    return
+                # Skip when the input is just minor pen jitter.
+                # TIMER is exempt so the smoothing still catches up to the cursor.
+                if event.type == 'MOUSEMOVE' and self.mouse:
+                    min_distance = RF_Prefs.get_prefs(context).stroke_min_distance
+                    if (Vector(mouse) - Vector(self.mouse)).length < min_distance:
+                        return
+
             self.update_snap(context, mouse)
 
             if event.type == 'LEFTMOUSE':
