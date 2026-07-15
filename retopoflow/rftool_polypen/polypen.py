@@ -220,6 +220,7 @@ class RFOperator_PolyPen(RFOperator):
     logic : PP_Logic
     done : bool
     shift_held : bool
+    _prev_state : object = None  # last drawn PP_Action state, to redraw on change without mouse movement
 
     @classmethod
     def can_start(cls, context):
@@ -233,6 +234,7 @@ class RFOperator_PolyPen(RFOperator):
         self.tickle(context)
         self.done = False
         self.shift_held = False
+        self._prev_state = None
 
     def reset(self):
         self.logic.reset()
@@ -262,8 +264,13 @@ class RFOperator_PolyPen(RFOperator):
             self.logic.commit(context, event)
             return {'RUNNING_MODAL'}
 
-        if event.type == 'MOUSEMOVE':
+        # Redraw on mouse movement, and also whenever the preview changes without movement
+        # (e.g. Ctrl held stationary): the nearest-edge connection is computed every update,
+        # but previously only MOUSEMOVE repainted the current area, so the connection wouldn't
+        # appear until the mouse moved.
+        if event.type == 'MOUSEMOVE' or self.logic.state != self._prev_state:
             context.area.tag_redraw()
+        self._prev_state = self.logic.state
 
         return {'PASS_THROUGH'} # allow other operators, such as UNDO!!!
 
