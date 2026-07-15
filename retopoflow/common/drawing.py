@@ -48,7 +48,7 @@ from ...addon_common.common.maths import Direction, Frame, Normal, Point, Point2
 from ...addon_common.common.utils import iter_pairs
 
 
-def create_shader(fn_glsl, *, segments=1, pos=None):
+def create_shader(fn_glsl, *, segments=1, pos=None, build_batch=True):
     path_glsl = get_path_from_addon_common("common", "shaders", fn_glsl)
     txt = open(path_glsl, "rt").read()
     vert_source, frag_source = gpustate.shader_parse_string(txt)
@@ -67,7 +67,8 @@ def create_shader(fn_glsl, *, segments=1, pos=None):
         ]
     try:
         shad, ubos = gpustate.gpu_shader(f"drawing {fn_glsl}", vert_source, frag_source)
-        batch = batch_for_shader(shad, "TRIS", {"pos": pos})
+        # Batched shaders supply their geo as per-vertex attributes at draw time, so there's no static unit-quad batch.
+        batch = batch_for_shader(shad, "TRIS", {"pos": pos}) if build_batch else None
         return shad, ubos, batch
     except Exception as e:
         print(f"ERROR WHILE COMPILING SHADER {fn_glsl}")
@@ -75,9 +76,9 @@ def create_shader(fn_glsl, *, segments=1, pos=None):
         assert False
 
 
-shader_2D_point, ubos_2D_point, batch_2D_point = create_shader("point_2D.glsl")
+shader_2D_point, ubos_2D_point, _ = create_shader("point_2D_batched.glsl", build_batch=False)
+shader_2D_lineseg, ubos_2D_lineseg, _ = create_shader("lineseg_2D_batched.glsl", build_batch=False)
 shader_3D_point, ubos_3D_point, batch_3D_point = create_shader("point_3D.glsl")
-shader_2D_lineseg, ubos_2D_lineseg, batch_2D_lineseg = create_shader("lineseg_2D.glsl")
 shader_2D_circle, ubos_2D_circle, batch_2D_circle = create_shader(
     "circle_2D.glsl", segments=64
 )
@@ -98,6 +99,46 @@ shader_radial_gradient_2D, ubos_radial_gradient_2D, batch_radial_gradient_2D = (
 shader_3D_triangle, ubos_3D_triangle, batch_3D_triangle = create_shader(
     "triangle_3D.glsl", pos=[(1, 0, 0), (0, 1, 0), (0, 0, 0)]
 )
+
+
+# The six corners (two triangles) that expand each batched point/line primitive.
+QUAD_CORNERS = ((0, 0), (1, 0), (1, 1), (0, 0), (1, 1), (0, 1))
+
+
+def draw_batched_points(centers):
+    """ Draw all points in a single batch. The caller must have bound shader_2D_point
+    and set its UBO constants (matrix, screensize, radius_border, color, colorBorder). """
+    if not centers: return
+    vert_center = [(c[0], c[1], 0.0, 1.0) for c in centers for _ in range(6)]
+    vert_offset = [o for _ in centers for o in QUAD_CORNERS]
+    ubos_2D_point.update_shader()
+    batch = batch_for_shader(
+        shader_2D_point, "TRIS",
+        {"vert_center": vert_center, "vert_offset": vert_offset},
+    )
+    batch.draw(shader_2D_point)
+
+
+def draw_batched_lines(segments):
+    """ Draw all line segments in a single batch. `segments` is a list of (p0, p1, base_offset) tuples.
+    `base_offset` is the stipple offset at the segment's start. The caller must have bound shader_2D_lineseg and
+    set its UBO constants (matrix, screensize, color0, color1, stipple_width). """
+    if not segments: return
+    vert_pos0 = [(s[0][0], s[0][1], 0.0, 1.0) for s in segments for _ in range(6)]
+    vert_pos1 = [(s[1][0], s[1][1], 0.0, 1.0) for s in segments for _ in range(6)]
+    vert_base_offset = [float(s[2]) for s in segments for _ in range(6)]
+    vert_offset = [o for _ in segments for o in QUAD_CORNERS]
+    ubos_2D_lineseg.update_shader()
+    batch = batch_for_shader(
+        shader_2D_lineseg, "TRIS",
+        {
+            "vert_pos0": vert_pos0,
+            "vert_pos1": vert_pos1,
+            "vert_base_offset": vert_base_offset,
+            "vert_offset": vert_offset,
+        },
+    )
+    batch.draw(shader_2D_lineseg)
 
 
 # ######################################################################################################
@@ -192,6 +233,8 @@ class CC_DRAW:
 
 
 class CC_2D_POINTS(CC_DRAW):
+    batch_pts: ClassVar[list] = []
+
     @classmethod
     def begin(cls, context):
         shader_2D_point.bind()
@@ -203,10 +246,19 @@ class CC_2D_POINTS(CC_DRAW):
             0,
         )
         ubos_2D_point.options.color = cls._default_color
+        cls.batch_pts = []
         cls.update()
 
     @classmethod
+    def flush(cls):
+        # draw everything accumulated with the current style as one batch, then start fresh
+        if cls.batch_pts:
+            draw_batched_points(cls.batch_pts)
+            cls.batch_pts = []
+
+    @classmethod
     def update(cls):
+        cls.flush()
         ubos_2D_point.options.radius_border = (cls._point_size, cls._border_width, 0, 0)
         ubos_2D_point.options.colorBorder = cls._border_color
 
@@ -214,15 +266,19 @@ class CC_2D_POINTS(CC_DRAW):
     def color(cls, c: Color | Color4 | bpy_prop_array[float] | Sequence[float] | None):
         if not c:
             return
+        cls.flush()
         ubos_2D_point.options.color = c
 
     @classmethod
     def vertex(cls, p: Vector | None) -> type[CC_2D_POINTS]:
         if p:
-            ubos_2D_point.options.center = (*p, 0, 1)
-            ubos_2D_point.options.update_shader()
-            batch_2D_point.draw(shader_2D_point)
+            cls.batch_pts.append(p)
         return cls
+
+    @classmethod
+    def end(cls):
+        cls.flush()
+        super().end()
 
 
 class CC_3D_POINTS(CC_DRAW):
@@ -262,6 +318,8 @@ class CC_3D_POINTS(CC_DRAW):
 
 
 class CC_2D_LINES(CC_DRAW):
+    batch_segs: ClassVar[list] = []
+
     @classmethod
     def begin(cls, context):
         shader_2D_lineseg.bind()
@@ -274,12 +332,21 @@ class CC_2D_LINES(CC_DRAW):
             0,
         )
         ubos_2D_lineseg.options.color0 = cls._default_color
+        cls.batch_segs = []
         cls.stipple(offset=0)
         cls._c = 0
-        cls._last_p = None
+        cls._pending = None
+
+    @classmethod
+    def flush(cls):
+        # draw everything accumulated with the current style as one batch, then start fresh
+        if cls.batch_segs:
+            draw_batched_lines(cls.batch_segs)
+            cls.batch_segs = []
 
     @classmethod
     def update(cls):
+        cls.flush()
         ubos_2D_lineseg.options.color1 = cls._stipple_color
         ubos_2D_lineseg.options.stipple_width = (
             cls._stipple_pattern[0],
@@ -292,17 +359,19 @@ class CC_2D_LINES(CC_DRAW):
     def color(cls, c: Color | Color4  | bpy_prop_array[float] | Sequence[float] | None):
         if not c:
             return
+        cls.flush()
         ubos_2D_lineseg.options.color0 = c
 
     @classmethod
     def vertex(cls, p: Vector | None) -> type[CC_2D_LINES]:
-        if p:
-            ubos_2D_lineseg.options.assign(f"pos{cls._c}", (*p, 0, 1))
-        cls._c = (cls._c + 1) % 2
-        if cls._c == 0 and cls._last_p and p:
-            ubos_2D_lineseg.update_shader()
-            batch_2D_lineseg.draw(shader_2D_lineseg)
-        cls._last_p = p
+        # consume points in pairs -> independent segments (v0,v1), (v2,v3), ...
+        if cls._c == 0:
+            cls._pending = p
+            cls._c = 1
+        else:
+            if cls._pending and p:
+                cls.batch_segs.append((cls._pending, p, cls._stipple_offset))
+            cls._c = 0
         return cls
 
     @classmethod
@@ -310,6 +379,11 @@ class CC_2D_LINES(CC_DRAW):
         for p in ps:
             cls.vertex(p)
         return cls
+
+    @classmethod
+    def end(cls):
+        cls.flush()
+        super().end()
 
 
 class CC_2D_LINE_STRIP(CC_2D_LINES):
@@ -324,10 +398,8 @@ class CC_2D_LINE_STRIP(CC_2D_LINES):
             cls._last_p = p
         else:
             if cls._last_p and p:
-                ubos_2D_lineseg.options.pos0 = (*cls._last_p, 0, 1)
-                ubos_2D_lineseg.options.pos1 = (*p, 0, 1)
-                ubos_2D_lineseg.update_shader()
-                batch_2D_lineseg.draw(shader_2D_lineseg)
+                # constant base offset per segment (matches the original CC line-strip stipple)
+                cls.batch_segs.append((cls._last_p, p, cls._stipple_offset))
             cls._last_p = p
         return cls
 
@@ -345,20 +417,14 @@ class CC_2D_LINE_LOOP(CC_2D_LINES):
             cls._first_p = cls._last_p = p
         else:
             if cls._last_p and p:
-                ubos_2D_lineseg.options.pos0 = (*cls._last_p, 0, 1)
-                ubos_2D_lineseg.options.pos1 = (*p, 0, 1)
-                ubos_2D_lineseg.update_shader()
-                batch_2D_lineseg.draw(shader_2D_lineseg)
+                cls.batch_segs.append((cls._last_p, p, cls._stipple_offset))
             cls._last_p = p
         return cls
 
     @classmethod
     def end(cls):
         if cls._last_p and cls._first_p:
-            ubos_2D_lineseg.options.pos0 = (*cls._last_p, 0, 1)
-            ubos_2D_lineseg.options.pos1 = (*cls._first_p, 0, 1)
-            ubos_2D_lineseg.update_shader()
-            batch_2D_lineseg.draw(shader_2D_lineseg)
+            cls.batch_segs.append((cls._last_p, cls._first_p, cls._stipple_offset))
         super().end()
 
 
@@ -834,20 +900,15 @@ class Drawing:
         ubos_2D_lineseg.options.screensize = (context.area.width, context.area.height, 0, 0)
         ubos_2D_lineseg.options.color0 = color0
         ubos_2D_lineseg.options.color1 = color1_
+        ubos_2D_lineseg.options.stipple_width = (stipple0, stipple1, 0, width_scaled)
+        segments = []
         for p0, p1 in iter_pairs(points, False):
             if not p0 or not p1:
                 continue
-            ubos_2D_lineseg.options.pos0 = (*p0, 0, 1)
-            ubos_2D_lineseg.options.pos1 = (*p1, 0, 1)
-            ubos_2D_lineseg.options.stipple_width = (
-                stipple0,
-                stipple1,
-                offset_acc,
-                width_scaled,
-            )  # offset_acc advances by each segment's length
-            ubos_2D_lineseg.update_shader()
-            batch_2D_lineseg.draw(shader_2D_lineseg)
+            # offset_acc advances by each segment's length so the stipple pattern stays uniform
+            segments.append((p0, p1, offset_acc))
             offset_acc += (p1 - p0).length
+        draw_batched_lines(segments)
         gpu.shader.unbind()
 
     @staticmethod
@@ -890,14 +951,14 @@ class Drawing:
         ubos_2D_lineseg.options.color0 = color0
         ubos_2D_lineseg.options.color1 = color1_
         ubos_2D_lineseg.options.stipple_width = (stipple0_scaled, stipple1_scaled, offset_scaled, width_scaled)
+        segments = []
         for i in range(len(points) // 2):
             p0, p1 = points[i * 2 : i * 2 + 2]
             if p0 is None or p1 is None:
                 continue
-            ubos_2D_lineseg.options.pos0 = (*p0, 0, 1)
-            ubos_2D_lineseg.options.pos1 = (*p1, 0, 1)
-            ubos_2D_lineseg.update_shader()
-            batch_2D_lineseg.draw(shader_2D_lineseg)
+            # independent segments all restart the stipple pattern at the same offset
+            segments.append((p0, p1, offset_scaled))
+        draw_batched_lines(segments)
         gpu.shader.unbind()
 
     @staticmethod
@@ -927,12 +988,7 @@ class Drawing:
         ubos_2D_point.options.radius_border = (radius_scaled, border_scaled, 0, 0)
         ubos_2D_point.options.color = color
         ubos_2D_point.options.colorBorder = borderColor_
-        for pt in points:
-            if not pt:
-                continue
-            ubos_2D_point.options.center = (*pt, 0, 1)
-            ubos_2D_point.update_shader()
-            batch_2D_point.draw(shader_2D_point)
+        draw_batched_points([pt for pt in points if pt])
         gpu.shader.unbind()
 
     @staticmethod
@@ -950,6 +1006,7 @@ class Drawing:
         color_border_transparent = Color4((highlight[0], highlight[1], highlight[2], 0))
         vertex_size = theme.vertex_size
         rgn, r3d = context.region, context.region_data
+        pts = []
         for bmv in snapped_verts:
             if not bmv.is_valid:
                 continue
@@ -957,10 +1014,15 @@ class Drawing:
             p = location_3d_to_region_2d(rgn, r3d, co)
             if not p:
                 continue
-            with Drawing.draw(context, CC_2D_POINTS) as draw:
-                draw.point_size(vertex_size + 4)
-                draw.border(width=2, color=color_point)
-                draw.color(color_border_transparent)
+            pts.append(p)
+        if not pts:
+            return
+        # all snap circles share one style, so draw them in a single batch
+        with Drawing.draw(context, CC_2D_POINTS) as draw:
+            draw.point_size(vertex_size + 4)
+            draw.border(width=2, color=color_point)
+            draw.color(color_border_transparent)
+            for p in pts:
                 draw.vertex(p)
 
     @staticmethod
