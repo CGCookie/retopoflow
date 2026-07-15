@@ -21,6 +21,7 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy
 from bpy.types import Context, Event, UILayout, WorkSpaceTool
+from mathutils import Vector
 
 from ..rfglobals import RFGlobals
 from ..rfoverlay_base import RFOverlay_Base
@@ -58,6 +59,7 @@ from ..common.interface import draw_line_separator
 from ..common.bpy_helper import BL_SPACE_TYPES, BL_REGION_TYPES, BL_OPTIONS
 
 from ..preferences import RF_Prefs
+from ..common.raycast import mouse_from_event
 
 from .polypen_logic import PP_Logic
 
@@ -221,6 +223,7 @@ class RFOperator_PolyPen(RFOperator):
     done : bool
     shift_held : bool
     _prev_state : object = None  # last drawn PP_Action state, to redraw on change without mouse movement
+    _last_mouse : Vector | None = None  # last processed mouse position, for the movement throttle
 
     @classmethod
     def can_start(cls, context):
@@ -235,6 +238,7 @@ class RFOperator_PolyPen(RFOperator):
         self.done = False
         self.shift_held = False
         self._prev_state = None
+        self._last_mouse = None
 
     def reset(self):
         self.logic.reset()
@@ -255,6 +259,17 @@ class RFOperator_PolyPen(RFOperator):
             self.logic.cleanup()
             self.set_statusbar_override(None)
             return {'FINISHED'}
+
+        # Throttle per-event calculations so a tablet input can't spam them (#1574).
+        # Only gate MOUSEMOVE, not the timer or click events.
+        if event.type == 'INBETWEEN_MOUSEMOVE':
+            return {'PASS_THROUGH'}
+        if event.type == 'MOUSEMOVE':
+            mouse = Vector(mouse_from_event(event))
+            min_distance = RF_Prefs.get_prefs(context).stroke_min_distance
+            if self._last_mouse is not None and (mouse - self._last_mouse).length < min_distance:
+                return {'PASS_THROUGH'}
+            self._last_mouse = mouse
 
         self.logic.update(context, event, self.insert_mode, self.quad_stability, self.quad_preserve, self.constrain_edge_vert, self.use_loop_cuts)
         # print(f'PolyPen update: "{self.logic.state.name}"')

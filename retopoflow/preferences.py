@@ -268,9 +268,9 @@ class RF_Prefs(AddonPreferences):
     stroke_min_distance: bpy.props.IntProperty(
         name='Stroke Sample Distance',
         description=(
-            'Minimum cursor movement (in pixels) between stroke samples while drawing with PolyStrips and Strokes. '
+            'Minimum cursor movement (in pixels) between insert-preview updates for the PolyStrips, Strokes, and PolyPen tools. '
             'Higher values reduce lag with high-frequency pen tablets by skipping redundant updates. '
-            'A value of 1 samples every mouse movement.'
+            'A value of 1 updates on every mouse movement.'
         ),
         subtype='PIXEL',
         default=3,
