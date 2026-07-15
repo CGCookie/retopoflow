@@ -90,6 +90,9 @@ CREST_LOCK_LEN = 0.5              # min length to lock, x scale
 CREST_FAT_X = 1.75                # stop when width > this x own lock width
 CREST_COLL_COS = 0.7              # collinearity cone for feature joins
 CREST_MIN_LEN = 0.75              # minimum open-chain length, x scale
+CREST_SHARP_JOIN_COS = 0.7        # junction straight-through pairing cos
+CREST_SHARP_STREN_DEG = 5.0       # dihedral degrees per strength unit
+CREST_SHARP_SPUR = 0.35           # junction-twig prune length, x scale
 CREST_LOOP_MIN_FACES = 6          # minimum faces for a closed loop
 CREST_CONE_COS = 0.5              # bridge-walk cone (~60 deg half-angle)
 CREST_TENSOR_RAD_X = 1.0          # structure-tensor smoothing, x rung
@@ -864,11 +867,12 @@ def refine_crest_curves(curves, hs, across, surf, t_normals,
         return out
 
     # --- fuse open fragments end-to-end ---
-    loops = [(np.asarray(p), True, hw) for p, l, hw in curves if l]
-    open_c = [(np.asarray(p), hw) for p, l, hw in curves
+    loops = [(np.asarray(p), True, hw, st)
+             for p, l, hw, st in curves if l]
+    open_c = [(np.asarray(p), hw, st) for p, l, hw, st in curves
               if not l and len(p) >= 3]
     ends = []
-    for ci, (p, _hw) in enumerate(open_c):
+    for ci, (p, _hw, _st) in enumerate(open_c):
         for q, t in ((p[0], p[0] - p[min(2, len(p) - 1)]),
                      (p[-1], p[-1] - p[-min(3, len(p))])):
             tl = float(np.linalg.norm(t))
@@ -913,12 +917,14 @@ def refine_crest_curves(curves, hs, across, surf, t_normals,
             cur, entry = nc, 1 - np_
         pts_list = []
         hw_max = 0.0
+        st_max = 0.0
         forward = (entry == 0)
         first = cur
         while True:
             visited[cur] = True
-            seg_p, seg_hw = open_c[cur]
+            seg_p, seg_hw, seg_st = open_c[cur]
             hw_max = max(hw_max, seg_hw)
+            st_max = max(st_max, seg_st)
             pts_list.append(seg_p if forward else seg_p[::-1])
             k = match.get(2 * cur + (1 if forward else 0))
             if k is None:
@@ -939,12 +945,12 @@ def refine_crest_curves(curves, hs, across, surf, t_normals,
                 te = te / max(float(np.linalg.norm(te)), 1e-12)
                 if float(te @ d) > 0.4:
                     looped = True
-        fused.append((pts, looped, hw_max))
+        fused.append((pts, looped, hw_max, st_max))
     fused.extend(loops)
 
     # --- relax + prune ---
     result = []
-    for pts, looped, hw in fused:
+    for pts, looped, hw, st in fused:
         prof = np.linspace(-1.0, 1.0, 7) * hw
         pts = resample(pts, looped)
         n = len(pts)
@@ -997,7 +1003,7 @@ def refine_crest_curves(curves, hs, across, surf, t_normals,
         if peak_frac < CREST_CURVE_PEAK_MIN \
                 or wig > CREST_CURVE_WIGGLE_MAX:
             continue
-        result.append((pts, looped, hw))
+        result.append((pts, looped, hw, st))
     return result
 
 def sweep_crest_curves(hs, bend_ok, adj_e, t_areas, t_centers,
@@ -1020,6 +1026,9 @@ def sweep_crest_curves(hs, bend_ok, adj_e, t_areas, t_centers,
         [(curve_faces, is_loop, band_halfwidth)]. '''
     import heapq
     lock_len = CREST_LOCK_LEN * feature_scale
+    pos_med = hs[hs > 0.0]
+    pos_med = max(float(np.median(pos_med)) if len(pos_med) else 0.0,
+                  1e-30)
     order = np.argsort(-hs, kind='stable')
     order = order[(hs[order] > 0.0) & bend_ok[order]]
     parent = np.full(nF, -1, dtype=np.int64)
@@ -1283,7 +1292,319 @@ def sweep_crest_curves(hs, bend_ok, adj_e, t_areas, t_centers,
                      0.25 * feature_scale), 1.0 * feature_scale)
         for pi, cv in enumerate(curve[r]):
             if len(cv) >= 3:
-                out.append((cv, bool(looped_r[r][pi]), hw))
+                # strength = the curve's field level in floor units:
+                # strong features carry thick lines, soft ones thin
+                stren = float(np.median(hs[np.asarray(cv)])) / pos_med
+                out.append((cv, bool(looped_r[r][pi]), hw, stren))
+    return out
+
+
+def trace_sharp_chains(pair_idx, theta_deg, everts, verts_co,
+                       feature_scale):
+    ''' Sharp edges as FIRST-CLASS curves (round 62, closing the
+        representation gap): walls have always been detected (two-tier
+        dihedral) and consumed as watershed barriers, but nothing ever
+        emitted them as curves — and the field tracer is structurally
+        blind to them (a sharp crease's turning lives in edges excluded
+        from both adj_e and the bend measure; its flank strips fragment
+        into confetti and get annexed by the soft webs beside them —
+        measured on the boot sole crest). The sharp-edge subgraph is 1D
+        but NOT clean: on a scan the threshold classification flickers
+        along the crease (boot concave graph: 5.5K of 12K verts are
+        endpoints, the biggest component is a dendritic web whose
+        longest path is 12x scale against 31x of total edge length), so
+        a literal walk reproduces the confetti disease. Three-stage
+        cure, per polarity: (1) PRUNE junction twigs shorter than
+        CREST_SHARP_SPUR x scale — classification fuzz, not branches;
+        isolated dashes are kept, they fuse in (3); (2) WALK chains,
+        continuing straight through junctions by tangent pairing with
+        LOOKAHEAD directions (multi-edge, mesh-vertex zigzag averaged
+        out; side branches terminate there and stay their own chains —
+        the branch substrate for later confidence pruning); (3) FUSE
+        chains across dash gaps: mutually-facing open ends within
+        CREST_FUSE_GAP x scale link greedily by gap (zero-gap ends test
+        tangent opposition instead), self-closing super-chains become
+        loops. Strength comes from the crease's own dihedral — sharp
+        chains are the highest-confidence features on the mesh.
+        Returns [(points Nx3, is_loop, strength)]. '''
+    # dedupe by mesh edge (non-manifold edges repeat vertex pairs)
+    e_verts, e_th = [], []
+    seen_vp = set()
+    for i in pair_idx:
+        v0, v1 = int(everts[i, 0]), int(everts[i, 1])
+        key = (v0, v1) if v0 < v1 else (v1, v0)
+        if key in seen_vp:
+            continue
+        seen_vp.add(key)
+        e_verts.append((v0, v1))
+        e_th.append(abs(float(theta_deg[i])))
+    nE = len(e_verts)
+    if nE == 0:
+        return []
+    elen = np.array([float(np.linalg.norm(verts_co[a] - verts_co[b]))
+                     for a, b in e_verts])
+    v_adj = {}
+    for k, (v0, v1) in enumerate(e_verts):
+        v_adj.setdefault(v0, []).append(k)
+        v_adj.setdefault(v1, []).append(k)
+    alive = np.ones(nE, bool)
+
+    def vdeg(v):
+        return sum(1 for k in v_adj[v] if alive[k])
+
+    # (1) spur prune: twigs hanging off junctions are threshold fuzz
+    spur_max = CREST_SHARP_SPUR * feature_scale
+    for _ in range(3):
+        removed = False
+        for leaf in list(v_adj):
+            if vdeg(leaf) != 1:
+                continue
+            path_e = []
+            arc = 0.0
+            cur_v = leaf
+            cur_e = next(k for k in v_adj[cur_v] if alive[k])
+            while True:
+                path_e.append(cur_e)
+                arc += float(elen[cur_e])
+                a2, b2 = e_verts[cur_e]
+                cur_v = b2 if a2 == cur_v else a2
+                dg = vdeg(cur_v)
+                if dg != 2 or arc >= spur_max:
+                    break
+                cur_e = next(k for k in v_adj[cur_v]
+                             if alive[k] and k != cur_e)
+            if dg >= 3 and arc < spur_max:
+                for k in path_e:
+                    alive[k] = False
+                removed = True
+        if not removed:
+            break
+
+    def look_dir(v, k):
+        # smoothed outgoing direction: walk through degree-2 verts so
+        # single-mesh-edge zigzag does not decide junction pairing
+        cur_v = e_verts[k][1] if e_verts[k][0] == v else e_verts[k][0]
+        cur_e = k
+        arc = float(elen[k])
+        for _ in range(4):
+            inc = [k2 for k2 in v_adj[cur_v] if alive[k2]]
+            if len(inc) != 2 or arc >= 0.25 * feature_scale:
+                break
+            nxt = inc[0] if inc[1] == cur_e else inc[1]
+            a2, b2 = e_verts[nxt]
+            cur_v = b2 if a2 == cur_v else a2
+            arc += float(elen[nxt])
+            cur_e = nxt
+        d = verts_co[cur_v] - verts_co[v]
+        dl = float(np.linalg.norm(d))
+        return d / dl if dl > 1e-12 else d
+
+    # (2) junction pairing + walk
+    trans = {}
+    for v, inc_all in v_adj.items():
+        inc = [k for k in inc_all if alive[k]]
+        if len(inc) == 2:
+            trans[(v, inc[0])] = inc[1]
+            trans[(v, inc[1])] = inc[0]
+        elif len(inc) > 2:
+            dirs = [look_dir(v, k) for k in inc]
+            cands = []
+            for x in range(len(inc)):
+                for y in range(x + 1, len(inc)):
+                    dot = float(dirs[x] @ dirs[y])
+                    if dot <= -CREST_SHARP_JOIN_COS:
+                        cands.append((dot, x, y))
+            cands.sort()
+            used = set()
+            for _dot, x, y in cands:
+                if x in used or y in used:
+                    continue
+                used.add(x)
+                used.add(y)
+                trans[(v, inc[x])] = inc[y]
+                trans[(v, inc[y])] = inc[x]
+    visited = np.zeros(nE, bool)
+    visited[~alive] = True
+    chains = []          # [verts, eids, looped]
+    for k0 in range(nE):
+        if visited[k0]:
+            continue
+        visited[k0] = True
+        v0, v1 = e_verts[k0]
+        chain = [v0, v1]
+        eids = [k0]
+        looped = False
+        cur_v, cur_e = v1, k0
+        while True:
+            nxt = trans.get((cur_v, cur_e))
+            if nxt is None:
+                break
+            if nxt == k0:
+                looped = True
+                break
+            if visited[nxt]:
+                break
+            visited[nxt] = True
+            a2, b2 = e_verts[nxt]
+            cur_v = b2 if a2 == cur_v else a2
+            chain.append(cur_v)
+            eids.append(nxt)
+            cur_e = nxt
+        if looped:
+            if chain[-1] == chain[0]:
+                chain.pop()
+            else:
+                looped = False   # lasso closure: keep it open
+        else:
+            cur_v, cur_e = v0, k0
+            back_v, back_e = [], []
+            while True:
+                nxt = trans.get((cur_v, cur_e))
+                if nxt is None or nxt == k0 or visited[nxt]:
+                    break
+                visited[nxt] = True
+                a2, b2 = e_verts[nxt]
+                cur_v = b2 if a2 == cur_v else a2
+                back_v.append(cur_v)
+                back_e.append(nxt)
+                cur_e = nxt
+            if back_v:
+                chain = back_v[::-1] + chain
+                eids = back_e[::-1] + eids
+        chains.append([chain, eids, looped])
+
+    # (3) gap fusion: the threshold dashes a continuous crease into
+    # many short chains; mutually-facing open ends re-join here
+    fuse_gap = CREST_FUSE_GAP * feature_scale
+
+    def end_tangent(vlist, at_end):
+        # outward direction at a chain end, a few points deep
+        idx = vlist[-4:] if at_end else vlist[:4][::-1]
+        pts = verts_co[np.asarray(idx, dtype=np.int64)]
+        t = pts[-1] - pts[0]
+        tl = float(np.linalg.norm(t))
+        return t / tl if tl > 1e-12 else t
+
+    ports = []           # (chain_idx, at_end, pos, outward_tangent)
+    for ci, (chain, _eids, looped) in enumerate(chains):
+        if looped or len(chain) < 2:
+            continue
+        for at_end in (False, True):
+            pos = verts_co[chain[-1] if at_end else chain[0]]
+            ports.append((ci, at_end, pos, end_tangent(chain, at_end)))
+    link = {}
+    if ports:
+        P = np.array([p[2] for p in ports])
+        cands = []
+        for a in range(len(ports)):
+            d = np.linalg.norm(P[a + 1:] - P[a], axis=1)
+            for boff in np.nonzero(d <= fuse_gap)[0]:
+                b = a + 1 + int(boff)
+                if ports[a][0] == ports[b][0]:
+                    continue      # self-closure handled after assembly
+                gap = float(d[boff])
+                ta, tb = ports[a][3], ports[b][3]
+                if gap > 1e-9:
+                    g = (P[b] - P[a]) / gap
+                    ok = float(ta @ g) >= 0.4 and float(tb @ g) <= -0.4
+                else:
+                    ok = float(ta @ tb) <= -0.4
+                if ok:
+                    cands.append((gap, a, b))
+        cands.sort(key=lambda c: c[0])
+        used_p = set()
+        for _gap, a, b in cands:
+            if a in used_p or b in used_p:
+                continue
+            # refuse links that would close a cycle through the link
+            # graph (chain-level); self-closure is decided after
+            seen_c = {ports[a][0]}
+            frontier = [(ports[a][0], ports[a][1])]
+            cyc = False
+            while frontier:
+                ci_, pe_ = frontier.pop()
+                other = link.get((ci_, not pe_))
+                if other is None:
+                    continue
+                if other[0] == ports[b][0]:
+                    cyc = True
+                    break
+                if other[0] not in seen_c:
+                    seen_c.add(other[0])
+                    frontier.append(other)
+            if cyc:
+                continue
+            used_p.add(a)
+            used_p.add(b)
+            link[(ports[a][0], ports[a][1])] = (ports[b][0],
+                                                ports[b][1])
+            link[(ports[b][0], ports[b][1])] = (ports[a][0],
+                                                ports[a][1])
+    # assemble super-chains
+    out = []
+    min_len = CREST_MIN_LEN * feature_scale
+    done = set()
+
+    def emit(chain, eids, looped):
+        if len(chain) < 3:
+            return
+        pts = verts_co[np.asarray(chain, dtype=np.int64)]
+        arc = float(np.linalg.norm(np.diff(pts, axis=0), axis=1).sum())
+        if looped:
+            arc += float(np.linalg.norm(pts[0] - pts[-1]))
+        if arc < min_len:
+            return
+        stren = float(np.median(np.asarray(e_th)[eids])) \
+            / CREST_SHARP_STREN_DEG
+        out.append((pts, looped, stren))
+
+    for ci, (chain, eids, looped) in enumerate(chains):
+        if ci in done:
+            continue
+        if looped:
+            done.add(ci)
+            emit(chain, eids, looped)
+            continue
+        # walk to this super-chain's start (unlinked entry port)
+        cur, entry = ci, False
+        seen_c = {ci}
+        while (cur, entry) in link:
+            cur, pe = link[(cur, entry)]
+            entry = not pe
+            if cur in seen_c:
+                break             # pure cycle of links: start anywhere
+            seen_c.add(cur)
+        start = (cur, entry)
+        verts_all, eids_all = [], []
+        cur, entry = start
+        closed = False
+        while True:
+            done.add(cur)
+            cv, ce, _lp = chains[cur]
+            if entry:                     # entered at the END: reverse
+                cv = cv[::-1]
+            verts_all.extend(cv)
+            eids_all.extend(ce)
+            nxt = link.get((cur, not entry))
+            if nxt is None:
+                break
+            if nxt == start:
+                closed = True
+                break
+            cur, entry = nxt[0], nxt[1]
+        if not closed and len(verts_all) >= 4:
+            # self-closure: super-chain ends meet -> loop
+            pa, pb = verts_co[verts_all[0]], verts_co[verts_all[-1]]
+            gap = float(np.linalg.norm(pa - pb))
+            if gap <= fuse_gap:
+                ta = end_tangent(verts_all, False)
+                tb = end_tangent(verts_all, True)
+                g = (pa - pb) / gap if gap > 1e-9 else None
+                if (g is None and float(ta @ tb) <= -0.4) or \
+                        (g is not None and float(tb @ g) >= 0.4
+                         and float(ta @ g) <= -0.4):
+                    closed = True
+        emit(verts_all, eids_all, closed)
     return out
 
 
@@ -1332,6 +1653,27 @@ def complete_crests(energy, feature_scale, bridge_gap):
     wm = sharp.nonzero()[0]
     wall_touch[fa[wm]] = True
     wall_touch[fb[wm]] = True
+
+    # --- SHARP CHAINS (round 62): trace the wall graph directly into
+    # curves. Signed dihedral over ALL pairs (the bend gate's theta is
+    # non-sharp-only by design); convex sharp = ridge, concave = valley.
+    everts = energy['everts']
+    verts_co = energy['verts']
+    dv_all = t_centers[fb] - t_centers[fa]
+    dvl_all = np.maximum(np.linalg.norm(dv_all, axis=1), 1e-12)
+    cos_all = np.clip((t_normals[fa] * t_normals[fb]).sum(axis=1),
+                      -1.0, 1.0)
+    conv_all = np.sign(((t_normals[fb] - t_normals[fa])
+                        * (dv_all / dvl_all[:, None])).sum(axis=1))
+    theta_all = np.degrees(np.arccos(cos_all)) * conv_all
+    sharp_chains = {
+        1.0: trace_sharp_chains(
+            np.nonzero(sharp & (theta_all > 0.0))[0], theta_all,
+            everts, verts_co, feature_scale),
+        -1.0: trace_sharp_chains(
+            np.nonzero(sharp & (theta_all <= 0.0))[0], theta_all,
+            everts, verts_co, feature_scale),
+    }
 
     # --- per-field across-line axis from the PRE-SMOOTHED field's
     # gradient structure tensor: the axis comes from the FLANK
@@ -1513,13 +1855,20 @@ def complete_crests(energy, feature_scale, bridge_gap):
         bend_ok = bend_r if sign > 0 else bend_v
         bands = sweep_crest_curves(hs_p, bend_ok, adj_e, t_areas,
                                    t_centers, feature_scale, nF)
-        curves = [(t_centers[np.asarray(cf, dtype=np.int64)], lp, hw)
-                  for cf, lp, hw in bands if len(cf) >= 3]
+        curves = [(t_centers[np.asarray(cf, dtype=np.int64)], lp, hw, st)
+                  for cf, lp, hw, st in bands if len(cf) >= 3]
         curves = refine_crest_curves(curves, hs_p, across, surf,
                                      t_normals, feature_scale)
+        curves = [(p_, l_, h_, s_, False) for p_, l_, h_, s_ in curves]
+        # sharp chains join AFTER refine: they sit exactly on the
+        # crease already — relax would smooth the very corners they
+        # exist to preserve, and the prune gates measure field
+        # profiles that mean nothing on a wall
+        curves += [(p_, l_, 0.25 * feature_scale, s_, True)
+                   for p_, l_, s_ in sharp_chains[sign]]
         entries = []
         pol_faces = np.zeros(nF, bool)
-        for pts, looped, _hw in curves:
+        for pts, looped, _hw, st, fixed in curves:
             if len(pts) < 3:
                 continue
             if float(np.linalg.norm(np.diff(pts, axis=0),
@@ -1528,11 +1877,11 @@ def complete_crests(energy, feature_scale, bridge_gap):
             faces = paint_chain(pts, looped)
             if len(faces) < 3:
                 continue
-            entries.append([pts, looped, faces])
+            entries.append([pts, looped, faces, st, fixed])
             pol_faces[faces] = True
         for e in entries:
-            pts, looped, faces = e
-            if looped:
+            pts, looped, faces, _st, fixed = e
+            if looped or fixed:
                 continue
             own = set(faces)
             stamp = float(np.median(E_f[faces]))
@@ -1557,8 +1906,8 @@ def complete_crests(energy, feature_scale, bridge_gap):
                         if w[ei] < stamp:
                             w[ei] = stamp
                 e[0], e[2] = pts, faces
-        for pts, looped, faces in entries:
-            out['crest_curves'].append((pts, looped, sign))
+        for pts, looped, faces, st, _fx in entries:
+            out['crest_curves'].append((pts, looped, sign, st))
             all_chains.append((faces, looped, sign))
     cycle_r = np.zeros(nF, bool)
     cycle_v = np.zeros(nF, bool)
@@ -2217,8 +2566,8 @@ def build_crest_curve_object(context, target, crest_curves):
     ''' Publish the marched polylines as a POLY-spline curve object
         ("<target>.CrestCurves", replaced on each run) so the traced
         lines can be inspected directly, independent of any face
-        painting. Loops become cyclic splines. Ridge splines get radius
-        1.0, valleys 0.5 (visible with a curve bevel if wanted). '''
+        painting. Loops become cyclic splines. Bevel radius encodes
+        per-curve CONFIDENCE (sharp chains thick, soft traces thin). '''
     name = f'{target.name}.CrestCurves'
     cd = bpy.data.curves.get(name)
     if cd is None:
@@ -2227,15 +2576,19 @@ def build_crest_curve_object(context, target, crest_curves):
     cd.dimensions = '3D'
     cd.bevel_depth = 0.005
     cd.use_fill_caps = True
-    for pts, looped, sign in crest_curves:
+    for entry in crest_curves:
+        pts, looped, sign = entry[0], entry[1], entry[2]
+        stren = entry[3] if len(entry) > 3 else 4.0
         sp = cd.splines.new('POLY')
         sp.points.add(len(pts) - 1)
         flat = np.empty((len(pts), 4))
         flat[:, :3] = pts
         flat[:, 3] = 1.0
         sp.points.foreach_set('co', flat.ravel())
-        sp.points.foreach_set(
-            'radius', [1.0 if sign > 0 else 0.5] * len(pts))
+        # bevel radius communicates CONFIDENCE: strong features get
+        # thick lines (radius ~ sqrt of the field level in floor units)
+        rad = float(np.clip(0.5 * np.sqrt(max(stren, 0.0)), 0.4, 3.0))
+        sp.points.foreach_set('radius', [rad] * len(pts))
         sp.use_cyclic_u = bool(looped)
     ob = bpy.data.objects.get(name)
     if ob is None or ob.data is not cd:
