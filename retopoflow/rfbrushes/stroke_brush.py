@@ -127,6 +127,8 @@ def create_stroke_brush(
         rail_pt2D : None | Point2D = None  # last point that triggered a rail rebuild
         bme_cache_left : dict = None
         bme_cache_right : dict = None
+        mirror_snaps : list | None = None
+        mirror_sides : list | None = None
 
         @classmethod
         def get_stroke_smooth(cls):
@@ -447,6 +449,8 @@ def create_stroke_brush(
             self.rail_pt2D = None
             self.bme_cache_left = {}
             self.bme_cache_right = {}
+            self.mirror_snaps = None
+            self.mirror_sides = None
 
             self.stroke = None
             self.stroke3D = None
@@ -503,7 +507,7 @@ def create_stroke_brush(
                 self.stroke3D_right = []
 
             if len(self.stroke_original) > 1:
-                # if last two points were too close, so replace last point with current
+                # last two points were too close so replace last point with current
                 pt2D_prev0 = self.stroke_original[-2]
                 pt2D_prev1 = self.stroke_original[-1]
                 if (pt2D_prev0 - pt2D_prev1).length < 2:
@@ -774,11 +778,21 @@ def create_stroke_brush(
 
             # stroke may touch mirror
 
-            snaps = [self.get_snap_mirror(context, co) for co in self.stroke3D_original]
-            sides = [self.get_mirror_side(co)          for co in self.stroke3D_original]
+            # Maintain per-point mirror snaps and sides instead of rebuilding the whole stroke every sample (#1574).
+            if self.mirror_snaps is None:
+                self.mirror_snaps, self.mirror_sides = [], []
+            n = len(self.stroke3D_original)
+            del self.mirror_snaps[n - 1:]
+            del self.mirror_sides[n - 1:]
+            for i in range(len(self.mirror_snaps), n):
+                co = self.stroke3D_original[i]
+                self.mirror_snaps.append(self.get_snap_mirror(context, co))
+                self.mirror_sides.append(self.get_mirror_side(co))
+            mirror_snaps = self.mirror_snaps
+            mirror_sides = self.mirror_sides
 
-            all_sides = set(sides)
-            all_snaps = { tuple(snap) for snap in snaps }
+            all_sides = set(mirror_sides)
+            all_snaps = { tuple(snap) for snap in mirror_snaps }
             if all_snaps == { tuple() } and len(all_sides) == 1:
                 # mirror is there, but the stroke did not touch
                 self.stroke = self.stroke_original
@@ -792,18 +806,18 @@ def create_stroke_brush(
             self.stroke3D = []
             if DEBUG: print(f'0-', end='')
             i0 = 0
-            last_side = sides[0]
+            last_side = mirror_sides[0]
             while i0 < l:
-                if sides[i0] != last_side:
-                    last_side = sides[i0]
-                    if not snaps[i0-1] and not snaps[i0]:  # safe to check i0-1
+                if mirror_sides[i0] != last_side:
+                    last_side = mirror_sides[i0]
+                    if not mirror_snaps[i0-1] and not mirror_snaps[i0]:  # safe to check i0-1
                         # crossed mirror without getting near it
                         if DEBUG: print(f'{i0-1} crossed mirror {i0}-', end='')
                         pt0 = self.stroke3D_original[i0-1]
                         pt1 = self.stroke3D_original[i0]
                         for _ in range(100):
                             pt = pt0 + (pt1 - pt0) * 0.5
-                            (pt0, pt1) = (pt0, pt) if sides[i0] == self.get_mirror_side(pt) else (pt, pt1)
+                            (pt0, pt1) = (pt0, pt) if mirror_sides[i0] == self.get_mirror_side(pt) else (pt, pt1)
                         snap = self.get_snap_mirror(context, pt)  # possible (although unlikely) that snap is empty!
                         self.stroke3D += [pt * Vector((
                             0 if 'x' in snap else 1,
@@ -813,28 +827,28 @@ def create_stroke_brush(
                         i0 += 1
                         continue
 
-                if not snaps[i0] and sides[i0] == last_side:
+                if not mirror_snaps[i0] and mirror_sides[i0] == last_side:
                     # not near mirror and did not cross mirror
                     self.stroke3D += [self.stroke3D_original[i0]]
                     i0 += 1
                     continue
 
                 # near mirror
-                i1 = next((i1 for i1 in range(i0, l-1) if not snaps[i1+1]), l - 1)
+                i1 = next((i1 for i1 in range(i0, l-1) if not mirror_snaps[i1+1]), l - 1)
 
                 if i1 == l - 1:
                     # rest of stroke is near mirror
                     if DEBUG: print(f'{i0} rest near mirror {i1}-', end='')
                     self.stroke3D += [self.stroke3D_original[i0] * Vector((
-                        0 if 'x' in snaps[i0] else 1,
-                        0 if 'y' in snaps[i0] else 1,
-                        0 if 'z' in snaps[i0] else 1,
+                        0 if 'x' in mirror_snaps[i0] else 1,
+                        0 if 'y' in mirror_snaps[i0] else 1,
+                        0 if 'z' in mirror_snaps[i0] else 1,
                     ))]
                     if i0 != i1:
                         self.stroke3D += [self.stroke3D_original[i1] * Vector((
-                            0 if 'x' in snaps[i1] else 1,
-                            0 if 'y' in snaps[i1] else 1,
-                            0 if 'z' in snaps[i1] else 1,
+                            0 if 'x' in mirror_snaps[i1] else 1,
+                            0 if 'y' in mirror_snaps[i1] else 1,
+                            0 if 'z' in mirror_snaps[i1] else 1,
                         ))]
                     break
 
@@ -843,14 +857,14 @@ def create_stroke_brush(
                     if DEBUG: print(f'{i0} stretch near mirror {i1}-', end='')
                     # long stretch of stroke is near mirror, so snap it all
                     self.stroke3D += [self.stroke3D_original[i0] * Vector((
-                        0 if 'x' in snaps[i0] else 1,
-                        0 if 'y' in snaps[i0] else 1,
-                        0 if 'z' in snaps[i0] else 1,
+                        0 if 'x' in mirror_snaps[i0] else 1,
+                        0 if 'y' in mirror_snaps[i0] else 1,
+                        0 if 'z' in mirror_snaps[i0] else 1,
                     ))]
                     self.stroke3D += [self.stroke3D_original[i1] * Vector((
-                        0 if 'x' in snaps[i1] else 1,
-                        0 if 'y' in snaps[i1] else 1,
-                        0 if 'z' in snaps[i1] else 1,
+                        0 if 'x' in mirror_snaps[i1] else 1,
+                        0 if 'y' in mirror_snaps[i1] else 1,
+                        0 if 'z' in mirror_snaps[i1] else 1,
                     ))]
                     i0 = i1 + 1
                     continue
@@ -862,9 +876,9 @@ def create_stroke_brush(
                 if DEBUG: print(f'{i0} cross/bounce at {i_min} {i1}-', end='')
                 pt = self.stroke3D_original[i_min]
                 self.stroke3D += [pt * Vector((
-                    0 if 'x' in snaps[i0] else 1,
-                    0 if 'y' in snaps[i0] else 1,
-                    0 if 'z' in snaps[i0] else 1,
+                    0 if 'x' in mirror_snaps[i0] else 1,
+                    0 if 'y' in mirror_snaps[i0] else 1,
+                    0 if 'z' in mirror_snaps[i0] else 1,
                 ))]
                 i0 = i1 + 1
             if DEBUG: print(f'{l-1}')
