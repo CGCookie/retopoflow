@@ -33,7 +33,7 @@ from collections.abc import Callable
 from ..common.bmesh import get_bmesh_emesh
 from ..common.drawing import Drawing
 from ..common.maths import view_right_direction, xform_direction, proportional_edit
-from ..common.raycast import raycast_point_valid_sources, nearest_point_valid_sources, mouse_from_event
+from ..common.raycast import raycast_point_valid_sources, nearest_point_valid_sources, iter_all_valid_sources, mouse_from_event
 from ..common.operator import RFOperator, RFKeyMaps, execute_operator, Operator_Execute_Function
 from ..rfoverlay_base import RFOverlay_Base
 from ..rfglobals import RFGlobals
@@ -246,6 +246,10 @@ def create_curve_edit_operator(
 
             self.bm, self.em = get_bmesh_emesh(context, ensure_lookup_tables=True)
             self.M, self.Mi = M, Mi
+            self.sources = [
+                (obj, obj.matrix_world, (mi := obj.matrix_world.inverted_safe()), mi.to_3x3())
+                for obj in iter_all_valid_sources(context)
+            ]
             self.right = xform_direction(Mi, view_right_direction(context))
             self.spline.tessellate_uniform()
 
@@ -1109,7 +1113,7 @@ def create_curve_edit_operator(
                 if zero['y']: co.y, d = co.y * 0.95, max(abs(co.y), d)
                 if zero['z']: co.z, d = co.z * 0.95, max(abs(co.z), d)
                 co_world = M @ Vector((*co, 1.0))
-                co_world_snapped = nearest_point_valid_sources(context, co_world.xyz / co_world.w, world=True, respect_clip_planes=True)
+                co_world_snapped = nearest_point_valid_sources(context, co_world.xyz / co_world.w, world=True, sources=self.sources, respect_clip_planes=True)
                 if not co_world_snapped: break
                 co = Mi @ co_world_snapped
                 if d < 0.001: break  # break out if change was below threshold
@@ -1134,7 +1138,7 @@ def create_curve_edit_operator(
             _relax_interior_verts(bm, interior, iterations)
             for idx in interior['indices']:
                 bmv = bm.verts[idx]
-                co = nearest_point_valid_sources(context, bmv.co, world=False, respect_clip_planes=True) or bmv.co
+                co = nearest_point_valid_sources(context, bmv.co, world=False, sources=self.sources, respect_clip_planes=True) or bmv.co
                 bmv.co = self._mirror_clamp(context, co, interior['orig_co'][idx], self.M, self.Mi)
 
         def update(self, context, event):
@@ -1191,7 +1195,7 @@ def create_curve_edit_operator(
             self._deform_verts(context, self.spline)
             self._relax_interior(context, INTERIOR_RELAX_ITERATIONS)
 
-            bmesh.update_edit_mesh(em)
+            bmesh.update_edit_mesh(em, loop_triangles=False)
             context.area.tag_redraw()
             return {'RUNNING_MODAL'}
 
@@ -1431,7 +1435,7 @@ def create_curve_edit_operator(
                 bmv = bm.verts[bmv_idx]
                 pt_edit_new = M @ (o + d_final)
                 pt_edit_new = pt_edit_orig + (pt_edit_new - pt_edit_orig) * factor
-                co = nearest_point_valid_sources(context, pt_edit_new, world=False, respect_clip_planes=True) or pt_edit_orig
+                co = nearest_point_valid_sources(context, pt_edit_new, world=False, sources=self.sources, respect_clip_planes=True) or pt_edit_orig
                 bmv.co = self._mirror_clamp(context, co, pt_edit_orig, M, Mi)
 
         def draw_curve(self, context):

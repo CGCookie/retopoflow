@@ -529,7 +529,6 @@ def create_stroke_brush(
                 or len(self.stroke_original) != self.rail_len
                 or (pt2D - self.rail_pt2D).length >= RF_Prefs.get_prefs(context).stroke_min_distance
             ):
-                # TODO: only update the last little bit.  once stroke is sufficiently long, do not need to recheck that part
                 self.rail_len = len(self.stroke_original)
                 self.rail_pt2D = pt2D
 
