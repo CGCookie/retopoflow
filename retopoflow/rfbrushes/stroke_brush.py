@@ -123,6 +123,8 @@ def create_stroke_brush(
         nearest_bmv : None | NearestBMVert = None
         nearest_bme : None | NearestBMEdge = None
         nearest_bmf : None | NearestBMFace = None
+        rail_len : int = 0                 # stroke length at the last left/right rail rebuild
+        rail_pt2D : None | Point2D = None  # last point that triggered a rail rebuild
 
         @classmethod
         def get_stroke_smooth(cls):
@@ -380,7 +382,8 @@ def create_stroke_brush(
                 elif event.value == 'RELEASE':
                     if self.is_stroking():
                         # only add final mouse position if it is over source
-                        self.add_stroke_point(context, Point2D(self.mouse))
+                        # force a final rail rebuild so the committed geometry isn't stale
+                        self.add_stroke_point(context, Point2D(self.mouse), force_rail=True)
 
                         self.process_stroke(context)
 
@@ -438,6 +441,9 @@ def create_stroke_brush(
             self.stroke_normal = None
             self.stroke_dist = None
 
+            self.rail_len = 0
+            self.rail_pt2D = None
+
             self.stroke = None
             self.stroke3D = None
 
@@ -454,7 +460,7 @@ def create_stroke_brush(
             self.stroke3D_right_start = None
             self.stroke3D_right_end = None
 
-        def add_stroke_point(self, context, pt2D):
+        def add_stroke_point(self, context, pt2D, *, force_rail=False):
             hit = raycast_valid_sources(context, pt2D, respect_clip_planes=True)
             if not hit: return False
 
@@ -493,8 +499,16 @@ def create_stroke_brush(
             self.stroke_dist       += [hit['distance']]
             self.snap_mirror_all = False
 
-            if draw_leftright:
+            # Only rail rebuild on final / commit point, a new stroke point, or the last point drifting past the sample distance. (#1574)
+            if draw_leftright and (
+                force_rail
+                or self.rail_pt2D is None
+                or len(self.stroke_original) != self.rail_len
+                or (pt2D - self.rail_pt2D).length >= RF_Prefs.get_prefs(context).stroke_min_distance
+            ):
                 # TODO: only update the last little bit.  once stroke is sufficiently long, do not need to recheck that part
+                self.rail_len = len(self.stroke_original)
+                self.rail_pt2D = pt2D
 
                 self.stroke3D_left, self.stroke3D_right  = [], []
 
