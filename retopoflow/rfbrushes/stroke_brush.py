@@ -125,6 +125,8 @@ def create_stroke_brush(
         nearest_bmf : None | NearestBMFace = None
         rail_len : int = 0                 # stroke length at the last left/right rail rebuild
         rail_pt2D : None | Point2D = None  # last point that triggered a rail rebuild
+        bme_cache_left : dict = None
+        bme_cache_right : dict = None
 
         @classmethod
         def get_stroke_smooth(cls):
@@ -443,6 +445,8 @@ def create_stroke_brush(
 
             self.rail_len = 0
             self.rail_pt2D = None
+            self.bme_cache_left = {}
+            self.bme_cache_right = {}
 
             self.stroke = None
             self.stroke3D = None
@@ -459,6 +463,21 @@ def create_stroke_brush(
             self.stroke3D_left_end = None
             self.stroke3D_right_start = None
             self.stroke3D_right_end = None
+
+        def nearest_bme_cached(self, context, cache, i0, pt, radius3D):
+            entry = cache.get(i0)
+            if entry is not None:
+                cached_pt, cached_radius, cached_bme = entry
+                if (cached_pt - pt).length < 1e-6 and cached_radius == radius3D and (cached_bme is None or cached_bme.is_valid):
+                    return cached_bme
+            bme = self.nearest_bme.update(
+                context, pt,
+                filter_fn=(lambda bme: (bme.is_boundary or bme.is_wire)),
+                ignore_selected=False,
+                distance=radius3D,
+            )
+            cache[i0] = (pt.copy(), radius3D, bme)
+            return bme
 
         def add_stroke_point(self, context, pt2D, *, force_rail=False):
             hit = raycast_valid_sources(context, pt2D, respect_clip_planes=True)
@@ -590,12 +609,7 @@ def create_stroke_brush(
                     i1 = -1
                     for (i0, ptcur) in enumerate(self.stroke3D_left):
                         if i0 <= i1: continue
-                        bme = self.nearest_bme.update(
-                            context, ptcur,
-                            filter_fn=(lambda bme: (bme.is_boundary or bme.is_wire)), # and not is_bmedge_hidden(context, bme)),
-                            ignore_selected=False,
-                            distance=radius3D,
-                        )
+                        bme = self.nearest_bme_cached(context, self.bme_cache_left, i0, ptcur, radius3D)
                         if not bme or bme in snap_bmes:
                             cleft += [ptcur]
                             continue
@@ -650,12 +664,7 @@ def create_stroke_brush(
                     i1 = -1
                     for (i0, ptcur) in enumerate(self.stroke3D_right):
                         if i0 <= i1: continue
-                        bme = self.nearest_bme.update(
-                            context, ptcur,
-                            filter_fn=(lambda bme: (bme.is_boundary or bme.is_wire)), # and not is_bmedge_hidden(context, bme)),
-                            ignore_selected=False,
-                            distance=radius3D,
-                        )
+                        bme = self.nearest_bme_cached(context, self.bme_cache_right, i0, ptcur, radius3D)
                         if not bme or bme in snap_bmes:
                             cright += [ptcur]
                             continue
