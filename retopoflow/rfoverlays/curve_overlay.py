@@ -68,6 +68,9 @@ SEGMENT_KEEP_FIT_TOLERANCE = 1
 # min seconds between rebuilds from a UI slider drag
 TUNABLE_REBUILD_THROTTLE = 0.1
 
+MAX_HANDLE_VERTS = 250
+MAX_HANDLE_SEGMENTS = 25
+
 
 def _internal_bl_idname(dotted_idname : str) -> str:
     category, _, name = dotted_idname.partition('.')
@@ -262,6 +265,9 @@ def create_curve_overlay(
             self.chains = []
             self.label_data = []
 
+            if context.edit_object.data.total_vert_sel > MAX_HANDLE_VERTS:
+                return True
+
             bm, _ = get_bmesh_emesh(context, ensure_lookup_tables=True)
 
             # Providers tried in priority order, first one found wins
@@ -275,6 +281,13 @@ def create_curve_overlay(
             active_keys = set()
             for spec in specs:
                 self._add_chain(spec, bend_tolerance_factor=bend_tolerance_factor, sharp_angle=sharp_angle, active_keys=active_keys)
+
+            # Hide handles when there are too many segments to be usable
+            if sum(len(spline.cbs) for spline in self.curves) > MAX_HANDLE_SEGMENTS:
+                self.curves = []
+                self.chains = []
+                self.label_data = []
+                return True
 
             # drop cached structure for chains that are no longer selected
             self._curve_struct_cache = {
