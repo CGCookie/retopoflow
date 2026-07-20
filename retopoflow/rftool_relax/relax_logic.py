@@ -1645,17 +1645,29 @@ class Relax_Logic:
 
                 co_world_snapped = None
                 if self.source_edge_accel and displace_vec.length > 1e-6:
-                    # For better snapping, project the vert using raycasting instead of nearest face if possible
+                    # Reproject onto the source by casting both ways along the vert normal and taking the nearest hit.
+                    # Fixes verts on feaure lines jumping off and onto the nearest adjacent surface.
                     co_pt = point_to_bvec3(co_world.xyz)
-                    normal_world = (M.to_3x3() @ bmv.normal).normalized()
+                    normal_world = (Mi.transposed().to_3x3() @ bmv.normal).normalized()
+                    best_dist = inf
                     for obj, M_obj, Mi_obj, Mi_obj_3x3 in self.sources:
                         ray_o  = (Mi_obj @ Vector((*co_pt, 1.0))).xyz
                         ray_d  = (Mi_obj_3x3 @ normal_world).normalized()
-                        result, co_hit, _, _ = obj.ray_cast(ray_o, ray_d)
-                        if result:
-                            co_world_snapped = point_to_bvec3((M_obj @ Vector((*co_hit, 1.0))).xyz)
-                            break
+                        for d in (ray_d, -ray_d):
+                            result, co_hit, _, _ = obj.ray_cast(ray_o, d)
+                            if not result:
+                                continue
+                            hit_world = point_to_bvec3((M_obj @ Vector((*co_hit, 1.0))).xyz)
+                            dist = (Vector(hit_world) - Vector(co_pt)).length
+                            if dist < best_dist:
+                                best_dist = dist
+                                co_world_snapped = hit_world
+                    # Revert to nearest surface when the raycast is implausibly far
+                    MAX_PROJECT_DISTANCE = 1.0  # in world space avg edge lengths
+                    if co_world_snapped and best_dist > get_bmv_avg_edge_len(bmv) * self.scale_avg * MAX_PROJECT_DISTANCE:
+                        co_world_snapped = None
                 if not co_world_snapped:
+                    # Feature snapping is off or both rays missed
                     co_world_snapped = nearest_point_valid_sources(
                         context, point_to_bvec3(co_world.xyz), world=True, sources=self.sources, respect_clip_planes=True
                     )

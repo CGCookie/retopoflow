@@ -49,6 +49,7 @@ This document contains details about what has changed in Retopoflow in version 4
 - Tools statusbar now shows the result of Blender operations such as Merge by Distance
 - Added new custom icon for Loops tweaking in tool header
 - Cleaned up tool header UI
+- Fixed performance issues when using some pen tablets or non-official Blender distributions
 - Fixed proportional editing circle size and location
 - Fixed non-uniform scale issues when drawing in PolyStrips
 
