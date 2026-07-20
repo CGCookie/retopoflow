@@ -1381,7 +1381,7 @@ class PP_Logic:
                 if self.state == PP_Action.VERT_EDGE and self.bmv:
                     splits.extend(find_bmedges_to_split(context, self.matrix_world, self.bmv, p0, pt, self.vec_forward if self.ignore_splitting_backfaces else None))
                 elif self.bme:  # elif self.state == PP_Action.EDGE_SPLIT_EDGE:
-                    splits.extend(find_bmedges_to_split(context, self.matrix_world, self.bme, p0, pt, self.vec_forward if self.ignore_splitting_backfaces else None))
+                    splits.extend(find_bmedges_to_split(context, self.matrix_world, self.bme, p0, pt, None))
 
                 if self.nearest.bmv:
                     splits = [
@@ -1807,12 +1807,12 @@ class PP_Logic:
                 p0 = self.project(co)
                 pt = self.project(self.hit)
 
-                splits = find_bmedges_to_split(context, self.matrix_world, self.bme, p0, pt, self.vec_forward if self.ignore_splitting_backfaces else None)
+                splits = find_bmedges_to_split(context, self.matrix_world, self.bme, p0, pt, None)
                 create_wire = True
                 if self.nearest.bmv:
                     # hovering bmvert, so do not make final split
                     bmes = set(self.nearest.bmv.link_edges)
-                    while splits[-1][0] in bmes:
+                    while splits and splits[-1][0] in bmes:
                         splits.pop()
                     create_wire = False
                 elif self.nearest_bme.bme:
@@ -1826,12 +1826,19 @@ class PP_Logic:
                     if bmv_from: connect_verts(self.bm, verts=[bmv_from, bmv_split])
                     bmv_from = bmv_split
 
+                if bmv_from is None:
+                    # nothing was split, e.g. hovered vert is an endpoint of selected edge
+                    return
+
                 if create_wire:
                     bmv1 = self.bm.verts.new(self.hit)  # self.hit is on surface
                     self.bm.edges.new((bmv_from, bmv1))
-                else:
+                elif self.nearest.bmv:
                     connect_verts(self.bm, verts=[bmv_from, self.nearest.bmv])
                     bmv1 = self.nearest.bmv
+                else:
+                    # hovering an edge/face rather than a vert: the split chain already ends at bmv_from
+                    bmv1 = bmv_from
 
                 select_now = [bmv1]
                 select_later = []
