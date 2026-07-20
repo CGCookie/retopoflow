@@ -23,7 +23,7 @@ import bmesh
 import bpy
 from bmesh.types import BMesh, BMVert, BMEdge
 from bpy.types import Context, Event, Region, RegionView3D, Mesh, PropertyGroup
-from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_origin_3d, region_2d_to_vector_3d
+from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_origin_3d, region_2d_to_vector_3d, region_2d_to_location_3d
 from mathutils import Vector, Matrix
 
 import math
@@ -483,6 +483,27 @@ class Tweak_Logic(SourceSnapMixin):
         p = self.project_pt(context, bmv.co)
         return p.xy if p else None
 
+    def _raycast_capped(self, context, bmv, screen_xy):
+        ''' Screen space project bmv onto the source, with protections for snapping to far away surfaces.
+        Returns a local-space co, or None. '''
+        M = self.matrix_world
+        hit = raycast_valid_sources(context, screen_xy, respect_clip_planes=True)
+        cur_world = M @ bmv.co
+        if hit:
+            cap = self.brush.get_scaled_radius()
+            if cap <= 0 or (Vector(hit['co_world']) - cur_world).length <= cap:
+                return hit['co_local']
+        # Fall back to nearest-surface projection at the vert's current view depth.
+        co_plane = region_2d_to_location_3d(context.region, context.region_data, screen_xy, cur_world)
+        if co_plane:
+            snapped = nearest_point_valid_sources(
+                context, point_to_bvec3(co_plane), world=True, sources=self.sources, respect_clip_planes=True
+            )
+            if snapped:
+                return self.matrix_world_inv @ snapped
+        # Nothing better available: keep the raw hit if there was one, else signal no-move.
+        return hit['co_local'] if hit else None
+
 
     # -------------------------------------------------------------------------
     # Masking helpers (used by nudge / pinch sweeps)
@@ -908,9 +929,8 @@ class Tweak_Logic(SourceSnapMixin):
                             new_co = p
             else:
                 cur_xy = self.project_bmv(context, bmv) or xy
-                new_co = raycast_valid_sources(context, cur_xy + delta * effective_strength * pressure, respect_clip_planes=True)
-                if not new_co: continue
-                new_co = new_co['co_local']
+                new_co = self._raycast_capped(context, bmv, cur_xy + delta * effective_strength * pressure)
+                if new_co is None: continue
                 if self.mask_opt('seams') == 'SLIDE' and bmv in self.seam_verts:
                     if self.seam_accel:
                         p = self.seam_accel.closest_point(new_co)
@@ -930,13 +950,13 @@ class Tweak_Logic(SourceSnapMixin):
                 if self.source_edge_accel:
                     snap_new_co = new_co
                     if is_nudge:
-                        # In Nudge the per-frame move differs from the brush move and we need the distance travelled per-vert
-                        grab_hit = raycast_valid_sources(context, cur_xy + delta * strength * pressure, respect_clip_planes=True)
-                        if grab_hit:
-                            snap_new_co = grab_hit['co_local']
-                    # Velocity-independent release signal: where the vert would be if unconstrained over the whole stroke
-                    free_hit = raycast_valid_sources(context, xy + (mouse - self.mouse) * strength * pressure, respect_clip_planes=True)
-                    free_co = free_hit['co_local'] if free_hit else None
+                        # In Nudge the per-frame move differs from the brush move and we need the distance travelled per-vert.
+                        capped = self._raycast_capped(context, bmv, cur_xy + delta * strength * pressure)
+                        if capped is not None:
+                            snap_new_co = capped
+                    # Velocity-independent release signal: where the vert would be if unconstrained over the whole stroke.
+                    # Capped too, so a snapped vert doesn't teleport to a background object the moment it releases.
+                    free_co = self._raycast_capped(context, bmv, xy + (mouse - self.mouse) * strength * pressure)
                     new_co = self.snap_to_source_feature(bmv, snap_new_co, strength, context, delta * strength * pressure, mouse - self.mouse, free_co)
 
             if self.mirror:
@@ -983,7 +1003,10 @@ class Tweak_Logic(SourceSnapMixin):
             prev_hit = raycast_valid_sources(context, self.mouse_prev, respect_clip_planes=True)
             if curr_hit and prev_hit:
                 d3 = Vector(curr_hit['co_world']) - Vector(prev_hit['co_world'])
-                if d3.length > 1e-8:
+                # Reject a movement spike from a bad projection
+                world_per_px = self.brush.hit_scale or 0.0
+                spike = world_per_px > 0.0 and d3.length > delta.length * world_per_px * 3.0
+                if d3.length > 1e-8 and not spike:
                     delta_3d = d3
             self._smudge_sweep(context, mouse, delta, delta_3d, pressure, pre_frame_world)
         elif is_pinch_magnify:
@@ -1155,6 +1178,9 @@ class Tweak_Logic(SourceSnapMixin):
             else:
                 push_3d = delta_3d * t * brush_strength * pressure
 
+            # Cap the per-frame push to one brush radius
+            if push_3d.length > radius3D:
+                push_3d = push_3d * (radius3D / push_3d.length)
             new_vert_world = (M @ bmv.co) + push_3d
             new_pt = nearest_point_valid_sources(context, point_to_bvec3(new_vert_world), world=True, sources=self.sources, respect_clip_planes=True)
             if new_pt is None:
@@ -1233,10 +1259,9 @@ class Tweak_Logic(SourceSnapMixin):
 
             push_2d = radial_dir_2d * delta.length * t * brush_strength * pressure * perp_weight * 0.25
 
-            new_hit = raycast_valid_sources(context, cur_2d + push_2d, respect_clip_planes=True)
-            if not new_hit:
+            new_co = self._raycast_capped(context, bmv, cur_2d + push_2d)
+            if new_co is None:
                 continue
-            new_co = Vector(new_hit['co_local'])
             new_co = self._apply_slide_constraints(bmv, new_co)
             new_co = self._apply_mirror_clip(context, bmv, new_co)
             bmv.co = new_co
