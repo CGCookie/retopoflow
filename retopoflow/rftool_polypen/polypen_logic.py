@@ -106,14 +106,23 @@ class PP_Action(ValueIntEnum):
 
 
 # States that place a new vert freely on the source surface at the mouse position.
-# Only these get snapped to nearby source features -- the knife/split states keep the
-# new vert constrained to the mesh edge being cut, so feature snapping must not touch them.
 PP_FEATURE_SNAP_STATES = frozenset({
     PP_Action.VERT,
     PP_Action.VERT_EDGE,
     PP_Action.EDGE_TRI,
     PP_Action.EDGE_QUAD,
     PP_Action.TRI_QUAD,
+})
+
+# Knife states that create verts on cut mesh edges.
+PP_KNIFE_SNAP_STATES = frozenset({
+    PP_Action.SPLIT_EDGE,
+    PP_Action.EDGE_SPLIT_EDGE,
+    PP_Action.SPLIT_QUAD,
+    PP_Action.SPLIT_QUAD_CENTER,
+    PP_Action.SPLIT_QUAD_EDGES,
+    PP_Action.VERT_SPLIT_EDGE,
+    PP_Action.WIRE_SPLIT_EDGE_FACE,
 })
 
 
@@ -490,7 +499,7 @@ class PP_Logic:
 
     def feature_ref_len(self) -> float:
         ''' Local space edge length used to scale the feature snap radius, taken from the
-        geometry the new vert connects to so the proximity tracks the surrounding retopo density. '''
+        geometry the new vert connects to / cuts so the proximity tracks the surrounding retopo density. '''
         match self.state:
             case PP_Action.EDGE_TRI | PP_Action.EDGE_QUAD | PP_Action.TRI_QUAD:
                 if self.bme and self.bme.is_valid:
@@ -498,23 +507,52 @@ class PP_Logic:
             case PP_Action.VERT_EDGE:
                 if self.bmv and self.bmv.is_valid:
                     return get_bmv_avg_edge_len(self.bmv)
-        # VERT (detached) and any fallback: scale off the nearest existing geometry to the cursor
+        # knife states, detached vert, and any fallback: scale off the edge being cut or nearby geometry
         if self.nearest_bme and self.nearest_bme.bme:
             return bme_length(self.nearest_bme.bme)
+        if self.bme and self.bme.is_valid:
+            return bme_length(self.bme)
         if self.nearest and self.nearest.bmv:
             return get_bmv_avg_edge_len(self.nearest.bmv)
+        if self.bmv and self.bmv.is_valid:
+            return get_bmv_avg_edge_len(self.bmv)
         return 0.0
 
-    def apply_feature_snap(self, context : Context):
-        ''' Snap the free on-surface vert placements for the current state onto nearby source
-        features, so both the preview and the commit land on sharp edges/corners. '''
-        if self.state not in PP_FEATURE_SNAP_STATES: return
+    def refresh_feature_accel(self, context : Context) -> bool:
+        ''' Refresh source_accel and feature_radius for the current state. Returns True when
+        feature snapping is active: an accel exists and the radius is positive. '''
         self.source_accel = SourceCache.get(context)
-        if not self.source_accel: return
+        if not self.source_accel:
+            self.feature_radius = 0.0
+            return False
         scale_avg = sum(self.matrix_world.to_scale()) / 3
         proximity = getattr(context.scene.retopoflow.snapping, 'source_edge_proximity', 0.25)
         self.feature_radius = self.feature_ref_len() * scale_avg * proximity
-        if self.feature_radius <= 0: return
+        return self.feature_radius > 0
+
+    def feature_snapping_active(self) -> bool:
+        return bool(self.source_accel) and self.feature_radius > 0
+
+    def feature_snap_pt2d(self, context : Context, pt2d : Vector | None) -> Vector | None:
+        ''' Feature-snap a 2D cut/crossing point by raycasting it to the surface,
+        snapping to the nearest feature, and reprojecting. '''
+        if not pt2d or not self.feature_snapping_active():
+            return pt2d
+        if hit := raycast_valid_sources(context, pt2d, respect_clip_planes=True):
+            snapped = self.snap_co_to_feature(hit['co_local'])
+            if p := self.project(snapped):
+                return p
+        return pt2d
+
+    def apply_feature_snap(self, context : Context):
+        ''' Refresh the feature accel/radius for the current state and, for the extrude states, snap the placements onto nearby features.
+        Knife states only need the accel/radius refreshed here as their individual verts are snapped when created or drawn. '''
+        if self.state not in PP_FEATURE_SNAP_STATES and self.state not in PP_KNIFE_SNAP_STATES:
+            return
+        if not self.refresh_feature_accel(context):
+            return
+        if self.state not in PP_FEATURE_SNAP_STATES:
+            return
 
         if self.state == PP_Action.EDGE_QUAD:
             # the two far verts of the quad are the free placements (unless snapped to a vert)
@@ -1195,6 +1233,7 @@ class PP_Logic:
                 pt = self.nearest_bme.co2d
                 p0, p1 = self.project(bmv0.co), self.project(bmv1.co)
                 if not pt or not p0 or not p1: return
+                pt = self.feature_snap_pt2d(context, pt)  # preview lands on a feature
                 # pt = self.project(self.bme)
                 d01 = (p1 - p0).normalized() * scaled_8px
 
@@ -1226,11 +1265,11 @@ class PP_Logic:
                     pt = self.project(bmv_start.co)
                     pts.append(pt)
                 for (bmv0, bmv1) in self.split_info['bmvs split']:
-                    co = bmv0.co + v * (bmv1.co - bmv0.co)
+                    co = self.snap_co_to_feature(bmv0.co + v * (bmv1.co - bmv0.co))
                     pt = self.project(co)
                     pts.append(pt)
                 if self.split_info['wire']:
-                    pts.append(self.mouse)
+                    pts.append(self.feature_snap_pt2d(context, self.mouse))
                 if bmv_end:
                     pt = self.project(bmv_end.co)
                     pts.append(pt)
@@ -1301,6 +1340,11 @@ class PP_Logic:
 
                 po, pc = find_opposite_and_center_split_quad()
 
+                # feature snap the drawn new verts. po is an existing vert, so it is left alone
+                p0 = self.feature_snap_pt2d(context, p0)
+                p1 = self.feature_snap_pt2d(context, p1)
+                pc = self.feature_snap_pt2d(context, pc)
+
                 ## pt = self.project(self.bme)
                 d01 = (p1 - p0).normalized() * scaled_8px
 
@@ -1318,7 +1362,7 @@ class PP_Logic:
                         draw.vertex(po)
                         draw.vertex(pc)
                     for _,p in splits:
-                        draw.vertex(p)
+                        draw.vertex(self.feature_snap_pt2d(context, p))
 
                 with Drawing.draw(context, CC_2D_LINES) as draw:
                     draw.line_width(2)
@@ -1405,6 +1449,7 @@ class PP_Logic:
                     if bme != self.nearest_bme.bme
                 ]
 
+                pt = self.feature_snap_pt2d(context, pt)
                 # pt = self.project(self.bme)
                 d01 = (p1 - p0).normalized() * scaled_8px
 
@@ -1423,7 +1468,7 @@ class PP_Logic:
                         draw.vertex(po)
                         draw.vertex(pnn)
                     for (_,p) in splits:
-                        draw.vertex(p)
+                        draw.vertex(self.feature_snap_pt2d(context, p))
 
                 with Drawing.draw(context, CC_2D_LINES) as draw:
                     draw.line_width(2)
@@ -1496,7 +1541,9 @@ class PP_Logic:
 
                     if not self.nearest.bmv:
                         draw.color(color_border_open)
-                        draw.vertex(pt)
+                        # VERT_EDGE's endpoint already went through the guarded self.hit snap so only the
+                        # knife wire endpoint needs a plain feature snap here.
+                        draw.vertex(self.feature_snap_pt2d(context, pt) if self.state == PP_Action.EDGE_SPLIT_EDGE else pt)
 
                     draw.border(width=2, color=color_point)
                     draw.color(color_stipple)
@@ -1506,7 +1553,7 @@ class PP_Logic:
                         draw.vertex(po)
                         draw.vertex(pnn)
                     for _,p in splits:
-                        draw.vertex(p)
+                        draw.vertex(self.feature_snap_pt2d(context, p))
 
                 if diff.length > scaled_8px:
                     with Drawing.draw(context, CC_2D_LINES) as draw:
@@ -1738,7 +1785,8 @@ class PP_Logic:
         # make sure artist can see the vert
         context.tool_settings.mesh_select_mode[0] = True
 
-        snap_verts = []     # to be snapped before wrapping up commit
+        snap_verts = []          # to be snapped to the surface (or a feature, in knife states) before wrapping up
+        feature_snap_verts = []  # already surface-positioned (view-ray/wire) knife verts: feature snap only, no reproject
         select_now = []     # to be selected before move
         select_later = []   # to be selected after move
         free_move = not self.constrain_edge_vert
@@ -1805,6 +1853,7 @@ class PP_Logic:
                         _, bmv_new = edge_split(bme, bme.verts[0], 0.5)
                         if pt3d := raycast_point_valid_sources(context, pt, respect_clip_planes=True):     # raycast to surface
                             bmv_new.co = self.matrix_world_inv @ pt3d
+                        feature_snap_verts.append(bmv_new)
                         connect_verts(self.bm, verts=[bmv_from, bmv_new])   # pyright: ignore [reportUnusedCallResult]
                         bmv_from = bmv_new
                     if bmvs_share_bmf(bmv_from, bmv1_new):
@@ -1836,6 +1885,7 @@ class PP_Logic:
                 if self.split_info['wire']:
                     bmv_new = self.bm.verts.new(self.hit)  # self.hit is on surface
                     bme_new = self.bm.edges.new((bmv_new, bmvs_new[-1]))
+                    feature_snap_verts.append(bmv_new)
                     select_now = [bmv_new]
                     free_move = True
                 elif bmv_end:
@@ -1884,6 +1934,7 @@ class PP_Logic:
                 if co0:  bmv0_new.co = co0                              # raycast to surface
                 if co1:  bmv1_new.co = co1                              # raycast to surface
                 bmv_new = self.bm.verts.new(conn if conn else bmvc.co)  # raycast to surface
+                feature_snap_verts.extend([bmv0_new, bmv1_new, bmv_new])
 
                 # split bmf into 3 quads
                 self.bm.faces.remove(bmf)
@@ -1927,6 +1978,7 @@ class PP_Logic:
                     _, bmv_split = edge_split(bme_split, bme_split.verts[0], 0.5)
                     if rc := raycast_point_valid_sources(context, pt_split, respect_clip_planes=True):
                         bmv_split.co = self.matrix_world_inv @ rc  # raycast to surface
+                    feature_snap_verts.append(bmv_split)
                     if bmv_from: connect_verts(self.bm, verts=[bmv_from, bmv_split])
                     bmv_from = bmv_split
 
@@ -1937,6 +1989,7 @@ class PP_Logic:
                 if create_wire:
                     bmv1 = self.bm.verts.new(self.hit)  # self.hit is on surface
                     self.bm.edges.new((bmv_from, bmv1))
+                    feature_snap_verts.append(bmv1)
                 elif self.nearest.bmv:
                     connect_verts(self.bm, verts=[bmv_from, self.nearest.bmv])
                     bmv1 = self.nearest.bmv
@@ -2020,6 +2073,7 @@ class PP_Logic:
                         _, bmv_split = edge_split(bme_split, bme_split.verts[0], 0.5)
                         if rc := raycast_point_valid_sources(context, pt_split, respect_clip_planes=True):
                             bmv_split.co = self.matrix_world_inv @ rc  # raycast to surface
+                        feature_snap_verts.append(bmv_split)
                         connect_verts(self.bm, verts=[bmv_from, bmv_split])
                         if bmv_first_new is None: bmv_first_new = bmv_split
                         bmv_from = bmv_split
@@ -2072,6 +2126,7 @@ class PP_Logic:
                     _, bmv_new = edge_split(bme, bmev0, 0.5)
                     if not self.constrain_edge_vert:
                         bmv_new.co = self.hit
+                        feature_snap_verts.append(bmv_new)
                     else:
                         d = (bmev1.co - bmev0.co).normalized()
                         v = d * d.dot(self.hit - bmev0.co)
@@ -2143,6 +2198,7 @@ class PP_Logic:
                 _, bmv_new = edge_split(self.nearest_bme.bme, bmev0, 0.5)
                 if not self.constrain_edge_vert:
                     bmv_new.co = self.hit
+                    feature_snap_verts.append(bmv_new)
                 else:
                     d = (bmev1.co - bmev0.co).normalized()
                     v = d * d.dot(self.hit - bmev0.co)
@@ -2168,6 +2224,7 @@ class PP_Logic:
                         _, bmv_split = edge_split(bme_split, bme_split.verts[0], 0.5)
                         if rc := raycast_point_valid_sources(context, pt_split, respect_clip_planes=True):
                             bmv_split.co = self.matrix_world_inv @ rc  # raycast to surface
+                        feature_snap_verts.append(bmv_split)
                         connect_verts(self.bm, verts=[bmv_from, bmv_split])
                         if bmv_first_new is None: bmv_first_new = bmv_split
                         bmv_from = bmv_split
@@ -2286,10 +2343,23 @@ class PP_Logic:
             case _:
                 assert False, f'Unhandled PolyPen state {PP_Action[self.state]}'
 
+        # In knife states, try a full feature snap first, otherwise project to surface.
+        knife_snap = self.state in PP_KNIFE_SNAP_STATES and self.feature_snapping_active()
         for bmv in snap_verts:
             if not bmv.is_valid: continue
+            if knife_snap:
+                snapped_co = self.snap_co_to_feature(bmv.co)
+                if (snapped_co - bmv.co).length > 1e-9:
+                    bmv.co = snapped_co  # feature points are already on the surface
+                    continue
             if snapped := nearest_point_valid_sources(context, self.matrix_world @ bmv.co, respect_clip_planes=True):
                 bmv.co = self.matrix_world_inv @ snapped
+
+        # view-ray/wire knife verts are already on the surface: only pull them onto a feature if in range.
+        if self.feature_snapping_active():
+            for bmv in feature_snap_verts:
+                if bmv.is_valid:
+                    bmv.co = self.snap_co_to_feature(bmv.co)
 
         bmops.deselect_all(self.bm)
         for bmelem in select_now:
