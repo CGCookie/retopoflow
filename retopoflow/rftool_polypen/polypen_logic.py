@@ -357,7 +357,7 @@ def bme_is_interior(bme : BMEdge) -> bool:
     return len(bme.link_faces) >= 2
 
 def bmv_is_interior(bmv : BMVert) -> bool:
-    return not bmv.is_wire and not bmv.is_boundary
+    return bool(bmv.link_faces) and not bmv.is_wire and not bmv.is_boundary
 
 
 class PP_Logic:
