@@ -171,15 +171,27 @@ class SourceSnapMixin:
             snap_in_radius = self.stroke_snap_radius
             release_radius = self.stroke_snap_radius * (self.SNAP_RELEASE_FLOOR + self.stickiness * self.SNAP_STICK_MULT)
 
+        # Corners snap in from a wider radius and their stay/release radius must scale the same way.
+        # Otherwise the band between the two is unstable and the vert vibrates back and forth.
+        corner_snap_in_radius = snap_in_radius * self.SNAP_CORNER_PROXIMITY
+        corner_release_radius = release_radius * self.SNAP_CORNER_PROXIMITY
+
         # Release check for snapped verts
         if is_snapped and free_co is not None:
             free_world = local_to_world(free_co, M)
-            if closest_target := accel.closest_point(free_world):
-                if (free_world - Vector(closest_target)).length > release_radius:
-                    self.snapped_verts.discard(bmv)
-                    self.vert_corner_idx.pop(bmv, None)
-                    self.snap_target_world.pop(bmv, None)
-                    return Vector(free_co)
+            if bmv in self.vert_corner_idx:
+                # Corner-snapped: hold against the corner itself with the corner-scaled radius, so the
+                # tighter edge release can't free it while it's still inside the corner's snap-in band.
+                corner = accel.find_corner(free_world)
+                released = corner is not None and corner[2] > corner_release_radius
+            else:
+                target = accel.closest_point(free_world)
+                released = target is not None and (free_world - Vector(target)).length > release_radius
+            if released:
+                self.snapped_verts.discard(bmv)
+                self.vert_corner_idx.pop(bmv, None)
+                self.snap_target_world.pop(bmv, None)
+                return Vector(free_co)
         elif not is_snapped:
             self.snap_target_world.pop(bmv, None)
 
@@ -188,9 +200,9 @@ class SourceSnapMixin:
         # Corners take priority over edges
         was_on_corner = bmv in self.vert_corner_idx
         if is_snapped:
-            corner_radius = release_radius
+            corner_radius = corner_release_radius
         else:
-            corner_radius = snap_in_radius * self.SNAP_CORNER_PROXIMITY  # wider snap-in only
+            corner_radius = corner_snap_in_radius  # wider snap-in only
 
         snapped_to_corner = False
         snapped_co_corner = None
@@ -209,8 +221,9 @@ class SourceSnapMixin:
                         self._kick_corner_occupant(occupant, co_corner, bmv, context, stroke_disp_2d)
                 if allow_snap:
                     to_corner = Vector(co_corner) - new_co_world
-                    # Direction check for all corner snapping
-                    if to_corner.length < 1e-8 or disp_world.dot(to_corner) > 0:
+                    # The direction check only gates the initial snap-in. Once on a corner,
+                    # the vert is exactly on the corner, so the drag displacement always points away.
+                    if was_on_corner or to_corner.length < 1e-8 or disp_world.dot(to_corner) > 0:
                         self.snapped_verts.add(bmv)
                         self.vert_corner_idx[bmv] = corner_idx
                         snapped_to_corner = True
