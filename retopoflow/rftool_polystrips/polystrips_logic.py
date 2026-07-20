@@ -52,6 +52,8 @@ from ..common.bmesh_maths import (
     generate_point_inside_bmf,
 )
 from ..common.raycast import raycast_point_valid_sources, nearest_point_valid_sources, nearest_normal_valid_sources
+from ..common.accel import SourceCache
+from ..common.snapping import source_snap_radius, source_snap_settings
 from ..common.maths import (
     view_forward_direction,
     lerp,
@@ -184,6 +186,9 @@ class PolyStrips_Logic:
         # self.process_stroke() will set self.error if something went wrong
         # use this indicator to fail gracefully rather than throwing/catching exception?
         self.error = False
+
+        self.source_accel = None
+        self.feature_radius = 0.0
 
         # TODO: Remove this limitation!
         if is_cycle:
@@ -420,6 +425,16 @@ class PolyStrips_Logic:
                 avg_w = sum(snapped_world) / len(snapped_world)
                 if avg_w > 0:
                     self.count_total = max(2, round(total_length / (2 * avg_w)) + 1)
+
+        self.source_accel = SourceCache.get(context)
+        if self.source_accel:
+            use_fixed, fixed_distance, proximity = source_snap_settings(context)
+            self.feature_radius = source_snap_radius(
+                total_length / max(1, self.count_total),
+                use_fixed=use_fixed, fixed_distance=fixed_distance, avg_edge_factor=proximity,
+            )
+        else:
+            self.feature_radius = 0.0
 
         # NOTE: base_width is in local space (self.initial_width is world space)
         base_width = self.initial_width / self.edit_scale
@@ -741,10 +756,16 @@ class PolyStrips_Logic:
                 bmvs[0] += [ self.bm.verts.new(p0) ]
                 bmvs[1] += [ self.bm.verts.new(p1) ]
 
-            # snap newly created bmverts to source
+            # snap newly created bmverts to source, then pull onto nearby source features.
+            # Verts reused from a snapped edge are surface-projected as before but never feature snapped.
+            existing_bmvs = set()
+            if snap0: existing_bmvs.update((bmvs[0][0], bmvs[1][0]))
+            if snap1: existing_bmvs.update((bmvs[0][-1], bmvs[1][-1]))
             for bmv in chain(bmvs[0], bmvs[1]):
                 if snapped := nearest_point_valid_sources(context, M @ bmv.co, world=False, respect_clip_planes=True):
                     bmv.co = snapped
+                if bmv not in existing_bmvs:
+                    bmv.co = self.snap_co_to_feature(bmv.co)
 
             ######################################################
             # handle mirror
@@ -839,6 +860,21 @@ class PolyStrips_Logic:
     def nearest_point(self, context, p):
         snapped = nearest_point_valid_sources(context, self.matrix_world @ p, respect_clip_planes=True)
         return self.matrix_world_inv @ snapped if snapped else p
+    def snap_co_to_feature(self, co_local):
+        ''' Snap a local-space coordinate onto the nearest source feature (corner first,
+        then edge) if within feature_radius. Returns the (possibly unchanged) local
+        coordinate. '''
+        accel = self.source_accel
+        if not accel or self.feature_radius <= 0:
+            return co_local
+        co_world = self.matrix_world @ co_local
+        corner = accel.find_corner(co_world)
+        if corner and corner[2] <= self.feature_radius:
+            return self.matrix_world_inv @ Vector(corner[0])
+        closest = accel.closest_point(co_world)
+        if closest and (Vector(closest) - co_world).length <= self.feature_radius:
+            return self.matrix_world_inv @ Vector(closest)
+        return co_local
     def bmv_closest(self, bmvs, pt3D):
         pt2D = self.project_pt(context, pt3D)
         # bmvs = [bmv for bmv in bmvs if bmv.select and (pt := self.project_bmv(bmv)) and (pt - pt2D).length_squared < 20*20]
