@@ -43,6 +43,7 @@ This document contains details about what has changed in Retopoflow in version 4
 
 - Added Nudge, Nudge Loops, and Pinch / Magnify modes to Tweak tool
     - Nudge is now the default instead of Grab
+- Tweak and Relax now default to affecting only one mesh island at a time
 
 - All Retopoflow tools now respect Blender's Alt+B clipping region
     - Useful for isolating areas while working

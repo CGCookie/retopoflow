@@ -55,6 +55,7 @@ from ..common.raycast import raycast_point_valid_sources, nearest_normal_valid_s
 from ..common.maths import view_forward_direction, lerp, bvec_to_point, point_to_bvec3, bvec_point_to_bvec4, bvec_vector_to_bvec4
 from ..common.maths import xform_point, xform_vector, xform_direction, local_to_world
 from ..common.accel import SourceCache
+from ..common.snapping import source_snap_radius, source_snap_settings
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.bezier import interpolate_cubic
 from ...addon_common.common.debug import debugger
@@ -365,7 +366,6 @@ class Strokes_Logic:
         self.length3D = sum((p1-p0).length for (p0,p1) in iter_pairs(self.stroke3D, self.is_cycle))
 
         # Snapping distance follows span insert distance
-        snapping = context.scene.retopoflow.snapping
         match self.span_insert_mode:
             case 'FIXED':
                 spacing3D = self.length3D / max(1, self.fixed_span_count)
@@ -377,7 +377,10 @@ class Strokes_Logic:
                 nspans = max(1, self.get_brush_nspans(self.length3D))
                 spacing3D = self.length3D / nspans
         self.spacing3D = spacing3D
-        self.feature_radius = spacing3D * getattr(snapping, 'source_edge_proximity', 0.25)
+        use_fixed, fixed_distance, proximity = source_snap_settings(context)
+        self.feature_radius = source_snap_radius(
+            spacing3D, use_fixed=use_fixed, fixed_distance=fixed_distance, avg_edge_factor=proximity,
+        )
 
         self.force_stroke_angle_indices()
         self.force_corner_indices(context)

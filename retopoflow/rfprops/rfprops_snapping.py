@@ -122,6 +122,19 @@ class RFProps_Snapping(bpy.types.PropertyGroup):
         max=1.0,
         default=0.25,
     )
+    source_edge_use_fixed_distance: bpy.props.BoolProperty(
+        name='Fixed Distance',
+        description='Snap within a fixed world space distance instead of scaling the snap distance by the local edge length',
+        default=False,
+    )
+    source_edge_fixed_distance: bpy.props.FloatProperty(
+        name='Distance',
+        description='World space distance within which vertices snap to source feature edges and corners',
+        subtype='DISTANCE',
+        min=0.0,
+        soft_max=1.0,
+        default=0.05,
+    )
     source_edge_stickiness: bpy.props.FloatProperty(
         name='Stickiness',
         description='How difficult it is to drag a snapped vertex back off of a feature edge or corner',

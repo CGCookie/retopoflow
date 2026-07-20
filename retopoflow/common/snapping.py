@@ -26,6 +26,23 @@ from .maths import local_to_world, point_to_bvec3
 from .raycast import raycast_valid_sources
 
 
+def source_snap_settings(context):
+    ''' (use_fixed, fixed_distance, proximity) for source-feature snapping, from the scene settings.
+    Callers that carry their own settings supply these three values directly instead. '''
+    snapping = context.scene.retopoflow.snapping
+    return (
+        getattr(snapping, 'source_edge_use_fixed_distance', False),
+        getattr(snapping, 'source_edge_fixed_distance', 0.05),
+        getattr(snapping, 'source_edge_proximity', 0.25),
+    )
+
+
+def source_snap_radius(ref_len_world, *, use_fixed, fixed_distance, avg_edge_factor):
+    ''' World space radius within which a vert snaps to a source feature.
+    ref_len_world must already be world space. '''
+    return fixed_distance if use_fixed else ref_len_world * avg_edge_factor
+
+
 class SourceSnapMixin:
     SNAP_STICK_MULT: float = 2.0
     SNAP_CORNER_PROXIMITY: float = 2.0

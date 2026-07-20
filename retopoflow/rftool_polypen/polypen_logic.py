@@ -49,6 +49,7 @@ from ..common.bmesh import (
     has_mirror_x, has_mirror_y, has_mirror_z, mirror_threshold,
 )
 from ..common.accel import SourceCache
+from ..common.snapping import source_snap_radius, source_snap_settings
 from ..common.bmesh_maths import is_bmvert_hidden
 from ..common.enums import ValueIntEnum
 from ..common.raycast import (
@@ -526,8 +527,11 @@ class PP_Logic:
             self.feature_radius = 0.0
             return False
         scale_avg = sum(self.matrix_world.to_scale()) / 3
-        proximity = getattr(context.scene.retopoflow.snapping, 'source_edge_proximity', 0.25)
-        self.feature_radius = self.feature_ref_len() * scale_avg * proximity
+        use_fixed, fixed_distance, proximity = source_snap_settings(context)
+        self.feature_radius = source_snap_radius(
+            self.feature_ref_len() * scale_avg,
+            use_fixed=use_fixed, fixed_distance=fixed_distance, avg_edge_factor=proximity,
+        )
         return self.feature_radius > 0
 
     def feature_snapping_active(self) -> bool:

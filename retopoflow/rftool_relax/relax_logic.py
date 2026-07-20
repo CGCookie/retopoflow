@@ -1759,7 +1759,7 @@ class Relax_Logic:
                         # Promoted or no guide loops active - normal snapping
                         snap_threshold = source_snap_radius(
                             snap_avg_edge_len * self.scale_avg,
-                            use_fixed=self.source_use_fixed, fixed_distance=self.source_fixed_distance, proximity=self.source_sharp_proximity,
+                            use_fixed=self.source_use_fixed, fixed_distance=self.source_fixed_distance, avg_edge_factor=self.source_sharp_proximity,
                         ) * brush_snap_falloff
                         corner_threshold = snap_threshold * getattr(relax, 'algorithm_source_corner_proximity', 2.0)
                         snapped_to_corner = False
@@ -1787,7 +1787,7 @@ class Relax_Logic:
                     is_promoted = bool(self.promoted_loop_verts) and bmv in self.promoted_loop_verts
                     snap_threshold = source_snap_radius(
                         snap_avg_edge_len * self.scale_avg,
-                        use_fixed=self.source_use_fixed, fixed_distance=self.source_fixed_distance, proximity=self.source_sharp_proximity,
+                        use_fixed=self.source_use_fixed, fixed_distance=self.source_fixed_distance, avg_edge_factor=self.source_sharp_proximity,
                     ) * brush_snap_falloff
                     if is_promoted:
                         snap_threshold *= 1.5   # wider window pulls promoted loop in sooner

@@ -210,7 +210,7 @@ class Tweak_Logic(SourceSnapMixin):
             if self.source_edge_accel:
                 self.stroke_snap_radius = source_snap_radius(
                     stroke_avg * self.scale_avg,
-                    use_fixed=self.source_use_fixed, fixed_distance=self.source_fixed_distance, proximity=self.source_sharp_proximity,
+                    use_fixed=self.source_use_fixed, fixed_distance=self.source_fixed_distance, avg_edge_factor=self.source_sharp_proximity,
                 )
             # Convert avg world-space edge length to screen pixels for the step threshold.
             hit_scale = self.brush.hit_scale or 1e-6

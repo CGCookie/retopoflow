@@ -178,6 +178,17 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
         subtype='FACTOR',
         min=0, max=1, default=0.25,
     )
+    source_edge_use_fixed_distance: bpy.props.BoolProperty(
+        name='Fixed Distance',
+        description='Snap within a fixed world space distance instead of scaling the snap distance by the local edge length',
+        default=False,
+    )
+    source_edge_fixed_distance: bpy.props.FloatProperty(
+        name='Distance',
+        description='World space distance within which vertices snap to source feature edges and corners',
+        subtype='DISTANCE',
+        min=0.0, soft_max=1.0, default=0.05,
+    )
     source_edge_stickiness: bpy.props.FloatProperty(
         name='Stickiness',
         description='How difficult it is for vertices to escape feature edges',
@@ -398,6 +409,8 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
             source_edge_creases=self.source_edge_creases,
             source_edge_sharps=self.source_edge_sharps,
             source_edge_proximity=self.source_edge_proximity,
+            source_edge_use_fixed_distance=self.source_edge_use_fixed_distance,
+            source_edge_fixed_distance=self.source_edge_fixed_distance,
             source_edge_stickiness=self.source_edge_stickiness,
             source_edge_guide_loops=self.source_edge_guide_loops
         )
@@ -411,6 +424,8 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
         # so the accel is built against those sources but controlled by the operator's props.
         logic.source_edge_accel = SourceAccel.build_from_tool(context, options, logic.sources)
         logic.source_sharp_proximity = options.source_edge_proximity
+        logic.source_use_fixed = options.source_edge_use_fixed_distance
+        logic.source_fixed_distance = options.source_edge_fixed_distance
         logic.stickiness = options.source_edge_stickiness if logic.source_edge_accel else 0.0
 
         raw_verts = { bmv for bmv in logic.bm.verts if bmv.select and not bmv.hide }
