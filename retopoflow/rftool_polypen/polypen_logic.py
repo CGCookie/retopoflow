@@ -703,21 +703,22 @@ class PP_Logic:
 
             if bme_selected.is_boundary:
                 # bme should have one face
-                # if edge connecting center of selected bmedge and hovered bmvert crosses the
-                # bmface adjacent to selected bmedge, then we split selected edge!
                 bmf : BMFace | None = next(iter(bme_selected.link_faces), None)
-                if bmf:
-                    bmv_pt  = self.project(self.nearest.bmv.co)
-                    bme_pt, bme_pt0, bme_pt1  = self.project_all(bme_midpoint(bme_selected), *bme_cos(bme_selected))
-                    bmf_pt  = self.project(bmf_midpoint(bmf))
-                    if bmv_pt and bmf_pt and bme_pt and bme_pt0 and bme_pt1:
-                        # compute vector perpendicular to selected bmedge in screen space that is
-                        # pointing toward center of adjacent bmface
-                        v_bme_perp = perpendicular_direction2(bme_pt0 - bme_pt1, bmf_pt - bme_pt)
-
-                        # check if vector from center of selected bmedge to hovered bmvert is
-                        # pointing in same direction as perpendicular vector computed above
-                        if v_bme_perp.dot(bmv_pt - bme_pt) > 0:
+                bme_pt = self.project(bme_midpoint(bme_selected))
+                bmv_pt = self.project(self.nearest.bmv.co)
+                if bmf and bme_pt and bmv_pt:
+                    # A boundary edge on a sharp fold has an adjacent face that doubles back in screen space.
+                    # Compare the normals of the face and the hovered vert to separate this from simply backfacing.
+                    doubling_back = (
+                        self.ignore_splitting_backfaces
+                        and bmf.normal.dot(self.vec_forward) > 0
+                        and bmf.normal.dot(self.nearest.bmv.normal) < 0
+                    )
+                    # if the segment connecting the center of the selected bme and the hovered
+                    # bmv actually crosses the adjacent bmface, then we split the selected edge
+                    if not doubling_back:
+                        splits = find_bmedges_to_split(context, self.matrix_world, bme_selected, bme_pt, bmv_pt, None)
+                        if len(splits) > 1:
                             self.bme = bme_selected
                             self.state = PP_Action.EDGE_SPLIT_EDGE
                             return
