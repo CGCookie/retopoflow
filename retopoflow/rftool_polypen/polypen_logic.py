@@ -331,6 +331,12 @@ def is_point_inside_bmface(project : Callable[[Vector|None], Vector|None], point
     return True
 
 
+def bme_is_interior(bme : BMEdge) -> bool:
+    return len(bme.link_faces) >= 2
+
+def bmv_is_interior(bmv : BMVert) -> bool:
+    return not bmv.is_wire and not bmv.is_boundary
+
 
 class PP_Logic:
     # see https://github.com/cgcookie/retopoflow/issues/1770
@@ -549,9 +555,13 @@ class PP_Logic:
                 sel_bmvs,
                 key=lambda bmv:distance2d_point_bmvert(context, self.matrix_world, self.hit, bmv),
             )
+            # an interior vert may only knife, otherwise it would overlap existing geometry.
+            interior = bmv_is_interior(self.bmv)
             if self.nearest.bmv:
                 if check_split_face(self.bmv, self.nearest.bmv) is not None:
                     self.state = PP_Action.WIRE_VERT_SPLIT_FACE
+                elif interior:
+                    self.state = PP_Action.NONE
                 else:
                     self.state = PP_Action.VERT_EDGE  # TODO: VERT_BRIDGE???
             elif self.nearest_bme.bme:
@@ -563,6 +573,8 @@ class PP_Logic:
                     self.state = PP_Action.VERT_SPLIT_EDGE
             elif self.update_split_face_loop(context):
                 return
+            elif interior:
+                self.state = PP_Action.NONE
             else:
                 self.state = PP_Action.VERT_EDGE
             # find closest selected BMVert from which to extrude
@@ -591,8 +603,9 @@ class PP_Logic:
                     if not (p0 and p1 and p2 and p3):
                         # verts do not project to screen
                         # should happen very rarely
+                        # interior edges may only knife, never bridge
                         # TODO: need to check if hovered BMEdge is boundary??
-                        self.state = PP_Action.EDGE_BRIDGE
+                        self.state = PP_Action.NONE if bme_is_interior(self.bme) else PP_Action.EDGE_BRIDGE
                         return
 
                     # ensure vert order makes a nice looking quad, either CW or CCW
@@ -612,7 +625,8 @@ class PP_Logic:
                     if bmv2 in sel_bme.verts or bmv3 in sel_bme.verts:
                         # hovered edge shares vert with selected edge!  (issue #1443)
                         # treat this as though the artist is hovering the other vert
-                        self.state = PP_Action.EDGE_TRI
+                        # interior edges may only knife, never create a triangle
+                        self.state = PP_Action.NONE if bme_is_interior(sel_bme) else PP_Action.EDGE_TRI
                         return
 
                     if self.bme.is_boundary and self.bme_hovered.is_boundary:
@@ -644,6 +658,10 @@ class PP_Logic:
                 sel_bmes,
                 key=(lambda bme:distance2d_point_bmedge(context, self.matrix_world, self.hit, bme)),
             )
+            if bme_is_interior(sel_bme):
+                # interior edge may only knife, never extrude a quad
+                self.state = PP_Action.NONE
+                return
             bmv0, bmv1 = sel_bme.verts
             p0, p1 = self.project_all(bmv0.co, bmv1.co)
             if p0 and p1:
@@ -701,30 +719,35 @@ class PP_Logic:
             sel_bmes : set[BMEdge] = self.selected[BMEdge]  # pyright: ignore[reportAssignmentType, reportRedeclaration]
             bme_selected : BMEdge = next(iter(sel_bmes))
 
-            if bme_selected.is_boundary:
-                # bme should have one face
-                bmf : BMFace | None = next(iter(bme_selected.link_faces), None)
-                bme_pt = self.project(bme_midpoint(bme_selected))
-                bmv_pt = self.project(self.nearest.bmv.co)
-                if bmf and bme_pt and bmv_pt:
-                    # A boundary edge on a sharp fold has an adjacent face that doubles back in screen space.
-                    # Compare the normals of the face and the hovered vert to separate this from simply backfacing.
-                    doubling_back = (
-                        self.ignore_splitting_backfaces
-                        and bmf.normal.dot(self.vec_forward) > 0
-                        and bmf.normal.dot(self.nearest.bmv.normal) < 0
-                    )
-                    # if the segment connecting the center of the selected bme and the hovered
-                    # bmv actually crosses the adjacent bmface, then we split the selected edge
-                    if not doubling_back:
-                        splits = find_bmedges_to_split(context, self.matrix_world, bme_selected, bme_pt, bmv_pt, None)
-                        if len(splits) > 1:
-                            self.bme = bme_selected
-                            self.state = PP_Action.EDGE_SPLIT_EDGE
-                            return
+            # an interior edge may only knife, never extrude
+            interior = bme_is_interior(bme_selected)
 
-            self.bme = bme_selected
-            self.state = PP_Action.EDGE_TRI
+            bmf : BMFace | None = next(iter(bme_selected.link_faces), None)
+            bme_pt = self.project(bme_midpoint(bme_selected))
+            bmv_pt = self.project(self.nearest.bmv.co)
+
+            # A boundary edge on a sharp fold has an adjacent face that doubles back in screen space.
+            # Compare the normals of the face and the hovered vert to separate this from simply backfacing.
+            doubling_back = (
+                bme_selected.is_boundary and bmf is not None
+                and self.ignore_splitting_backfaces
+                and bmf.normal.dot(self.vec_forward) > 0
+                and bmf.normal.dot(self.nearest.bmv.normal) < 0
+            )
+
+            # if the segment connecting the center of the selected bme and the hovered bmv actually
+            # crosses a face, then we split (knife) the selected edge
+            if bme_pt and bmv_pt and not doubling_back:
+                splits = find_bmedges_to_split(context, self.matrix_world, bme_selected, bme_pt, bmv_pt, None)
+                if len(splits) > 1:
+                    self.bme = bme_selected
+                    self.state = PP_Action.EDGE_SPLIT_EDGE
+                    return
+
+            # not knifing: only non-interior edges may create new geometry
+            if not interior:
+                self.bme = bme_selected
+                self.state = PP_Action.EDGE_TRI
             return
 
         if len(self.selected[BMEdge]) == 1 and self.nearest_bmf.bmf:
@@ -734,9 +757,10 @@ class PP_Logic:
             return
 
         if len(self.selected[BMVert]) == 2 and len(self.selected[BMEdge]) == 1:
-            self.state = PP_Action.EDGE_TRI
             sel_bmes : set[BMEdge] = self.selected[BMEdge]  # pyright: ignore[reportAssignmentType, reportRedeclaration]
             self.bme = next(iter(sel_bmes))  # only one selected edge
+            # interior edge may only knife, never create a triangle
+            self.state = PP_Action.NONE if bme_is_interior(self.bme) else PP_Action.EDGE_TRI
             return
 
         if len(self.selected[BMEdge]) > 1:
