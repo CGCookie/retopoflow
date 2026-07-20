@@ -46,7 +46,7 @@ from ..common.raycast import (
 
 from ...addon_common.common.maths import sign_threshold
 from ..rftool_relax.relax_logic import Relax_Logic
-from ..common.snapping import SourceSnapMixin
+from ..common.snapping import SourceSnapMixin, source_snap_radius, source_snap_settings
 
 class Tweak_Logic(SourceSnapMixin):
     bm : BMesh
@@ -97,6 +97,7 @@ class Tweak_Logic(SourceSnapMixin):
 
     verts_filtered : list[BMVert]
     verts : list[tuple]  # (bmv, original co, projected xy, brush strength) captured at grab time
+    _active_island : 'set[BMVert] | None'  # verts of the island under the brush, or None when not isolating
 
     mouse : Vector
     mouse_prev : Vector
@@ -175,7 +176,7 @@ class Tweak_Logic(SourceSnapMixin):
         self.scale_avg = sum(self.matrix_world.to_scale()) / 3
         snapping = context.scene.retopoflow.snapping
         self.source_edge_accel = SourceCache.get(context)
-        self.source_sharp_proximity = getattr(snapping, 'source_edge_proximity', 0.25)
+        self.source_use_fixed, self.source_fixed_distance, self.source_sharp_proximity = source_snap_settings(context)
         self.stickiness = getattr(snapping, 'source_edge_stickiness', 0.5) if self.source_edge_accel else 0.0
         self.loops_strength = getattr(snapping, 'source_edge_guide_loops', 0.5) if self.source_edge_accel else 0.0
         self.snap_init_state()
@@ -207,7 +208,10 @@ class Tweak_Logic(SourceSnapMixin):
             avg_lens = [get_bmv_avg_edge_len(bmv) for (bmv, *_) in self.verts if bmv.link_edges]
             stroke_avg = (sum(avg_lens) / len(avg_lens)) if avg_lens else 1.0
             if self.source_edge_accel:
-                self.stroke_snap_radius = stroke_avg * self.scale_avg * self.source_sharp_proximity
+                self.stroke_snap_radius = source_snap_radius(
+                    stroke_avg * self.scale_avg,
+                    use_fixed=self.source_use_fixed, fixed_distance=self.source_fixed_distance, proximity=self.source_sharp_proximity,
+                )
             # Convert avg world-space edge length to screen pixels for the step threshold.
             hit_scale = self.brush.hit_scale or 1e-6
             self.relax_step_px = (stroke_avg * self.scale_avg) / hit_scale
@@ -224,6 +228,7 @@ class Tweak_Logic(SourceSnapMixin):
 
     def collect_verts(self, context, event):
         self.verts = []
+        self._active_island = None  # set below when isolating to one island
         self.mouse = Vector(mouse_from_event(event))
         self.mouse_prev = self.mouse.copy()
 
@@ -355,6 +360,12 @@ class Tweak_Logic(SourceSnapMixin):
                 if not self.is_bmvert_hidden(bmv)
             ]
 
+        # Keep focused on one mesh island at a time to prevent spillover unless "All Islands" masking option is on.
+        if self.verts_filtered and not self.include_opt('all_islands'):
+            nearest = min(self.verts_filtered, key=lambda v: ((M @ v.co) - brush_center_world).length_squared)
+            self._active_island = self._flood_island(nearest)
+            self.verts_filtered = [bmv for bmv in self.verts_filtered if bmv in self._active_island]
+
         self.verts = [
             (
                 bmv,
@@ -368,6 +379,20 @@ class Tweak_Logic(SourceSnapMixin):
         # Capture brush geometry at grab time for post_relax distance weighting.
         self.grab_brush_centre_world: Vector | None = Vector(self.brush.hit_p) if self.brush.hit_p else None
         self.grab_brush_radius: float = self.brush.get_scaled_radius()
+
+    def _flood_island(self, seed: BMVert) -> 'set[BMVert]':
+        ''' All verts reachable from seed through edges, i.e. the whole connected mesh island.
+        Locked once at stroke start so the sweep stays on the starting island even as the brush moves. '''
+        island = {seed}
+        stack = [seed]
+        while stack:
+            v = stack.pop()
+            for bme in v.link_edges:
+                nb = bme.other_vert(v)
+                if nb not in island:
+                    island.add(nb)
+                    stack.append(nb)
+        return island
 
 
     def _elect_nudge_loop(self, context, delta: Vector):
@@ -512,6 +537,8 @@ class Tweak_Logic(SourceSnapMixin):
     def _is_vert_excluded(self, bmv: BMVert) -> bool:
         ''' True if bmv must not be moved by a sweep (replicates EXCLUDE/ONLY/corner filters
         from collect_verts so that nudge and pinch respect the same masking as GRAB). '''
+        if self._active_island is not None and bmv not in self._active_island:
+            return True
         if self.mask_opt('selected') == 'ONLY' and not bmv.select:
             return True
         if self.mask_opt('selected') == 'EXCLUDE' and bmv.select:

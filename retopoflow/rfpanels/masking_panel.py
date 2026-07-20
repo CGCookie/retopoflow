@@ -38,10 +38,13 @@ def draw_pinning_options(context, layout):
     draw_expandable_enum(context, layout, props, 'mask_creases', text='Creases')
     draw_expandable_enum(context, layout, props, 'mask_seams', text='Seams')
     draw_expandable_enum(context, layout, props, 'mask_sharps', text='Sharps')
-    layout.row(heading='Include').prop(props, 'include_corners')
+
+    layout.row(heading='Include').prop(props, 'include_all_islands')
+    layout.prop(props, 'include_corners')
+    layout.prop(props, 'include_occluded')
     if prefs.setup_pinning:
         layout.prop(props, 'include_pinned')
-    layout.prop(props, 'include_occluded')
+
     prefs = RF_Prefs.get_prefs(context)
     if prefs.setup_pinning:
         layout.separator()

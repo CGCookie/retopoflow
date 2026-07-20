@@ -34,6 +34,7 @@ from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 
 from ..common.accel import EdgeMarkAccel, SourceAccel, Accel, SourceCache
+from ..common.snapping import source_snap_radius, source_snap_settings
 from ..common.bmesh import (
     get_bmesh_emesh, is_bmedge_boundary, is_bmvert_boundary, is_bmvert_corner, is_bmvert_on_ngon, bme_midpoint, bmf_midpoint,
     bmv_co_isnan, bmv_compute_normal,
@@ -89,6 +90,8 @@ class RelaxOptions:
     source_edge_creases: bool = False
     source_edge_sharps: bool = False
     source_edge_proximity: float = 0.25
+    source_edge_use_fixed_distance: bool = False
+    source_edge_fixed_distance: float = 0.05
     source_edge_stickiness: float = 0.5
     source_edge_guide_loops: float = 1.0
 
@@ -131,6 +134,8 @@ class Relax_Logic:
 
     source_edge_accel : SourceAccel | None
     source_sharp_proximity : float
+    source_use_fixed : bool
+    source_fixed_distance : float
     promoted_loop_verts : set[BMVert]
     demoted_verts : set[BMVert]
     loop_guide_verts : 'tuple[BMVert, BMVert] | None'
@@ -386,7 +391,7 @@ class Relax_Logic:
 
         snapping = context.scene.retopoflow.snapping
         self.source_edge_accel = SourceCache.get(context)
-        self.source_sharp_proximity = getattr(snapping, 'source_edge_proximity', 0.25)
+        self.source_use_fixed, self.source_fixed_distance, self.source_sharp_proximity = source_snap_settings(context)
         self.stickiness = getattr(snapping, 'source_edge_stickiness', 0.5) if self.source_edge_accel else 0.0
 
         self.laplacian_cache = {}
@@ -540,12 +545,49 @@ class Relax_Logic:
         if not edges: return
         faces = { bmf for bmv in verts for bmf in bmv.link_faces }
 
+        # Keep focused on one mesh island at a time to prevent spillover
+        is_brush_call = brush_center_world is not None
+        isolate_island = is_brush_call and not self.include_opt('all_islands')
+        vert_island = {}   # bmv -> island root
+        face_island = {}   # bmf -> island root
+        if relax.algorithm_average_edge_lengths or relax.algorithm_equalize_faces or isolate_island:
+            parent = {}
+            def _find(v):
+                root = v
+                while parent[root] != root:
+                    root = parent[root]
+                while parent[v] != root:  # path compression
+                    parent[v], v = root, parent[v]
+                return root
+            for bme in edges:
+                v0, v1 = bme.verts
+                if v0 not in parent: parent[v0] = v0
+                if v1 not in parent: parent[v1] = v1
+                r0, r1 = _find(v0), _find(v1)
+                if r0 != r1: parent[r0] = r1
+            vert_island = { v: _find(v) for v in parent }
+
+            if isolate_island:
+                # relax only the island under the brush center
+                nearest = min(verts, key=lambda v: (M @ v.co - brush_center_world).length_squared)
+                active_island = vert_island.get(nearest)
+                if active_island is not None:
+                    verts = { v for v in verts if vert_island.get(v) == active_island }
+                    vert_strength = { v: s for v, s in vert_strength.items() if v in verts }
+                    edges = { bme for bmv in verts for bme in bmv.link_edges }
+                    faces = { bmf for bmv in verts for bmf in bmv.link_faces }
+
+            if relax.algorithm_equalize_faces:
+                for bmf in faces:
+                    face_island[bmf] = next(
+                        (vert_island[v] for v in bmf.verts if v in vert_island), None
+                    )
+
         # Boundary vert references must be cleared because `verts` changes as the brush moves, invalidating prior boundary traces.
         self.loop_interp_cache.clear()
 
         # Non-brush callers fall back to the vert set's own bounds
         # so the distance caps and snap falloff still have meaningful values.
-        is_brush_call = brush_center_world is not None
         if brush_center_world is None or radius3D is None:
             world_cos = [M @ bmv.co for bmv in verts]
             center = sum(world_cos, Vector((0.0, 0.0, 0.0))) / len(world_cos)
@@ -1355,13 +1397,26 @@ class Relax_Logic:
                 for bmv in verts:
                     build_loop_interpolation_cache(bmv, self.loop_interp_cache)
             if relax.algorithm_average_edge_lengths:
-                avg_edge_len = sum(bme_length(bme) for bme in edges) / len(edges)
+                # Average edge length per island so disconnected areas of differing scale don't distort each other.
+                len_sums, len_counts = {}, {}
                 for bme in edges:
-                    average_edge_length(bme, avg_edge_len)
+                    isl = vert_island[bme.verts[0]]
+                    len_sums[isl]   = len_sums.get(isl, 0.0) + bme_length(bme)
+                    len_counts[isl] = len_counts.get(isl, 0) + 1
+                island_avg_len = { isl: len_sums[isl] / len_counts[isl] for isl in len_sums }
+                for bme in edges:
+                    average_edge_length(bme, island_avg_len[vert_island[bme.verts[0]]])
             if relax.algorithm_equalize_faces:
-                avg_vert_area = sum(bmf.calc_area() / len(bmf.verts) for bmf in faces) / len(faces)
-                avg_vert_area_sqrt = math.sqrt(avg_vert_area)
+                # Average face area per island for the same reason as edges above.
+                area_sums, area_counts = {}, {}
                 for bmf in faces:
+                    isl = face_island[bmf]
+                    area_sums[isl]   = area_sums.get(isl, 0.0) + bmf.calc_area() / len(bmf.verts)
+                    area_counts[isl] = area_counts.get(isl, 0) + 1
+                island_avg_area = { isl: area_sums[isl] / area_counts[isl] for isl in area_sums }
+                for bmf in faces:
+                    avg_vert_area = island_avg_area[face_island[bmf]]
+                    avg_vert_area_sqrt = math.sqrt(avg_vert_area)
                     face_center = bmf_midpoint(bmf)
                     average_face_areas(bmf, avg_vert_area, face_center)
                     average_face_shape(bmf, avg_vert_area_sqrt, face_center)
@@ -1702,7 +1757,10 @@ class Relax_Logic:
                                 co_local_snapped = Mi @ (Vector(co_world_snapped) - to_edge_w * 0.5)
                     else:
                         # Promoted or no guide loops active - normal snapping
-                        snap_threshold = snap_avg_edge_len * self.scale_avg * self.source_sharp_proximity * brush_snap_falloff
+                        snap_threshold = source_snap_radius(
+                            snap_avg_edge_len * self.scale_avg,
+                            use_fixed=self.source_use_fixed, fixed_distance=self.source_fixed_distance, proximity=self.source_sharp_proximity,
+                        ) * brush_snap_falloff
                         corner_threshold = snap_threshold * getattr(relax, 'algorithm_source_corner_proximity', 2.0)
                         snapped_to_corner = False
                         if corner_result := self.source_edge_accel.find_corner(co_world_snapped):
@@ -1727,7 +1785,10 @@ class Relax_Logic:
                     # Distance is measured from the vert's world position not its projected position.
                     is_demoted  = bool(self.demoted_verts)  and bmv in self.demoted_verts
                     is_promoted = bool(self.promoted_loop_verts) and bmv in self.promoted_loop_verts
-                    snap_threshold = snap_avg_edge_len * self.scale_avg * self.source_sharp_proximity * brush_snap_falloff
+                    snap_threshold = source_snap_radius(
+                        snap_avg_edge_len * self.scale_avg,
+                        use_fixed=self.source_use_fixed, fixed_distance=self.source_fixed_distance, proximity=self.source_sharp_proximity,
+                    ) * brush_snap_falloff
                     if is_promoted:
                         snap_threshold *= 1.5   # wider window pulls promoted loop in sooner
                     elif is_demoted:
