@@ -49,6 +49,9 @@ This document contains details about what has changed in Retopoflow in version 4
 - Tools statusbar now shows the result of Blender operations such as Merge by Distance
 - Added new custom icon for Loops tweaking in tool header
 - Cleaned up tool header UI
+- PolyPen now snaps new verts to nearby source feature edges and corners as you insert
+    - The preview and the placed vert both land on the sharp edge, matching Tweak and Strokes
+- Improved extrude vs. knife decision tree in PolyPen
 - Fixed performance issues when using some pen tablets or non-official Blender distributions
 - Fixed proportional editing circle size and location
 - Fixed non-uniform scale issues when drawing in PolyStrips

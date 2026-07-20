@@ -43,11 +43,12 @@ from ..common.bmesh import (
     bmes_share_bmv, bmes_shared_bmv,
     bmf_midpoint, bmf_opposite_bme, bmf_is_quad, bmf_is_pentagon, bmf_radius_squared,
     bmf_is_tri,
-    get_bmesh_emesh,
+    get_bmesh_emesh, get_bmv_avg_edge_len,
     clean_select_layers,
     NearestBMVert, NearestBMEdge, NearestBMFace,
     has_mirror_x, has_mirror_y, has_mirror_z, mirror_threshold,
 )
+from ..common.accel import SourceCache
 from ..common.bmesh_maths import is_bmvert_hidden
 from ..common.enums import ValueIntEnum
 from ..common.raycast import (
@@ -102,6 +103,18 @@ class PP_Action(ValueIntEnum):
     VERT_SPLIT_EDGE      = auto()   # split hovered edge and create edge from nearest selected vert to new vert
     WIRE_SPLIT_EDGE_FACE = auto()   # split hovered edge, create edge to selected vert, split face
     WIRE_VERT_SPLIT_FACE = auto()   # connect selected and nearest hovered verts and split face
+
+
+# States that place a new vert freely on the source surface at the mouse position.
+# Only these get snapped to nearby source features -- the knife/split states keep the
+# new vert constrained to the mesh edge being cut, so feature snapping must not touch them.
+PP_FEATURE_SNAP_STATES = frozenset({
+    PP_Action.VERT,
+    PP_Action.VERT_EDGE,
+    PP_Action.EDGE_TRI,
+    PP_Action.EDGE_QUAD,
+    PP_Action.TRI_QUAD,
+})
 
 
 def get_wire(bmv : BMVert) -> list[BMVert|BMEdge]|None:
@@ -383,6 +396,9 @@ class PP_Logic:
 
     split_info : dict[str, ...] | None
 
+    source_accel : object | None    # SourceAccel used for feature snapping (falsy when unavailable)
+    feature_radius : float          # world-space radius within which a new vert snaps to a feature
+
     def __init__(self, context:Context, event:Event):
         assert context.edit_object, 'Expected to be running in edit mode'
         self.matrix_world = context.edit_object.matrix_world
@@ -417,6 +433,8 @@ class PP_Logic:
         self.hit2 = None                    # pyright: ignore[reportAttributeAccessIssue]
         self.hit3 = None                    # pyright: ignore[reportAttributeAccessIssue]
         self.hit = None                     # pyright: ignore[reportAttributeAccessIssue]
+        self.source_accel = None
+        self.feature_radius = 0.0
 
     def cleanup(self):
         if not self.bm or not self.bm.is_valid: return
@@ -424,6 +442,58 @@ class PP_Logic:
 
     def project_all(self, *pts : Vector) -> Iterable[Vector|None]:
         yield from map(self.project, pts)
+
+    def snap_co_to_feature(self, co_local : Vector) -> Vector:
+        ''' Snap a local space coordinate onto the nearest source feature if within feature_radius.
+        Returns the (possibly unchanged) local coordinate. '''
+        accel = self.source_accel
+        if not accel or self.feature_radius <= 0:
+            return co_local
+        co_world = self.matrix_world @ co_local
+        corner = accel.find_corner(co_world)
+        if corner and corner[2] <= self.feature_radius:
+            return self.matrix_world_inv @ Vector(corner[0])
+        closest = accel.closest_point(co_world)
+        if closest and (Vector(closest) - co_world).length <= self.feature_radius:
+            return self.matrix_world_inv @ Vector(closest)
+        return co_local
+
+    def feature_ref_len(self) -> float:
+        ''' Local space edge length used to scale the feature snap radius, taken from the
+        geometry the new vert connects to so the proximity tracks the surrounding retopo density. '''
+        match self.state:
+            case PP_Action.EDGE_TRI | PP_Action.EDGE_QUAD | PP_Action.TRI_QUAD:
+                if self.bme and self.bme.is_valid:
+                    return bme_length(self.bme)
+            case PP_Action.VERT_EDGE:
+                if self.bmv and self.bmv.is_valid:
+                    return get_bmv_avg_edge_len(self.bmv)
+        # VERT (detached) and any fallback: scale off the nearest existing geometry to the cursor
+        if self.nearest_bme and self.nearest_bme.bme:
+            return bme_length(self.nearest_bme.bme)
+        if self.nearest and self.nearest.bmv:
+            return get_bmv_avg_edge_len(self.nearest.bmv)
+        return 0.0
+
+    def apply_feature_snap(self, context : Context):
+        ''' Snap the free on-surface vert placements for the current state onto nearby source
+        features, so both the preview and the commit land on sharp edges/corners. '''
+        if self.state not in PP_FEATURE_SNAP_STATES: return
+        self.source_accel = SourceCache.get(context)
+        if not self.source_accel: return
+        scale_avg = sum(self.matrix_world.to_scale()) / 3
+        proximity = getattr(context.scene.retopoflow.snapping, 'source_edge_proximity', 0.25)
+        self.feature_radius = self.feature_ref_len() * scale_avg * proximity
+        if self.feature_radius <= 0: return
+
+        if self.state == PP_Action.EDGE_QUAD:
+            # the two far verts of the quad are the free placements (unless snapped to a vert)
+            if self.hit2 is not None and self.bmv2 is None:
+                self.hit2 = self.snap_co_to_feature(self.hit2)
+            if self.hit3 is not None and self.bmv3 is None:
+                self.hit3 = self.snap_co_to_feature(self.hit3)
+        elif not (self.nearest and self.nearest.bmv) and self.hit is not None:
+            self.hit = self.snap_co_to_feature(self.hit)
 
     def update(self, context:Context, event:Event, insert_mode:str|None, parallel_stable:float, quad_preserve:bool, constrain_edge_vert:bool, use_loop_cuts:bool):
         # update previsualization and commit data structures with mouse position
@@ -848,9 +918,8 @@ class PP_Logic:
                     # only start walking if starting from a quad
                     continue
 
-                if self.ignore_splitting_backfaces and bmf_start.normal.dot(self.vec_forward) > 0:
-                    # quad is backfacing and we're ignoring backfacing faces
-                    continue
+                # Anchor the walk to whichever side of the view this start quad is on.
+                start_facing = bmf_start.normal.dot(self.vec_forward)
 
                 path_back : dict[BMEdge|BMFace, BMFace|BMEdge|None] = {
                     bme_start: None,
@@ -881,8 +950,8 @@ class PP_Logic:
 
                     bmf_current : BMFace
                     for bmf_current in bme_current.link_faces:
-                        if self.ignore_splitting_backfaces and bmf_current.normal.dot(self.vec_forward) > 0:
-                            # stop walking, because hit backfacing bmface and, we're ignoring backfacing faces
+                        if self.ignore_splitting_backfaces and bmf_current.normal.dot(self.vec_forward) * start_facing < 0:
+                            # face is on the opposite side of the view from where the walk started
                             continue
 
                         if bmf_current in path_back:
@@ -1058,6 +1127,8 @@ class PP_Logic:
         if self.state in {PP_Action.EDGE_TRI, PP_Action.EDGE_QUAD, PP_Action.TRI_QUAD} and (not self.bme or not self.bme.is_valid):
             self.bme = None
             return
+
+        self.apply_feature_snap(context)
 
         scaled_8px = Drawing.scale(8)
         if scaled_8px is None: return
@@ -1630,6 +1701,9 @@ class PP_Logic:
         if self.state == PP_Action.NONE: return
         # TODO: UNDO NOT PUSHING ON MULTIPLE TIMES!?!?!
         # bpy.ops.ed.undo_push(message=f'PolyPen commit {time.time()}')
+
+        # snap the placement onto nearby source features before creating geometry
+        self.apply_feature_snap(context)
 
         # make sure artist can see the vert
         context.tool_settings.mesh_select_mode[0] = True
