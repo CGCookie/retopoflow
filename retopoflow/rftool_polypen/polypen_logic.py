@@ -458,6 +458,36 @@ class PP_Logic:
             return self.matrix_world_inv @ Vector(closest)
         return co_local
 
+    def feature_snap_collapses(self, co_local : Vector) -> bool:
+        ''' True if a new vert at co_local would be collinear with the selected edge
+        or coincide with the selected vert. Distances are world space to match feature_radius. '''
+        M = self.matrix_world
+        match self.state:
+            case PP_Action.VERT_EDGE:
+                if self.bmv and self.bmv.is_valid:
+                    return ((M @ co_local) - (M @ self.bmv.co)).length < self.feature_radius
+            case PP_Action.EDGE_TRI | PP_Action.EDGE_QUAD | PP_Action.TRI_QUAD:
+                if self.bme and self.bme.is_valid:
+                    bmv0, bmv1 = self.bme.verts
+                    p = M @ co_local
+                    a, b = M @ bmv0.co, M @ bmv1.co
+                    ab = b - a
+                    ab_len = ab.length
+                    if ab_len < 1e-9:
+                        return (p - a).length < self.feature_radius
+                    return (p - a).cross(ab).length / ab_len < self.feature_radius
+        return False
+
+    def snap_free_vert(self, co_local : Vector) -> Vector:
+        ''' Snap a free vert placement to a source feature, falling back when the
+        snap would land the vert on the edge or vert it extrudes from. '''
+        snapped = self.snap_co_to_feature(co_local)
+        if (snapped - co_local).length < 1e-9:
+            return co_local  # nothing snapped
+        if self.feature_snap_collapses(snapped):
+            return co_local
+        return snapped
+
     def feature_ref_len(self) -> float:
         ''' Local space edge length used to scale the feature snap radius, taken from the
         geometry the new vert connects to so the proximity tracks the surrounding retopo density. '''
@@ -489,11 +519,11 @@ class PP_Logic:
         if self.state == PP_Action.EDGE_QUAD:
             # the two far verts of the quad are the free placements (unless snapped to a vert)
             if self.hit2 is not None and self.bmv2 is None:
-                self.hit2 = self.snap_co_to_feature(self.hit2)
+                self.hit2 = self.snap_free_vert(self.hit2)
             if self.hit3 is not None and self.bmv3 is None:
-                self.hit3 = self.snap_co_to_feature(self.hit3)
+                self.hit3 = self.snap_free_vert(self.hit3)
         elif not (self.nearest and self.nearest.bmv) and self.hit is not None:
-            self.hit = self.snap_co_to_feature(self.hit)
+            self.hit = self.snap_free_vert(self.hit)
 
     def update(self, context:Context, event:Event, insert_mode:str|None, parallel_stable:float, quad_preserve:bool, constrain_edge_vert:bool, use_loop_cuts:bool):
         # update previsualization and commit data structures with mouse position
