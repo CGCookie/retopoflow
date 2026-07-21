@@ -823,6 +823,13 @@ def is_bmvert_corner(bmv : BMVert) -> bool:
 def is_bmvert_on_ngon(bmv : BMVert) -> bool:
     return any(len(bmf.edges) > 4 for bmf in bmv.link_faces)
 
+def bme_is_interior(bme : BMEdge) -> bool:
+    return len(bme.link_faces) >= 2
+
+def bmv_is_interior(bmv : BMVert) -> bool:
+    ''' True when the vert is fully surrounded by faces, i.e. not wire, not on a boundary. '''
+    return bool(bmv.link_faces) and not bmv.is_wire and not bmv.is_boundary
+
 
 def get_vert_connected(verts):
     ''' Split a vertex collection into connected islands via shared edges.

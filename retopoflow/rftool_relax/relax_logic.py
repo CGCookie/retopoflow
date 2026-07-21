@@ -36,7 +36,8 @@ from dataclasses import dataclass
 from ..common.accel import EdgeMarkAccel, SourceAccel, Accel, SourceCache
 from ..common.snapping import source_snap_radius, source_snap_settings
 from ..common.bmesh import (
-    get_bmesh_emesh, is_bmedge_boundary, is_bmvert_boundary, is_bmvert_corner, is_bmvert_on_ngon, bme_midpoint, bmf_midpoint,
+    get_bmesh_emesh, is_bmedge_boundary, is_bmvert_boundary, is_bmvert_corner, is_bmvert_on_ngon,
+    bmv_is_interior, bme_midpoint, bmf_midpoint,
     bmv_co_isnan, bmv_compute_normal,
     get_bmv_loop_pairs, get_bmv_avg_edge_len, get_bmv_next_loop_vert,
     bme_vector, bme_length,
@@ -1700,29 +1701,35 @@ class Relax_Logic:
 
                 co_world_snapped = None
                 if self.source_edge_accel and displace_vec.length > 1e-6:
-                    # Reproject onto the source by casting both ways along the vert normal and taking the nearest hit.
-                    # Fixes verts on feaure lines jumping off and onto the nearest adjacent surface.
                     co_pt = point_to_bvec3(co_world.xyz)
-                    normal_world = (Mi.transposed().to_3x3() @ bmv.normal).normalized()
-                    best_dist = inf
-                    for obj, M_obj, Mi_obj, Mi_obj_3x3 in self.sources:
-                        ray_o  = (Mi_obj @ Vector((*co_pt, 1.0))).xyz
-                        ray_d  = (Mi_obj_3x3 @ normal_world).normalized()
-                        for d in (ray_d, -ray_d):
-                            result, co_hit, _, _ = obj.ray_cast(ray_o, d)
-                            if not result:
-                                continue
-                            hit_world = point_to_bvec3((M_obj @ Vector((*co_hit, 1.0))).xyz)
-                            dist = (Vector(hit_world) - Vector(co_pt)).length
-                            if dist < best_dist:
-                                best_dist = dist
-                                co_world_snapped = hit_world
-                    # Revert to nearest surface when the raycast is implausibly far
-                    MAX_PROJECT_DISTANCE = 1.0  # in world space avg edge lengths
-                    if co_world_snapped and best_dist > get_bmv_avg_edge_len(bmv) * self.scale_avg * MAX_PROJECT_DISTANCE:
-                        co_world_snapped = None
+                    if apply_edge_snap:
+                        near_vec = self.verts_near_source_edge.get(bmv)
+                        on_feature = near_vec is not None and near_vec.length * self.scale_avg <= 1e-4
+                        if on_feature or not bmv_is_interior(bmv):
+                            co_world_snapped = self.source_edge_accel.closest_point(co_pt)
+                        else:
+                            # Projecting along normals gives a better result for interior verts that can shrink inward during smoothing
+                            # but does not work for boundary or wire verts since the normals can graze a 90 degree angle.
+                            normal_world = (Mi.transposed().to_3x3() @ bmv.normal).normalized()
+                            best_dist = inf
+                            for obj, M_obj, Mi_obj, Mi_obj_3x3 in self.sources:
+                                ray_o  = (Mi_obj @ Vector((*co_pt, 1.0))).xyz
+                                ray_d  = (Mi_obj_3x3 @ normal_world).normalized()
+                                for d in (ray_d, -ray_d):
+                                    result, co_hit, _, _ = obj.ray_cast(ray_o, d)
+                                    if not result:
+                                        continue
+                                    hit_world = point_to_bvec3((M_obj @ Vector((*co_hit, 1.0))).xyz)
+                                    dist = (Vector(hit_world) - Vector(co_pt)).length
+                                    if dist < best_dist:
+                                        best_dist = dist
+                                        co_world_snapped = hit_world
+                    else:
+                        co_world_snapped = nearest_point_valid_sources(
+                            context, co_pt, world=True, sources=self.sources, respect_clip_planes=True
+                        )
                 if not co_world_snapped:
-                    # Feature snapping is off or both rays missed
+                    # Feature snapping off, or closest_point / both rays returned nothing
                     co_world_snapped = nearest_point_valid_sources(
                         context, point_to_bvec3(co_world.xyz), world=True, sources=self.sources, respect_clip_planes=True
                     )
@@ -1749,12 +1756,13 @@ class Relax_Logic:
 
                 if bmv in self.verts_near_source_edge and snap_avg_edge_len > 0:
                     # Vert is directly on the source edge
+                    co_world_pt = point_to_bvec3(co_world.xyz)
                     if self.demoted_verts and bmv in self.demoted_verts:
                         # Demoted vert entered the snap zone so push it back out
-                        if closest_p := self.source_edge_accel.closest_point(co_world_snapped):
-                            to_edge_w = Vector(closest_p) - Vector(co_world_snapped)
+                        if closest_p := self.source_edge_accel.closest_point(co_world_pt):
+                            to_edge_w = Vector(closest_p) - Vector(co_world_pt)
                             if to_edge_w.length > 1e-8:
-                                co_local_snapped = Mi @ (Vector(co_world_snapped) - to_edge_w * 0.5)
+                                co_local_snapped = Mi @ (Vector(co_world_pt) - to_edge_w * 0.5)
                     else:
                         # Promoted or no guide loops active - normal snapping
                         snap_threshold = source_snap_radius(
@@ -1763,7 +1771,7 @@ class Relax_Logic:
                         ) * brush_snap_falloff
                         corner_threshold = snap_threshold * getattr(relax, 'algorithm_source_corner_proximity', 2.0)
                         snapped_to_corner = False
-                        if corner_result := self.source_edge_accel.find_corner(co_world_snapped):
+                        if corner_result := self.source_edge_accel.find_corner(co_world_pt):
                             co_corner, corner_idx, dist_corner = corner_result
                             if dist_corner < corner_threshold:
                                 # Only snap to the corner if no direct neighbor is already there.
@@ -1776,8 +1784,8 @@ class Relax_Logic:
                                     snapped_to_corner = True
                                     self.snapped_verts.add(bmv)
                         if apply_edge_snap and not snapped_to_corner:
-                            if closest_p := self.source_edge_accel.closest_point(co_world_snapped):
-                                if (Vector(closest_p) - Vector(co_world_snapped)).length <= snap_threshold:
+                            if closest_p := self.source_edge_accel.closest_point(co_world_pt):
+                                if (Vector(closest_p) - Vector(co_world_pt)).length <= snap_threshold:
                                     co_local_snapped = Mi @ Vector(closest_p)
                                     self.snapped_verts.add(bmv)
                 elif self.source_edge_accel and bmv.link_edges and snap_avg_edge_len > 0:

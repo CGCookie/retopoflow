@@ -47,6 +47,7 @@ from ..common.bmesh import (
     clean_select_layers,
     NearestBMVert, NearestBMEdge, NearestBMFace,
     has_mirror_x, has_mirror_y, has_mirror_z, mirror_threshold,
+    bme_is_interior, bmv_is_interior,
 )
 from ..common.accel import SourceCache
 from ..common.snapping import source_snap_radius, source_snap_settings
@@ -352,13 +353,6 @@ def is_point_inside_bmface(project : Callable[[Vector|None], Vector|None], point
     if not p:
         return False
     return True
-
-
-def bme_is_interior(bme : BMEdge) -> bool:
-    return len(bme.link_faces) >= 2
-
-def bmv_is_interior(bmv : BMVert) -> bool:
-    return bool(bmv.link_faces) and not bmv.is_wire and not bmv.is_boundary
 
 
 class PP_Logic:
