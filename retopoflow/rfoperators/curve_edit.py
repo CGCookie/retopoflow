@@ -30,10 +30,12 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_locat
 
 from collections.abc import Callable
 
+from ..common.accel import SourceCache
 from ..common.bmesh import get_bmesh_emesh
 from ..common.drawing import Drawing
 from ..common.maths import view_right_direction, xform_direction, proportional_edit
 from ..common.raycast import raycast_point_valid_sources, nearest_point_valid_sources, iter_all_valid_sources, mouse_from_event
+from ..common.snapping import source_snap_settings, source_snap_radius
 from ..common.operator import RFOperator, RFKeyMaps, execute_operator, Operator_Execute_Function
 from ..rfoverlay_base import RFOverlay_Base
 from ..rfglobals import RFGlobals
@@ -252,6 +254,17 @@ def create_curve_edit_operator(
             ]
             self.right = xform_direction(Mi, view_right_direction(context))
             self.spline.tessellate_uniform()
+
+            self.source_accel = SourceCache.get(context)
+            if self.source_accel:
+                edit_scale = max(M.to_scale())
+                use_fixed, fixed_distance, proximity = source_snap_settings(context)
+                self.feature_radius = source_snap_radius(
+                    self.chain['avg_len'] * edit_scale,
+                    use_fixed=use_fixed, fixed_distance=fixed_distance, avg_edge_factor=proximity,
+                )
+            else:
+                self.feature_radius = 0.0
 
             fn_dist = lambda a, b: (a - b).length
 
@@ -597,6 +610,10 @@ def create_curve_edit_operator(
                 if not new_world:
                     return
                 new_edit = Mi @ new_world
+                # A coupled edge chain's control point is a mesh vert, so snap the control point too.
+                # Control points on a face loop are never verts, so don't snap those.
+                if self.chain.get('coupled', True):
+                    new_edit = self.snap_co_to_feature(new_edit)
                 knot_delta = new_edit - pt_orig
                 for (seg, attr) in h['set']:
                     setattr(cbs[seg], attr, new_edit.copy())
@@ -1094,6 +1111,21 @@ def create_curve_edit_operator(
                 dist = min(dist, nseg - dist)
             return max(0.0, 1.0 - dist)
 
+        def snap_co_to_feature(self, co_local):
+            ''' Snap a local space coordinate onto the nearest source feature if within feature_radius.
+            Returns the (possibly unchanged) local coordinate. '''
+            accel = self.source_accel
+            if not accel or self.feature_radius <= 0:
+                return co_local
+            co_world = self.M @ co_local
+            corner = accel.find_corner(co_world)
+            if corner and corner[2] <= self.feature_radius:
+                return self.Mi @ Vector(corner[0])
+            closest = accel.closest_point(co_world)
+            if closest and (Vector(closest) - co_world).length <= self.feature_radius:
+                return self.Mi @ Vector(closest)
+            return co_local
+
         def _mirror_clamp(self, context, co, pt_edit_orig, M, Mi):
             ''' If `co` crossed a clipped mirror plane this frame (relative to
             `pt_edit_orig`, its position before this frame's move), iteratively
@@ -1436,6 +1468,7 @@ def create_curve_edit_operator(
                 pt_edit_new = M @ (o + d_final)
                 pt_edit_new = pt_edit_orig + (pt_edit_new - pt_edit_orig) * factor
                 co = nearest_point_valid_sources(context, pt_edit_new, world=False, sources=self.sources, respect_clip_planes=True) or pt_edit_orig
+                co = self.snap_co_to_feature(co)
                 bmv.co = self._mirror_clamp(context, co, pt_edit_orig, M, Mi)
 
         def draw_curve(self, context):
