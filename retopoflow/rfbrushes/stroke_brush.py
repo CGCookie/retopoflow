@@ -109,6 +109,9 @@ def create_stroke_brush(
         push_above          : float = 0.01
         shrink_below        : float = 0.80
         stroke_smooth       : float = smoothing  # [0,1], higher => more smoothing
+        stroke_smooth_feature_lo : float = math.radians(5)
+        stroke_smooth_feature_hi : float = math.radians(30)
+        cursor_normal = None  # local-space source normal under the cursor (set in update_snap)
 
         # hack to know which areas the mouse is in
         mouse_areas : set[bpy.types.Area] = set()  # TODO: make sure this actually works with multiple areas / quad
@@ -246,6 +249,7 @@ def create_stroke_brush(
                 self.reset_nearest(context)
 
             hit = raycast_valid_sources(context, mouse, respect_clip_planes=True)
+            self.cursor_normal = hit['no_local'] if hit else None
             if not hit: return
 
             if self.nearest_bmv:
@@ -408,6 +412,15 @@ def create_stroke_brush(
                 delta_t = time() - self.last_time
                 smoothing_mapped = CubicEaseOut(duration=1.5).ease(RFBrush_Stroke.stroke_smooth)
                 smoothing_factor = 1.0 - smoothing_mapped ** (delta_t * 50)
+                # Ease off the smoothing where the source normal turns sharply to preserve the corner
+                n_pre = self.stroke_normal[-1] if self.stroke_normal else None
+                n_cur = self.cursor_normal
+                if n_pre and n_cur and n_pre.length_squared > 0 and n_cur.length_squared > 0:
+                    bend = n_pre.angle(n_cur)
+                    lo, hi = self.stroke_smooth_feature_lo, self.stroke_smooth_feature_hi
+                    preserve = clamp((bend - lo) / (hi - lo), 0.0, 1.0)
+                    smoothing_factor += (1.0 - smoothing_factor) * preserve
+
                 pt = pre + (cur - pre) * smoothing_factor
                 self.add_stroke_point(context, pt)
                 if (self.stroke_original[0] - self.stroke_original[-1]).length > Drawing.scale(self.far_distance):

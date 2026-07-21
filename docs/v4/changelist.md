@@ -29,6 +29,7 @@ This document contains details about what has changed in Retopoflow in version 4
 - Added Ctrl and Shift scroll operators to adjust segments and width at any time in PolyStrips
 - PolyStrips now has insert size methods similar to Strokes
     - The default, Snapped, properly interpolates when drawing between any two quads
+- Improved edge placement when creating strips
 - Improved PolyStrips curve handles
 - Expanded the curve handle system to work with edge loops and selection patches
 - The curve handles are now available when working in Strokes and PolyPen as well

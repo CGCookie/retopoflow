@@ -510,7 +510,7 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
         if mode == 'SNAPPED':
             def snapped_radius(bmf, pts):
                 if not bmf or not getattr(bmf, 'is_valid', False): return None
-                return PolyStrips_Logic._snapped_edge_radius(bmf, pts)
+                return PolyStrips_Logic.snapped_edge_radius(bmf, pts)
             w0 = snapped_radius(getattr(brush, 'snap_bmf0', None), stroke3D[:3])
             w1 = snapped_radius(getattr(brush, 'snap_bmf1', None), stroke3D[-3:])
             if w0 is None and w1 is None:
@@ -539,10 +539,10 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
             pt = getattr(brush, 'hit_pl', None)
             if not bmf or not getattr(bmf, 'is_valid', False) or pt is None:
                 return None
-            r_local = PolyStrips_Logic._snapped_edge_radius(bmf, [pt])
+            r_local = PolyStrips_Logic.snapped_edge_radius(bmf, [pt])
             if r_local is None:
                 return None
-            # _snapped_edge_radius is local space (bme_length); the disc is world
+            # snapped_edge_radius is local space (bme_length); the disc is world
             return r_local * (brush.edit_scale or 1.0)
 
         return None

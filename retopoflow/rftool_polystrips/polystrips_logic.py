@@ -53,7 +53,7 @@ from ..common.bmesh_maths import (
 )
 from ..common.raycast import raycast_point_valid_sources, nearest_point_valid_sources, nearest_normal_valid_sources
 from ..common.accel import SourceCache
-from ..common.snapping import source_snap_radius, source_snap_settings
+from ..common.snapping import source_snap_radius, source_snap_settings, fold_crease
 from ..common.maths import (
     view_forward_direction,
     lerp,
@@ -174,6 +174,54 @@ def stroke_angles(stroke, width, split_angle, fn_snap_normal):
     return indices
 
 
+def stroke_normal_bends(stroke, width, split_angle, fn_snap_normal):
+    ''' Indices where the surface normal bends sharply along the stroke.
+    Returns interior stroke indices only (never 0 or len(stroke)). '''
+    n = len(stroke)
+    if n < 3:
+        return []
+    split_angle = math.degrees(split_angle)
+
+    # one normal per stroke point (reused for both detection and localization)
+    normals = [Direction(fn_snap_normal(p)) for p in stroke]
+
+    def idx_at_least(i, step):
+        # first index walking in `step` direction whose point is >= width from stroke[i]
+        p, k = stroke[i], i + step
+        while 0 <= k < n:
+            if (p - stroke[k]).length >= width:
+                return k
+            k += step
+        return None
+
+    candidates = [
+        i for i in range(n)
+        if (ib := idx_at_least(i, -1)) is not None
+        and (iff := idx_at_least(i, +1)) is not None
+        and math.degrees(normals[ib].angle_between(normals[iff])) >= split_angle
+    ]
+    if not candidates:
+        return []
+
+    # group candidates whose points are within width of each other into one island per fold
+    islands = [[candidates[0]]]
+    for i in candidates[1:]:
+        if (stroke[i] - stroke[islands[-1][-1]]).length < width:
+            islands[-1].append(i)
+        else:
+            islands.append([i])
+
+    def local_turn(i):
+        return normals[max(0, i - 1)].angle_between(normals[min(n - 1, i + 1)])
+
+    bends = []
+    for island in islands:
+        apex = max(island, key=local_turn)
+        if 0 < apex < n - 1:
+            bends.append(apex)
+    return bends
+
+
 
 class PolyStrips_Logic:
     def __init__(self, context, radius2D, stroke3D_local, point3D_0, point3D_1, is_cycle, length2D,
@@ -267,7 +315,7 @@ class PolyStrips_Logic:
         self.count_total = v
 
     @staticmethod
-    def _reserved_rung_fracs(n_rungs, seg_len, reserved_start, reserved_end):
+    def reserved_rung_fracs(n_rungs, seg_len, reserved_start, reserved_end):
         '''
         Fractional (0..1) arc-length positions for `n_rungs` rungs along a segment of
         length `seg_len`. The interval touching a corner end is pinned to an absolute
@@ -297,9 +345,33 @@ class PolyStrips_Logic:
             fracs[k] = start_f + t * (end_f - start_f)
         return fracs
 
+    @staticmethod
+    def rung_fracs_with_pins(n_rungs, pins):
+        ''' `n_rungs` rung fractions in [0,1] that include every pin, filling the gaps
+        between consecutive pins with uniformly spaced rungs apportioned by gap length.
+        Keeps a forced rung from bunching the spacing. '''
+        pins = sorted(p for p in set(pins) if 0.0 <= p <= 1.0)
+        if not pins or pins[0] > 0.0: pins = [0.0] + pins
+        if pins[-1] < 1.0: pins = pins + [1.0]
+        n_pins = len(pins)
+        n_rungs = max(n_rungs, n_pins)
+        gaps = [pins[i + 1] - pins[i] for i in range(n_pins - 1)]
+        extra = n_rungs - n_pins  # interior rungs to spread across the gaps
+        total = sum(gaps) or 1.0
+        raw = [extra * g / total for g in gaps]
+        add = [int(r) for r in raw]
+        for i in sorted(range(len(gaps)), key=lambda i: raw[i] - add[i], reverse=True)[:extra - sum(add)]:
+            add[i] += 1
+        fracs = [pins[0]]
+        for i in range(n_pins - 1):
+            a, b, subdiv = pins[i], pins[i + 1], add[i] + 1
+            fracs += [a + (b - a) * s / subdiv for s in range(1, subdiv)]
+            fracs += [b]
+        return fracs
+
 
     @staticmethod
-    def _snapped_edge_radius(bmf, pts):
+    def snapped_edge_radius(bmf, pts):
         ''' Half-length in local space of the snapped face's edge nearest the given stroke points. '''
         if not bmf or not pts: return None
         bmes = list(bmf.edges)
@@ -384,8 +456,8 @@ class PolyStrips_Logic:
 
         w_snap_start = w_snap_end = None
         if self.size_mode == 'SNAPPED':
-            w_snap_start = self._snapped_edge_radius(snap_bmf_start, self.stroke3D_local[:3])
-            w_snap_end   = self._snapped_edge_radius(snap_bmf_end,   self.stroke3D_local[-3:])
+            w_snap_start = self.snapped_edge_radius(snap_bmf_start, self.stroke3D_local[:3])
+            w_snap_end   = self.snapped_edge_radius(snap_bmf_end,   self.stroke3D_local[-3:])
 
         scale = sum(M.to_scale()) / 3
 
@@ -396,16 +468,23 @@ class PolyStrips_Logic:
         # panel's Count/Scale/Interpolation controls otherwise repeat it for
         stroke_angles_key = (self.split_angle, frozenset(self.mirror), tuple(self.mirror_side), self.mirror_threshold)
         if self._stroke_angles_cache_key == stroke_angles_key:
-            strips = self._stroke_angles_cache
+            strips, bend_indices = self._stroke_angles_cache
         else:
-            strips = stroke_angles(
-                self.stroke3D_local,
-                self.initial_width / scale,
-                self.split_angle,
-                lambda p: nearest_normal_valid_sources(context, M @ p, world=False),
-            )
+            fn_normal = lambda p: nearest_normal_valid_sources(context, M @ p, world=False)
+            width_local = self.initial_width / scale
+            # Two kinds of sharp corner, each with its own geometry.
+            # - TANGENT (in-plane turn, flat-surface strip corner):
+            #       split the stroke into segments so the strip pivots.
+            # - NORMAL (a fold over a source edge, straight in-plane):
+            #       do not split (#1601) and instead force a rung onto the fold.
+            strips = stroke_angles(self.stroke3D_local, width_local, self.split_angle, fn_normal)
+            corner_set = set(strips)
+            bend_indices = [
+                i for i in stroke_normal_bends(self.stroke3D_local, width_local, self.split_angle, fn_normal)
+                if i not in corner_set
+            ]
             self._stroke_angles_cache_key = stroke_angles_key
-            self._stroke_angles_cache = strips
+            self._stroke_angles_cache = (strips, bend_indices)
         nstroke = len(self.stroke3D_local)
 
         # cumulative world-space length at each stroke index, and the overall length --
@@ -623,33 +702,58 @@ class PolyStrips_Logic:
             ncount_mins += [count_min]
             ncounts += [quad_count]
 
-            # NOTE: nsamples is always odd (rungs land at samples[0,2,4,...,nsamples-1],
-            # i.e. n_rungs = (nsamples+1)//2) -- this relies on quad_count >= 3 whenever
-            # both ends are snapped, which count_min above already guarantees; don't
-            # loosen that clamp without re-checking the rung math below.
+            # NOTE: nsamples is always odd (rungs land at samples[0,2,4,...,nsamples-1], i.e. n_rungs = (nsamples+1)//2)
+            # This relies on quad_count >= 3 whenever both ends are snapped, which count_min above already guarantees.
+            # Don't loosen that clamp without rechecking the rung math below.
             quad_count = (quad_count - 1) if snap0 and snap1 else quad_count
             nsamples = quad_count + (quad_count - 1)
             nsamples = (nsamples + 2) if not (snap0 or snap1) else nsamples
             nsamples = max(2, nsamples)
 
-            # rung positions along the segment: only the interval at this segment's
-            # OWN end gets pinned to the local width (see _reserved_rung_fracs) --
-            # its rail edge is what the next segment reuses as its own first rung, so
-            # squaring it here is what makes the corner correct. The start is never
-            # pinned: even where i0 != 0 (this segment starts at a corner), rung 0 is
-            # just the reused edge from the previous segment's already-square ending,
-            # and this segment's first quad is an ordinary interior quad, not a corner
-            # -- it must size like the rest of the straight run. Non-rung (odd)
-            # samples only feed the forward/backward tangent estimate below, so a
-            # simple midpoint is fine. sample_width() returns a half-width (centerline
-            # to rail), so double it to get the full (rail-to-rail) width.
+            # Only the interval at this segment's own end gets pinned to the local width.
+            # Its rail edge is what the next segment reuses as its own first rung, so
+            # squaring it here is what makes the corner correct. The start is never pinned.
             n_rungs = (nsamples + 1) // 2
             seg_len_local = sum((p1 - p0).length for (p0, p1) in iter_pairs(stroke3D_local, self.is_cycle)) or 1.0
-            rung_fracs = self._reserved_rung_fracs(
-                n_rungs, seg_len_local,
-                0.0,
-                2 * sample_width(1) if i1 != nstroke else 0.0,
-            )
+            # NORMAL-corner: force a rung onto every fold that falls inside this segment. No splitting (#1601).
+            fold_sample_indices = []
+            seg_creases = [ci for ci in bend_indices if i0 < ci < i1]
+            if not seg_creases:
+                rung_fracs = self.reserved_rung_fracs(
+                    n_rungs, seg_len_local,
+                    0.0,
+                    2 * sample_width(1) if i1 != nstroke else 0.0,
+                )
+            else:
+                # Pin a rung at each fold and re-space the rest evenly around it.
+                cum = [0.0]
+                for (a, b) in iter_pairs(stroke3D_local, self.is_cycle):
+                    cum.append(cum[-1] + (b - a).length)
+                seg_total = cum[-1] or 1.0
+                crease_fracs = []
+                for ci in seg_creases:
+                    crease_pt = self.stroke3D_local[ci]
+                    j = min(range(len(stroke3D_local)), key=lambda j: (stroke3D_local[j] - crease_pt).length)
+                    crease_fracs.append(cum[j] / seg_total)
+
+                pins = [0.0, 1.0]
+                if i1 != nstroke:
+                    pins.append(1.0 - min(0.45, (2 * sample_width(1)) / seg_len_local))
+                guard = 0.5 / max(1, n_rungs)  # ~half a uniform span
+                kept_creases = []
+                for cf in sorted(crease_fracs):
+                    # drop folds that would sit on an endpoint/reserved pin or another fold
+                    if not (guard < cf < 1.0 - guard): continue
+                    if any(abs(cf - p) < guard for p in pins + kept_creases): continue
+                    kept_creases.append(cf)
+                pins = sorted(pins + kept_creases)
+                n_rungs = max(n_rungs, len(pins))
+                rung_fracs = self.rung_fracs_with_pins(n_rungs, pins)
+                nsamples = 2 * n_rungs - 1
+                # sample index of each fold rung, so its centerline + direction can be pinned
+                # to the source crease once the samples are built.
+                fold_sample_indices = [2 * rung_fracs.index(cf) for cf in kept_creases]
+
             fracs = [0.0] * nsamples
             for k, f in enumerate(rung_fracs):
                 fracs[2 * k] = f
@@ -665,6 +769,18 @@ class PolyStrips_Logic:
                 for pt in samples
             ]
             normals = [ Direction(nearest_normal_valid_sources(context, M @ pt, world=False)) for pt in samples ]
+            # Pin each fold rung's centerline onto the actual source crease when detection is on,
+            # else the intersection of the two adjacent face planes if detection is off.
+            # Done before forwards/backwards/rights so the cross-section reflects the move.
+            fold_crease_dirs = {}
+            for k in fold_sample_indices:
+                if not (0 < k < len(samples) - 1): continue
+                crease = self.fold_crease_point(
+                    samples[k], samples[k - 1], normals[k - 1], samples[k + 1], normals[k + 1],
+                    max_plane_dist=2 * base_width,
+                )
+                if crease is not None:
+                    samples[k], fold_crease_dirs[k] = crease
             forwards = [ Direction(p1 - p0) for (p0, p1) in iter_pairs(samples, self.is_cycle) ]
             forwards += [ forwards[-1] ]
             # backwards is essentially the same as forwards, but doing it this way is slightly easier to understand
@@ -674,6 +790,13 @@ class PolyStrips_Logic:
                 (f.cross(n).normalize() + n.cross(b).normalize()).normalize()
                 for (b, f, n) in zip(backwards, forwards, normals)
             ]
+            # A fold rung must lie along the crease so both its verts land on the edge.
+            # Replace the fold rung's direction with the crease direction.
+            # Skip if the strip only grazes the crease.
+            for k, cdir in fold_crease_dirs.items():
+                align = cdir.dot(rights[k])
+                if abs(align) < 0.2: continue
+                rights[k] = Direction(cdir if align >= 0 else -cdir)
 
 
             ######################################
@@ -875,6 +998,15 @@ class PolyStrips_Logic:
         if closest and (Vector(closest) - co_world).length <= self.feature_radius:
             return self.matrix_world_inv @ Vector(closest)
         return co_local
+    def fold_crease_point(self, p_local, p_before, n_before, p_after, n_after, *, max_plane_dist):
+        ''' Thin wrapper over common.snapping.fold_crease using this tool's source accel /
+        feature radius. Returns (crease_point, crease_dir) in local space, or None. '''
+        return fold_crease(
+            p_local, p_before, n_before, p_after, n_after,
+            self.matrix_world, self.matrix_world_inv,
+            source_accel=self.source_accel, feature_radius=self.feature_radius,
+            max_plane_dist=max_plane_dist,
+        )
     def bmv_closest(self, bmvs, pt3D):
         pt2D = self.project_pt(context, pt3D)
         # bmvs = [bmv for bmv in bmvs if bmv.select and (pt := self.project_bmv(bmv)) and (pt - pt2D).length_squared < 20*20]

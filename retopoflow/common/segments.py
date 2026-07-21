@@ -32,9 +32,11 @@ from ..common.bmesh import (
     has_mirror_x, has_mirror_y, has_mirror_z, mirror_threshold,
 )
 from ..common.bmesh_maths import check_bmf_normals
-from ..common.curves import find_quadstrip_chains, fit_centerline_spline, ordered_rungs
+from ..common.curves import find_quadstrip_chains, fit_centerline_spline, ordered_rungs, sharp_angle_indices
 from ..common.maths import view_forward_direction, xform_direction, lerp, clamp, interp_piecewise
 from ..common.raycast import nearest_point_valid_sources, nearest_normal_valid_sources
+from ..common.accel import SourceCache
+from ..common.snapping import fold_crease, source_snap_radius, source_snap_settings
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.maths import Direction, sign_threshold
 from ...addon_common.common.utils import dedup
@@ -272,14 +274,32 @@ class QuadStripProvider(SegmentGeometryProvider):
     def rebuild(self, context, bm, recipe, count, *, scale_start : float = 1.0, scale_end : float = 1.0) -> list[BMFace]:
         cyclic = recipe.cyclic
         Mw     = context.edit_object.matrix_world
+        Mwi    = Mw.inverted_safe()
         fn     = lambda a, b: (a - b).length
 
-        # Floor the count at one quad per corner, so a low request can't fall back to corner-losing uniform spacing
-        corner_fracs = set() if cyclic else {
-            recipe.arc_fracs[i] for i in (recipe.corner_indices or ()) if 0 <= i < len(recipe.arc_fracs)
+        # Preserve sharp bends and sharp corners by pinning a station at each.
+        # A rung then lands on every crease at any count.
+        # Floor the count so a low request can't drop one. Open chains only, rings stay uniform.
+        sharp_indices = set() if cyclic else sharp_angle_indices(
+            recipe.centerline_cos, len(recipe.centerline_cos), cyclic, recipe.sharp_angle
+        )
+        sharp_fracs = set() if cyclic else {
+            recipe.arc_fracs[i] for i in sharp_indices if 0 <= i < len(recipe.arc_fracs)
         }
-        min_count = max(MIN_COUNT, len(corner_fracs) + 1)
+        reserved_fracs = set() if cyclic else (sharp_fracs | {
+            recipe.arc_fracs[i] for i in (recipe.corner_indices or ()) if 0 <= i < len(recipe.arc_fracs)
+        })
+        min_count = max(MIN_COUNT, len(reserved_fracs) + 1)
         count = max(min_count, int(count))
+
+        # source accel + feature radius for pinning fold rungs exactly onto the crease
+        source_accel = SourceCache.get(context)
+        feature_radius = 0.0
+        if source_accel and recipe.half_widths:
+            use_fixed, fixed_distance, proximity = source_snap_settings(context)
+            scale_avg = sum(Mw.to_scale()) / 3
+            mean_full_width = (sum(recipe.half_widths) / len(recipe.half_widths)) * 2 * scale_avg
+            feature_radius = source_snap_radius(mean_full_width, use_fixed=use_fixed, fixed_distance=fixed_distance, avg_edge_factor=proximity)
 
         # Fit the shape-preserving centerline.
         spline = fit_centerline_spline(
@@ -298,7 +318,7 @@ class QuadStripProvider(SegmentGeometryProvider):
         if cyclic:
             fracs = [j / count for j in range(nstations)]
         else:
-            fracs = _stations_with_reserved_fracs(nstations, corner_fracs)
+            fracs = _stations_with_reserved_fracs(nstations, reserved_fracs)
         ts = spline.approximate_ts_at_intervals_uniform([f * total for f in fracs], fn)
         stations = [Vector(spline.eval(t)) for t in ts]
         stations = [
@@ -308,6 +328,23 @@ class QuadStripProvider(SegmentGeometryProvider):
 
         # Per-station frame (mirror PolyStrips' right-vector construction)
         normals = [Direction(nearest_normal_valid_sources(context, Mw @ p, world=False) or Vector((0, 0, 1))) for p in stations]
+
+        # Pin fold stations onto the source crease and remember the crease direction so the rung can lay along it.
+        base_half = (sum(recipe.half_widths) / len(recipe.half_widths)) if recipe.half_widths else 0.1
+        fold_station_indices = [] if cyclic else [
+            i for i, f in enumerate(fracs)
+            if 0 < i < nstations - 1 and any(abs(f - sf) < 1e-6 for sf in sharp_fracs)
+        ]
+        fold_dirs = {}
+        for i in fold_station_indices:
+            crease = fold_crease(
+                stations[i], stations[i - 1], normals[i - 1], stations[i + 1], normals[i + 1],
+                Mw, Mwi, source_accel=source_accel, feature_radius=feature_radius,
+                max_plane_dist=2 * base_half,
+            )
+            if crease is not None:
+                stations[i], fold_dirs[i] = crease
+
         forwards, backwards = [], []
         for i in range(nstations):
             if cyclic:
@@ -343,6 +380,14 @@ class QuadStripProvider(SegmentGeometryProvider):
             if i > 0 and r.dot(r_signed[-1]) < 0:
                 r = -r
             r_signed.append(r)
+
+        # A fold rung lies along the crease so both verts sit on the edge.
+        # Sign-matched to the propagated right so the rails don't swap.
+        # Skip near-grazing crossings.
+        for i, cdir in fold_dirs.items():
+            align = cdir.dot(r_signed[i])
+            if abs(align) < 0.2: continue
+            r_signed[i] = Vector(cdir if align >= 0 else -cdir).normalized()
 
         # Resample the width taper, scaled start -> end along the strip
         widths = [
