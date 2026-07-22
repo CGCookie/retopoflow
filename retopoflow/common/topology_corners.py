@@ -70,7 +70,7 @@ def _strip_rails(faces, rungs, k):
     return (a0, b0, c0), (a1, b1, c1), C, downstream
 
 
-def _hermite_pts(a : Vector, b : Vector, dir_in : Vector | None, dir_out : Vector | None, ts):
+def hermite_pts(a : Vector, b : Vector, dir_in : Vector | None, dir_out : Vector | None, ts):
     ''' Points along a cubic Hermite from `a` to `b` whose end tangents continue
     the given directions, each scaled to the chord length or chord when missing. '''
     chord = b - a
@@ -283,7 +283,7 @@ def remove_corner(bm : BMesh, faces, rungs, k, *, fwd : Vector) -> dict | None:
         after_b = _same_side_vert(b, rung_p3, face_p2) if (rung_p3 is not None and face_p2 is not None) else None
         dir_in = (a.co - before_a.co) if before_a is not None else None
         dir_out = (after_b.co - b.co) if after_b is not None else None
-        v13.co, v23.co = _hermite_pts(a.co, b.co, dir_in, dir_out, (1/3, 2/3))
+        v13.co, v23.co = hermite_pts(a.co, b.co, dir_in, dir_out, (1/3, 2/3))
         moved_verts += [v13, v23]
 
     check_bmf_normals(fwd, [nf])

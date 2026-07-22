@@ -1569,10 +1569,11 @@ def create_curve_toggle_handle_type_operator(
     get_overlay : Callable[[], type[RFOverlay_Base] | None],
 ) -> Operator_Execute_Function:
     ''' Toggling curve control points (Aligned -> Vector -> Automatic -> Aligned):
-        - on an edge loop the cycle is a pure curve-fit change.
-        - on a face strip, Vector always means a topological corner: entering Vector inserts a real L-junction
-            in the mesh, leaving Vector removes it. Knots that can't host a corner skip the Vector step;
-            open-chain endpoints stay forced Vector and aren't togglable (pre-corner-feature behavior). '''
+        - on an edge loop, the cycle is a pure handle-type change: no vert ever moves, so it's perfectly
+            reversible. Vector creases the fit at the knot and re-aims its arms and its neighbors'.
+        - on a face strip, Vector means a topological corner: entering Vector inserts a real L-junction
+            in the mesh, leaving Vector removes it. Knots that can't host a corner skip the Vector step.
+    Open-chain endpoints stay forced Vector and aren't togglable (pre-corner-feature behavior). '''
 
     def _hovered_toggleable_knot():
         overlay_type = get_overlay()
@@ -1653,13 +1654,15 @@ def create_curve_toggle_handle_type_operator(
         if found is None:
             return {'CANCELLED'}
         overlay, chain, handle = found
+        cache_key, k = chain['cache_key'], handle['vert_index']
+        current = handle.get('handle_type', 'automatic')
 
         if chain.get('coupled', True):
-            overlay.toggle_handle_type(chain['cache_key'], handle['vert_index'])
+            # Edge loops: the pure handle-type cycle. No vert ever moves, so the toggle is perfectly reversible.
+            overlay.toggle_handle_type(cache_key, k)
             context.area.tag_redraw()
             return {'CANCELLED'}
 
-        current = handle.get('handle_type', 'automatic')
         if current == 'aligned':
             if handle.get('corner_eligible', False):
                 return _reroute_corner(context, overlay, chain, handle)  # -> vector (insert corner)
@@ -1670,7 +1673,7 @@ def create_curve_toggle_handle_type_operator(
             return {'CANCELLED'}  # corner attached to existing geometry so leave unchanged
         else:  # automatic
             new_type = 'aligned'
-        overlay.set_handle_type(chain['cache_key'], handle['vert_index'], new_type, reposition=True)
+        overlay.set_handle_type(cache_key, k, new_type, reposition=True)
         context.area.tag_redraw()
         return {'CANCELLED'}
 
