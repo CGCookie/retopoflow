@@ -32,14 +32,17 @@ from collections.abc import Callable
 
 from ..common.accel import SourceCache
 from ..common.bmesh import get_bmesh_emesh
+from ..common.curves import ordered_rungs
+from ..common.topology_corners import insert_corner, remove_corner
 from ..common.drawing import Drawing
-from ..common.maths import view_right_direction, xform_direction, proportional_edit
+from ..common.maths import view_right_direction, view_forward_direction, xform_direction, proportional_edit
 from ..common.raycast import raycast_point_valid_sources, nearest_point_valid_sources, iter_all_valid_sources, mouse_from_event
 from ..common.snapping import source_snap_settings, source_snap_radius
 from ..common.operator import RFOperator, RFKeyMaps, execute_operator, Operator_Execute_Function
 from ..rfoverlay_base import RFOverlay_Base
 from ..rfglobals import RFGlobals
 from ...addon_common.common import gpustate
+from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.maths import Color, sign_threshold
 from ..rfoverlays.curve_overlay import (
     shrink_segment, KNOT_RADIUS, TANGENT_RADIUS,
@@ -1565,20 +1568,11 @@ def create_curve_toggle_handle_type_operator(
     *,
     get_overlay : Callable[[], type[RFOverlay_Base] | None],
 ) -> Operator_Execute_Function:
-    '''
-    Single-press hotkey (V): while hovering a toggleable curve KNOT, cycles
-    its handle type Aligned -> Vector -> Automatic -> Aligned (see the
-    handle-type system in curve_overlay.py's _build_curve/_build_handles);
-    otherwise (nothing hovered, a tangent hovered, or a forced corner/
-    endpoint knot) it still claims the keypress and returns {'CANCELLED'}
-    (see can_toggle/toggle) rather than leaving 'V' unclaimed for Blender's
-    native Rip to pick up.
-    A plain execute-once operator rather than a modal RFOperator -- there's
-    no drag to track, so the lighter fn_poll/fn_exec pattern used elsewhere
-    for single-shot actions (e.g. RFOperator_PinVerts in pinning.py) fits
-    better than the drag-oriented init/update/finish contract create_curve_
-    edit_operator's class relies on.
-    '''
+    ''' Toggling curve control points (Aligned -> Vector -> Automatic -> Aligned):
+        - on an edge loop the cycle is a pure curve-fit change.
+        - on a face strip, Vector always means a topological corner: entering Vector inserts a real L-junction
+            in the mesh, leaving Vector removes it. Knots that can't host a corner skip the Vector step;
+            open-chain endpoints stay forced Vector and aren't togglable (pre-corner-feature behavior). '''
 
     def _hovered_toggleable_knot():
         overlay_type = get_overlay()
@@ -1594,34 +1588,95 @@ def create_curve_toggle_handle_type_operator(
         return overlay, chain, handle
 
     def can_toggle(context):
-        # deliberately does NOT also require a toggleable knot to be
-        # hovered: this is the operator's Blender-level poll, and a keymap
-        # item whose poll fails isn't just skipped -- Blender falls through
-        # to the NEXT item bound to the same key, which for 'V' in edit mesh
-        # mode is native Rip. Keeping poll to "is this tool's curve-edit
-        # context even active" (not "is there something to do right now")
-        # means the operator still claims the V press and can return
-        # {'CANCELLED'} itself (see toggle) -- CANCELLED still consumes the
-        # event, just without pushing an undo step, so Rip never fires.
+        # Only claim the hotkey while the cursor is actually over a curve control point.
+        # Returning False when nothing is hovered or the curve overlay isn't even up lets Blender's Rip work
+        # everywhere except right on a control point, where V toggles the handle instead.
         RFCore = RFGlobals.RFCore_None
         if not RFCore or not RFCore.is_running:
             return False
         if not context.edit_object or context.mode != 'EDIT_MESH':
             return False
-        return True
+        overlay_type = get_overlay()
+        overlay = overlay_type.instance if overlay_type else None
+        return bool(overlay and overlay.hovering)
+
+    def _reroute_corner(context, overlay, chain, handle):
+        ''' Insert or remove a topological L-corner on a face strip. '''
+        cache_key = chain['cache_key']
+        # even knot (face center 2k) -> face k, keeping the knot marker in place
+        # odd knot (bend rung 2k-1) -> face k, so the corner's pivot vertex lands on that bend rung.
+        # Matches the eligibility indices in QuadStripChainProvider.
+        ci = handle['vert_index']
+        face_pos = (ci + (ci & 1)) // 2
+        is_corner = handle.get('handle_type') == 'vector'
+
+        bm, em = get_bmesh_emesh(context, ensure_lookup_tables=True)
+        try:
+            faces = [bm.faces[i] for i in cache_key[1:]]
+        except IndexError:
+            return {'CANCELLED'}
+        if not (1 <= face_pos <= len(faces) - 2):
+            return {'CANCELLED'}
+        rungs = ordered_rungs(faces, False)
+
+        M = context.edit_object.matrix_world
+        Mwi = M.inverted_safe()
+        fwd = xform_direction(Mwi, view_forward_direction(context))
+
+        edit = remove_corner if is_corner else insert_corner
+        result = edit(bm, faces, rungs, face_pos, fwd=fwd)
+        if result is None:
+            return {'CANCELLED'}  # attached to existing geometry / degenerate so leave unchanged
+
+        # the squared corner verts were placed in-plane, pull them onto the source
+        for bmv in result.get('moved_verts', ()):
+            if snapped := nearest_point_valid_sources(context, M @ bmv.co, world=False, respect_clip_planes=True):
+                bmv.co = snapped
+
+        # reselect the whole resulting strip so the overlay re-detects the same chain
+        new_faces = [f for f in faces if f.is_valid]
+        if result.get('new_face') is not None:
+            new_faces.append(result['new_face'])
+        bmops.deselect_all(bm)
+        bmops.select_iter(bm, new_faces)
+        bmops.flush_selection(bm, em)  # also calls bmesh.update_edit_mesh
+
+        # force the overlay to re-collect and rebuild and drop cache keyed by the now-stale face indices
+        type(overlay).depsgraph_version = -42
+        overlay._curve_struct_cache.pop(cache_key, None)
+        overlay._handle_type_overrides.pop(cache_key, None)
+        context.area.tag_redraw()
+        return {'FINISHED'}
 
     def toggle(context):
         found = _hovered_toggleable_knot()
         if found is None:
             return {'CANCELLED'}
         overlay, chain, handle = found
-        overlay.toggle_handle_type(chain['cache_key'], handle['vert_index'])
+
+        if chain.get('coupled', True):
+            overlay.toggle_handle_type(chain['cache_key'], handle['vert_index'])
+            context.area.tag_redraw()
+            return {'CANCELLED'}
+
+        current = handle.get('handle_type', 'automatic')
+        if current == 'aligned':
+            if handle.get('corner_eligible', False):
+                return _reroute_corner(context, overlay, chain, handle)  # -> vector (insert corner)
+            new_type = 'automatic'  # no corner possible here: skip Vector in the cycle
+        elif current == 'vector':
+            if handle.get('corner_eligible', False):
+                return _reroute_corner(context, overlay, chain, handle)  # -> automatic (remove corner)
+            return {'CANCELLED'}  # corner attached to existing geometry so leave unchanged
+        else:  # automatic
+            new_type = 'aligned'
+        overlay.set_handle_type(chain['cache_key'], handle['vert_index'], new_type, reposition=True)
         context.area.tag_redraw()
-        return {'FINISHED'}
+        return {'CANCELLED'}
 
     bl_idname = f'retopoflow.{idname}'
     return execute_operator(
-        idname, label, description=description, options={'INTERNAL'},
+        idname, label, description=description, options={'INTERNAL', 'UNDO'},
         fn_poll=can_toggle,
         keymaps=[(bl_idname, {'type': 'V', 'value': 'PRESS'}, None)],
     )(toggle)

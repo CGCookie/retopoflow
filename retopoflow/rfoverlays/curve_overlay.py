@@ -310,6 +310,9 @@ def create_curve_overlay(
                 spec.points, cyclic=spec.cyclic, avg_len=spec.avg_len,
                 bend_tolerance_factor=bend_tolerance_factor, sharp_angle=sharp_angle,
                 cache_key=spec.cache_key, forced_sharp_indices=spec.forced_sharp_indices,
+                coupled=spec.coupled,
+                corner_eligible_knots=spec.corner_eligible_knots,
+                corner_removable_knots=spec.corner_removable_knots,
             )
             if spline is None or not spline.cbs:
                 return
@@ -327,7 +330,7 @@ def create_curve_overlay(
                 'coupled': spec.coupled, # True when points are on verts, False when derived from faces
             })
 
-        def _build_curve(self, cos, *, cyclic, avg_len, bend_tolerance_factor, sharp_angle, cache_key, forced_sharp_indices=()):
+        def _build_curve(self, cos, *, cyclic, avg_len, bend_tolerance_factor, sharp_angle, cache_key, forced_sharp_indices=(), coupled=True, corner_eligible_knots=frozenset(), corner_removable_knots=frozenset()):
             n = len(cos)
             # rebuild when important inputs are changed
             handle_type_overrides = self._handle_type_overrides.get(cache_key, {})
@@ -353,13 +356,19 @@ def create_curve_overlay(
                     bend_tolerance_factor=bend_tolerance_factor,
                     sharp_angle=sharp_angle,
                     forced_sharp_indices=forced_sharp_indices,
+                    corners_from_forced_only=not coupled,
                 )
 
-            # Users have some control over handle types
-            forced_vector = set(corner_set) | ({0, n - 1} if not cyclic else set())
+            # Users have some control over handle types.
+            # On a face strip, Vector is reserved for topological corners -- but open-chain
+            # ENDPOINTS stay forced Vector on every chain kind: they aren't corners, yet their
+            # pre-corner-feature behavior (visible, editable end tangents) must not change,
+            # and V is a no-op on them anyway (never togglable).
+            endpoints = {0, n - 1} if not cyclic else set()
+            display_forced_vector = set(corner_set) | endpoints
             def resolve_handle_type(k):
-                return handle_type_overrides.get(k) or ('vector' if k in forced_vector else 'automatic')
-            corners_for_fit = { k for k in knots if resolve_handle_type(k) == 'vector' }
+                return handle_type_overrides.get(k) or ('vector' if k in display_forced_vector else 'automatic')
+            corners_for_fit = { k for k in knots if resolve_handle_type(k) == 'vector' } | endpoints
 
             # only reached on a structural rebuild or just after an edit, never per-frame
             locked_cbs = {}
@@ -390,7 +399,7 @@ def create_curve_overlay(
                     if knots[i + 1] not in corners_for_fit:
                         smooth_junctions.add(i)
 
-            handles = self._build_handles(spline, cyclic, smooth_junctions, knots, resolve_handle_type, forced_vector)
+            handles = self._build_handles(spline, cyclic, smooth_junctions, knots, resolve_handle_type, display_forced_vector, coupled, corner_eligible_knots, corner_removable_knots)
 
             # always cache as we need a baseline for the next call
             self._curve_struct_cache[cache_key] = {
@@ -427,7 +436,7 @@ def create_curve_overlay(
                 locked[i] = cb
             return locked
 
-        def _build_handles(self, spline, cyclic, smooth_junctions, knots, resolve_handle_type, forced_vector):
+        def _build_handles(self, spline, cyclic, smooth_junctions, knots, resolve_handle_type, forced_vector, coupled=True, corner_eligible_knots=frozenset(), corner_removable_knots=frozenset()):
             cbs = spline.cbs
             nseg = len(cbs)
             handles = []
@@ -436,27 +445,38 @@ def create_curve_overlay(
 
             nknots = len(knots)
 
+            def knot_flags(k, is_endpoint):
+                ''' Returns (can_toggle, corner_eligible). '''
+                if coupled:
+                    return (k not in forced_vector), False
+                ce = (k in corner_eligible_knots) or (k in corner_removable_knots)
+                return (not is_endpoint), ce
+
             # a knot is 'free' (draggable without pinning a vert) at a smooth, non-endpoint junction.
             if cyclic:
                 for i in range(nseg):
                     j = (i - 1) % nseg
                     k = knots[i]
+                    ct, ce = knot_flags(k, False)
                     handles.append({'kind':'knot', 'pos':(i,'p0'), 'free': j in smooth_junctions,
                                     'set':[(j,'p3'), (i,'p0')], 'move':[(j,'p2'), (i,'p1')],
-                                    'vert_index': k, 'handle_type': resolve_handle_type(k), 'can_toggle': k not in forced_vector})
+                                    'vert_index': k, 'handle_type': resolve_handle_type(k), 'can_toggle': ct, 'corner_eligible': ce})
             else:
                 k0 = knots[0]
+                ct, ce = knot_flags(k0, True)
                 handles.append({'kind':'knot', 'pos':(0,'p0'), 'free': False, 'set':[(0,'p0')], 'move':[(0,'p1')],
-                                'vert_index': k0, 'handle_type': resolve_handle_type(k0), 'can_toggle': k0 not in forced_vector})
+                                'vert_index': k0, 'handle_type': resolve_handle_type(k0), 'can_toggle': ct, 'corner_eligible': ce})
                 for i in range(1, nseg):
                     k = knots[i]
+                    ct, ce = knot_flags(k, False)
                     handles.append({'kind':'knot', 'pos':(i,'p0'), 'free': (i - 1) in smooth_junctions,
                                     'set':[(i-1,'p3'), (i,'p0')], 'move':[(i-1,'p2'), (i,'p1')],
-                                    'vert_index': k, 'handle_type': resolve_handle_type(k), 'can_toggle': k not in forced_vector})
+                                    'vert_index': k, 'handle_type': resolve_handle_type(k), 'can_toggle': ct, 'corner_eligible': ce})
                 kN = knots[-1]
+                ct, ce = knot_flags(kN, True)
                 handles.append({'kind':'knot', 'pos':(nseg-1,'p3'), 'free': False,
                                 'set':[(nseg-1,'p3')], 'move':[(nseg-1,'p2')],
-                                'vert_index': kN, 'handle_type': resolve_handle_type(kN), 'can_toggle': kN not in forced_vector})
+                                'vert_index': kN, 'handle_type': resolve_handle_type(kN), 'can_toggle': ct, 'corner_eligible': ce})
 
             for i in range(nseg):
                 # p1: outgoing arm from the junction on the left of segment i
@@ -482,6 +502,9 @@ def create_curve_overlay(
 
         def set_handle_type(self, cache_key, vert_index, handle_type, *, reposition=False) -> bool:
             ''' Sets a knot's handle-type override. 'reposition' re-aims the knot's arms to match the new type's default. '''
+            if handle_type == 'vector' and cache_key and cache_key[0] == 'faces':
+                # A face strip's Vector handle == a topological corner and is derived from the mesh each rebuild
+                return False
             overrides = self._handle_type_overrides.setdefault(cache_key, {})
             if overrides.get(vert_index) == handle_type:
                 return False
