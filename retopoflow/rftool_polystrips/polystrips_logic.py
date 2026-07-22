@@ -80,7 +80,7 @@ from ...addon_common.common.utils import iter_pairs, enumerate_reversed, enumera
 import math
 from itertools import chain
 
-DEBUG_SIDEJOIN = False
+DEBUG_SIDEJOIN = True
 
 
 r'''

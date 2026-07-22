@@ -293,10 +293,10 @@ def create_falloff_brush(
                 text_value = f"{round(self.falloff, 2)}"
 
             if adjust == 'RADIUS':
-                Drawing.draw2D_smooth_circle(context, center2D, active_op.prev_radius, color, width=0.5)
+                Drawing.draw2D_smooth_circle(context, center2D, active_op.prev_radius, color, width=0.5, apply_ui_scale=False)
 
             # Draw outer - brush radius - circle border
-            Drawing.draw2D_smooth_circle(context, center2D, r, color, width=2 if adjust == 'RADIUS' else 0.5)
+            Drawing.draw2D_smooth_circle(context, center2D, r, color, width=2 if adjust == 'RADIUS' else 0.5, apply_ui_scale=(adjust != 'RADIUS'))
 
             if adjust == 'STRENGTH':
                 # Draw inner - strength-based - circle border
@@ -385,9 +385,11 @@ def create_falloff_brush(
 
         rf_keymaps : RFKeyMaps = [
             # see hacks below
-            (f'retopoflow.{idname}_radius',   {'type': 'F', 'value': 'PRESS', 'ctrl': 0, 'shift': 0}, {'km_context': 'init', 'km_label': 'Adjust Radius'}),
+            (f'retopoflow.{idname}_radius',   {'type': 'F', 'value': 'PRESS', 'ctrl': 0, 'shift': 0}, {'km_context': 'init', 'km_label': 'Adjust Radius', 'km_extra_icons': ['EVENT_LEFTBRACKET', 'EVENT_RIGHTBRACKET']}),
             (f'retopoflow.{idname}_falloff',  {'type': 'F', 'value': 'PRESS', 'ctrl': 1, 'shift': 0}, {'km_context': 'init', 'km_label': 'Adjust Falloff'}),
             (f'retopoflow.{idname}_strength', {'type': 'F', 'value': 'PRESS', 'ctrl': 0, 'shift': 1}, {'km_context': 'init', 'km_label': 'Adjust Strength'}),
+            (f'retopoflow.{idname}_radius_decrease', {'type': 'LEFT_BRACKET',  'value': 'PRESS'}, None),
+            (f'retopoflow.{idname}_radius_increase', {'type': 'RIGHT_BRACKET', 'value': 'PRESS'}, None),
         ]
         rf_status : dict[str, Sequence[str]] = {
             'adjust': ('LMB: Commit', 'RMB: Cancel')
@@ -427,6 +429,18 @@ def create_falloff_brush(
         @staticmethod
         def adjust_falloff(_context : Context):
             _ = bpy_ops_retopoflow(idname, 'INVOKE_DEFAULT', adjust='FALLOFF')
+
+        @execute_operator(f'{idname}_radius_increase', f'Increase {label} Radius')
+        @staticmethod
+        def increase_radius(context : Context):
+            RFBrush_Falloff.radius = min(1000, max(RFBrush_Falloff.radius + 1, round(RFBrush_Falloff.radius * 1.1)))
+            if context.area: context.area.tag_redraw()
+
+        @execute_operator(f'{idname}_radius_decrease', f'Decrease {label} Radius')
+        @staticmethod
+        def decrease_radius(context : Context):
+            RFBrush_Falloff.radius = max(5, min(RFBrush_Falloff.radius - 1, round(RFBrush_Falloff.radius / 1.1)))
+            if context.area: context.area.tag_redraw()
 
 
         #################################################################################

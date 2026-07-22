@@ -41,6 +41,8 @@ This document contains details about what has changed in Retopoflow in version 4
 - Strokes can now use world space units as the span length
 - Closed loops drawn with Strokes have a new slider to make them perfectly circular
 - Switched Strokes and PolyStrips brush size hotkey to Shift F to free up F for filling
+    - All brush based tools can now use the bracket keys to change the size as well
+    - Fixed incorrect brush preview size when adjusting radius in non-default UI scales
 
 - Added Nudge, Nudge Loops, and Pinch / Magnify modes to Tweak tool
     - Nudge is now the default instead of Grab
@@ -54,6 +56,7 @@ This document contains details about what has changed in Retopoflow in version 4
 - PolyPen now snaps new verts to nearby source feature edges and corners as you insert
     - The preview and the placed vert both land on the sharp edge, matching Tweak and Strokes
 - Improved extrude vs. knife decision tree in PolyPen
+
 - Fixed performance issues when using some pen tablets or non-official Blender distributions
 - Fixed proportional editing circle size and location
 - Fixed non-uniform scale issues when drawing in PolyStrips

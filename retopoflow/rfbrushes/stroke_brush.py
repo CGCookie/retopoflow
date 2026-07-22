@@ -39,7 +39,7 @@ from ..common.drawing import Drawing
 from ..preferences import RF_Prefs
 from ..common.raycast import raycast_valid_sources, size2D_to_size, mouse_from_event
 from ..common.maths import bvec_point_to_bvec4
-from ..common.operator import RFOperator, RFKeyMaps
+from ..common.operator import RFOperator, RFKeyMaps, execute_operator
 from ..common.easing import CubicEaseOut
 from ...addon_common.common import gpustate
 from ...addon_common.common.blender import event_modifier_check
@@ -88,6 +88,11 @@ def create_stroke_brush(
     class RFBrush_Stroke(RFBrush_Base):
         # brush settings
         stroke_radius : float = radius
+
+        # Brush flash to show size when adjusting radius
+        flash_until : float = 0.0
+        flash_mouse2d : tuple | None = None
+        _flash_running : bool = False
 
         snap_distance : int = 10  # pixel distance when to consider snapping to vert or stroke end (cycle) or mirrored vert
         far_distance  : int = 20  # mouse must move this far away from stroke start to start considering cycle
@@ -141,6 +146,30 @@ def create_stroke_brush(
         def set_stroke_smooth(cls, value : float):
             cls.stroke_smooth = clamp(value, 0.00, 1.00)
 
+        @classmethod
+        def flash_brush(cls, mouse2d, duration : float = 0.5):
+            # Briefly show the disc at `mouse2d` (region coords) after a radius change.
+            if not mouse2d: return
+            cls.flash_mouse2d = (int(mouse2d[0]), int(mouse2d[1]))
+            cls.flash_until = time() + duration
+            if not cls._flash_running:
+                cls._flash_running = True
+                bpy.app.timers.register(cls._flash_driver)
+
+        @classmethod
+        def _flash_driver(cls):
+            # bpy.app.timers callback: force viewport redraws for the flash window so draw_postview keeps drawing the disc.
+            # Return None (unregister) once the window closes.
+            RFCore = RFGlobals.RFCore_None
+            if RFCore is not None and time() < cls.flash_until:
+                RFCore.tag_redraw_areas()
+                return 1.0 / 60.0
+            cls._flash_running = False
+            cls.flash_until = 0.0
+            if RFCore is not None:
+                RFCore.tag_redraw_areas()  # final redraw erases the disc
+            return None
+
         def init(self):
             self.mouse = None
 
@@ -170,6 +199,7 @@ def create_stroke_brush(
             self.mirror = set()
             self.mirror_clip = False
             self.mirror_threshold = 0
+            self.snap_mirror = set()
             # self.snap_mirror_ratio = 0.90  # [0,1] ratio of stroke near mirror to snap whole stroke
 
             # reset snap to nearest
@@ -1070,13 +1100,28 @@ def create_stroke_brush(
                 radius3D=radius3D,
             )
 
-        def _update(self, context):
-            if context.area not in self.mouse_areas: return
+        def _ensure_matrices(self, context):
+            # Populate the world-matrix cache from the edit object.
+            # update() sets these too, but the brush size preview flash can fire before update() has ever run.
+            eo = getattr(context, 'edit_object', None)
+            if not eo: return False
+            self.matrix_world = eo.matrix_world
+            self.matrix_world_inv = self.matrix_world.inverted_safe()
+            self.matrix_world_ti = self.matrix_world.inverted_safe().transposed()
+            self.edit_scale = max(self.matrix_world.to_scale())
+            return True
+
+        def _update(self, context, mouse=None):
+            # mouse=None: normal hover/stroke. Uses self.mouse, requires the area be a mouse_area.
+            # mouse given: flash preview, raycast at an explicit point, bypassing mouse_areas.
+            explicit = mouse is not None
+            if not explicit and context.area not in self.mouse_areas: return
             if not self.matrix_world: return
             self.hit = False
-            if not self.mouse: return
+            m = mouse if explicit else self.mouse
+            if not m: return
             # print(f'RFBrush_Stroke.update {(event.mouse_region_x, event.mouse_region_y)}') #{context.region=} {context.region_data=}')
-            hit = raycast_valid_sources(context, self.mouse, respect_clip_planes=True)
+            hit = raycast_valid_sources(context, m, respect_clip_planes=True)
             # print(f'  {hit=}')
             if not hit: return
             if self.is_stroking():
@@ -1109,9 +1154,9 @@ def create_stroke_brush(
             center2D = self.center2D
             co = self.outer_color
             instance: RFOperator_StrokeBrush_Adjust = RFOperator_StrokeBrush_Adjust.active_operator()
-            Drawing.draw2D_smooth_circle(context, center2D, self.stroke_radius, co, width=2.5)
+            Drawing.draw2D_smooth_circle(context, center2D, self.stroke_radius, co, width=2.5, apply_ui_scale=False)
             if instance:
-                Drawing.draw2D_smooth_circle(context, center2D, instance.prev_radius, co, width=.5)
+                Drawing.draw2D_smooth_circle(context, center2D, instance.prev_radius, co, width=.5, apply_ui_scale=False)
 
         def draw_stroke(self, context):
             if self.mouse:
@@ -1285,13 +1330,20 @@ def create_stroke_brush(
         def draw_postview(self, context):
             RFCore = RFGlobals.RFCore_None
             if not RFCore or not RFCore.is_current_area(context): return
-            if context.area not in self.mouse_areas: return
-            if not self.matrix_world: return
             if self.shift_held: return
 
             if RFOperator_StrokeBrush_Adjust.is_active(): return
 
-            self._update(context)
+            # Normal hover/stroke draws at self.mouse. Otherwise, during a flash window, draw the preview at the flash cursor.
+            # RFCore calls this every redraw regardless of is_controlling, and the flash can fire before update() has ever run,
+            # so ensure the world matrices exist before raycasting.
+            if context.area in self.mouse_areas and self.mouse and self.matrix_world:
+                self._update(context)
+            elif time() < RFBrush_Stroke.flash_until and RFBrush_Stroke.flash_mouse2d:
+                if not self.matrix_world and not self._ensure_matrices(context): return
+                self._update(context, mouse=RFBrush_Stroke.flash_mouse2d)
+            else:
+                return
             if not self.hit: return
 
             pb, n = self.hit_p, self.hit_n
@@ -1362,6 +1414,13 @@ def create_stroke_brush(
             gpustate.depth_mask(True)
 
 
+    def _bracket_flash_invoke(self, context, event):
+        # Bracket keys are execute operators. Capture the real cursor position here so the size preview appears at the pointer,
+        # then run the radius change. Fixes the disc drawing at a stale position / not at all.
+        ret = self.execute(context)
+        RFBrush_Stroke.flash_brush((event.mouse_region_x, event.mouse_region_y))
+        return ret
+
     class RFOperator_StrokeBrush_Adjust(RFOperator):
         '''
         Handles resizing of Strokes Brush
@@ -1374,12 +1433,25 @@ def create_stroke_brush(
         bl_options = set()
 
         rf_keymaps : RFKeyMaps = [
-            # bl_idname
-            (f'retopoflow.{idname}', {'type': 'F', 'value': 'PRESS', 'shift': True}, {'km_context': 'init', 'km_label': 'Adjust Radius'}),  #, 'ctrl': False
+            (f'retopoflow.{idname}', {'type': 'F', 'value': 'PRESS', 'shift': True}, {'km_context': 'init', 'km_label': 'Adjust Radius', 'km_extra_icons': ['EVENT_LEFTBRACKET', 'EVENT_RIGHTBRACKET']}),  #, 'ctrl': False
+            (f'retopoflow.{idname}_radius_decrease', {'type': 'LEFT_BRACKET',  'value': 'PRESS'}, None),
+            (f'retopoflow.{idname}_radius_increase', {'type': 'RIGHT_BRACKET', 'value': 'PRESS'}, None),
         ]
         rf_status = {
             'adjust': ('LMB: Commit', 'RMB: Cancel')
         }
+
+        @execute_operator(f'{idname}_radius_increase', f'Increase {label} Radius', fn_invoke=_bracket_flash_invoke)
+        @staticmethod
+        def increase_radius(context : Context):
+            RFBrush_Stroke.stroke_radius = min(1000, max(RFBrush_Stroke.stroke_radius + 1, round(RFBrush_Stroke.stroke_radius * 1.1)))
+            if context.area: context.area.tag_redraw()
+
+        @execute_operator(f'{idname}_radius_decrease', f'Decrease {label} Radius', fn_invoke=_bracket_flash_invoke)
+        @staticmethod
+        def decrease_radius(context : Context):
+            RFBrush_Stroke.stroke_radius = max(5, min(RFBrush_Stroke.stroke_radius - 1, round(RFBrush_Stroke.stroke_radius / 1.1)))
+            if context.area: context.area.tag_redraw()
 
         def can_init(self, context, event):
             return not any(
@@ -1402,15 +1474,18 @@ def create_stroke_brush(
         def radius_to_dist(self):
             return RFBrush_Stroke.stroke_radius
 
-        def finish(self, context, cancel=False):
+        def finish(self, context, cancel=False, mouse2d=None):
             if cancel:
                 self.dist_to_radius(self._change_pre)
+            elif mouse2d:
+                # briefly show the brush at the cursor so the committed size is visible on the mesh
+                RFBrush_Stroke.flash_brush(mouse2d)
             self.set_statusbar_override(None)
 
         def update(self, context, event):
             if event.type in {'LEFTMOUSE', 'RIGHTMOUSE', 'ESC'} and event.value == 'PRESS':
                 cancel = event.type in {'RIGHTMOUSE', 'ESC'}
-                self.finish(context, cancel=cancel)
+                self.finish(context, cancel=cancel, mouse2d=(event.mouse_region_x, event.mouse_region_y))
                 return {'CANCELLED'} if cancel else {'FINISHED'}
 
             if event.type == 'MOUSEMOVE':
