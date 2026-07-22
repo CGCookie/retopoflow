@@ -84,9 +84,6 @@ def create_stroke_brush(
 ) -> tuple[type[RFBrush_Base], type[RFOperator]]:
     snap_verts, snap_edges, snap_faces = snap
     snap_any = snap_verts or snap_edges or snap_faces
-    if snap_edges:
-        print(f'RFBrush_Stroke Warning')
-        print(f'    NOT HANDLING SNAPPED EDGES IN STROKE BRUSH, YET!')
 
     class RFBrush_Stroke(RFBrush_Base):
         # brush settings
@@ -130,6 +127,10 @@ def create_stroke_brush(
         rail_pt2D : None | Point2D = None  # last point that triggered a rail rebuild
         bme_cache_left : dict = None
         bme_cache_right : dict = None
+        bme_join_cache : dict = None   # {stroke index: (pt, radius, [BMEdge,...])} per-point side-join detection cache
+        snap_join : set = None         # existing boundary/wire edges under the disc
+        snap_caps : set = None         # subset of snap_join that are caps / perpendicular at ends
+        snap_rails_to_edges : bool = False
         mirror_snaps : list | None = None
         mirror_sides : list | None = None
 
@@ -201,6 +202,7 @@ def create_stroke_brush(
             self.nearest_bmf = None
             self.snap_bmf0 = None
             self.snap_bmf1 = None
+            self.snap_join = set()
 
 
         def reset_nearest(self, context):
@@ -214,6 +216,7 @@ def create_stroke_brush(
             self.snap_bmv1 = None
             self.snap_bmf0 = None
             self.snap_bmf1 = None
+            self.snap_join = set()
 
             bm = get_bmesh_emesh(context, ensure_lookup_tables=True)[0] if context.edit_object else None
             if bm is not None and bm.is_valid:
@@ -281,7 +284,34 @@ def create_stroke_brush(
                     self.snap_bmf0 = self.nearest_bmf.bmf
                     self.snap_bmf1 = None
                 else:
-                    self.snap_bmf1 = self.nearest_bmf.bmf
+                    bmf = self.nearest_bmf.bmf
+                    # ending on a face after running alongside its boundary is almost always an accident, ignore it
+                    if bmf and self.snap_join and self.stroke3D_original and len(self.stroke3D_original) >= 2:
+                        p_end = self.stroke3D_original[-1]
+                        t = p_end - self.stroke3D_original[max(0, len(self.stroke3D_original) - 6)]
+                        if t.length:
+                            t = t.normalized()
+                            for bme in bmf.edges:
+                                if bme not in self.snap_join: continue
+                                ev = bme.verts[1].co - bme.verts[0].co
+                                if ev.length and abs(ev.normalized().dot(t)) >= 0.5:
+                                    bmf = None
+                                    break
+                    self.snap_bmf1 = bmf
+
+            if self.nearest_bme and not self.is_stroking():
+                if self.snap_bmf0:
+                    self.snap_join = set()
+                else:
+                    radius3D = self.stroke_radius * size2D_to_size(context, hit['distance']) / (self.edit_scale or 1.0)
+                    edges = self.nearest_bme.update_all(
+                        hit['co_local'],
+                        filter_fn=(lambda bme: (bme.is_boundary or bme.is_wire)),
+                        ignore_selected=False,
+                        distance=radius3D,
+                    )
+                    # keep only the closest edge per boundary loop. A corner keeps an edge + its cap.
+                    self.snap_join = set(self.limit_loop_runs(edges, [hit['co_local']]))
 
 
         def update(self, context : Context, event : Event, *, force : bool = False) -> None:
@@ -462,6 +492,9 @@ def create_stroke_brush(
             self.rail_pt2D = None
             self.bme_cache_left = {}
             self.bme_cache_right = {}
+            self.bme_join_cache = {}
+            self.snap_join = set()
+            self.snap_caps = set()
             self.mirror_snaps = None
             self.mirror_sides = None
 
@@ -481,7 +514,7 @@ def create_stroke_brush(
             self.stroke3D_right_start = None
             self.stroke3D_right_end = None
 
-        def nearest_bme_cached(self, context, cache, i0, pt, radius3D):
+        def nearest_bme_cached(self, context, cache, i0, pt, radius3D, *, distance2d=10):
             entry = cache.get(i0)
             if entry is not None:
                 cached_pt, cached_radius, cached_bme = entry
@@ -492,9 +525,107 @@ def create_stroke_brush(
                 filter_fn=(lambda bme: (bme.is_boundary or bme.is_wire)),
                 ignore_selected=False,
                 distance=radius3D,
+                distance2d=distance2d,
             )
             cache[i0] = (pt.copy(), radius3D, bme)
             return bme
+
+        def classify_join_edge(self, bme, stroke, tangents, cap_radius):
+            ''' Classify a detected edge as 'parallel', 'cap', or None. Perpendicular edges
+            elsewhere, like the boundary edges of a face the stroke is drawn out of, are dropped. '''
+            v0, v1 = bme.verts
+            ed = (v1.co - v0.co)
+            L2 = ed.length_squared
+            if L2 == 0: return None
+            mid = (v0.co + v1.co) / 2
+            j = min(range(len(stroke)), key=lambda k: (stroke[k] - mid).length)
+            if abs(ed.normalized().dot(tangents[j])) >= 0.5:
+                return 'parallel'
+            # cap: the stroke end must terminate into this edge, not off to the side
+            def is_cap_at(end_pt):
+                t = (end_pt - v0.co).dot(ed) / L2
+                if not (0.15 <= t <= 0.85): return False
+                return ((v0.co + ed * t) - end_pt).length <= cap_radius
+            if not self.snap_bmf0 and is_cap_at(stroke[0]): return 'cap'
+            if not self.snap_bmf1 and is_cap_at(stroke[-1]): return 'cap'
+            return None
+
+        def limit_loop_runs(self, edges, ref_pts, is_cap=None):
+            # Limit groups of highlighted edges to the one closest to ref_pts (local space).
+            edges = list(edges)
+            if len(edges) < 2: return edges
+            cap = {e for e in edges if is_cap(e)} if is_cap else set()
+            parent = list(range(len(edges)))
+            def find(i):
+                while parent[i] != i:
+                    parent[i] = parent[parent[i]]; i = parent[i]
+                return i
+            for a in range(len(edges)):
+                for b in range(a + 1, len(edges)):
+                    shared = set(edges[a].verts) & set(edges[b].verts)
+                    if not shared: continue
+                    v = next(iter(shared))
+                    da = edges[a].other_vert(v).co - v.co
+                    db = edges[b].other_vert(v).co - v.co
+                    if da.length == 0 or db.length == 0: continue
+                    straight = da.normalized().dot(db.normalized()) < -0.7
+                    # Group straight loop neighbors and corners where neither edge is a cap but
+                    # leave a cap corner ungrouped so both survive.
+                    if straight or (edges[a] not in cap and edges[b] not in cap):
+                        parent[find(a)] = find(b)
+            def edge_dist(bme):
+                v0, v1 = bme.verts
+                return min((closest_point_segment(p, v0.co, v1.co) - p).length for p in ref_pts)
+            best = {}  # group root -> (dist, edge index)
+            for i in range(len(edges)):
+                r = find(i)
+                d = edge_dist(edges[i])
+                if r not in best or d < best[r][0]: best[r] = (d, i)
+            keep = {idx for (_, idx) in best.values()}
+            return [edges[i] for i in range(len(edges)) if i in keep]
+
+        def accumulate_join_edges(self, context, w_start=None, w_end=None):
+            ''' Record the existing boundary / wire edges the brush passes over along the stroke, keeping
+            only side rails (parallel to the stroke) and caps (perpendicular at a non-face-snapped end),
+            with one edge per loop / uncapped corner. '''
+            if not self.nearest_bme: return
+            JOIN_DETECT_SLACK = 1
+            stroke = self.stroke3D_original
+            n = len(stroke)
+            brush_r = self.stroke_radius * size2D_to_size(context, self.stroke_dist[0]) / (self.edit_scale or 1.0)
+            if w_start is None: w_start = brush_r
+            if w_end is None: w_end = brush_r
+            nspan = max(1, n - 1)
+            tangents = []  # local stroke tangent at each point, for parallel/cap classification
+            for k in range(n):
+                d = stroke[min(n - 1, k + 1)] - stroke[max(0, k - 1)]
+                tangents.append(d.normalized() if d.length else Vector((0.0, 0.0, 0.0)))
+            cap_radius = max(w_start, w_end) * JOIN_DETECT_SLACK * 1.5
+
+            joined, caps = set(), set()
+            for (i, pt) in enumerate(stroke):
+                radius3D = (w_start + (w_end - w_start) * (i / nspan)) * JOIN_DETECT_SLACK
+                entry = self.bme_join_cache.get(i)
+                if entry is not None and (entry[0] - pt).length < 1e-6 and entry[1] == radius3D:
+                    raw = entry[2]
+                else:
+                    raw = self.nearest_bme.update_all(
+                        pt,
+                        filter_fn=(lambda bme: (bme.is_boundary or bme.is_wire)),
+                        ignore_selected=False,
+                        distance=radius3D,
+                    )
+                    self.bme_join_cache[i] = (pt.copy(), radius3D, raw)
+                # under this disc: drop perpendicular non-cap edges (e.g. the face we drew out of)
+                # then collapse each loop run / uncapped corner to its closest edge.
+                cls = {bme: self.classify_join_edge(bme, stroke, tangents, cap_radius) for bme in raw if bme.is_valid}
+                survivors = [bme for bme, c in cls.items() if c is not None]
+                caps_here = {bme for bme, c in cls.items() if c == 'cap'}
+                for bme in self.limit_loop_runs(survivors, [pt], lambda e: e in caps_here):
+                    joined.add(bme)
+                    if bme in caps_here: caps.add(bme)
+            self.snap_join = joined
+            self.snap_caps = caps
 
         def add_stroke_point(self, context, pt2D, *, force_rail=False):
             hit = raycast_valid_sources(context, pt2D, respect_clip_planes=True)
@@ -582,8 +713,11 @@ def create_stroke_brush(
                     self.stroke3D_right_end = self.stroke3D_right[-1] + v_forward
                     self.co_front = (self.stroke3D_left_end + self.stroke3D_right_end) / 2
 
-                # snap to bmedges if able and have enough information
                 if self.nearest_bme and self.co_back and self.co_front:
+                    self.accumulate_join_edges(context, w_start, w_end)
+
+                # snap to bmedges if able and have enough information
+                if self.snap_rails_to_edges and self.nearest_bme and self.co_back and self.co_front:
                     radius3D = math.pi * 2.0 * self.stroke_radius / 4.0 * size2D_to_size(context, self.stroke_dist[0])
                     snap_bmes = set()
 
@@ -920,6 +1054,10 @@ def create_stroke_brush(
             avg_scale = sum(size2D_to_size(context, d) for d in self.stroke_dist) / len(self.stroke_dist)
             radius3D = self.stroke_radius * avg_scale / self.edit_scale
 
+            # boundary edges the disc passed over, for side-joining (reserved snapped_geo[1] slot)
+            join_bmes = [bme for bme in self.snap_join if bme.is_valid]
+            join_geo = join_bmes if join_bmes else (None, None)
+
             self.operator.process_stroke(
                 context,
                 self.stroke_radius,
@@ -927,7 +1065,7 @@ def create_stroke_brush(
                 self.stroke,
                 self.stroke3D,
                 self.stroke_cycle,
-                [(self.snap_bmv0, self.snap_bmv1), (None, None), (self.snap_bmf0, self.snap_bmf1)],
+                [(self.snap_bmv0, self.snap_bmv1), join_geo, (self.snap_bmf0, self.snap_bmf1)],
                 [self.snap_mirror_0, self.snap_mirror_1, self.snap_mirror_all],
                 radius3D=radius3D,
             )
@@ -1068,6 +1206,14 @@ def create_stroke_brush(
                 if self.snap_bmf1 and self.snap_bmf1.is_valid:
                     cos = [location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv.co) for bmv in self.snap_bmf1.verts]
                     Drawing.draw2D_linestrip(context, cos + [cos[0]], self.snap_color, width=2)
+
+            # highlight every existing boundary edge under the brush that the stroke will weld onto:
+            # the hover preview before stroking and the swept set while stroking.
+            if self.nearest_bme:
+                for bme in self.snap_join:
+                    if not bme.is_valid: continue
+                    cos = [location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv.co) for bmv in bme.verts]
+                    Drawing.draw2D_linestrip(context, cos, self.snap_color, width=2)
 
         def draw_postpixel(self, context):
             RFCore = RFGlobals.RFCore_None

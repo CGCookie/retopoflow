@@ -697,7 +697,8 @@ class NearestBMEdge(NearestElem):
             all(bme.is_valid for bme in self.loose_bmes),
         ))
 
-    def update(self, context:Context, co:Vector|None, *, distance:float=1.84467e19, distance2d:float=10, ignore_selected:bool=True, filter_fn:None|Callable[[BMEdge], bool]=None) -> BMEdge|None:
+    def update(self, context:Context, co:Vector|None, *, distance:float=1.84467e19, distance2d:float=10,
+                ignore_selected:bool=True, filter_fn:None|Callable[[BMEdge], bool]=None) -> BMEdge|None:
         # NOTE: distance here is local to object!!!  target object could be scaled!
         # even stranger is if target is non-uniformly scaled
 
@@ -737,6 +738,31 @@ class NearestBMEdge(NearestElem):
         if not co2d: return None
         self.co2d = co2d
         return self.bme
+
+    def update_all(self, co:Vector|None, *, distance:float=1.84467e19,
+                    ignore_selected:bool=True, filter_fn:None|Callable[[BMEdge], bool]=None) -> list[BMEdge]:
+        ''' Like update(), but returns every qualifying edge whose closest point is within `distance` of
+        `co`, gated in local space, so detection matches the real brush disc regardless of zoom or UI scale. '''
+        if not self.is_valid or not co: return []
+
+        bmes : set[BMEdge] = set()
+        for (_, _, idx, _) in self.bvh_edges.find_nearest_range(co, distance):
+            if idx is not None and idx < len(self.loose_bmes): bmes.add(self.loose_bmes[idx])
+        for (_, _, idx, _) in self.bvh_faces.find_nearest_range(co, distance):
+            if idx is not None: bmes.update(self.bm.faces[idx].edges)
+        if filter_fn:
+            bmes = {bme for bme in bmes if filter_fn(bme)}
+        if ignore_selected:
+            bmes = {bme for bme in bmes if not any(bmv.select for bmv in bme.verts)}
+
+        # gate each candidate by its true 3D distance to co
+        # find_nearest_range returns whole faces, whose far edges can lie outside the disc, so prune those
+        result = []
+        for bme in bmes:
+            v0, v1 = bme.verts
+            if (closest_point_segment(co, v0.co, v1.co) - co).length <= distance:
+                result.append(bme)
+        return result
 
 class NearestBMFace(NearestElem):
     bmf : BMFace | None
