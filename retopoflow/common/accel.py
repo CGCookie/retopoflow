@@ -1123,7 +1123,8 @@ class SourceCache:
     @classmethod
     def mark_dirty_settings_changed(cls, context: Context):
         ''' Called when a feature detection setting changes. Removes only the per-type cache entries that would need fresh data,
-        then marks dirty if any rebuild is required. Disabling a type or tightening the threshold leaves the cache intact. '''
+        then marks dirty if any rebuild is required. Disabling a type or tightening the threshold keeps the per-type cache
+        (re-enabling stays instant) but still rebuilds the combined accel so tools stop snapping to the removed features. '''
         try:
             s       = context.scene.retopoflow.snapping
             angle   = s.source_edge_angle if s.source_edge_angle_enabled else math.pi
@@ -1152,8 +1153,17 @@ class SourceCache:
             old_angle_key = ('angle', round(c_angle, 9))
             cls._obj_type_cache = {k: v for k, v in cls._obj_type_cache.items() if k[0] != old_angle_key}
             needs_rebuild = True
-        if needs_rebuild:
-            cls.mark_dirty('detection settings require new data')
+        removed_features = (
+            (c_sharps  and not d_sharps)  or
+            (c_seams   and not d_seams)   or
+            (c_creases and not d_creases) or
+            (d_angle > c_angle + 1e-6)
+        )
+        # With every type off, skip the rebuild and keep the committed accel intact to re-serve it instantly when possible
+        if not (d_sharps or d_seams or d_creases or d_angle < math.pi):
+            removed_features = False
+        if needs_rebuild or removed_features:
+            cls.mark_dirty('detection settings require new data' if needs_rebuild else 'detection settings removed features')
             if cls.auto_rebuild_enabled(context):
                 cls.request_rebuild(context)
         elif DEBUG_SOURCE_CACHE:
@@ -1164,6 +1174,9 @@ class SourceCache:
         ''' Return the shared feature accel, kicking off a (non-blocking) rebuild if needed.
         Always returns a SourceAccel, the previous one while a rebuild is in flight, or an
         empty one until the first build finishes, so callers can decide whether feature snapping is active. '''
+        if not cls.detection_enabled(context):
+            # Every detection type is off, so feature snapping is inactive. The now stale cache must not be served.
+            return EMPTY_ACCEL
         if not cls.building and (cls.accel is None or (cls.dirty and cls.auto_rebuild_enabled(context))):
             cls.request_rebuild(context)
         return cls.accel if cls.accel is not None else EMPTY_ACCEL
