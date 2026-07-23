@@ -19,11 +19,57 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+import math
+
 from mathutils import Vector
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 
 from .maths import local_to_world, point_to_bvec3
 from .raycast import raycast_valid_sources
+
+
+def source_snap_settings(context):
+    ''' (use_fixed, fixed_distance, proximity) for source-feature snapping, from the scene settings.
+    Callers that carry their own settings supply these three values directly instead. '''
+    snapping = context.scene.retopoflow.snapping
+    return (
+        getattr(snapping, 'source_edge_use_fixed_distance', False),
+        getattr(snapping, 'source_edge_fixed_distance', 0.05),
+        getattr(snapping, 'source_edge_proximity', 0.25),
+    )
+
+
+def source_snap_radius(ref_len_world, *, use_fixed, fixed_distance, avg_edge_factor):
+    ''' World space radius within which a vert snaps to a source feature.
+    ref_len_world must already be world space. '''
+    return fixed_distance if use_fixed else ref_len_world * avg_edge_factor
+
+
+def fold_crease(p_local, p_before, n_before, p_after, n_after, matrix_world, matrix_world_inv,
+                *, source_accel=None, feature_radius=0.0, max_plane_dist):
+    ''' Where a rung sitting on a fold should lie. Returns (crease_point, crease_dir) in
+    local space, or None to leave the rung where it is. '''
+    nb, na = Vector(n_before), Vector(n_after)
+    u = nb.cross(na)
+    uu = u.dot(u)
+    if uu < 1e-9:
+        return None  # faces near parallel so no crease
+    u_hat = u / math.sqrt(uu)
+
+    # crease point: source feature edge when feature detection is on, else plane intersection
+    if source_accel and feature_radius > 0:
+        p_world = matrix_world @ p_local
+        closest = source_accel.closest_point(p_world)
+        if closest and (Vector(closest) - p_world).length <= feature_radius:
+            return (matrix_world_inv @ Vector(closest), u_hat)
+    # intersection of the two adjacent face planes {nb . x = d1}, {na . x = d2}
+    d1, d2 = nb.dot(Vector(p_before)), na.dot(Vector(p_after))
+    pt = (na.cross(u) * d1 + u.cross(nb) * d2) / uu  # a point on the intersection line
+    pl = Vector(p_local)
+    proj = pt + u_hat * (pl - pt).dot(u_hat)  # project the rung centerline onto the line
+    if (proj - pl).length > max_plane_dist:
+        return None  # implausible plane fit, keep the original position
+    return (proj, u_hat)
 
 
 class SourceSnapMixin:
@@ -44,7 +90,7 @@ class SourceSnapMixin:
         ''' Override in each subclass. Returns the set of grabbed BMVerts. '''
         return set()
 
-    def _find_corner_occupant(self, corner_co_world, incoming_bmv, radius):
+    def find_corner_occupant(self, corner_co_world, incoming_bmv, radius):
         ''' Find a vert other than incoming_bmv sitting in a source corner.
         Check snapped_verts first, fallback to accel so the full bmesh is never iterated linearly. '''
         corner_w = Vector(corner_co_world)
@@ -70,7 +116,7 @@ class SourceSnapMixin:
 
         return None
 
-    def _kick_corner_occupant(self, occupant, corner_co, incoming_bmv, context=None, stroke_disp_2d=None):
+    def kick_corner_occupant(self, occupant, corner_co, incoming_bmv, context=None, stroke_disp_2d=None):
         ''' Move vert off corner to make room for incoming vert. '''
 
         M, Mi = self.matrix_world, self.matrix_world_inv
@@ -171,15 +217,27 @@ class SourceSnapMixin:
             snap_in_radius = self.stroke_snap_radius
             release_radius = self.stroke_snap_radius * (self.SNAP_RELEASE_FLOOR + self.stickiness * self.SNAP_STICK_MULT)
 
+        # Corners snap in from a wider radius and their stay/release radius must scale the same way.
+        # Otherwise the band between the two is unstable and the vert vibrates back and forth.
+        corner_snap_in_radius = snap_in_radius * self.SNAP_CORNER_PROXIMITY
+        corner_release_radius = release_radius * self.SNAP_CORNER_PROXIMITY
+
         # Release check for snapped verts
         if is_snapped and free_co is not None:
             free_world = local_to_world(free_co, M)
-            if closest_target := accel.closest_point(free_world):
-                if (free_world - Vector(closest_target)).length > release_radius:
-                    self.snapped_verts.discard(bmv)
-                    self.vert_corner_idx.pop(bmv, None)
-                    self.snap_target_world.pop(bmv, None)
-                    return Vector(free_co)
+            if bmv in self.vert_corner_idx:
+                # Corner-snapped: hold against the corner itself with the corner-scaled radius, so the
+                # tighter edge release can't free it while it's still inside the corner's snap-in band.
+                corner = accel.find_corner(free_world)
+                released = corner is not None and corner[2] > corner_release_radius
+            else:
+                target = accel.closest_point(free_world)
+                released = target is not None and (free_world - Vector(target)).length > release_radius
+            if released:
+                self.snapped_verts.discard(bmv)
+                self.vert_corner_idx.pop(bmv, None)
+                self.snap_target_world.pop(bmv, None)
+                return Vector(free_co)
         elif not is_snapped:
             self.snap_target_world.pop(bmv, None)
 
@@ -188,9 +246,9 @@ class SourceSnapMixin:
         # Corners take priority over edges
         was_on_corner = bmv in self.vert_corner_idx
         if is_snapped:
-            corner_radius = release_radius
+            corner_radius = corner_release_radius
         else:
-            corner_radius = snap_in_radius * self.SNAP_CORNER_PROXIMITY  # wider snap-in only
+            corner_radius = corner_snap_in_radius  # wider snap-in only
 
         snapped_to_corner = False
         snapped_co_corner = None
@@ -198,7 +256,7 @@ class SourceSnapMixin:
             co_corner, corner_idx, dist_corner = corner
             if dist_corner <= corner_radius:
                 grabbed_set = self.snap_grabbed_set()
-                occupant = self._find_corner_occupant(co_corner, bmv, corner_radius)
+                occupant = self.find_corner_occupant(co_corner, bmv, corner_radius)
                 allow_snap = True
                 if occupant is not None:
                     if occupant in grabbed_set:
@@ -206,11 +264,12 @@ class SourceSnapMixin:
                         allow_snap = False
                     else:
                         # Occupant is not being dragged: kick it out
-                        self._kick_corner_occupant(occupant, co_corner, bmv, context, stroke_disp_2d)
+                        self.kick_corner_occupant(occupant, co_corner, bmv, context, stroke_disp_2d)
                 if allow_snap:
                     to_corner = Vector(co_corner) - new_co_world
-                    # Direction check for all corner snapping
-                    if to_corner.length < 1e-8 or disp_world.dot(to_corner) > 0:
+                    # The direction check only gates the initial snap-in. Once on a corner,
+                    # the vert is exactly on the corner, so the drag displacement always points away.
+                    if was_on_corner or to_corner.length < 1e-8 or disp_world.dot(to_corner) > 0:
                         self.snapped_verts.add(bmv)
                         self.vert_corner_idx[bmv] = corner_idx
                         snapped_to_corner = True

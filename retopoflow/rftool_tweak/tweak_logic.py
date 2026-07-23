@@ -23,7 +23,7 @@ import bmesh
 import bpy
 from bmesh.types import BMesh, BMVert, BMEdge
 from bpy.types import Context, Event, Region, RegionView3D, Mesh, PropertyGroup
-from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_origin_3d, region_2d_to_vector_3d
+from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_origin_3d, region_2d_to_vector_3d, region_2d_to_location_3d
 from mathutils import Vector, Matrix
 
 import math
@@ -46,7 +46,7 @@ from ..common.raycast import (
 
 from ...addon_common.common.maths import sign_threshold
 from ..rftool_relax.relax_logic import Relax_Logic
-from ..common.snapping import SourceSnapMixin
+from ..common.snapping import SourceSnapMixin, source_snap_radius, source_snap_settings
 
 class Tweak_Logic(SourceSnapMixin):
     bm : BMesh
@@ -97,6 +97,7 @@ class Tweak_Logic(SourceSnapMixin):
 
     verts_filtered : list[BMVert]
     verts : list[tuple]  # (bmv, original co, projected xy, brush strength) captured at grab time
+    _active_island : 'set[BMVert] | None'  # verts of the island under the brush, or None when not isolating
 
     mouse : Vector
     mouse_prev : Vector
@@ -175,7 +176,7 @@ class Tweak_Logic(SourceSnapMixin):
         self.scale_avg = sum(self.matrix_world.to_scale()) / 3
         snapping = context.scene.retopoflow.snapping
         self.source_edge_accel = SourceCache.get(context)
-        self.source_sharp_proximity = getattr(snapping, 'source_edge_proximity', 0.25)
+        self.source_use_fixed, self.source_fixed_distance, self.source_sharp_proximity = source_snap_settings(context)
         self.stickiness = getattr(snapping, 'source_edge_stickiness', 0.5) if self.source_edge_accel else 0.0
         self.loops_strength = getattr(snapping, 'source_edge_guide_loops', 0.5) if self.source_edge_accel else 0.0
         self.snap_init_state()
@@ -207,7 +208,10 @@ class Tweak_Logic(SourceSnapMixin):
             avg_lens = [get_bmv_avg_edge_len(bmv) for (bmv, *_) in self.verts if bmv.link_edges]
             stroke_avg = (sum(avg_lens) / len(avg_lens)) if avg_lens else 1.0
             if self.source_edge_accel:
-                self.stroke_snap_radius = stroke_avg * self.scale_avg * self.source_sharp_proximity
+                self.stroke_snap_radius = source_snap_radius(
+                    stroke_avg * self.scale_avg,
+                    use_fixed=self.source_use_fixed, fixed_distance=self.source_fixed_distance, avg_edge_factor=self.source_sharp_proximity,
+                )
             # Convert avg world-space edge length to screen pixels for the step threshold.
             hit_scale = self.brush.hit_scale or 1e-6
             self.relax_step_px = (stroke_avg * self.scale_avg) / hit_scale
@@ -224,6 +228,7 @@ class Tweak_Logic(SourceSnapMixin):
 
     def collect_verts(self, context, event):
         self.verts = []
+        self._active_island = None  # set below when isolating to one island
         self.mouse = Vector(mouse_from_event(event))
         self.mouse_prev = self.mouse.copy()
 
@@ -355,6 +360,12 @@ class Tweak_Logic(SourceSnapMixin):
                 if not self.is_bmvert_hidden(bmv)
             ]
 
+        # Keep focused on one mesh island at a time to prevent spillover unless "All Islands" masking option is on.
+        if self.verts_filtered and not self.include_opt('all_islands'):
+            nearest = min(self.verts_filtered, key=lambda v: ((M @ v.co) - brush_center_world).length_squared)
+            self._active_island = self._flood_island(nearest)
+            self.verts_filtered = [bmv for bmv in self.verts_filtered if bmv in self._active_island]
+
         self.verts = [
             (
                 bmv,
@@ -368,6 +379,20 @@ class Tweak_Logic(SourceSnapMixin):
         # Capture brush geometry at grab time for post_relax distance weighting.
         self.grab_brush_centre_world: Vector | None = Vector(self.brush.hit_p) if self.brush.hit_p else None
         self.grab_brush_radius: float = self.brush.get_scaled_radius()
+
+    def _flood_island(self, seed: BMVert) -> 'set[BMVert]':
+        ''' All verts reachable from seed through edges, i.e. the whole connected mesh island.
+        Locked once at stroke start so the sweep stays on the starting island even as the brush moves. '''
+        island = {seed}
+        stack = [seed]
+        while stack:
+            v = stack.pop()
+            for bme in v.link_edges:
+                nb = bme.other_vert(v)
+                if nb not in island:
+                    island.add(nb)
+                    stack.append(nb)
+        return island
 
 
     def _elect_nudge_loop(self, context, delta: Vector):
@@ -483,6 +508,27 @@ class Tweak_Logic(SourceSnapMixin):
         p = self.project_pt(context, bmv.co)
         return p.xy if p else None
 
+    def _raycast_capped(self, context, bmv, screen_xy):
+        ''' Screen space project bmv onto the source, with protections for snapping to far away surfaces.
+        Returns a local-space co, or None. '''
+        M = self.matrix_world
+        hit = raycast_valid_sources(context, screen_xy, respect_clip_planes=True)
+        cur_world = M @ bmv.co
+        if hit:
+            cap = self.brush.get_scaled_radius()
+            if cap <= 0 or (Vector(hit['co_world']) - cur_world).length <= cap:
+                return hit['co_local']
+        # Fall back to nearest-surface projection at the vert's current view depth.
+        co_plane = region_2d_to_location_3d(context.region, context.region_data, screen_xy, cur_world)
+        if co_plane:
+            snapped = nearest_point_valid_sources(
+                context, point_to_bvec3(co_plane), world=True, sources=self.sources, respect_clip_planes=True
+            )
+            if snapped:
+                return self.matrix_world_inv @ snapped
+        # Nothing better available: keep the raw hit if there was one, else signal no-move.
+        return hit['co_local'] if hit else None
+
 
     # -------------------------------------------------------------------------
     # Masking helpers (used by nudge / pinch sweeps)
@@ -491,6 +537,8 @@ class Tweak_Logic(SourceSnapMixin):
     def _is_vert_excluded(self, bmv: BMVert) -> bool:
         ''' True if bmv must not be moved by a sweep (replicates EXCLUDE/ONLY/corner filters
         from collect_verts so that nudge and pinch respect the same masking as GRAB). '''
+        if self._active_island is not None and bmv not in self._active_island:
+            return True
         if self.mask_opt('selected') == 'ONLY' and not bmv.select:
             return True
         if self.mask_opt('selected') == 'EXCLUDE' and bmv.select:
@@ -908,9 +956,8 @@ class Tweak_Logic(SourceSnapMixin):
                             new_co = p
             else:
                 cur_xy = self.project_bmv(context, bmv) or xy
-                new_co = raycast_valid_sources(context, cur_xy + delta * effective_strength * pressure, respect_clip_planes=True)
-                if not new_co: continue
-                new_co = new_co['co_local']
+                new_co = self._raycast_capped(context, bmv, cur_xy + delta * effective_strength * pressure)
+                if new_co is None: continue
                 if self.mask_opt('seams') == 'SLIDE' and bmv in self.seam_verts:
                     if self.seam_accel:
                         p = self.seam_accel.closest_point(new_co)
@@ -930,13 +977,13 @@ class Tweak_Logic(SourceSnapMixin):
                 if self.source_edge_accel:
                     snap_new_co = new_co
                     if is_nudge:
-                        # In Nudge the per-frame move differs from the brush move and we need the distance travelled per-vert
-                        grab_hit = raycast_valid_sources(context, cur_xy + delta * strength * pressure, respect_clip_planes=True)
-                        if grab_hit:
-                            snap_new_co = grab_hit['co_local']
-                    # Velocity-independent release signal: where the vert would be if unconstrained over the whole stroke
-                    free_hit = raycast_valid_sources(context, xy + (mouse - self.mouse) * strength * pressure, respect_clip_planes=True)
-                    free_co = free_hit['co_local'] if free_hit else None
+                        # In Nudge the per-frame move differs from the brush move and we need the distance travelled per-vert.
+                        capped = self._raycast_capped(context, bmv, cur_xy + delta * strength * pressure)
+                        if capped is not None:
+                            snap_new_co = capped
+                    # Velocity-independent release signal: where the vert would be if unconstrained over the whole stroke.
+                    # Capped too, so a snapped vert doesn't teleport to a background object the moment it releases.
+                    free_co = self._raycast_capped(context, bmv, xy + (mouse - self.mouse) * strength * pressure)
                     new_co = self.snap_to_source_feature(bmv, snap_new_co, strength, context, delta * strength * pressure, mouse - self.mouse, free_co)
 
             if self.mirror:
@@ -983,7 +1030,10 @@ class Tweak_Logic(SourceSnapMixin):
             prev_hit = raycast_valid_sources(context, self.mouse_prev, respect_clip_planes=True)
             if curr_hit and prev_hit:
                 d3 = Vector(curr_hit['co_world']) - Vector(prev_hit['co_world'])
-                if d3.length > 1e-8:
+                # Reject a movement spike from a bad projection
+                world_per_px = self.brush.hit_scale or 0.0
+                spike = world_per_px > 0.0 and d3.length > delta.length * world_per_px * 3.0
+                if d3.length > 1e-8 and not spike:
                     delta_3d = d3
             self._smudge_sweep(context, mouse, delta, delta_3d, pressure, pre_frame_world)
         elif is_pinch_magnify:
@@ -1155,6 +1205,9 @@ class Tweak_Logic(SourceSnapMixin):
             else:
                 push_3d = delta_3d * t * brush_strength * pressure
 
+            # Cap the per-frame push to one brush radius
+            if push_3d.length > radius3D:
+                push_3d = push_3d * (radius3D / push_3d.length)
             new_vert_world = (M @ bmv.co) + push_3d
             new_pt = nearest_point_valid_sources(context, point_to_bvec3(new_vert_world), world=True, sources=self.sources, respect_clip_planes=True)
             if new_pt is None:
@@ -1233,10 +1286,9 @@ class Tweak_Logic(SourceSnapMixin):
 
             push_2d = radial_dir_2d * delta.length * t * brush_strength * pressure * perp_weight * 0.25
 
-            new_hit = raycast_valid_sources(context, cur_2d + push_2d, respect_clip_planes=True)
-            if not new_hit:
+            new_co = self._raycast_capped(context, bmv, cur_2d + push_2d)
+            if new_co is None:
                 continue
-            new_co = Vector(new_hit['co_local'])
             new_co = self._apply_slide_constraints(bmv, new_co)
             new_co = self._apply_mirror_clip(context, bmv, new_co)
             bmv.co = new_co

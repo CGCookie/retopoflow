@@ -106,7 +106,17 @@ def draw_hard_surface_snapping(layout, context, props, guide_loops:bool=False, s
         getattr(props, 'source_edge_sharps',  False)
     )
     col2.separator()
-    col2.prop(props, 'source_edge_proximity', text='Proximity')
+    split = col2.split(factor=0.4)
+    row = split.row()
+    row.alignment = 'RIGHT'
+    row.label(text='Distance')
+    row = split.row(align=True)
+    row.prop(props, 'source_edge_use_fixed_distance', icon='FIXED_SIZE', text='')
+    if getattr(props, 'source_edge_use_fixed_distance', False):
+        row.prop(props, 'source_edge_fixed_distance', text='')
+    else:
+        row.prop(props, 'source_edge_proximity', text='')
+
     col2.prop(props, 'source_edge_stickiness', text='Stickiness', slider=True)
     if guide_loops:
         col2.prop(props, 'source_edge_guide_loops', text='Guide Loops', slider=True)

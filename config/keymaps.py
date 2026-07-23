@@ -20,7 +20,7 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
-from bpy.types import Context, KeyMapItem, OperatorProperties
+from bpy.types import Context, KeyMap, KeyMapItem, OperatorProperties
 from typing import TypeAlias
 from collections.abc import Callable
 
@@ -51,7 +51,11 @@ KMI_OVERRIDE : TypeAlias = tuple[KMI_OVERRIDE_OPERATOR_NAME, KMI_OVERRIDE_TEST_F
 KMI_OVERRIDES : TypeAlias = list[KMI_OVERRIDE]
 
 KMI_KEY : TypeAlias = tuple[...]
-KMI_RESET_FUNCTION = Callable[[], None]
+
+# Blender can invalidate a km reference or reuse its memory for a different item
+# when it rebuilds the user keyconfig, so use the data to identify it instead.
+# (keymap name, space_type, region_type, kmi id, operator idname, delete_keys, reset_vals)
+KMI_RESET_RECORD : TypeAlias = tuple[str, str, str, int, str, set[str], dict[str, ...]]
 
 
 retopoflow_keymap_overrides : KMI_OVERRIDES = [  # pyright: ignore[reportUnknownVariableType]
@@ -79,7 +83,7 @@ retopoflow_keymap_overrides : KMI_OVERRIDES = [  # pyright: ignore[reportUnknown
 ]
 
 
-reset_keymap_items : list[KMI_RESET_FUNCTION] = []
+reset_keymap_items : list[KMI_RESET_RECORD] = []
 
 
 # Returns the first matching keymap item. There could be multiple!
@@ -128,6 +132,7 @@ def _reset_kmi_properties(
                 setattr(prop, k, v)
 
 def _override_kmi_properties(
+    keymap : KeyMap,
     km_item : KeyMapItem,
     assign_vals : KMI_OVERRIDE_PROPS,  # pyright: ignore[reportUnknownParameterType]
 ):
@@ -166,9 +171,12 @@ def _override_kmi_properties(
             for (k, v) in val.items(): # pyright: ignore[reportUnknownVariableType]
                 setattr(p, k, v)
 
-    reset_keymap_items.append(
-        lambda: _reset_kmi_properties(km_item, delete_keys, reset_vals)
-    )
+    # Store identifying data, not the live km_item reference
+    reset_keymap_items.append((
+        keymap.name, keymap.space_type, keymap.region_type,
+        km_item.id, km_item.idname,
+        delete_keys, reset_vals,
+    ))
 
 
 def alter_user_keymaps(context : Context):
@@ -183,10 +191,36 @@ def alter_user_keymaps(context : Context):
             for (op_name, test_fn, assign_vals) in retopoflow_keymap_overrides: # pyright: ignore[reportUnknownVariableType]
                 if km_item.idname != op_name or not test_fn(km_item):
                     continue
-                _override_kmi_properties(km_item, assign_vals)
+                _override_kmi_properties(keymap, km_item, assign_vals)
 
 
-def restore_user_keymaps(_context : Context):
-    for reset in reset_keymap_items:
-        reset()
+def _find_user_kmi(
+    context : Context,
+    km_name : str, space_type : str, region_type : str,
+    kmi_id : int, idname : str,
+) -> KeyMapItem | None:
+    user = context.window_manager.keyconfigs.user
+    if not user:
+        return None
+    keymap = user.keymaps.find(km_name, space_type=space_type, region_type=region_type)
+    if not keymap:
+        return None
+    matches = [km_item for km_item in keymap.keymap_items if km_item.idname == idname]
+    # Prefer the exact item by id and fall back to a single item of the same opearator.
+    # Matching idname first guarantees we never touch a different operator's item even if an id was reused.
+    for km_item in matches:
+        if km_item.id == kmi_id:
+            return km_item
+    if len(matches) == 1:
+        return matches[0]
+    return None
+
+
+def restore_user_keymaps(context : Context):
+    for (km_name, space_type, region_type, kmi_id, idname, delete_keys, reset_vals) in reset_keymap_items:
+        # Resolve the item fresh rather than trusting a reference captured at alter time.
+        km_item = _find_user_kmi(context, km_name, space_type, region_type, kmi_id, idname)
+        if km_item is None:
+            continue # Item was removed or rebuilt beyond recognition, nothing safe to restore.
+        _reset_kmi_properties(km_item, delete_keys, reset_vals)
     reset_keymap_items.clear()

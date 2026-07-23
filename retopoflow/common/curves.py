@@ -39,6 +39,7 @@ from .bmesh import (
     bmes_shared_bmv,
 )
 from .bmesh_maths import rdp_corner_indices, get_strip_bmvs
+from .topology_corners import corner_reroute_is_legal
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.bezier import CubicBezierSpline
 from ...addon_common.common.utils import iter_pairs
@@ -165,8 +166,9 @@ def insert_auto_knots(cos, knots, n, cyclic, stroke_length, tol):
     return sorted(result)
 
 
-def derive_centerline_knots(coords, *, cyclic, bend_tolerance_factor, sharp_angle, forced_sharp_indices=frozenset()):
-    ''' Derive knot indices for a polyline `coords`. '''
+def derive_centerline_knots(coords, *, cyclic, bend_tolerance_factor, sharp_angle, forced_sharp_indices=frozenset(), corners_from_forced_only=False):
+    ''' Derive knot indices for a polyline `coords`. `corners_from_forced_only`: For face strips. Only
+    knots forced by topology become Vector corners regardless of curve angles. '''
     n = len(coords)
     # Thresholds below are fractions of the chain's total length
     # so the same shape yields the same knots regardless of vert count.
@@ -190,8 +192,9 @@ def derive_centerline_knots(coords, *, cyclic, bend_tolerance_factor, sharp_angl
     locked = ({0, n - 1} if not cyclic else set()) | sharp_indices
     corners = snap_to_local_extreme(coords, corners, n, locked)
 
-    # Only verts with a geometrically sharp deflection angle get vector handles.
-    corner_set = set(corners) & sharp_indices
+    # Which knots become Vector corners. Angle based for edge loops, topology based for face loops.
+    forced = set(forced_sharp_indices) & set(range(n))
+    corner_set = set(corners) & (forced if corners_from_forced_only else sharp_indices)
 
     knots = list(corners)
     if cyclic and len(knots) < 2:
@@ -228,6 +231,7 @@ class ChainSpec:
         'points', 'cyclic', 'cache_key', 'deform_bmv_indices', 'label',
         'min_spline_points', 'coupled', 'avg_len', 'current_points',
         'interior_bmv_indices', 'deform_bmv_rungs', 'forced_sharp_indices',
+        'corner_eligible_knots', 'corner_removable_knots',
     )
 
     def __init__(
@@ -244,6 +248,8 @@ class ChainSpec:
         interior_bmv_indices : list[int] = (),
         deform_bmv_rungs : dict[int, tuple[Vector, float, bool]] | None = None,
         forced_sharp_indices : Sequence[int] = (),
+        corner_eligible_knots : Sequence[int] = (),
+        corner_removable_knots : Sequence[int] = (),
     ):
         self.points = points
         self.cyclic = cyclic
@@ -257,6 +263,8 @@ class ChainSpec:
         self.forced_sharp_indices = tuple(forced_sharp_indices)
         self.deform_bmv_rungs = deform_bmv_rungs or {} # Empty for a coupled chain
         self.interior_bmv_indices = list(interior_bmv_indices) # Empty when nothing's enclosed
+        self.corner_eligible_knots = set(corner_eligible_knots)
+        self.corner_removable_knots = set(corner_removable_knots)
 
 
 class ChainProvider:
@@ -674,11 +682,29 @@ class QuadStripChainProvider(ChainProvider):
 
         # even = face centers, odd = edge midpoints.
         # Single-sub-chain only as the spatial-join fallback bridges its own apexes.
+        single_subchain = len(open_chain['segment_faces']) == 1
+        corner_positions = set(open_chain['corner_face_positions'])
         forced_sharp_indices = (
-            [2 * k for k in open_chain['corner_face_positions']]
-            if len(open_chain['segment_faces']) == 1
-            else ()
+            [2 * k for k in corner_positions] if single_subchain else ()
         )
+
+        # Corner toggle eligibility (2*face_pos knot indices), single sub-chain only.
+        # A non-corner interior face whose reroute is legal can gain a corner and an existing corner whose
+        # reroute is legal can lose one. Attached geometry makes the reroute illegal and not listed.
+        corner_eligible_knots : set[int] = set()
+        corner_removable_knots : set[int] = set()
+        if single_subchain:
+            seg = open_chain['segment_faces'][0]
+            seg_rungs = ordered_rungs(seg, False)
+            for face_pos in range(1, len(seg) - 1):
+                if not corner_reroute_is_legal(seg, seg_rungs, face_pos, cyclic=False):
+                    continue
+                target = corner_removable_knots if face_pos in corner_positions else corner_eligible_knots
+                # S knot at this pivot's face center (2*k) or at the bend rung feeding it (2*k - 1) can toggle the corner.
+                # Both round back to face_pos in _reroute_corner.
+                # Quad strips bend at rungs and auto knots on a smooth curve land on odd indices.
+                target.add(2 * face_pos)
+                target.add(2 * face_pos - 1)
 
         def current_points(bm : BMesh, _segments : tuple = tuple(map(tuple, segments))) -> list[Vector] | None:
             try:
@@ -698,6 +724,8 @@ class QuadStripChainProvider(ChainProvider):
             avg_len=avg_len,
             current_points=current_points,
             forced_sharp_indices=forced_sharp_indices,
+            corner_eligible_knots=corner_eligible_knots,
+            corner_removable_knots=corner_removable_knots,
             deform_bmv_rungs=rung_map,
         )
 

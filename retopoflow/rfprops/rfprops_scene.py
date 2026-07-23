@@ -215,6 +215,11 @@ class RFProps_Scene(bpy.types.PropertyGroup):
         description='Include vertices that have been pinned by Retopoflow',
         default = False,
     )
+    include_all_islands: bpy.props.BoolProperty(
+        name='All Islands',
+        description='Transform every mesh island under the brush. When off, only the island nearest the brush center is affected',
+        default = False,
+    )
     mask_boundary: bpy.props.EnumProperty(
         name='Mask Boundary',
         description='How to handle boundary geometry',

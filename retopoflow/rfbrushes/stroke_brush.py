@@ -39,7 +39,7 @@ from ..common.drawing import Drawing
 from ..preferences import RF_Prefs
 from ..common.raycast import raycast_valid_sources, size2D_to_size, mouse_from_event
 from ..common.maths import bvec_point_to_bvec4
-from ..common.operator import RFOperator, RFKeyMaps
+from ..common.operator import RFOperator, RFKeyMaps, execute_operator
 from ..common.easing import CubicEaseOut
 from ...addon_common.common import gpustate
 from ...addon_common.common.blender import event_modifier_check
@@ -84,13 +84,15 @@ def create_stroke_brush(
 ) -> tuple[type[RFBrush_Base], type[RFOperator]]:
     snap_verts, snap_edges, snap_faces = snap
     snap_any = snap_verts or snap_edges or snap_faces
-    if snap_edges:
-        print(f'RFBrush_Stroke Warning')
-        print(f'    NOT HANDLING SNAPPED EDGES IN STROKE BRUSH, YET!')
 
     class RFBrush_Stroke(RFBrush_Base):
         # brush settings
         stroke_radius : float = radius
+
+        # Brush flash to show size when adjusting radius
+        flash_until : float = 0.0
+        flash_mouse2d : tuple | None = None
+        _flash_running : bool = False
 
         snap_distance : int = 10  # pixel distance when to consider snapping to vert or stroke end (cycle) or mirrored vert
         far_distance  : int = 20  # mouse must move this far away from stroke start to start considering cycle
@@ -109,6 +111,9 @@ def create_stroke_brush(
         push_above          : float = 0.01
         shrink_below        : float = 0.80
         stroke_smooth       : float = smoothing  # [0,1], higher => more smoothing
+        stroke_smooth_feature_lo : float = math.radians(5)
+        stroke_smooth_feature_hi : float = math.radians(30)
+        cursor_normal = None  # local-space source normal under the cursor (set in update_snap)
 
         # hack to know which areas the mouse is in
         mouse_areas : set[bpy.types.Area] = set()  # TODO: make sure this actually works with multiple areas / quad
@@ -123,6 +128,16 @@ def create_stroke_brush(
         nearest_bmv : None | NearestBMVert = None
         nearest_bme : None | NearestBMEdge = None
         nearest_bmf : None | NearestBMFace = None
+        rail_len : int = 0                 # stroke length at the last left/right rail rebuild
+        rail_pt2D : None | Point2D = None  # last point that triggered a rail rebuild
+        bme_cache_left : dict = None
+        bme_cache_right : dict = None
+        bme_join_cache : dict = None   # {stroke index: (pt, radius, [BMEdge,...])} per-point side-join detection cache
+        snap_join : set = None         # existing boundary/wire edges under the disc
+        snap_caps : set = None         # subset of snap_join that are caps / perpendicular at ends
+        snap_rails_to_edges : bool = False
+        mirror_snaps : list | None = None
+        mirror_sides : list | None = None
 
         @classmethod
         def get_stroke_smooth(cls):
@@ -130,6 +145,30 @@ def create_stroke_brush(
         @classmethod
         def set_stroke_smooth(cls, value : float):
             cls.stroke_smooth = clamp(value, 0.00, 1.00)
+
+        @classmethod
+        def flash_brush(cls, mouse2d, duration : float = 0.5):
+            # Briefly show the disc at `mouse2d` (region coords) after a radius change.
+            if not mouse2d: return
+            cls.flash_mouse2d = (int(mouse2d[0]), int(mouse2d[1]))
+            cls.flash_until = time() + duration
+            if not cls._flash_running:
+                cls._flash_running = True
+                bpy.app.timers.register(cls._flash_driver)
+
+        @classmethod
+        def _flash_driver(cls):
+            # bpy.app.timers callback: force viewport redraws for the flash window so draw_postview keeps drawing the disc.
+            # Return None (unregister) once the window closes.
+            RFCore = RFGlobals.RFCore_None
+            if RFCore is not None and time() < cls.flash_until:
+                RFCore.tag_redraw_areas()
+                return 1.0 / 60.0
+            cls._flash_running = False
+            cls.flash_until = 0.0
+            if RFCore is not None:
+                RFCore.tag_redraw_areas()  # final redraw erases the disc
+            return None
 
         def init(self):
             self.mouse = None
@@ -160,6 +199,7 @@ def create_stroke_brush(
             self.mirror = set()
             self.mirror_clip = False
             self.mirror_threshold = 0
+            self.snap_mirror = set()
             # self.snap_mirror_ratio = 0.90  # [0,1] ratio of stroke near mirror to snap whole stroke
 
             # reset snap to nearest
@@ -192,6 +232,7 @@ def create_stroke_brush(
             self.nearest_bmf = None
             self.snap_bmf0 = None
             self.snap_bmf1 = None
+            self.snap_join = set()
 
 
         def reset_nearest(self, context):
@@ -205,6 +246,7 @@ def create_stroke_brush(
             self.snap_bmv1 = None
             self.snap_bmf0 = None
             self.snap_bmf1 = None
+            self.snap_join = set()
 
             bm = get_bmesh_emesh(context, ensure_lookup_tables=True)[0] if context.edit_object else None
             if bm is not None and bm.is_valid:
@@ -240,6 +282,7 @@ def create_stroke_brush(
                 self.reset_nearest(context)
 
             hit = raycast_valid_sources(context, mouse, respect_clip_planes=True)
+            self.cursor_normal = hit['no_local'] if hit else None
             if not hit: return
 
             if self.nearest_bmv:
@@ -271,7 +314,34 @@ def create_stroke_brush(
                     self.snap_bmf0 = self.nearest_bmf.bmf
                     self.snap_bmf1 = None
                 else:
-                    self.snap_bmf1 = self.nearest_bmf.bmf
+                    bmf = self.nearest_bmf.bmf
+                    # ending on a face after running alongside its boundary is almost always an accident, ignore it
+                    if bmf and self.snap_join and self.stroke3D_original and len(self.stroke3D_original) >= 2:
+                        p_end = self.stroke3D_original[-1]
+                        t = p_end - self.stroke3D_original[max(0, len(self.stroke3D_original) - 6)]
+                        if t.length:
+                            t = t.normalized()
+                            for bme in bmf.edges:
+                                if bme not in self.snap_join: continue
+                                ev = bme.verts[1].co - bme.verts[0].co
+                                if ev.length and abs(ev.normalized().dot(t)) >= 0.5:
+                                    bmf = None
+                                    break
+                    self.snap_bmf1 = bmf
+
+            if self.nearest_bme and not self.is_stroking():
+                if self.snap_bmf0:
+                    self.snap_join = set()
+                else:
+                    radius3D = self.stroke_radius * size2D_to_size(context, hit['distance']) / (self.edit_scale or 1.0)
+                    edges = self.nearest_bme.update_all(
+                        hit['co_local'],
+                        filter_fn=(lambda bme: (bme.is_boundary or bme.is_wire)),
+                        ignore_selected=False,
+                        distance=radius3D,
+                    )
+                    # keep only the closest edge per boundary loop. A corner keeps an edge + its cap.
+                    self.snap_join = set(self.limit_loop_runs(edges, [hit['co_local']]))
 
 
         def update(self, context : Context, event : Event, *, force : bool = False) -> None:
@@ -380,7 +450,8 @@ def create_stroke_brush(
                 elif event.value == 'RELEASE':
                     if self.is_stroking():
                         # only add final mouse position if it is over source
-                        self.add_stroke_point(context, Point2D(self.mouse))
+                        # force a final rail rebuild so the committed geometry isn't stale
+                        self.add_stroke_point(context, Point2D(self.mouse), force_rail=True)
 
                         self.process_stroke(context)
 
@@ -401,6 +472,15 @@ def create_stroke_brush(
                 delta_t = time() - self.last_time
                 smoothing_mapped = CubicEaseOut(duration=1.5).ease(RFBrush_Stroke.stroke_smooth)
                 smoothing_factor = 1.0 - smoothing_mapped ** (delta_t * 50)
+                # Ease off the smoothing where the source normal turns sharply to preserve the corner
+                n_pre = self.stroke_normal[-1] if self.stroke_normal else None
+                n_cur = self.cursor_normal
+                if n_pre and n_cur and n_pre.length_squared > 0 and n_cur.length_squared > 0:
+                    bend = n_pre.angle(n_cur)
+                    lo, hi = self.stroke_smooth_feature_lo, self.stroke_smooth_feature_hi
+                    preserve = clamp((bend - lo) / (hi - lo), 0.0, 1.0)
+                    smoothing_factor += (1.0 - smoothing_factor) * preserve
+
                 pt = pre + (cur - pre) * smoothing_factor
                 self.add_stroke_point(context, pt)
                 if (self.stroke_original[0] - self.stroke_original[-1]).length > Drawing.scale(self.far_distance):
@@ -438,6 +518,16 @@ def create_stroke_brush(
             self.stroke_normal = None
             self.stroke_dist = None
 
+            self.rail_len = 0
+            self.rail_pt2D = None
+            self.bme_cache_left = {}
+            self.bme_cache_right = {}
+            self.bme_join_cache = {}
+            self.snap_join = set()
+            self.snap_caps = set()
+            self.mirror_snaps = None
+            self.mirror_sides = None
+
             self.stroke = None
             self.stroke3D = None
 
@@ -454,7 +544,120 @@ def create_stroke_brush(
             self.stroke3D_right_start = None
             self.stroke3D_right_end = None
 
-        def add_stroke_point(self, context, pt2D):
+        def nearest_bme_cached(self, context, cache, i0, pt, radius3D, *, distance2d=10):
+            entry = cache.get(i0)
+            if entry is not None:
+                cached_pt, cached_radius, cached_bme = entry
+                if (cached_pt - pt).length < 1e-6 and cached_radius == radius3D and (cached_bme is None or cached_bme.is_valid):
+                    return cached_bme
+            bme = self.nearest_bme.update(
+                context, pt,
+                filter_fn=(lambda bme: (bme.is_boundary or bme.is_wire)),
+                ignore_selected=False,
+                distance=radius3D,
+                distance2d=distance2d,
+            )
+            cache[i0] = (pt.copy(), radius3D, bme)
+            return bme
+
+        def classify_join_edge(self, bme, stroke, tangents, cap_radius):
+            ''' Classify a detected edge as 'parallel', 'cap', or None. Perpendicular edges
+            elsewhere, like the boundary edges of a face the stroke is drawn out of, are dropped. '''
+            v0, v1 = bme.verts
+            ed = (v1.co - v0.co)
+            L2 = ed.length_squared
+            if L2 == 0: return None
+            mid = (v0.co + v1.co) / 2
+            j = min(range(len(stroke)), key=lambda k: (stroke[k] - mid).length)
+            if abs(ed.normalized().dot(tangents[j])) >= 0.5:
+                return 'parallel'
+            # cap: the stroke end must terminate into this edge, not off to the side
+            def is_cap_at(end_pt):
+                t = (end_pt - v0.co).dot(ed) / L2
+                if not (0.15 <= t <= 0.85): return False
+                return ((v0.co + ed * t) - end_pt).length <= cap_radius
+            if not self.snap_bmf0 and is_cap_at(stroke[0]): return 'cap'
+            if not self.snap_bmf1 and is_cap_at(stroke[-1]): return 'cap'
+            return None
+
+        def limit_loop_runs(self, edges, ref_pts, is_cap=None):
+            # Limit groups of highlighted edges to the one closest to ref_pts (local space).
+            edges = list(edges)
+            if len(edges) < 2: return edges
+            cap = {e for e in edges if is_cap(e)} if is_cap else set()
+            parent = list(range(len(edges)))
+            def find(i):
+                while parent[i] != i:
+                    parent[i] = parent[parent[i]]; i = parent[i]
+                return i
+            for a in range(len(edges)):
+                for b in range(a + 1, len(edges)):
+                    shared = set(edges[a].verts) & set(edges[b].verts)
+                    if not shared: continue
+                    v = next(iter(shared))
+                    da = edges[a].other_vert(v).co - v.co
+                    db = edges[b].other_vert(v).co - v.co
+                    if da.length == 0 or db.length == 0: continue
+                    straight = da.normalized().dot(db.normalized()) < -0.7
+                    # Group straight loop neighbors and corners where neither edge is a cap but
+                    # leave a cap corner ungrouped so both survive.
+                    if straight or (edges[a] not in cap and edges[b] not in cap):
+                        parent[find(a)] = find(b)
+            def edge_dist(bme):
+                v0, v1 = bme.verts
+                return min((closest_point_segment(p, v0.co, v1.co) - p).length for p in ref_pts)
+            best = {}  # group root -> (dist, edge index)
+            for i in range(len(edges)):
+                r = find(i)
+                d = edge_dist(edges[i])
+                if r not in best or d < best[r][0]: best[r] = (d, i)
+            keep = {idx for (_, idx) in best.values()}
+            return [edges[i] for i in range(len(edges)) if i in keep]
+
+        def accumulate_join_edges(self, context, w_start=None, w_end=None):
+            ''' Record the existing boundary / wire edges the brush passes over along the stroke, keeping
+            only side rails (parallel to the stroke) and caps (perpendicular at a non-face-snapped end),
+            with one edge per loop / uncapped corner. '''
+            if not self.nearest_bme: return
+            JOIN_DETECT_SLACK = 1
+            stroke = self.stroke3D_original
+            n = len(stroke)
+            brush_r = self.stroke_radius * size2D_to_size(context, self.stroke_dist[0]) / (self.edit_scale or 1.0)
+            if w_start is None: w_start = brush_r
+            if w_end is None: w_end = brush_r
+            nspan = max(1, n - 1)
+            tangents = []  # local stroke tangent at each point, for parallel/cap classification
+            for k in range(n):
+                d = stroke[min(n - 1, k + 1)] - stroke[max(0, k - 1)]
+                tangents.append(d.normalized() if d.length else Vector((0.0, 0.0, 0.0)))
+            cap_radius = max(w_start, w_end) * JOIN_DETECT_SLACK * 1.5
+
+            joined, caps = set(), set()
+            for (i, pt) in enumerate(stroke):
+                radius3D = (w_start + (w_end - w_start) * (i / nspan)) * JOIN_DETECT_SLACK
+                entry = self.bme_join_cache.get(i)
+                if entry is not None and (entry[0] - pt).length < 1e-6 and entry[1] == radius3D:
+                    raw = entry[2]
+                else:
+                    raw = self.nearest_bme.update_all(
+                        pt,
+                        filter_fn=(lambda bme: (bme.is_boundary or bme.is_wire)),
+                        ignore_selected=False,
+                        distance=radius3D,
+                    )
+                    self.bme_join_cache[i] = (pt.copy(), radius3D, raw)
+                # under this disc: drop perpendicular non-cap edges (e.g. the face we drew out of)
+                # then collapse each loop run / uncapped corner to its closest edge.
+                cls = {bme: self.classify_join_edge(bme, stroke, tangents, cap_radius) for bme in raw if bme.is_valid}
+                survivors = [bme for bme, c in cls.items() if c is not None]
+                caps_here = {bme for bme, c in cls.items() if c == 'cap'}
+                for bme in self.limit_loop_runs(survivors, [pt], lambda e: e in caps_here):
+                    joined.add(bme)
+                    if bme in caps_here: caps.add(bme)
+            self.snap_join = joined
+            self.snap_caps = caps
+
+        def add_stroke_point(self, context, pt2D, *, force_rail=False):
             hit = raycast_valid_sources(context, pt2D, respect_clip_planes=True)
             if not hit: return False
 
@@ -478,7 +681,7 @@ def create_stroke_brush(
                 self.stroke3D_right = []
 
             if len(self.stroke_original) > 1:
-                # if last two points were too close, so replace last point with current
+                # last two points were too close so replace last point with current
                 pt2D_prev0 = self.stroke_original[-2]
                 pt2D_prev1 = self.stroke_original[-1]
                 if (pt2D_prev0 - pt2D_prev1).length < 2:
@@ -493,8 +696,15 @@ def create_stroke_brush(
             self.stroke_dist       += [hit['distance']]
             self.snap_mirror_all = False
 
-            if draw_leftright:
-                # TODO: only update the last little bit.  once stroke is sufficiently long, do not need to recheck that part
+            # Only rail rebuild on final / commit point, a new stroke point, or the last point drifting past the sample distance. (#1574)
+            if draw_leftright and (
+                force_rail
+                or self.rail_pt2D is None
+                or len(self.stroke_original) != self.rail_len
+                or (pt2D - self.rail_pt2D).length >= RF_Prefs.get_prefs(context).stroke_min_distance
+            ):
+                self.rail_len = len(self.stroke_original)
+                self.rail_pt2D = pt2D
 
                 self.stroke3D_left, self.stroke3D_right  = [], []
 
@@ -533,8 +743,11 @@ def create_stroke_brush(
                     self.stroke3D_right_end = self.stroke3D_right[-1] + v_forward
                     self.co_front = (self.stroke3D_left_end + self.stroke3D_right_end) / 2
 
-                # snap to bmedges if able and have enough information
                 if self.nearest_bme and self.co_back and self.co_front:
+                    self.accumulate_join_edges(context, w_start, w_end)
+
+                # snap to bmedges if able and have enough information
+                if self.snap_rails_to_edges and self.nearest_bme and self.co_back and self.co_front:
                     radius3D = math.pi * 2.0 * self.stroke_radius / 4.0 * size2D_to_size(context, self.stroke_dist[0])
                     snap_bmes = set()
 
@@ -576,12 +789,7 @@ def create_stroke_brush(
                     i1 = -1
                     for (i0, ptcur) in enumerate(self.stroke3D_left):
                         if i0 <= i1: continue
-                        bme = self.nearest_bme.update(
-                            context, ptcur,
-                            filter_fn=(lambda bme: (bme.is_boundary or bme.is_wire)), # and not is_bmedge_hidden(context, bme)),
-                            ignore_selected=False,
-                            distance=radius3D,
-                        )
+                        bme = self.nearest_bme_cached(context, self.bme_cache_left, i0, ptcur, radius3D)
                         if not bme or bme in snap_bmes:
                             cleft += [ptcur]
                             continue
@@ -636,12 +844,7 @@ def create_stroke_brush(
                     i1 = -1
                     for (i0, ptcur) in enumerate(self.stroke3D_right):
                         if i0 <= i1: continue
-                        bme = self.nearest_bme.update(
-                            context, ptcur,
-                            filter_fn=(lambda bme: (bme.is_boundary or bme.is_wire)), # and not is_bmedge_hidden(context, bme)),
-                            ignore_selected=False,
-                            distance=radius3D,
-                        )
+                        bme = self.nearest_bme_cached(context, self.bme_cache_right, i0, ptcur, radius3D)
                         if not bme or bme in snap_bmes:
                             cright += [ptcur]
                             continue
@@ -751,11 +954,21 @@ def create_stroke_brush(
 
             # stroke may touch mirror
 
-            snaps = [self.get_snap_mirror(context, co) for co in self.stroke3D_original]
-            sides = [self.get_mirror_side(co)          for co in self.stroke3D_original]
+            # Maintain per-point mirror snaps and sides instead of rebuilding the whole stroke every sample (#1574).
+            if self.mirror_snaps is None:
+                self.mirror_snaps, self.mirror_sides = [], []
+            n = len(self.stroke3D_original)
+            del self.mirror_snaps[n - 1:]
+            del self.mirror_sides[n - 1:]
+            for i in range(len(self.mirror_snaps), n):
+                co = self.stroke3D_original[i]
+                self.mirror_snaps.append(self.get_snap_mirror(context, co))
+                self.mirror_sides.append(self.get_mirror_side(co))
+            mirror_snaps = self.mirror_snaps
+            mirror_sides = self.mirror_sides
 
-            all_sides = set(sides)
-            all_snaps = { tuple(snap) for snap in snaps }
+            all_sides = set(mirror_sides)
+            all_snaps = { tuple(snap) for snap in mirror_snaps }
             if all_snaps == { tuple() } and len(all_sides) == 1:
                 # mirror is there, but the stroke did not touch
                 self.stroke = self.stroke_original
@@ -769,18 +982,18 @@ def create_stroke_brush(
             self.stroke3D = []
             if DEBUG: print(f'0-', end='')
             i0 = 0
-            last_side = sides[0]
+            last_side = mirror_sides[0]
             while i0 < l:
-                if sides[i0] != last_side:
-                    last_side = sides[i0]
-                    if not snaps[i0-1] and not snaps[i0]:  # safe to check i0-1
+                if mirror_sides[i0] != last_side:
+                    last_side = mirror_sides[i0]
+                    if not mirror_snaps[i0-1] and not mirror_snaps[i0]:  # safe to check i0-1
                         # crossed mirror without getting near it
                         if DEBUG: print(f'{i0-1} crossed mirror {i0}-', end='')
                         pt0 = self.stroke3D_original[i0-1]
                         pt1 = self.stroke3D_original[i0]
                         for _ in range(100):
                             pt = pt0 + (pt1 - pt0) * 0.5
-                            (pt0, pt1) = (pt0, pt) if sides[i0] == self.get_mirror_side(pt) else (pt, pt1)
+                            (pt0, pt1) = (pt0, pt) if mirror_sides[i0] == self.get_mirror_side(pt) else (pt, pt1)
                         snap = self.get_snap_mirror(context, pt)  # possible (although unlikely) that snap is empty!
                         self.stroke3D += [pt * Vector((
                             0 if 'x' in snap else 1,
@@ -790,28 +1003,28 @@ def create_stroke_brush(
                         i0 += 1
                         continue
 
-                if not snaps[i0] and sides[i0] == last_side:
+                if not mirror_snaps[i0] and mirror_sides[i0] == last_side:
                     # not near mirror and did not cross mirror
                     self.stroke3D += [self.stroke3D_original[i0]]
                     i0 += 1
                     continue
 
                 # near mirror
-                i1 = next((i1 for i1 in range(i0, l-1) if not snaps[i1+1]), l - 1)
+                i1 = next((i1 for i1 in range(i0, l-1) if not mirror_snaps[i1+1]), l - 1)
 
                 if i1 == l - 1:
                     # rest of stroke is near mirror
                     if DEBUG: print(f'{i0} rest near mirror {i1}-', end='')
                     self.stroke3D += [self.stroke3D_original[i0] * Vector((
-                        0 if 'x' in snaps[i0] else 1,
-                        0 if 'y' in snaps[i0] else 1,
-                        0 if 'z' in snaps[i0] else 1,
+                        0 if 'x' in mirror_snaps[i0] else 1,
+                        0 if 'y' in mirror_snaps[i0] else 1,
+                        0 if 'z' in mirror_snaps[i0] else 1,
                     ))]
                     if i0 != i1:
                         self.stroke3D += [self.stroke3D_original[i1] * Vector((
-                            0 if 'x' in snaps[i1] else 1,
-                            0 if 'y' in snaps[i1] else 1,
-                            0 if 'z' in snaps[i1] else 1,
+                            0 if 'x' in mirror_snaps[i1] else 1,
+                            0 if 'y' in mirror_snaps[i1] else 1,
+                            0 if 'z' in mirror_snaps[i1] else 1,
                         ))]
                     break
 
@@ -820,14 +1033,14 @@ def create_stroke_brush(
                     if DEBUG: print(f'{i0} stretch near mirror {i1}-', end='')
                     # long stretch of stroke is near mirror, so snap it all
                     self.stroke3D += [self.stroke3D_original[i0] * Vector((
-                        0 if 'x' in snaps[i0] else 1,
-                        0 if 'y' in snaps[i0] else 1,
-                        0 if 'z' in snaps[i0] else 1,
+                        0 if 'x' in mirror_snaps[i0] else 1,
+                        0 if 'y' in mirror_snaps[i0] else 1,
+                        0 if 'z' in mirror_snaps[i0] else 1,
                     ))]
                     self.stroke3D += [self.stroke3D_original[i1] * Vector((
-                        0 if 'x' in snaps[i1] else 1,
-                        0 if 'y' in snaps[i1] else 1,
-                        0 if 'z' in snaps[i1] else 1,
+                        0 if 'x' in mirror_snaps[i1] else 1,
+                        0 if 'y' in mirror_snaps[i1] else 1,
+                        0 if 'z' in mirror_snaps[i1] else 1,
                     ))]
                     i0 = i1 + 1
                     continue
@@ -839,9 +1052,9 @@ def create_stroke_brush(
                 if DEBUG: print(f'{i0} cross/bounce at {i_min} {i1}-', end='')
                 pt = self.stroke3D_original[i_min]
                 self.stroke3D += [pt * Vector((
-                    0 if 'x' in snaps[i0] else 1,
-                    0 if 'y' in snaps[i0] else 1,
-                    0 if 'z' in snaps[i0] else 1,
+                    0 if 'x' in mirror_snaps[i0] else 1,
+                    0 if 'y' in mirror_snaps[i0] else 1,
+                    0 if 'z' in mirror_snaps[i0] else 1,
                 ))]
                 i0 = i1 + 1
             if DEBUG: print(f'{l-1}')
@@ -871,6 +1084,10 @@ def create_stroke_brush(
             avg_scale = sum(size2D_to_size(context, d) for d in self.stroke_dist) / len(self.stroke_dist)
             radius3D = self.stroke_radius * avg_scale / self.edit_scale
 
+            # boundary edges the disc passed over, for side-joining (reserved snapped_geo[1] slot)
+            join_bmes = [bme for bme in self.snap_join if bme.is_valid]
+            join_geo = join_bmes if join_bmes else (None, None)
+
             self.operator.process_stroke(
                 context,
                 self.stroke_radius,
@@ -878,18 +1095,33 @@ def create_stroke_brush(
                 self.stroke,
                 self.stroke3D,
                 self.stroke_cycle,
-                [(self.snap_bmv0, self.snap_bmv1), (None, None), (self.snap_bmf0, self.snap_bmf1)],
+                [(self.snap_bmv0, self.snap_bmv1), join_geo, (self.snap_bmf0, self.snap_bmf1)],
                 [self.snap_mirror_0, self.snap_mirror_1, self.snap_mirror_all],
                 radius3D=radius3D,
             )
 
-        def _update(self, context):
-            if context.area not in self.mouse_areas: return
+        def _ensure_matrices(self, context):
+            # Populate the world-matrix cache from the edit object.
+            # update() sets these too, but the brush size preview flash can fire before update() has ever run.
+            eo = getattr(context, 'edit_object', None)
+            if not eo: return False
+            self.matrix_world = eo.matrix_world
+            self.matrix_world_inv = self.matrix_world.inverted_safe()
+            self.matrix_world_ti = self.matrix_world.inverted_safe().transposed()
+            self.edit_scale = max(self.matrix_world.to_scale())
+            return True
+
+        def _update(self, context, mouse=None):
+            # mouse=None: normal hover/stroke. Uses self.mouse, requires the area be a mouse_area.
+            # mouse given: flash preview, raycast at an explicit point, bypassing mouse_areas.
+            explicit = mouse is not None
+            if not explicit and context.area not in self.mouse_areas: return
             if not self.matrix_world: return
             self.hit = False
-            if not self.mouse: return
+            m = mouse if explicit else self.mouse
+            if not m: return
             # print(f'RFBrush_Stroke.update {(event.mouse_region_x, event.mouse_region_y)}') #{context.region=} {context.region_data=}')
-            hit = raycast_valid_sources(context, self.mouse, respect_clip_planes=True)
+            hit = raycast_valid_sources(context, m, respect_clip_planes=True)
             # print(f'  {hit=}')
             if not hit: return
             if self.is_stroking():
@@ -922,9 +1154,9 @@ def create_stroke_brush(
             center2D = self.center2D
             co = self.outer_color
             instance: RFOperator_StrokeBrush_Adjust = RFOperator_StrokeBrush_Adjust.active_operator()
-            Drawing.draw2D_smooth_circle(context, center2D, self.stroke_radius, co, width=2.5)
+            Drawing.draw2D_smooth_circle(context, center2D, self.stroke_radius, co, width=2.5, apply_ui_scale=False)
             if instance:
-                Drawing.draw2D_smooth_circle(context, center2D, instance.prev_radius, co, width=.5)
+                Drawing.draw2D_smooth_circle(context, center2D, instance.prev_radius, co, width=.5, apply_ui_scale=False)
 
         def draw_stroke(self, context):
             if self.mouse:
@@ -1020,6 +1252,14 @@ def create_stroke_brush(
                     cos = [location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv.co) for bmv in self.snap_bmf1.verts]
                     Drawing.draw2D_linestrip(context, cos + [cos[0]], self.snap_color, width=2)
 
+            # highlight every existing boundary edge under the brush that the stroke will weld onto:
+            # the hover preview before stroking and the swept set while stroking.
+            if self.nearest_bme:
+                for bme in self.snap_join:
+                    if not bme.is_valid: continue
+                    cos = [location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv.co) for bmv in bme.verts]
+                    Drawing.draw2D_linestrip(context, cos, self.snap_color, width=2)
+
         def draw_postpixel(self, context):
             RFCore = RFGlobals.RFCore_None
             if not RFCore or not RFCore.is_current_area(context): return
@@ -1090,13 +1330,20 @@ def create_stroke_brush(
         def draw_postview(self, context):
             RFCore = RFGlobals.RFCore_None
             if not RFCore or not RFCore.is_current_area(context): return
-            if context.area not in self.mouse_areas: return
-            if not self.matrix_world: return
             if self.shift_held: return
 
             if RFOperator_StrokeBrush_Adjust.is_active(): return
 
-            self._update(context)
+            # Normal hover/stroke draws at self.mouse. Otherwise, during a flash window, draw the preview at the flash cursor.
+            # RFCore calls this every redraw regardless of is_controlling, and the flash can fire before update() has ever run,
+            # so ensure the world matrices exist before raycasting.
+            if context.area in self.mouse_areas and self.mouse and self.matrix_world:
+                self._update(context)
+            elif time() < RFBrush_Stroke.flash_until and RFBrush_Stroke.flash_mouse2d:
+                if not self.matrix_world and not self._ensure_matrices(context): return
+                self._update(context, mouse=RFBrush_Stroke.flash_mouse2d)
+            else:
+                return
             if not self.hit: return
 
             pb, n = self.hit_p, self.hit_n
@@ -1167,6 +1414,13 @@ def create_stroke_brush(
             gpustate.depth_mask(True)
 
 
+    def _bracket_flash_invoke(self, context, event):
+        # Bracket keys are execute operators. Capture the real cursor position here so the size preview appears at the pointer,
+        # then run the radius change. Fixes the disc drawing at a stale position / not at all.
+        ret = self.execute(context)
+        RFBrush_Stroke.flash_brush((event.mouse_region_x, event.mouse_region_y))
+        return ret
+
     class RFOperator_StrokeBrush_Adjust(RFOperator):
         '''
         Handles resizing of Strokes Brush
@@ -1179,12 +1433,25 @@ def create_stroke_brush(
         bl_options = set()
 
         rf_keymaps : RFKeyMaps = [
-            # bl_idname
-            (f'retopoflow.{idname}', {'type': 'F', 'value': 'PRESS', 'shift': True}, {'km_context': 'init', 'km_label': 'Adjust Radius'}),  #, 'ctrl': False
+            (f'retopoflow.{idname}', {'type': 'F', 'value': 'PRESS', 'shift': True}, {'km_context': 'init', 'km_label': 'Adjust Radius', 'km_extra_icons': ['EVENT_LEFTBRACKET', 'EVENT_RIGHTBRACKET']}),  #, 'ctrl': False
+            (f'retopoflow.{idname}_radius_decrease', {'type': 'LEFT_BRACKET',  'value': 'PRESS'}, None),
+            (f'retopoflow.{idname}_radius_increase', {'type': 'RIGHT_BRACKET', 'value': 'PRESS'}, None),
         ]
         rf_status = {
             'adjust': ('LMB: Commit', 'RMB: Cancel')
         }
+
+        @execute_operator(f'{idname}_radius_increase', f'Increase {label} Radius', fn_invoke=_bracket_flash_invoke)
+        @staticmethod
+        def increase_radius(context : Context):
+            RFBrush_Stroke.stroke_radius = min(1000, max(RFBrush_Stroke.stroke_radius + 1, round(RFBrush_Stroke.stroke_radius * 1.1)))
+            if context.area: context.area.tag_redraw()
+
+        @execute_operator(f'{idname}_radius_decrease', f'Decrease {label} Radius', fn_invoke=_bracket_flash_invoke)
+        @staticmethod
+        def decrease_radius(context : Context):
+            RFBrush_Stroke.stroke_radius = max(5, min(RFBrush_Stroke.stroke_radius - 1, round(RFBrush_Stroke.stroke_radius / 1.1)))
+            if context.area: context.area.tag_redraw()
 
         def can_init(self, context, event):
             return not any(
@@ -1207,15 +1474,18 @@ def create_stroke_brush(
         def radius_to_dist(self):
             return RFBrush_Stroke.stroke_radius
 
-        def finish(self, context, cancel=False):
+        def finish(self, context, cancel=False, mouse2d=None):
             if cancel:
                 self.dist_to_radius(self._change_pre)
+            elif mouse2d:
+                # briefly show the brush at the cursor so the committed size is visible on the mesh
+                RFBrush_Stroke.flash_brush(mouse2d)
             self.set_statusbar_override(None)
 
         def update(self, context, event):
             if event.type in {'LEFTMOUSE', 'RIGHTMOUSE', 'ESC'} and event.value == 'PRESS':
                 cancel = event.type in {'RIGHTMOUSE', 'ESC'}
-                self.finish(context, cancel=cancel)
+                self.finish(context, cancel=cancel, mouse2d=(event.mouse_region_x, event.mouse_region_y))
                 return {'CANCELLED'} if cancel else {'FINISHED'}
 
             if event.type == 'MOUSEMOVE':

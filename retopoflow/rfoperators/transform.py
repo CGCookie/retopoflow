@@ -56,7 +56,7 @@ from ..common.maths import (
 )
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.colors import Color4
-from ..common.snapping import SourceSnapMixin
+from ..common.snapping import SourceSnapMixin, source_snap_radius, source_snap_settings
 
 
 def sync_projection_from_blender(context):
@@ -315,14 +315,17 @@ class RFOperator_Translate(SourceSnapMixin, RFOperator):
         self.scale_avg = sum(self.matrix_world.to_scale()) / 3
         snapping = context.scene.retopoflow.snapping
         self.source_edge_accel = SourceCache.get(context)
-        self.source_sharp_proximity = getattr(snapping, 'source_edge_proximity', 0.25)
+        self.source_use_fixed, self.source_fixed_distance, self.source_sharp_proximity = source_snap_settings(context)
         self.stickiness = getattr(snapping, 'source_edge_stickiness', 0.5) if self.source_edge_accel else 0.0
         self.snap_init_state()
         grabbed_bmvs = [bmv for bmv in self.bmvs if bmv in self.data and self.data[bmv] == 0.0]
         if self.source_edge_accel and grabbed_bmvs:
             avg_lens = [get_bmv_avg_edge_len(bmv) for bmv in grabbed_bmvs if bmv.link_edges]
             stroke_avg = (sum(avg_lens) / len(avg_lens)) if avg_lens else 1.0
-            self.stroke_snap_radius = stroke_avg * self.scale_avg * self.source_sharp_proximity
+            self.stroke_snap_radius = source_snap_radius(
+                stroke_avg * self.scale_avg,
+                use_fixed=self.source_use_fixed, fixed_distance=self.source_fixed_distance, avg_edge_factor=self.source_sharp_proximity,
+            )
         else:
             self.stroke_snap_radius = 0.0
         all_mesh_verts = [v for v in self.bm.verts if not v.hide] if self.source_edge_accel else []

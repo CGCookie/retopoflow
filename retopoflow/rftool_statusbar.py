@@ -134,6 +134,12 @@ status_map_icons : dict[str, str] = {
     'RMB': 'MOUSE_RMB',
 }
 
+# Text to draw for a km_extra_icons entry when its EVENT_* icon isn't available in this Blender version.
+extra_icon_text_fallback : dict[str, str] = {
+    'EVENT_LEFTBRACKET':  '[',
+    'EVENT_RIGHTBRACKET': ']',
+}
+
 valid_icon_names : set[str] | None = None
 def get_valid_icon_names() -> set[str]:
     global valid_icon_names
@@ -505,6 +511,14 @@ def draw_rftool_statusbar(statusbar: Header, context: Context, tool: type[RFTool
 
         elif event_type in EVENT_TYPE_ICONS:
             row.label(text='', icon=EVENT_TYPE_ICONS[event_type])
+
+        # Extra alternative keys grouped under this one label
+        for extra_icon in op_props.get('km_extra_icons', []):
+            row.label(text='/')
+            if extra_icon in get_valid_icon_names():
+                row.label(text='', icon=extra_icon) # pyright: ignore[reportArgumentType]
+            else:
+                row.label(text=extra_icon_text_fallback.get(extra_icon, ''))
 
         row.label(text=km_label)
         row.separator()

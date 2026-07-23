@@ -229,6 +229,8 @@ class SourceAccel:
     edge_accel : 'EdgeMarkAccel | None'
     corner_kd  : 'KDTree | None'
 
+    CORNER_POLE_CHORD_RATIO = 0.15 # How far, in avg edge lengths, should a corner be from a straight line between its neighbors
+
     def __init__(self, edge_accel: 'EdgeMarkAccel | None', corner_kd: 'KDTree | None'):
         self.edge_accel = edge_accel
         self.corner_kd  = corner_kd
@@ -259,6 +261,57 @@ class SourceAccel:
 
     def find_corner(self, co: Vector) -> 'tuple[Vector, int, float] | None':
         return self.corner_kd.find(Vector((co[0], co[1], co[2]))) if self.corner_kd else None
+
+    @staticmethod
+    def has_line_through(v_pos, nbr_positions) -> bool:
+        ''' True if the vert sits close to the chord between a pair of neighbors, i.e. a straight line runs through it. '''
+        ratio = SourceAccel.CORNER_POLE_CHORD_RATIO
+        k = len(nbr_positions)
+        for i in range(k):
+            P = nbr_positions[i]
+            for j in range(i + 1, k):
+                Q = nbr_positions[j]
+                PQ = Q - P
+                L2 = float(PQ @ PQ)
+                if L2 < 1e-18: continue
+                t = float((v_pos - P) @ PQ) / L2
+                if t < 0.05 or t > 0.95: continue  # vert must lie between the two neighbors
+                perp = v_pos - (P + t * PQ)
+                if math.sqrt(float(perp @ perp) / L2) < ratio:
+                    return True
+        return False
+
+    @staticmethod
+    def bmv_has_line_through(bmv, M) -> bool:
+        ''' has_line_through for a BMVert, gathering its neighbors from link_edges in world space. '''
+        Mnp = np.array(M, dtype=np.float64)
+        R, t = Mnp[:3, :3], Mnp[:3, 3]
+        w = lambda co: R @ np.array((co[0], co[1], co[2]), dtype=np.float64) + t
+        v_pos = w(bmv.co)
+        nbrs = [w(e.other_vert(bmv).co) for e in bmv.link_edges]
+        return SourceAccel.has_line_through(v_pos, nbrs)
+
+    @staticmethod
+    def verts_without_line_through(cand_idx, world, edges):
+        ''' Drop candidate verts that have a smooth line running through them. `cand_idx` is a numpy array of vert indices.
+        `edges` is the Nx2 edge->verts array whose adjacency defines the "line". Returns the surviving subset. '''
+        if not len(cand_idx):
+            return cand_idx
+        cand_mask = np.zeros(len(world), dtype=bool)
+        cand_mask[cand_idx] = True
+        incident = edges[cand_mask[edges[:, 0]] | cand_mask[edges[:, 1]]] if len(edges) else edges
+        adj: dict[int, list[int]] = {int(v): [] for v in cand_idx}
+        for a, b in incident:
+            a, b = int(a), int(b)
+            if a in adj: adj[a].append(b)
+            if b in adj: adj[b].append(a)
+        keep = []
+        for v in cand_idx:
+            vi = int(v)
+            nbrs = [world[nb] for nb in adj[vi]]
+            if not SourceAccel.has_line_through(world[vi], nbrs):
+                keep.append(vi)
+        return np.array(keep, dtype=np.int64)
 
     @classmethod
     def build(
@@ -315,6 +368,9 @@ class SourceAccel:
         segments: list[tuple[Vector, Vector]] = []
         vert_feature_count: dict[int, int] = {}
         vert_world_pos: dict[int, Vector] = {}
+        feature_edges: set[int] = set()
+        feature_adj: dict[int, list[int]] = {}
+        pole_corners: set[int] = set()
         bm = bmesh.new()
         try:
             bm.from_object(obj.evaluated_get(depsgraph), depsgraph)
@@ -332,7 +388,10 @@ class SourceAccel:
                     if n0.length > 0 and n1.length > 0:
                         is_feature = n0.normalized().dot(n1.normalized()) < cos_threshold
                 if is_feature:
+                    feature_edges.add(bme.index)
                     v0, v1 = bme.verts
+                    feature_adj.setdefault(v0.index, []).append(v1.index)
+                    feature_adj.setdefault(v1.index, []).append(v0.index)
                     v0w = point_to_bvec3((M @ Vector((*v0.co, 1.0))).xyz)
                     v1w = point_to_bvec3((M @ Vector((*v1.co, 1.0))).xyz)
                     segments.append((v0w, v1w))
@@ -349,19 +408,30 @@ class SourceAccel:
                 idx = bmv.index
                 if vert_feature_count.get(idx, 0) >= 3:
                     continue  # already registered as a corner via feature edges
+                # Exclude feature edges, their sharpness is already handled above. Counting it here
+                # would flag every mid-crease vert on a triangulated mesh once it has 5+ edges.
                 total_curvature = sum(
                     bme.calc_face_angle(0.0)
                     for bme in bmv.link_edges
-                    if len(bme.link_faces) == 2
+                    if len(bme.link_faces) == 2 and bme.index not in feature_edges
                 )
-                if total_curvature > sharp_threshold:
-                    vw = point_to_bvec3((M @ Vector((*bmv.co, 1.0))).xyz)
-                    vert_world_pos[idx] = vw
-                    vert_feature_count[idx] = 3  # satisfy the corner threshold
+                # Only accept poles with no straight lines running through them.
+                if total_curvature > sharp_threshold and not SourceAccel.bmv_has_line_through(bmv, M):
+                    vert_world_pos[idx] = point_to_bvec3((M @ Vector((*bmv.co, 1.0))).xyz)
+                    pole_corners.add(idx)
         finally:
             bm.free()
 
-        corner_pts = [pos for k, pos in vert_world_pos.items() if vert_feature_count[k] >= 3]
+        # Junctions are corners only if no feature line runs straight through them
+        _np = lambda p: np.array((p[0], p[1], p[2]), dtype=np.float64)
+        corner_pts = []
+        for k, pos in vert_world_pos.items():
+            if k in pole_corners:
+                corner_pts.append(pos)
+            elif vert_feature_count.get(k, 0) >= 3:
+                nbrs = [_np(vert_world_pos[n]) for n in feature_adj.get(k, []) if n in vert_world_pos]
+                if not SourceAccel.has_line_through(_np(pos), nbrs):
+                    corner_pts.append(pos)
         return segments, corner_pts
 
     @staticmethod
@@ -406,6 +476,9 @@ class SourceAccel:
         segments: list[tuple[Vector, Vector]] = []
         vert_feature_count: dict[int, int] = {}
         vert_world_pos: dict[int, Vector] = {}
+        feature_edges: set[int] = set()
+        feature_adj: dict[int, list[int]] = {}
+        pole_corners: set[int] = set()
 
         bm = bmesh.new()
         try:
@@ -432,7 +505,10 @@ class SourceAccel:
                         if n0.length > 0 and n1.length > 0:
                             is_feature = n0.normalized().dot(n1.normalized()) < cos_threshold
                     if is_feature:
+                        feature_edges.add(bme.index)
                         v0, v1 = bme.verts
+                        feature_adj.setdefault(v0.index, []).append(v1.index)
+                        feature_adj.setdefault(v1.index, []).append(v0.index)
                         v0w = point_to_bvec3((M @ Vector((*v0.co, 1.0))).xyz)
                         v1w = point_to_bvec3((M @ Vector((*v1.co, 1.0))).xyz)
                         segments.append((v0w, v1w))
@@ -452,22 +528,33 @@ class SourceAccel:
                     idx = bmv.index
                     if vert_feature_count.get(idx, 0) >= 3:
                         continue  # already registered as a corner via feature edges
+                    # Exclude feature edges from pole curvature, otherwise
+                    # every mid-crease vert on a triangulated mesh is misclassified as a corner.
                     total_curvature = sum(
                         bme.calc_face_angle(0.0)
                         for bme in bmv.link_edges
-                        if len(bme.link_faces) == 2
+                        if len(bme.link_faces) == 2 and bme.index not in feature_edges
                     )
-                    if total_curvature > sharp_threshold:
-                        vw = point_to_bvec3((M @ Vector((*bmv.co, 1.0))).xyz)
-                        vert_world_pos[idx] = vw
-                        vert_feature_count[idx] = 3  # satisfy the corner threshold
+                    # Reject poles with a smooth line running through them.
+                    if total_curvature > sharp_threshold and not SourceAccel.bmv_has_line_through(bmv, M):
+                        vert_world_pos[idx] = point_to_bvec3((M @ Vector((*bmv.co, 1.0))).xyz)
+                        pole_corners.add(idx)
 
                 processed += vert_end - vert_start
                 yield processed / total_work, None, None
         finally:
             bm.free()
 
-        corner_pts = [pos for k, pos in vert_world_pos.items() if vert_feature_count[k] >= 3]
+        # Junctions are corners only if no feature line runs straight through them.
+        _np = lambda p: np.array((p[0], p[1], p[2]), dtype=np.float64)
+        corner_pts = []
+        for k, pos in vert_world_pos.items():
+            if k in pole_corners:
+                corner_pts.append(pos)
+            elif vert_feature_count.get(k, 0) >= 3:
+                nbrs = [_np(vert_world_pos[n]) for n in feature_adj.get(k, []) if n in vert_world_pos]
+                if not SourceAccel.has_line_through(_np(pos), nbrs):
+                    corner_pts.append(pos)
         yield 1.0, segments, corner_pts
 
     @staticmethod
@@ -589,20 +676,23 @@ class SourceAccel:
             # corners are verts touched by >=3 feature edges or high-curvature 5+ poles
             vfc = np.bincount(edge_verts[fe].ravel(), minlength=n_verts) if fe.size else np.zeros(n_verts, dtype=np.int64)
             vert_edge_count = np.bincount(edge_verts.ravel(), minlength=n_verts)
+            # Pole curvature excludes feature edges, otherwise every
+            # mid-crease vert on a triangulated mesh is flagged as a corner.
+            pole_edge_angle = np.where(feat, 0.0, edge_angle)
             vert_curv = np.zeros(n_verts, dtype=np.float64)
-            np.add.at(vert_curv, edge_verts.ravel(), np.repeat(edge_angle, 2))
+            np.add.at(vert_curv, edge_verts.ravel(), np.repeat(pole_edge_angle, 2))
+
+            corner_mask = vfc >= 3
+            pole_mask = (vert_edge_count >= 5) & (~corner_mask) & (vert_curv > sharp_threshold)
+            # Junctions gated by feature line-through, poles by surface line-through.
+            junction_idx = SourceAccel.verts_without_line_through(np.nonzero(corner_mask)[0], world, edge_verts[fe])
+            pole_idx = SourceAccel.verts_without_line_through(np.nonzero(pole_mask)[0], world, edge_verts)
+            corner_idx = np.concatenate((junction_idx, pole_idx))
 
             corner_pts: list[Vector] = []
-            for vert_start in range(0, n_verts, batch_size):
-                vert_end = min(vert_start + batch_size, n_verts)
-                local_vfc = vfc[vert_start:vert_end]
-                local_edge_count = vert_edge_count[vert_start:vert_end]
-                local_curv = vert_curv[vert_start:vert_end]
-                local_corner = (local_vfc >= 3) | ((local_edge_count >= 5) & (local_vfc < 3) & (local_curv > sharp_threshold))
-                local_idx = np.nonzero(local_corner)[0]
-                if local_idx.size:
-                    corner_pts.extend(Vector(p) for p in world[local_idx + vert_start])
-                yield (n_edges + vert_end) / total_work, None, None
+            for start in range(0, corner_idx.size, batch_size):
+                corner_pts.extend(Vector(p) for p in world[corner_idx[start:start + batch_size]])
+                yield (n_edges + n_verts * min(start + batch_size, corner_idx.size) / max(corner_idx.size, 1)) / total_work, None, None
         finally:
             clear_mesh()
 
@@ -689,10 +779,14 @@ class SourceAccel:
             vfc = np.bincount(edge_verts[fe].ravel(), minlength=n_verts) if fe.size else np.zeros(n_verts, dtype=np.int64)
             corner_mask = vfc >= 3
             vert_edge_count = np.bincount(edge_verts.ravel(), minlength=n_verts)
+            pole_edge_angle = np.where(feat, 0.0, edge_angle)
             vert_curv = np.zeros(n_verts, dtype=np.float64)
-            np.add.at(vert_curv, edge_verts.ravel(), np.repeat(edge_angle, 2))
+            np.add.at(vert_curv, edge_verts.ravel(), np.repeat(pole_edge_angle, 2))
             pole_mask = (vert_edge_count >= 5) & (~corner_mask) & (vert_curv > sharp_threshold)
-            corner_idx = np.nonzero(corner_mask | pole_mask)[0]
+            # Drop false positive corners
+            junction_idx = SourceAccel.verts_without_line_through(np.nonzero(corner_mask)[0], world, edge_verts[fe])
+            pole_idx = SourceAccel.verts_without_line_through(np.nonzero(pole_mask)[0], world, edge_verts)
+            corner_idx = np.concatenate((junction_idx, pole_idx))
             corner_pts = [Vector(p) for p in world[corner_idx]]
             return segments, corner_pts
         finally:

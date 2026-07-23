@@ -71,7 +71,7 @@ RFBrush_Strokes, RFOperator_StrokesBrush_Adjust = create_stroke_brush(
     'polystrips_brush',
     'PolyStrips Brush',
     smoothing=0.5,
-    snap=(False, False, True),
+    snap=(False, True, True),  # detect boundary edges (for side-joining) and faces (for end-snapping)
     radius=50,
     draw_leftright=True,
 )
@@ -194,10 +194,16 @@ class RFOperator_PolyStrips_Insert(
         ],
         default='LINEAR',
     )
+    interpolate_rungs: bpy.props.BoolProperty(
+        name='Align Snapped',
+        description='Where the strip welds to existing edges, angle its rungs to continue the direction '
+                    'of those edges, fanning outwards, instead of using the stroke\'s direction',
+        default=True,
+    )
 
 
     @staticmethod
-    def polystrips_insert(context, radius2D, stroke3D, point3D_0, point3D_1, is_cycle, length2D, snap_bmf0, snap_bmf1, split_angle, mirror_correct, size_mode='BRUSH', fixed_count=8, span_length=0.1, radius3D=None):
+    def polystrips_insert(context, radius2D, stroke3D, point3D_0, point3D_1, is_cycle, length2D, snap_bmf0, snap_bmf1, split_angle, mirror_correct, size_mode='BRUSH', fixed_count=8, span_length=0.1, radius3D=None, join_vert_idx=None):
         RFOperator_PolyStrips_Insert.logic = PolyStrips_Logic(
             context,
             radius2D,
@@ -212,6 +218,7 @@ class RFOperator_PolyStrips_Insert(
             fixed_count=fixed_count,
             span_length=span_length,
             radius3D=radius3D,
+            join_vert_idx=join_vert_idx,
         )
         logic = RFOperator_PolyStrips_Insert.logic
         if logic.error: return
@@ -219,6 +226,7 @@ class RFOperator_PolyStrips_Insert(
             'INVOKE_DEFAULT', True,
             count=logic.count, scale_start=logic.scale_start, scale_end=logic.scale_end,
             width_interpolation=logic.width_interpolation,
+            interpolate_rungs=logic.interpolate_rungs,
             split_angle=logic.split_angle,
             mirror_correct=logic.mirror_correct,
         )
@@ -231,6 +239,7 @@ class RFOperator_PolyStrips_Insert(
             'INVOKE_DEFAULT', True,
             count=logic.count, scale_start=logic.scale_start, scale_end=logic.scale_end,
             width_interpolation=logic.width_interpolation,
+            interpolate_rungs=logic.interpolate_rungs,
             split_angle=logic.split_angle,
             mirror_correct=logic.mirror_correct,
         )
@@ -244,10 +253,13 @@ class RFOperator_PolyStrips_Insert(
         layout.use_property_decorate = False
 
         if logic.strip_count >= 1:
-            layout.prop(self, 'count')
+            if not getattr(logic, 'count_locked', False): # a fully attached strip's count is fixed by the existing edges
+                layout.prop(self, 'count')
             layout.prop(self, 'scale_start')
             layout.prop(self, 'scale_end')
             layout.prop(self, 'width_interpolation')
+            if getattr(logic, 'attached', False): # only relevant where the strip welds to existing edges
+                layout.prop(self, 'interpolate_rungs')
             layout.prop(self, 'split_angle')
 
         if logic.show_mirror_correct:
@@ -260,6 +272,7 @@ class RFOperator_PolyStrips_Insert(
             logic.scale_start = self.scale_start
             logic.scale_end = self.scale_end
             logic.width_interpolation = self.width_interpolation
+            logic.interpolate_rungs = self.interpolate_rungs
             logic.split_angle = self.split_angle
             logic.mirror_correct = self.mirror_correct
             logic.create(context)
@@ -431,6 +444,31 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
         snap_bmf0, snap_bmf1 = snapped_geo[2]
         p3D_0, p3D_1 = stroke3D[0], stroke3D[-1]
 
+        # Valid boundary edges the brush passed over.
+        join_bme_list = [bme for bme in (snapped_geo[1] or []) if hasattr(bme, 'verts') and bme.is_valid]
+        join_vert_idx = list({bmv.index for bme in join_bme_list for bmv in bme.verts})
+
+        # A cap is a boundary edge lying across a stroke end
+        cap_radius = (radius3D or 0) * 1.5
+        def has_cap_edge(end_pt3D, along):
+            if not join_bme_list or not cap_radius or along.length == 0: return False
+            along = along.normalized()
+            for bme in join_bme_list:
+                v0, v1 = bme.verts
+                ed = v1.co - v0.co
+                L2 = ed.length_squared
+                if L2 == 0: continue
+                if abs(ed.normalized().dot(along)) > 0.6: continue  # parallel to stroke => side rail, not a cap
+                # the stroke end must terminate into the edge (project onto its interior), not off to a side
+                t = (end_pt3D - v0.co).dot(ed) / L2
+                if not (0.15 <= t <= 0.85): continue
+                if ((v0.co + ed * t) - end_pt3D).length > cap_radius: continue
+                return True
+            return False
+        k = min(3, len(stroke3D) - 1)
+        start_cap = k > 0 and has_cap_edge(p3D_0, stroke3D[k] - stroke3D[0])
+        end_cap   = k > 0 and has_cap_edge(p3D_1, stroke3D[-1] - stroke3D[-1 - k])
+
         def extend_cap(pts2D, from_start):
             # Extend the stroke past its unsnapped end by one brush radius in 3D
             # so the cap lands about where the brush circle ended on the mesh.
@@ -457,9 +495,9 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
             if not extension: return pts2D
             return (list(reversed(extension)) + pts2D) if from_start else (pts2D + extension)
 
-        if not snap_bmf0:
+        if not snap_bmf0 and not start_cap:
             stroke2D = extend_cap(stroke2D, True)
-        if not snap_bmf1:
+        if not snap_bmf1 and not end_cap:
             stroke2D = extend_cap(stroke2D, False)
         length2D = sum((p1-p0).length for (p0,p1) in iter_pairs(stroke2D, is_cycle))
         stroke3D = [raycast_point_valid_sources(context, pt, world=False, respect_clip_planes=True) for pt in stroke2D]
@@ -477,6 +515,7 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
             fixed_count=self.fixed_count,
             span_length=self.span_length,
             radius3D=radius3D,
+            join_vert_idx=join_vert_idx,
         )
 
     def get_preview_widths(self, context, brush):
@@ -510,11 +549,24 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
         if mode == 'SNAPPED':
             def snapped_radius(bmf, pts):
                 if not bmf or not getattr(bmf, 'is_valid', False): return None
-                return PolyStrips_Logic._snapped_edge_radius(bmf, pts)
+                return PolyStrips_Logic.snapped_edge_radius(bmf, pts)
+            caps = getattr(brush, 'snap_caps', None) or set()
+            joins = getattr(brush, 'snap_join', None) or ()
+            valid_caps = [b for b in caps if getattr(b, 'is_valid', False)]
+            valid_rails = [b for b in joins if getattr(b, 'is_valid', False) and b not in caps]
+            def cap_radius_at(end_pt):
+                # nearest cap (within 1.5x its length) to this stroke end sets that end's width
+                return PolyStrips_Logic.nearest_edge_halfwidth(valid_caps, end_pt, max_dist=1.5)
             w0 = snapped_radius(getattr(brush, 'snap_bmf0', None), stroke3D[:3])
             w1 = snapped_radius(getattr(brush, 'snap_bmf1', None), stroke3D[-3:])
+            if w0 is None: w0 = cap_radius_at(stroke3D[0])
+            if w1 is None: w1 = cap_radius_at(stroke3D[-1])
+            # The side rail nearest the start only, so the preview doesn't fluctuate as the stroke passes rails of varying length
+            w_par = PolyStrips_Logic.nearest_edge_halfwidth(valid_rails, stroke3D[0]) # both ends share the first parallel rail's width
+            if w0 is None: w0 = w_par
+            if w1 is None: w1 = w_par
             if w0 is None and w1 is None:
-                return None  # nothing snapped, fall back to the brush radius
+                return None  # nothing snapped at either end -> brush radius
             if w0 is None: w0 = w1
             if w1 is None: w1 = w0
             return (w0, w1)
@@ -537,13 +589,40 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
             if not bmf:
                 bmf = getattr(brush, 'snap_bmf0', None) or getattr(brush, 'snap_bmf1', None)
             pt = getattr(brush, 'hit_pl', None)
-            if not bmf or not getattr(bmf, 'is_valid', False) or pt is None:
-                return None
-            r_local = PolyStrips_Logic._snapped_edge_radius(bmf, [pt])
-            if r_local is None:
-                return None
-            # _snapped_edge_radius is local space (bme_length); the disc is world
-            return r_local * (brush.edit_scale or 1.0)
+            if bmf and getattr(bmf, 'is_valid', False) and pt is not None:
+                r_local = PolyStrips_Logic.snapped_edge_radius(bmf, [pt])
+                if r_local is not None:
+                    # snapped_edge_radius is local space (bme_length); the disc is world
+                    return r_local * (brush.edit_scale or 1.0)
+            # No face highlighted -> size the brush to the snapped edge width.
+            # While stroking: a cap the moving end is landing on, else the first parallel rail.
+            # While hovering: there's no stroke direction, so size to the nearest edge only when the cursor sits on it
+            if brush.is_stroking():
+                caps = getattr(brush, 'snap_caps', None) or set()
+                joins = getattr(brush, 'snap_join', None) or ()
+                valid_caps = [b for b in caps if getattr(b, 'is_valid', False)]
+                valid_rails = [b for b in joins if getattr(b, 'is_valid', False) and b not in caps]
+                # a cap the moving end is landing on, else the first parallel rail
+                r_local = PolyStrips_Logic.nearest_edge_halfwidth(valid_caps, pt) if pt is not None else None
+                if r_local is None and brush.stroke3D_original:
+                    r_local = PolyStrips_Logic.nearest_edge_halfwidth(valid_rails, brush.stroke3D_original[0])
+            else:
+                r_local, best = None, None
+                for bme in (getattr(brush, 'snap_join', None) or ()):
+                    if not getattr(bme, 'is_valid', False) or pt is None: continue
+                    v0, v1 = bme.verts
+                    ev = v1.co - v0.co
+                    L2 = ev.length_squared
+                    if L2 == 0: continue
+                    t = (pt - v0.co).dot(ev) / L2
+                    if not (0.15 <= t <= 0.85): continue                 # cursor over the edge's interior
+                    d = ((v0.co + ev * t) - pt).length
+                    if d > 0.35 * ev.length: continue                    # sits on the edge (cap), not beside it (rail)
+                    if best is None or d < best[0]: best = (d, ev.length / 2)
+                if best: r_local = best[1]
+            if r_local is not None:
+                return r_local * (brush.edit_scale or 1.0)
+            return None
 
         return None
 

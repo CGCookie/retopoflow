@@ -30,14 +30,19 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_locat
 
 from collections.abc import Callable
 
+from ..common.accel import SourceCache
 from ..common.bmesh import get_bmesh_emesh
+from ..common.curves import ordered_rungs
+from ..common.topology_corners import insert_corner, remove_corner
 from ..common.drawing import Drawing
-from ..common.maths import view_right_direction, xform_direction, proportional_edit
-from ..common.raycast import raycast_point_valid_sources, nearest_point_valid_sources, mouse_from_event
+from ..common.maths import view_right_direction, view_forward_direction, xform_direction, proportional_edit
+from ..common.raycast import raycast_point_valid_sources, nearest_point_valid_sources, iter_all_valid_sources, mouse_from_event
+from ..common.snapping import source_snap_settings, source_snap_radius
 from ..common.operator import RFOperator, RFKeyMaps, execute_operator, Operator_Execute_Function
 from ..rfoverlay_base import RFOverlay_Base
 from ..rfglobals import RFGlobals
 from ...addon_common.common import gpustate
+from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.maths import Color, sign_threshold
 from ..rfoverlays.curve_overlay import (
     shrink_segment, KNOT_RADIUS, TANGENT_RADIUS,
@@ -246,8 +251,23 @@ def create_curve_edit_operator(
 
             self.bm, self.em = get_bmesh_emesh(context, ensure_lookup_tables=True)
             self.M, self.Mi = M, Mi
+            self.sources = [
+                (obj, obj.matrix_world, (mi := obj.matrix_world.inverted_safe()), mi.to_3x3())
+                for obj in iter_all_valid_sources(context)
+            ]
             self.right = xform_direction(Mi, view_right_direction(context))
             self.spline.tessellate_uniform()
+
+            self.source_accel = SourceCache.get(context)
+            if self.source_accel:
+                edit_scale = max(M.to_scale())
+                use_fixed, fixed_distance, proximity = source_snap_settings(context)
+                self.feature_radius = source_snap_radius(
+                    self.chain['avg_len'] * edit_scale,
+                    use_fixed=use_fixed, fixed_distance=fixed_distance, avg_edge_factor=proximity,
+                )
+            else:
+                self.feature_radius = 0.0
 
             fn_dist = lambda a, b: (a - b).length
 
@@ -593,6 +613,10 @@ def create_curve_edit_operator(
                 if not new_world:
                     return
                 new_edit = Mi @ new_world
+                # A coupled edge chain's control point is a mesh vert, so snap the control point too.
+                # Control points on a face loop are never verts, so don't snap those.
+                if self.chain.get('coupled', True):
+                    new_edit = self.snap_co_to_feature(new_edit)
                 knot_delta = new_edit - pt_orig
                 for (seg, attr) in h['set']:
                     setattr(cbs[seg], attr, new_edit.copy())
@@ -1090,6 +1114,21 @@ def create_curve_edit_operator(
                 dist = min(dist, nseg - dist)
             return max(0.0, 1.0 - dist)
 
+        def snap_co_to_feature(self, co_local):
+            ''' Snap a local space coordinate onto the nearest source feature if within feature_radius.
+            Returns the (possibly unchanged) local coordinate. '''
+            accel = self.source_accel
+            if not accel or self.feature_radius <= 0:
+                return co_local
+            co_world = self.M @ co_local
+            corner = accel.find_corner(co_world)
+            if corner and corner[2] <= self.feature_radius:
+                return self.Mi @ Vector(corner[0])
+            closest = accel.closest_point(co_world)
+            if closest and (Vector(closest) - co_world).length <= self.feature_radius:
+                return self.Mi @ Vector(closest)
+            return co_local
+
         def _mirror_clamp(self, context, co, pt_edit_orig, M, Mi):
             ''' If `co` crossed a clipped mirror plane this frame (relative to
             `pt_edit_orig`, its position before this frame's move), iteratively
@@ -1109,7 +1148,7 @@ def create_curve_edit_operator(
                 if zero['y']: co.y, d = co.y * 0.95, max(abs(co.y), d)
                 if zero['z']: co.z, d = co.z * 0.95, max(abs(co.z), d)
                 co_world = M @ Vector((*co, 1.0))
-                co_world_snapped = nearest_point_valid_sources(context, co_world.xyz / co_world.w, world=True, respect_clip_planes=True)
+                co_world_snapped = nearest_point_valid_sources(context, co_world.xyz / co_world.w, world=True, sources=self.sources, respect_clip_planes=True)
                 if not co_world_snapped: break
                 co = Mi @ co_world_snapped
                 if d < 0.001: break  # break out if change was below threshold
@@ -1134,7 +1173,7 @@ def create_curve_edit_operator(
             _relax_interior_verts(bm, interior, iterations)
             for idx in interior['indices']:
                 bmv = bm.verts[idx]
-                co = nearest_point_valid_sources(context, bmv.co, world=False, respect_clip_planes=True) or bmv.co
+                co = nearest_point_valid_sources(context, bmv.co, world=False, sources=self.sources, respect_clip_planes=True) or bmv.co
                 bmv.co = self._mirror_clamp(context, co, interior['orig_co'][idx], self.M, self.Mi)
 
         def update(self, context, event):
@@ -1191,7 +1230,7 @@ def create_curve_edit_operator(
             self._deform_verts(context, self.spline)
             self._relax_interior(context, INTERIOR_RELAX_ITERATIONS)
 
-            bmesh.update_edit_mesh(em)
+            bmesh.update_edit_mesh(em, loop_triangles=False)
             context.area.tag_redraw()
             return {'RUNNING_MODAL'}
 
@@ -1431,7 +1470,8 @@ def create_curve_edit_operator(
                 bmv = bm.verts[bmv_idx]
                 pt_edit_new = M @ (o + d_final)
                 pt_edit_new = pt_edit_orig + (pt_edit_new - pt_edit_orig) * factor
-                co = nearest_point_valid_sources(context, pt_edit_new, world=False, respect_clip_planes=True) or pt_edit_orig
+                co = nearest_point_valid_sources(context, pt_edit_new, world=False, sources=self.sources, respect_clip_planes=True) or pt_edit_orig
+                co = self.snap_co_to_feature(co)
                 bmv.co = self._mirror_clamp(context, co, pt_edit_orig, M, Mi)
 
         def draw_curve(self, context):
@@ -1528,20 +1568,12 @@ def create_curve_toggle_handle_type_operator(
     *,
     get_overlay : Callable[[], type[RFOverlay_Base] | None],
 ) -> Operator_Execute_Function:
-    '''
-    Single-press hotkey (V): while hovering a toggleable curve KNOT, cycles
-    its handle type Aligned -> Vector -> Automatic -> Aligned (see the
-    handle-type system in curve_overlay.py's _build_curve/_build_handles);
-    otherwise (nothing hovered, a tangent hovered, or a forced corner/
-    endpoint knot) it still claims the keypress and returns {'CANCELLED'}
-    (see can_toggle/toggle) rather than leaving 'V' unclaimed for Blender's
-    native Rip to pick up.
-    A plain execute-once operator rather than a modal RFOperator -- there's
-    no drag to track, so the lighter fn_poll/fn_exec pattern used elsewhere
-    for single-shot actions (e.g. RFOperator_PinVerts in pinning.py) fits
-    better than the drag-oriented init/update/finish contract create_curve_
-    edit_operator's class relies on.
-    '''
+    ''' Toggling curve control points (Aligned -> Vector -> Automatic -> Aligned):
+        - on an edge loop, the cycle is a pure handle-type change: no vert ever moves, so it's perfectly
+            reversible. Vector creases the fit at the knot and re-aims its arms and its neighbors'.
+        - on a face strip, Vector means a topological corner: entering Vector inserts a real L-junction
+            in the mesh, leaving Vector removes it. Knots that can't host a corner skip the Vector step.
+    Open-chain endpoints stay forced Vector and aren't togglable (pre-corner-feature behavior). '''
 
     def _hovered_toggleable_knot():
         overlay_type = get_overlay()
@@ -1557,34 +1589,97 @@ def create_curve_toggle_handle_type_operator(
         return overlay, chain, handle
 
     def can_toggle(context):
-        # deliberately does NOT also require a toggleable knot to be
-        # hovered: this is the operator's Blender-level poll, and a keymap
-        # item whose poll fails isn't just skipped -- Blender falls through
-        # to the NEXT item bound to the same key, which for 'V' in edit mesh
-        # mode is native Rip. Keeping poll to "is this tool's curve-edit
-        # context even active" (not "is there something to do right now")
-        # means the operator still claims the V press and can return
-        # {'CANCELLED'} itself (see toggle) -- CANCELLED still consumes the
-        # event, just without pushing an undo step, so Rip never fires.
+        # Only claim the hotkey while the cursor is actually over a curve control point.
+        # Returning False when nothing is hovered or the curve overlay isn't even up lets Blender's Rip work
+        # everywhere except right on a control point, where V toggles the handle instead.
         RFCore = RFGlobals.RFCore_None
         if not RFCore or not RFCore.is_running:
             return False
         if not context.edit_object or context.mode != 'EDIT_MESH':
             return False
-        return True
+        overlay_type = get_overlay()
+        overlay = overlay_type.instance if overlay_type else None
+        return bool(overlay and overlay.hovering)
+
+    def _reroute_corner(context, overlay, chain, handle):
+        ''' Insert or remove a topological L-corner on a face strip. '''
+        cache_key = chain['cache_key']
+        # even knot (face center 2k) -> face k, keeping the knot marker in place
+        # odd knot (bend rung 2k-1) -> face k, so the corner's pivot vertex lands on that bend rung.
+        # Matches the eligibility indices in QuadStripChainProvider.
+        ci = handle['vert_index']
+        face_pos = (ci + (ci & 1)) // 2
+        is_corner = handle.get('handle_type') == 'vector'
+
+        bm, em = get_bmesh_emesh(context, ensure_lookup_tables=True)
+        try:
+            faces = [bm.faces[i] for i in cache_key[1:]]
+        except IndexError:
+            return {'CANCELLED'}
+        if not (1 <= face_pos <= len(faces) - 2):
+            return {'CANCELLED'}
+        rungs = ordered_rungs(faces, False)
+
+        M = context.edit_object.matrix_world
+        Mwi = M.inverted_safe()
+        fwd = xform_direction(Mwi, view_forward_direction(context))
+
+        edit = remove_corner if is_corner else insert_corner
+        result = edit(bm, faces, rungs, face_pos, fwd=fwd)
+        if result is None:
+            return {'CANCELLED'}  # attached to existing geometry / degenerate so leave unchanged
+
+        # the squared corner verts were placed in-plane, pull them onto the source
+        for bmv in result.get('moved_verts', ()):
+            if snapped := nearest_point_valid_sources(context, M @ bmv.co, world=False, respect_clip_planes=True):
+                bmv.co = snapped
+
+        # reselect the whole resulting strip so the overlay re-detects the same chain
+        new_faces = [f for f in faces if f.is_valid]
+        if result.get('new_face') is not None:
+            new_faces.append(result['new_face'])
+        bmops.deselect_all(bm)
+        bmops.select_iter(bm, new_faces)
+        bmops.flush_selection(bm, em)  # also calls bmesh.update_edit_mesh
+
+        # force the overlay to re-collect and rebuild and drop cache keyed by the now-stale face indices
+        type(overlay).depsgraph_version = -42
+        overlay._curve_struct_cache.pop(cache_key, None)
+        overlay._handle_type_overrides.pop(cache_key, None)
+        context.area.tag_redraw()
+        return {'FINISHED'}
 
     def toggle(context):
         found = _hovered_toggleable_knot()
         if found is None:
             return {'CANCELLED'}
         overlay, chain, handle = found
-        overlay.toggle_handle_type(chain['cache_key'], handle['vert_index'])
+        cache_key, k = chain['cache_key'], handle['vert_index']
+        current = handle.get('handle_type', 'automatic')
+
+        if chain.get('coupled', True):
+            # Edge loops: the pure handle-type cycle. No vert ever moves, so the toggle is perfectly reversible.
+            overlay.toggle_handle_type(cache_key, k)
+            context.area.tag_redraw()
+            return {'CANCELLED'}
+
+        if current == 'aligned':
+            if handle.get('corner_eligible', False):
+                return _reroute_corner(context, overlay, chain, handle)  # -> vector (insert corner)
+            new_type = 'automatic'  # no corner possible here: skip Vector in the cycle
+        elif current == 'vector':
+            if handle.get('corner_eligible', False):
+                return _reroute_corner(context, overlay, chain, handle)  # -> automatic (remove corner)
+            return {'CANCELLED'}  # corner attached to existing geometry so leave unchanged
+        else:  # automatic
+            new_type = 'aligned'
+        overlay.set_handle_type(cache_key, k, new_type, reposition=True)
         context.area.tag_redraw()
-        return {'FINISHED'}
+        return {'CANCELLED'}
 
     bl_idname = f'retopoflow.{idname}'
     return execute_operator(
-        idname, label, description=description, options={'INTERNAL'},
+        idname, label, description=description, options={'INTERNAL', 'UNDO'},
         fn_poll=can_toggle,
         keymaps=[(bl_idname, {'type': 'V', 'value': 'PRESS'}, None)],
     )(toggle)

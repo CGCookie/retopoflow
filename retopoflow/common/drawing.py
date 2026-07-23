@@ -664,6 +664,7 @@ class Drawing:
         *,
         width: float = 0,
         smooth_threshold: float = 1.5,
+        apply_ui_scale: bool = True,
     ):
         """
         Draw an anti-aliased 2D circle using a quad-based approach for efficient rendering
@@ -675,11 +676,13 @@ class Drawing:
             color: Circle color
             width: Line width in pixels (0 for filled circle)
             smooth_threshold: Smoothing factor for anti-aliasing (in pixels)
+            apply_ui_scale: Multiply sizes by the UI scale
         """
         area = context.area
-        radius = Drawing.scale(radius) or radius
-        width = Drawing.scale(width) or width
-        smooth_threshold = Drawing.scale(smooth_threshold) or smooth_threshold
+        if apply_ui_scale:
+            radius = Drawing.scale(radius) or radius
+            width = Drawing.scale(width) or width
+            smooth_threshold = Drawing.scale(smooth_threshold) or smooth_threshold
         settings = (radius, width, smooth_threshold, 0.0)
 
         shader_smooth_circle_2D.bind()
