@@ -28,6 +28,9 @@ from .maths import local_to_world, point_to_bvec3
 from .raycast import raycast_valid_sources
 
 
+FEATURE_RUN_MARGIN_FACTOR = 2.0 # How far beyond the brush in avg edge lengths to classify feature edges
+
+
 def source_snap_settings(context):
     ''' (use_fixed, fixed_distance, proximity) for source-feature snapping, from the scene settings.
     Callers that carry their own settings supply these three values directly instead. '''
@@ -80,6 +83,9 @@ class SourceSnapMixin:
     promoted_loop_verts: set = set()
     demoted_verts: set = set()
     loops_strength: float = 0.0
+    vert_feature_run: dict = {}   # BMVert -> local feature run id (transient, re-derived per frame)
+    run_segments: dict = {}       # run id -> set of source segment indices
+    demoted_by_runs: dict = {}    # demoted BMVert -> run ids of the loops that demoted it
 
     def snap_init_state(self):
         self.snapped_verts: set = set()
@@ -89,6 +95,17 @@ class SourceSnapMixin:
     def snap_grabbed_set(self) -> set:
         ''' Override in each subclass. Returns the set of grabbed BMVerts. '''
         return set()
+
+    def _closest_on_own_run(self, bmv, co_world):
+        ''' (closest_point, tangent) on bmv's own feature run when it has one, else on the nearest
+        feature. Keeps a vert riding feature A from snapping onto a parallel feature B one face away. '''
+        accel = self.source_edge_accel
+        run_id = self.vert_feature_run.get(bmv) if self.vert_feature_run else None
+        if run_id is not None:
+            segs = self.run_segments.get(run_id)
+            if segs:
+                return accel.closest_point_in_segments(co_world, segs)
+        return accel.closest_point_with_tangent(co_world)
 
     def find_corner_occupant(self, corner_co_world, incoming_bmv, radius):
         ''' Find a vert other than incoming_bmv sitting in a source corner.
@@ -203,6 +220,24 @@ class SourceSnapMixin:
             self.vert_corner_idx.pop(bmv, None)
             self.snap_target_world.pop(bmv, None)
             push_radius = snap_radius * 0.5 * self.loops_strength
+            # Push away from every run whose loop demoted this vert, summed. The attribution is
+            # topological and stable, so a vert between two promoted rails settles at the midline
+            # instead of being bounced off whichever feature is nearest each frame.
+            runs = self.demoted_by_runs.get(bmv) if self.demoted_by_runs else None
+            if runs:
+                total = Vector((0.0, 0.0, 0.0))
+                for run_id in runs:
+                    segs = self.run_segments.get(run_id)
+                    if not segs: continue
+                    result = accel.closest_point_in_segments(new_co_world, segs)
+                    if not result: continue
+                    to_edge = Vector(result[0]) - new_co_world
+                    if 1e-8 < to_edge.length < push_radius:
+                        # Reflect away from the edge by the same distance it has intruded.
+                        total -= to_edge
+                if total.length > 1e-9:
+                    return Mi @ (new_co_world + total)
+                return new_co
             if closest_p := accel.closest_point(new_co_world):
                 to_edge = Vector(closest_p) - new_co_world
                 if to_edge.length < push_radius:
@@ -231,8 +266,8 @@ class SourceSnapMixin:
                 corner = accel.find_corner(free_world)
                 released = corner is not None and corner[2] > corner_release_radius
             else:
-                target = accel.closest_point(free_world)
-                released = target is not None and (free_world - Vector(target)).length > release_radius
+                target = self._closest_on_own_run(bmv, free_world)
+                released = target is not None and (free_world - Vector(target[0])).length > release_radius
             if released:
                 self.snapped_verts.discard(bmv)
                 self.vert_corner_idx.pop(bmv, None)
@@ -288,10 +323,9 @@ class SourceSnapMixin:
         if is_snapped:
             # proximity lookup so a fast cursor jump can't cause a large per-frame new_co_world that bypasses drift-based release
             bmv_world = local_to_world(bmv.co, M)
-            if closest_p := accel.closest_point(bmv_world):
+            if tangent_result := self._closest_on_own_run(bmv, bmv_world):
                 # Slide along the edge only for the screen-space parallel brush movement
-                tangent_result = accel.closest_point_with_tangent(bmv_world)
-                if tangent_result is not None and context is not None and disp_2d is not None:
+                if context is not None and disp_2d is not None:
                     _, tangent = tangent_result
                     p0 = location_3d_to_region_2d(context.region, context.region_data, bmv_world)
                     p1 = location_3d_to_region_2d(context.region, context.region_data, bmv_world + tangent)
@@ -303,17 +337,17 @@ class SourceSnapMixin:
                             parallel_2d = disp_2d.dot(tangent_2d_norm)
                             parallel_3d = parallel_2d / tangent_2d_len
                             candidate = point_to_bvec3(bmv_world + tangent * parallel_3d)
-                            constrained = accel.closest_point(candidate)
+                            constrained = self._closest_on_own_run(bmv, candidate)
                             if constrained is not None:
                                 self.snapped_verts.add(bmv)
-                                return Mi @ Vector(constrained)
+                                return Mi @ Vector(constrained[0])
                 # Fallback: don't slide
                 self.snapped_verts.add(bmv)
                 return Vector(bmv.co)
         else:
             # snap only fires when moving toward the edge
-            if closest_p := accel.closest_point(new_co_world):
-                p_vec = Vector(closest_p)
+            if closest_result := self._closest_on_own_run(bmv, new_co_world):
+                p_vec = Vector(closest_result[0])
                 to_edge = p_vec - new_co_world
                 if to_edge.length <= snap_in_radius:
                     # was_on_corner guard prevents re-snapping to an edge immediately after a corner releases

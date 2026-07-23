@@ -1036,12 +1036,16 @@ class Drawing:
         color : Color | Color4 | Sequence[float] | bpy_prop_array[float],
         *,
         skip_verts : set[BMVert] | None = None,
+        vert_groups : 'dict[BMVert, int] | None' = None,
     ):
         """Draw a dashed highlight along every edge shared by two loop verts.
         skip_verts: verts to keep padding around (line stops short of those endpoints).
                     None (default) = keep padding around ALL verts (original behavior).
                     Pass an empty set/frozenset to draw lines all the way to every endpoint,
-                    which keeps visibility at very dense topology."""
+                    which keeps visibility at very dense topology.
+        vert_groups: optional vert -> group id map. An edge is drawn only when both endpoints
+                    map to the same group. With multiple loops promoted at once, this keeps
+                    the rungs between two loops from lighting up."""
         if not loop_verts:
             return
         color_line = Color4((color[0], color[1], color[2], 1.0))
@@ -1067,6 +1071,8 @@ class Drawing:
                 seen_edges.add(bme)
                 other = bme.other_vert(bmv)
                 if other and other in loop_verts:
+                    if vert_groups is not None and vert_groups.get(bmv) != vert_groups.get(other):
+                        continue
                     edges_to_draw.append((bmv, other))
         if not edges_to_draw:
             return

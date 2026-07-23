@@ -19,6 +19,7 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+import heapq
 import math, time
 from math import inf, isnan
 from typing import Iterator
@@ -185,6 +186,44 @@ class EdgeMarkAccel:
         if length < 1e-8: return None
         return (Vector(loc), edge_vec / length)
 
+    def closest_point_with_index(self, co: Vector) -> 'tuple[Vector, Vector, int] | None':
+        '''Returns (closest_point, edge_tangent_normalized, segment_index) or None.'''
+        if self.bvh is None: return None
+        loc, _normal, poly_idx, _dist = self.bvh.find_nearest(co)
+        if loc is None or poly_idx is None or poly_idx >= len(self._segments): return None
+        v0, v1 = self._segments[poly_idx]
+        edge_vec = Vector(v1) - Vector(v0)
+        length = edge_vec.length
+        if length < 1e-8: return None
+        return (Vector(loc), edge_vec / length, poly_idx)
+
+    def closest_point_in_segments(self, co: Vector, seg_indices: 'set[int]') -> 'tuple[Vector, Vector] | None':
+        '''Nearest point constrained to a subset of segments. Returns (closest_point, tangent) or None.
+        Fastest path is when the unconstrained nearest already lies on the subset. Otherwise, brute-force the subset. '''
+        if self.bvh is None or not seg_indices: return None
+        loc, _normal, poly_idx, _dist = self.bvh.find_nearest(co)
+        if loc is not None and poly_idx is not None and poly_idx in seg_indices:
+            v0, v1 = self._segments[poly_idx]
+            edge_vec = Vector(v1) - Vector(v0)
+            length = edge_vec.length
+            if length >= 1e-8:
+                return (Vector(loc), edge_vec / length)
+        co = Vector(co)
+        best_pt, best_tan, best_d2 = None, None, float('inf')
+        for idx in seg_indices:
+            if idx >= len(self._segments): continue
+            v0, v1 = self._segments[idx]
+            p0, seg = Vector(v0), Vector(v1) - Vector(v0)
+            seg_len2 = seg.length_squared
+            if seg_len2 < 1e-16: continue
+            t = max(0.0, min(1.0, (co - p0).dot(seg) / seg_len2))
+            pt = p0 + seg * t
+            d2 = (pt - co).length_squared
+            if d2 < best_d2:
+                best_pt, best_tan, best_d2 = pt, seg / math.sqrt(seg_len2), d2
+        if best_pt is None: return None
+        return (best_pt, best_tan)
+
     @classmethod
     def from_bmedges(cls, edges: list) -> 'EdgeMarkAccel':
         '''Build from a list of BMEdge objects.'''
@@ -234,6 +273,11 @@ class SourceAccel:
     def __init__(self, edge_accel: 'EdgeMarkAccel | None', corner_kd: 'KDTree | None'):
         self.edge_accel = edge_accel
         self.corner_kd  = corner_kd
+        # Feature-run topology
+        self._seg_keys    : 'list[tuple[tuple, tuple]]' = []
+        self._seg_lengths : 'list[float]' = []
+        self._seg_adjacency : 'dict[tuple, list[int]]' = {}
+        self._junction_keys   : 'set[tuple]' = set()
 
     def __bool__(self) -> bool:
         '''True when at least one feature edge was found.'''
@@ -244,6 +288,81 @@ class SourceAccel:
 
     def closest_point_with_tangent(self, co: Vector) -> 'tuple[Vector, Vector] | None':
         return self.edge_accel.closest_point_with_tangent(co) if self.edge_accel else None
+
+    def closest_point_with_index(self, co: Vector) -> 'tuple[Vector, Vector, int] | None':
+        return self.edge_accel.closest_point_with_index(co) if self.edge_accel else None
+
+    def closest_point_in_segments(self, co: Vector, seg_indices: 'set[int]') -> 'tuple[Vector, Vector] | None':
+        return self.edge_accel.closest_point_in_segments(co, seg_indices) if self.edge_accel else None
+
+    @staticmethod
+    def _get_endpoint_hash(co) -> tuple:
+        return (round(co[0], 9), round(co[1], 9), round(co[2], 9))
+
+    def _build_run_topology(self, segments: list, corner_pts: list):
+        ''' Precompute segment endpoint adjacency, arc lengths, and junctions. '''
+        q = self._get_endpoint_hash
+        self._seg_keys = []
+        self._seg_lengths = []
+        self._seg_adjacency = {}
+        for idx, (v0, v1) in enumerate(segments):
+            k0, k1 = q(v0), q(v1)
+            self._seg_keys.append((k0, k1))
+            self._seg_lengths.append((Vector(v1) - Vector(v0)).length)
+            self._seg_adjacency.setdefault(k0, []).append(idx)
+            self._seg_adjacency.setdefault(k1, []).append(idx)
+        # Runs terminate at detected poles and dead ends
+        self._junction_keys = {q(p) for p in corner_pts}
+        self._junction_keys.update(k for k, segs in self._seg_adjacency.items() if len(segs) != 2)
+
+    def local_runs(self, seed_seg_indices: 'set[int]', margin_world: float) -> 'tuple[dict[int, int], dict[int, set[int]]]':
+        ''' Label locally connected runs of feature segments around the given seeds.
+        Expands each seed along the feature, never through a pole, up to margin_world of accumulated arc length,
+        then labels connected components of the expanded set. Returns (seg_idx -> run_id, run_id -> set of seg_idx). '''
+        adjacency, keys, lengths = self._seg_adjacency, self._seg_keys, self._seg_lengths
+        if not adjacency or not seed_seg_indices:
+            return {}, {}
+        walls = self._junction_keys
+
+        # Multi-source expansion by accumulated arc length from the nearest seed.
+        dist = {idx: 0.0 for idx in seed_seg_indices if idx < len(keys)}
+        heap = [(0.0, idx) for idx in dist]
+        heapq.heapify(heap)
+        while heap:
+            d, idx = heapq.heappop(heap)
+            if d > dist.get(idx, float('inf')):
+                continue
+            d_next = d + lengths[idx]
+            if d_next > margin_world:
+                continue
+            for k in keys[idx]:
+                if k in walls: continue
+                for nb in adjacency.get(k, ()):
+                    if d_next < dist.get(nb, float('inf')):
+                        dist[nb] = d_next
+                        heapq.heappush(heap, (d_next, nb))
+
+        # Connected components of the expanded set become the runs.
+        expanded = set(dist)
+        seg_run: dict[int, int] = {}
+        run_segs: dict[int, set[int]] = {}
+        run_id = 0
+        for start in expanded:
+            if start in seg_run: continue
+            component = {start}
+            stack = [start]
+            while stack:
+                idx = stack.pop()
+                seg_run[idx] = run_id
+                for k in keys[idx]:
+                    if k in walls: continue
+                    for nb in adjacency.get(k, ()):
+                        if nb in expanded and nb not in component:
+                            component.add(nb)
+                            stack.append(nb)
+            run_segs[run_id] = component
+            run_id += 1
+        return seg_run, run_segs
 
     def closest_point_in_threshold(
         self,
@@ -793,8 +912,35 @@ class SourceAccel:
             obj_eval.to_mesh_clear()
 
     @staticmethod
+    def _dedupe_features(segments: list, corner_pts: list) -> 'tuple[list, list]':
+        # TODO: Check if this is still needed now that the cache should not create duplicates
+        ''' Drop duplicate feature segments and corner points. Each detection type is scanned in
+        its own pass (sharps / seams / creases / angle), so an edge matching several criteria is
+        reported once per pass. Consumers assume segment uniqueness — e.g. run-topology walls
+        count endpoint incidence, and doubled segments would make every interior endpoint of a
+        feature chain look like a junction. '''
+        q = SourceAccel._get_endpoint_hash
+        seen_segs = set()
+        unique_segments = []
+        for seg in segments:
+            k0, k1 = q(seg[0]), q(seg[1])
+            key = (k0, k1) if k0 <= k1 else (k1, k0)
+            if key in seen_segs: continue
+            seen_segs.add(key)
+            unique_segments.append(seg)
+        seen_pts = set()
+        unique_corners = []
+        for p in corner_pts:
+            key = q(p)
+            if key in seen_pts: continue
+            seen_pts.add(key)
+            unique_corners.append(p)
+        return unique_segments, unique_corners
+
+    @staticmethod
     def finalize(segments: list, corner_pts: list) -> 'SourceAccel':
         ''' Assemble the feature-edge BVH + corner KDTree from accumulated per-object results. '''
+        segments, corner_pts = SourceAccel._dedupe_features(segments, corner_pts)
         edge_accel = EdgeMarkAccel(segments) if segments else None
         corner_kd: KDTree | None = None
         if corner_pts:
@@ -802,7 +948,10 @@ class SourceAccel:
             for i, pos in enumerate(corner_pts):
                 corner_kd.insert(pos, i)
             corner_kd.balance()
-        return SourceAccel(edge_accel, corner_kd)
+        accel = SourceAccel(edge_accel, corner_kd)
+        if segments:
+            accel._build_run_topology(segments, corner_pts or [])
+        return accel
 
     @classmethod
     def build_from_tool(cls, context: Context, tool, sources: list) -> 'SourceAccel | None':

@@ -46,7 +46,7 @@ from ..common.raycast import (
 
 from ...addon_common.common.maths import sign_threshold
 from ..rftool_relax.relax_logic import Relax_Logic
-from ..common.snapping import SourceSnapMixin, source_snap_radius, source_snap_settings
+from ..common.snapping import SourceSnapMixin, source_snap_radius, source_snap_settings, FEATURE_RUN_MARGIN_FACTOR
 
 class Tweak_Logic(SourceSnapMixin):
     bm : BMesh
@@ -90,7 +90,9 @@ class Tweak_Logic(SourceSnapMixin):
     verts_near_source_edge : 'dict[BMVert, Vector]'
     promoted_loop_verts : set[BMVert]  # loop verts elected to ride the source edge
     demoted_verts : set[BMVert]  # adjacent loop verts to be kept away from the source edge
-    loop_guide_verts : 'tuple[BMVert, BMVert] | None'  # the seed edge that anchors the loop walk
+    guide_loop_seeds : 'list[tuple[BMVert, BMVert]]'  # seed edges anchoring each per-run loop walk
+    vert_feature_run : 'dict[BMVert, int]'  # near vert -> local feature run id (transient per frame)
+    run_segments : 'dict[int, set[int]]'  # run id -> source segment indices
 
     nudge_loop_verts : 'set[BMVert]'  # loop elected once per Nudge-Loops stroke; empty for Brush mode
     _nudge_vert_tangents : 'dict[BMVert, Vector]'  # slide tangent per vert, locked once (at election or first encounter)
@@ -183,7 +185,12 @@ class Tweak_Logic(SourceSnapMixin):
         self.verts_near_source_edge = {}
         self.promoted_loop_verts = set()
         self.demoted_verts = set()
-        self.loop_guide_verts = None
+        self.guide_loop_seeds = []
+        self.vert_feature_run = {}
+        self.run_segments = {}
+        self.run_of_seg = {}
+        self.demoted_by_runs = {}
+        self._vert_seed_seg = {}
         self.stroke_snap_radius = 0.0  # computed after collect_verts below
         self.nudge_loop_verts: set[BMVert] = set()
         self._nudge_loop_elected: bool = False
@@ -669,33 +676,84 @@ class Tweak_Logic(SourceSnapMixin):
         that is close enough and facing the feature. Limiting to grabbed verts ensures ungrabbed
         verts don't keep the proximity dict populated when the brush pulls away. '''
         result = {}
+        self._vert_seed_seg = {}
         if not self.source_edge_accel:
             return result
         Mi = self.matrix_world_inv
         for bmv, *_ in self.verts:
             if not bmv.link_edges: continue
             bmv_world = local_to_world(bmv.co, self.matrix_world)
-            closest_v = self.source_edge_accel.closest_point(bmv_world)
-            if not closest_v: continue
+            closest = self.source_edge_accel.closest_point_with_index(bmv_world)
+            if not closest: continue
+            closest_v, _tangent, seg_idx = closest
             diff = Mi @ Vector(closest_v) - bmv.co
             dist = diff.length
             if dist * self.scale_avg <= self.stroke_snap_radius:
+                # Seeds feed the run labeling and deliberately skip the normal-facing gate below:
+                # on a shallow crease the direction to the feature lies IN the surface (dot ~ 0),
+                # so gating seeds on it leaves the run window patchy and constrained snap targets
+                # land on fragment boundaries — displaced ALONG the feature.
+                self._vert_seed_seg[bmv] = seg_idx
                 if dist < 1e-8 or (diff / dist).dot(bmv.normal) > 0.3:
                     result[bmv] = diff
         return result
 
-    def _seed_guide_loop(self):
-        ''' Pick the seed edge nearest the brush centre (among retopo edges with both ends on the
-        feature) and elect the guide loop from it. Called when no loop is currently elected. '''
-        guide_edges = [
-            bme for bmv in self.verts_near_source_edge
-            for bme in bmv.link_edges
-            if bme.other_vert(bmv) in self.verts_near_source_edge
-        ]
-        # Need at least one retopo edge where both endpoints are on the feature.
-        if not guide_edges: return
+    def _refresh_feature_runs(self):
+        ''' Label locally-connected feature runs around the near verts and tag each near vert with
+        its run id. Locality is geodesic along the feature, so two parallel features (or two
+        windings of a spiral) one face apart get distinct ids even though they are Euclidean-close. '''
+        self.vert_feature_run = {}
+        self.run_segments = {}
+        self.run_of_seg = {}
+        if not self.source_edge_accel or not self._vert_seed_seg:
+            return
+        avg_lens = [get_bmv_avg_edge_len(v) for v in self._vert_seed_seg if v.link_edges]
+        if not avg_lens:
+            return
+        # Cover at least the brush diameter along the feature so promoted verts anywhere under the
+        # brush find their own run's geometry beneath them, however sparse the seeds are.
+        margin_world = max(
+            (sum(avg_lens) / len(avg_lens)) * self.scale_avg * FEATURE_RUN_MARGIN_FACTOR,
+            self.brush.get_scaled_radius() * 2.0,
+        )
+        self.run_of_seg, self.run_segments = self.source_edge_accel.local_runs(set(self._vert_seed_seg.values()), margin_world)
+        self.vert_feature_run = {v: self.run_of_seg[s] for v, s in self._vert_seed_seg.items() if s in self.run_of_seg}
 
-        # Pick the seed edge whose midpoint is closest to the brush center (the cursor).
+    def _feature_run_at(self, v):
+        ''' Run id of the feature v currently rides, by proximity alone, or None when v is not on
+        any labeled feature. Deliberately more forgiving than the near-set classification (no
+        normal-facing gate, 1.5x slack): demotion sparing must not flicker off when a vert jiggles
+        slightly off its feature, or the demotion push drives it further off in a death spiral. '''
+        run_id = self.vert_feature_run.get(v)
+        if run_id is not None:
+            return run_id
+        if not self.source_edge_accel or not self.run_of_seg or not v.link_edges:
+            return None
+        v_world = local_to_world(v.co, self.matrix_world)
+        result = self.source_edge_accel.closest_point_with_index(v_world)
+        if not result:
+            return None
+        pt, _tangent, seg_idx = result
+        if (Vector(pt) - v_world).length > self.stroke_snap_radius * 1.5:
+            return None
+        return self.run_of_seg.get(seg_idx)
+
+    def _seed_guide_loops(self, exclude_runs):
+        ''' Pick one seed edge per local feature run not in exclude_runs, nearest the brush centre
+        among retopo edges with both ends on the SAME run. Requiring a shared run keeps a rung
+        spanning two parallel features from seeding a loop perpendicular to them.
+        Returns [(v0, v1, run_id), ...]. '''
+        run_edges: 'dict[int, set]' = {}
+        for bmv in self.verts_near_source_edge:
+            run_id = self.vert_feature_run.get(bmv)
+            if run_id is None or run_id in exclude_runs: continue
+            for bme in bmv.link_edges:
+                if self.vert_feature_run.get(bme.other_vert(bmv)) == run_id:
+                    run_edges.setdefault(run_id, set()).add(bme)
+        # Need at least one retopo edge where both endpoints are on the same feature run.
+        if not run_edges: return []
+
+        # Pick each run's seed edge whose midpoint is closest to the brush center (the cursor).
         # Anchoring to the live brush center rather than an arbitrary grabbed vert means a
         # large brush elects the loop under the cursor, not one out on the brush's rim.
         if self.brush.hit_p:
@@ -704,16 +762,29 @@ class Tweak_Logic(SourceSnapMixin):
             brush_co_local = self.verts[0][0].co
         else:
             brush_co_local = Vector((0, 0, 0))
-        guide_edge = min(
-            guide_edges,
-            key=lambda e: ((e.verts[0].co + e.verts[1].co) * 0.5 - brush_co_local).length,
-        )
-        self._elect_loop_from_edge(guide_edge.verts[0], guide_edge.verts[1])
+        seeds = []
+        for run_id, edges in run_edges.items():
+            guide_edge = min(
+                edges,
+                key=lambda e: ((e.verts[0].co + e.verts[1].co) * 0.5 - brush_co_local).length,
+            )
+            seeds.append((guide_edge.verts[0], guide_edge.verts[1], run_id))
+        return seeds
 
-    def _elect_loop_from_edge(self, v0, v1):
+    def _elect_loop_from_edge(self, v0, v1, run_id):
         ''' Walk the loop from seed edge (v0, v1) and derive promoted/demoted from CURRENT vert
         positions. Re-run every frame so a vert that snaps to a source corner mid-stroke is
-        recognised as a corner (the loop terminates there), not only when it started on the corner. '''
+        recognised as a corner (the loop terminates there), not only when it started on the corner.
+        run_id is the loop's feature run: verts riding a DIFFERENT run are never demoted, so the
+        rail on a parallel feature one face away keeps its own snap. Returns (promoted, demoted)
+        or None when the seed sits on a corner/pole. '''
+        def rides_other_run(v):
+            v_run = self._feature_run_at(v)
+            if v_run is None:
+                return False
+            # On SOME feature with the loop's run unknown: spare, don't risk pushing it off.
+            return run_id is None or v_run != run_id
+
         def is_on_source_corner(v):
             return self._source_corner_of_vert(v, self.stroke_snap_radius * 0.05) is not None
 
@@ -736,10 +807,7 @@ class Tweak_Logic(SourceSnapMixin):
         walk_from(v0, v1)
         walk_from(v1, v0)
         if not promoted:
-            self.promoted_loop_verts = set()
-            self.demoted_verts = set()
-            self.loop_guide_verts = None
-            return
+            return None
 
         terminal_at_corner = {
             v for v in promoted
@@ -760,61 +828,90 @@ class Tweak_Logic(SourceSnapMixin):
                         if fv is v or fv in all_adj: continue
                         # A vert that itself rides a source edge (e.g. the perpendicular feature
                         # meeting the loop where it ends at a corner) belongs there, so don't demote it.
-                        if is_bmvert_corner(fv) or self._is_on_source_edge(fv): continue
+                        if is_bmvert_corner(fv) or rides_other_run(fv) or self._is_on_source_edge(fv): continue
                         # When the loop ends at a boundary corner, never demote its fellow boundary verts.
                         if v_is_boundary and any(e.is_boundary for e in fv.link_edges): continue
                         demoted.add(fv)
             else:
                 for bme in v.link_edges:
                     nb = bme.other_vert(v)
-                    if nb not in promoted and is_loop_continuation(nb):
+                    if nb not in promoted and not rides_other_run(nb) and is_loop_continuation(nb):
                         demoted.add(nb)
 
-        self.promoted_loop_verts = promoted
-        self.demoted_verts = demoted
-        self.loop_guide_verts = (v0, v1)
+        return promoted, demoted
 
     def _update_source_context(self):
-        ''' Recompute which grabbed verts lie near the feature and refresh promoted/demoted.
+        ''' Recompute which grabbed verts lie near the feature, re-label local feature runs, and
+        re-derive one promoted guide loop per run (union across loops feeds the mixin and drawing).
         Called once per mouse-move event since positions have changed. '''
         self.verts_near_source_edge = self._collect_verts_near_source_edge()
+        self._refresh_feature_runs()
 
         if self.loops_strength == 0:
             self.promoted_loop_verts.clear()
             self.demoted_verts.clear()
-            self.loop_guide_verts = None
+            self.demoted_by_runs = {}
+            self.guide_loop_seeds.clear()
             return
 
         grabbed = {t[0] for t in self.verts}
+        self.promoted_loop_verts = set()
+        self.demoted_verts = set()
+        self.demoted_by_runs = {}
+        kept_seeds = []
+        claimed_runs = set()
+        loops = []
 
-        # If the seed edge is no longer in the grabbed set, reset so it can be re-elected.
-        if self.loop_guide_verts is not None:
-            gv0, gv1 = self.loop_guide_verts
-            if gv0 not in grabbed or gv1 not in grabbed:
-                self.promoted_loop_verts.clear()
-                self.demoted_verts.clear()
-                self.loop_guide_verts = None
-
-        # If the brush is pulling away from the feature, clear the guide loop.
-        if self.promoted_loop_verts:
-            grabbed_promoted = self.promoted_loop_verts & grabbed
-            if grabbed_promoted and not any(v in self.verts_near_source_edge for v in grabbed_promoted):
-                self.promoted_loop_verts.clear()
-                self.demoted_verts.clear()
-                self.loop_guide_verts = None
-
-        # Re-derive the loop from its persisted seed edge every frame so a vert that snaps to a
+        # Re-derive every persisted loop from its seed edge each frame so a vert that snaps to a
         # source corner mid-stroke is recognised as a corner now, not only if it started there.
-        if self.loop_guide_verts is not None:
-            gv0, gv1 = self.loop_guide_verts
-            if gv0.is_valid and gv1.is_valid:
-                self._elect_loop_from_edge(gv0, gv1)
+        # A seed is dropped when it leaves the grabbed set (so it can be re-elected) or when its
+        # loop is pulling away from the feature.
+        for (gv0, gv1) in self.guide_loop_seeds:
+            if not (gv0.is_valid and gv1.is_valid): continue
+            if gv0 not in grabbed or gv1 not in grabbed: continue
+            run_id = self.vert_feature_run.get(gv0)
+            if run_id is None:
+                run_id = self.vert_feature_run.get(gv1)
+            result = self._elect_loop_from_edge(gv0, gv1, run_id)
+            if result is None: continue
+            promoted, demoted = result
+            grabbed_promoted = promoted & grabbed
+            if grabbed_promoted and not any(v in self.verts_near_source_edge for v in grabbed_promoted):
+                continue
+            kept_seeds.append((gv0, gv1))
+            if run_id is not None:
+                claimed_runs.add(run_id)
+            loops.append((run_id, promoted, demoted))
 
-        if self.verts_near_source_edge and not self.promoted_loop_verts:
-            self._seed_guide_loop()
+        # Elect a loop for every feature run under the brush that doesn't have one yet.
+        for (v0, v1, run_id) in self._seed_guide_loops(claimed_runs):
+            result = self._elect_loop_from_edge(v0, v1, run_id)
+            if result is None: continue
+            kept_seeds.append((v0, v1))
+            claimed_runs.add(run_id)
+            loops.append((run_id, *result))
+
+        self.guide_loop_seeds = kept_seeds
+        for run_id, promoted, demoted in loops:
+            self.promoted_loop_verts |= promoted
+            self.demoted_verts |= demoted
+            # The loop's run OVERRIDES the nearest-feature id for its promoted verts: loop
+            # membership is topological ground truth, while "nearest" flips when a vert gets
+            # knocked past the midline between two close features — keeping the loop's id makes
+            # the constrained snap pull the vert back to its own rail instead of locking it
+            # onto the neighbor (crossing).
+            if run_id is not None:
+                for v in promoted:
+                    self.vert_feature_run[v] = run_id
+                # Remember WHICH runs demoted each vert so the demoted push has a stable,
+                # per-run direction (summed) instead of chasing the instantaneous nearest feature.
+                for v in demoted:
+                    self.demoted_by_runs.setdefault(v, set()).add(run_id)
+        # A vert elected by one loop must not be demoted by another.
+        self.demoted_verts -= self.promoted_loop_verts
 
         # The closest snapped vert owns each corner and face-diagonal neighbours of the owner are
-        # demoted, except neighbours that themselves ride a source edge.
+        # demoted, except neighbours that themselves ride a source edge or a different feature run.
         if self.source_edge_accel and self.promoted_loop_verts and self.verts_near_source_edge:
             corner_owner: dict[int, tuple[float, BMVert]] = {}
             for cv in self.verts_near_source_edge:
@@ -826,14 +923,19 @@ class Tweak_Logic(SourceSnapMixin):
             for _dist, cv in corner_owner.values():
                 all_adj = {bme.other_vert(cv) for bme in cv.link_edges}
                 cv_is_boundary = any(e.is_boundary for e in cv.link_edges)
+                cv_run = self.vert_feature_run.get(cv)
                 for bmf in cv.link_faces:
                     if len(bmf.verts) != 4: continue
                     for fv in bmf.verts:
                         if fv is cv or fv in all_adj: continue
                         if fv in self.promoted_loop_verts or is_bmvert_corner(fv) or self._is_on_source_edge(fv): continue
+                        fv_run = self._feature_run_at(fv)
+                        if fv_run is not None and (cv_run is None or fv_run != cv_run): continue
                         # When the owner is a boundary corner, never demote its fellow boundary verts.
                         if cv_is_boundary and any(e.is_boundary for e in fv.link_edges): continue
                         self.demoted_verts.add(fv)
+                        if cv_run is not None:
+                            self.demoted_by_runs.setdefault(fv, set()).add(cv_run)
 
     def snap_grabbed_set(self):
         return {t[0] for t in self.verts}
@@ -1351,7 +1453,7 @@ class Tweak_Logic(SourceSnapMixin):
         # snapped_verts (authoritative, persists across the grab) avoids highlighting verts that
         # merely drift inside the snap radius without being snapped.
         snapped_loop = self.promoted_loop_verts & self.snapped_verts
-        Drawing.draw_loop_highlight(context, self.promoted_loop_verts, self.matrix_world, highlight, skip_verts=snapped_loop)
+        Drawing.draw_loop_highlight(context, self.promoted_loop_verts, self.matrix_world, highlight, skip_verts=snapped_loop, vert_groups=self.vert_feature_run)
         Drawing.draw_loop_highlight(context, self.nudge_loop_verts, self.matrix_world, highlight, skip_verts=frozenset())
         if self.demoted_verts:
             vertex_size = context.preferences.themes[0].view_3d.vertex_size
