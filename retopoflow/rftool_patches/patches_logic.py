@@ -498,48 +498,11 @@ class Patch:
 
         with PVert.create(bm, layer, M):
             # create initial PVerts
-            ring = []
-            for idx in outer_ring:
-                pvert = PVert(idx)
-                ring.append(pvert)
-                self._verts.append(pvert)
+            ring = [ PVert(idx) for idx in outer_ring ]
+            self._verts.extend(ring)
             self._rings.append(ring)
 
             self.create_patch(options)
-
-
-            # match sides_pverts:
-            #     case (side, ):                                              # loop with no corners
-            #         assert side
-            #         # self._fill_parallel(side)
-            #         N_BORDER_LOOPS = 3
-            #         for _ in range(N_BORDER_LOOPS):
-            #             factor = 1 / (N_BORDER_LOOPS + 0)
-            #             sides_pverts = self._border(sides_pverts, factor)
-
-            #         # self._fill_ngon(sides_pverts)
-            #         # self._fill_central_quads(sides_pverts)
-            #         # self._fill_central_tris(sides_pverts)
-            #         self._fill_parallel(sides_pverts)
-
-            #     case (side, None):                                          # loop with 1 corner (teardrop)
-            #         assert side
-            #         pass
-
-            #     case (side_a, side_b):                                      # 2-sided loop (2 corners)
-            #         assert side_a and side_b
-            #         self._process_2_sided(side_a, side_b)
-
-            #     case (side_a, side_b, side_c):                              # 3-sided loop (3 corners)
-            #         assert side_a and side_b and side_c
-            #         self._process_3_sided(side_a, side_b, side_c)
-
-            #     case (side_a, side_b, side_c, side_d):
-            #         assert side_a and side_b and side_c and side_d          # 4-sided loop (4 corners)
-            #         self._process_4_sided(side_a, side_b, side_c, side_d)
-
-            #     case _:
-            #         print(f'Unhandled number of sides {len(sides)}')
 
         self._snap_and_relax(M, options)
 
@@ -549,7 +512,7 @@ class Patch:
 
 
     def _snap_and_relax(self, M : Matrix, options : Patch_Options):
-        print('snapping...')
+        print('snapping patch...')
         context = bpy.context
         Mi = M.inverted_safe()
 
@@ -562,7 +525,7 @@ class Patch:
         verts = [ pvert.co for pvert in self._verts ]
 
         if options and options.relax_enabled:
-            print('relaxing....')
+            print('relaxing patch...')
             t0 = time.time()
             def get_info(inds : Sequence[int]) -> tuple[CO_LOCAL, RADIUS]:
                 vs = [ verts[i] for i in inds ]
@@ -644,6 +607,7 @@ class Patch:
 
     def create_patch(self, options : Patch_Options):
         assert self._rings
+        print('creating patch...')
 
         if options.loops != 0:
             if options.loops is not None:
@@ -652,7 +616,6 @@ class Patch:
             elif all(pvert.corner in {Corner.BRIDGE, Corner.UNSET} for pvert in self._rings[-1]):
                 self._create_loops(options)
 
-            return
 
         match options.cap:
             case Cap.PARALLEL:
@@ -864,8 +827,6 @@ class Patch:
                 for pvert in ring:
                     pvert.corner = Corner.UNSET
 
-        self.create_patch(replace(options, loops=0))
-        return
 
 
     def _border(self, sides : PATCH_SIDES_PVERTS, factor : FACTOR) -> PATCH_SIDES_PVERTS:
@@ -1151,7 +1112,7 @@ class Patches_Logic:
         bm, _ = get_bmesh_emesh(context, ensure_lookup_tables=True)
         layer = Patches_Logic.get_corner_layer(bm)
         Patches_Logic._update_corners(layer)
-        Patches_Logic._update_sides(bm, layer)
+        Patches_Logic._update_outer_ring(bm, layer)
         if not Patches_Logic.patch_options:
             Patches_Logic.patch_options = Patch_Options()
         Patches_Logic.patch_options.loops_made = 0
@@ -1236,7 +1197,7 @@ class Patches_Logic:
 
 
     @staticmethod
-    def _update_sides(bm : BMesh, layer : CornerLayer):
+    def _update_outer_ring(bm : BMesh, layer : CornerLayer):
         Patches_Logic.outer_ring.clear()
         Patches_Logic.used_bmv.clear()
         Patches_Logic.used_new.clear()
@@ -1760,18 +1721,15 @@ class Patches_Logic:
                 draw.color(color_open_border)
 
                 for (pt0, pt1) in patch.edges:
-                    _ = draw.vertex(proj(pt0))
-                    _ = draw.vertex(proj(pt1))
+                    _ = draw.vertex(proj(pt0)).vertex(proj(pt1))
 
             with Drawing.draw(context, CC_2D_TRIANGLES) as draw:
                 draw.color(color_mesh)
 
                 for pts in patch.faces:
-                    p0 = pts[0]
-                    for (p1, p2) in iter_pairs(pts[1:], False):
-                        _ = draw.vertex(proj(p0))
-                        _ = draw.vertex(proj(p1))
-                        _ = draw.vertex(proj(p2))
+                    p0 = sum(pts, Vector()) / len(pts)  # assuming average is in middle of patch
+                    for (p1, p2) in iter_pairs(pts, True):
+                        _ = draw.vertex(proj(p0)).vertex(proj(p1)).vertex(proj(p2))
 
         # draw corners
         with Drawing.draw(context, CC_2D_POINTS) as draw:
@@ -1791,43 +1749,6 @@ class Patches_Logic:
                         draw.border(width=vertex_border, color=color_inner_border)
                 _ = draw.vertex(proj(M @ bmv.co))
 
-            # for idx_bmv in Patches_Logic.corners_bmv:
-            #     bmv = bm.verts[idx_bmv]
-            #     if idx_bmv in Patches_Logic.used_bmv:
-            #         bmv = bm.verts[idx_bmv]
-            #         draw.point_size(vertex_radius)
-            #         match layer[bmv]:
-            #             case Corner.BRIDGE | Corner.UNSET:
-            #                 draw.color(color_bridge)
-            #                 draw.border(width=vertex_border, color=color_bridge_border)
-            #             case Corner.OUTER:
-            #                 draw.color(color_outer)
-            #                 draw.border(width=vertex_border, color=color_outer_border)
-            #             case Corner.INNER:
-            #                 draw.color(color_inner)
-            #                 draw.border(width=vertex_border, color=color_inner_border)
-            #         _ = draw.vertex(proj(M @ bmv.co))
-
-            #         # draw.point_size(vertex_size + 4)
-            #         # match layer[bmv]:
-            #         #     case Corner.BRIDGE:
-            #         #         draw.color(color_point)
-            #         #     case Corner.OUTER:
-            #         #         draw.color(color_outer)
-            #         #     case Corner.INNER:
-            #         #         draw.color(color_inner)
-            #         # _ = draw.vertex(proj(M @ bmv.co))
-            #         # draw.point_size(vertex_size + 1)
-            #         # draw.color(color_point)
-            #         # _ = draw.vertex(proj(M @ bmv.co))
-            #     else:
-            #         draw.point_size(vertex_radius + vertex_border)
-            #         draw.color(color_unused)
-            #         _ = draw.vertex(proj(M @ bmv.co))
-            #         draw.point_size(vertex_radius)
-            #         draw.color(color_point)
-            #         _ = draw.vertex(proj(M @ bmv.co))
-
             # draw new corners
             for (idx_new, co) in enumerate(Patches_Logic.corners_new):
                 if idx_new in Patches_Logic.used_new:
@@ -1842,22 +1763,6 @@ class Patches_Logic:
                     draw.color(color_point)
                     _ = draw.vertex(proj(M @ co))
 
-        # # draw sides
-        # for side in Patches_Logic.sides:
-        #     if not side:
-        #         continue
-        #     n_verts = len(side)
-        #     i0 = (n_verts - 1) // 2
-        #     i1 = (i0 + 1) if n_verts % 2 == 0 else i0
-        #     co = (bm.verts[side[i0]].co + bm.verts[side[i1]].co) / 2
-        #     p = proj(M @ co)
-        #     if p:
-        #         Drawing.text_draw2D(
-        #             f'{n_verts - 1}',
-        #             p,
-        #             color=(1,1,0,1),
-        #             dropshadow=(0,0,0,1),
-        #         )
 
     @staticmethod
     def commit():
