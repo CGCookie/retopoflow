@@ -984,7 +984,11 @@ class Tweak_Logic(SourceSnapMixin):
                     # Velocity-independent release signal: where the vert would be if unconstrained over the whole stroke.
                     # Capped too, so a snapped vert doesn't teleport to a background object the moment it releases.
                     free_co = self._raycast_capped(context, bmv, xy + (mouse - self.mouse) * strength * pressure)
-                    new_co = self.snap_to_source_feature(bmv, snap_new_co, strength, context, delta * strength * pressure, mouse - self.mouse, free_co)
+                    snapped_co = self.snap_to_source_feature(bmv, snap_new_co, strength, context, delta * strength * pressure, mouse - self.mouse, free_co)
+                    # In Nudge, snap_new_co is only a probe, showing where the vert would be IF it were dragged full strength.
+                    # Only verts the source feature snap actually holds take its result and the rest move via the smudge sweep.
+                    if not is_nudge or bmv in self.snapped_verts:
+                        new_co = snapped_co
 
             if self.mirror:
                 co = Vector(new_co)
