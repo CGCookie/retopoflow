@@ -51,44 +51,53 @@ BPY_OP_EXECUTION_CONTEXT : TypeAlias = Literal[
 ]
 
 BL_SPACE_TYPES : TypeAlias = Literal[
-    "EMPTY",
-    "VIEW_3D",
-    "IMAGE_EDITOR",
-    "NODE_EDITOR",
-    "SEQUENCE_EDITOR",
-    "CLIP_EDITOR",
-    "DOPESHEET_EDITOR",
-    "GRAPH_EDITOR",
-    "NLA_EDITOR",
-    "TEXT_EDITOR",
-    "CONSOLE",
-    "INFO",
-    "TOPBAR",
-    "STATUSBAR",
-    "OUTLINER",
-    "PROPERTIES",
-    "FILE_BROWSER",
-    "SPREADSHEET",
-    "PREFERENCES",
+    "EMPTY",                # Empty
+
+    # General
+    "VIEW_3D",              # 3D Viewport: Manipulate objects in 3D environment
+    "IMAGE_EDITOR",         # UV/Image Editor: View and edit images and UV maps
+    "NODE_EDITOR",          # Node Editor: Editor for node-based shading and compositing tools
+    "SEQUENCE_EDITOR",      # Video Sequencer: Nonlinear editor for arranging and mixing scenes, video, audio, and effects
+    "CLIP_EDITOR",          # Movie Clip Editor: Motion tracking tools.
+
+    # Animation
+    "DOPESHEET_EDITOR",     # Dope Sheet: Adjust timing of keyframes
+    "GRAPH_EDITOR",         # Graph Editor: Edit drivers and keyframe interpolation
+    "NLA_EDITOR",           # Nonlinear Animation: Combine and layer actions
+
+    # Scripting
+    "TEXT_EDITOR",          # Text Editor
+    "CONSOLE",              # Python Console
+    "INFO",                 # Info: Log of operations, warnings, and error messages
+    "TOPBAR",               # Top Bar: Global bar at the top of the screen for global per-window settings
+    "STATUSBAR",            # Status Bar: Global bar at the bottom of the screen for general status info
+
+    # Data
+    "OUTLINER",             # Outliner: Overview of scene graph and all available data-blocks
+    "PROPERTIES",           # Properties: Edit properties of active object and related data-blocks
+    "FILE_BROWSER",         # File Browser: Browse for files and assets
+    "SPREADSHEET",          # Spreadsheet: Explore geometry data in a table
+    "PREFERENCES",          # Preferences: Edit persistent configuration settings
 ]
 
 BL_REGION_TYPES : TypeAlias = Literal[
-    "WINDOW",
-    "HEADER",
-    "CHANNELS",
-    "TEMPORARY",
-    "UI",
-    "TOOLS",
-    "TOOL_PROPS",
-    "ASSET_SHELF",
-    "ASSET_SHELF_HEADER",
-    "PREVIEW",
-    "HUD",
-    "NAVIGATION_BAR",
-    "EXECUTE",
-    "FOOTER",
-    "TOOL_HEADER",
-    "XR",
+    "WINDOW",               # Window
+    "HEADER",               # Header
+    "CHANNELS",             # Channels
+    "TEMPORARY",            # Temporary
+    "UI",                   # Sidebar
+    "TOOLS",                # Tools
+    "TOOL_PROPS",           # Tool Properties
+    "ASSET_SHELF",          # Asset Shelf
+    "ASSET_SHELF_HEADER",   # Asset Shelf Header
+    "PREVIEW",              # Preview
+    "HUD",                  # Floating Region
+    "NAVIGATION_BAR",       # Navigation Bar
+    "EXECUTE",              # Execute Buttons
+    "FOOTER",               # Footer
+    "TOOL_HEADER",          # Tool Header
+    "XR",                   # XR
+    "SCRUBBING",            # Scrubbing  (new in Blender 5.2)
 ]
 
 # see: https://docs.blender.org/api/current/bpy_types_enum_items/operator_type_flag_items.html#rna-enum-operator-type-flag-items

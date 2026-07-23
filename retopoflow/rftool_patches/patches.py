@@ -30,20 +30,15 @@ from bpy.types import (
     WorkSpaceTool,
     Event,
 )
-from mathutils import Vector
-
 
 from ..rfglobals import RFGlobals
 from ..rfoperators.topo_rotate import RFOperator_TopoRotate
 from ..rftool_base import RFTool_Base
 
 from ...addon_common.common.resetter import Resetter
-from ..common.raycast import (
-    raycast_valid_sources,
-    mouse_from_event,
-)
 
 from ..common.bpy_helper import bpy_ops_retopoflow, BL_SPACE_TYPES, BL_REGION_TYPES, BL_OPTIONS
+from ..common.bmesh import get_bmesh_emesh
 from ..common.icons import get_path_to_blender_icon
 from ..common.operator import (
     execute_operator,
@@ -67,11 +62,11 @@ from ..rfpanels.help_panel import draw_help_panel
 from .patches_logic import Patches_Logic
 
 
-class RFOperator_Patches_Insert_Corner(RFOperator_Invoke):
-    bl_idname : str = 'retopoflow.patches_insert_corner'
+class RFOperator_Patches_Toggle_Corner(RFOperator_Invoke):
+    bl_idname : str = 'retopoflow.patches_toggle_corner'
     bl_label : str = 'Insert corner'
     bl_description : str = 'Insert a new corner for patch'
-    bl_options : BL_OPTIONS = { 'INTERNAL', 'UNDO' }
+    bl_options : BL_OPTIONS = { 'INTERNAL', 'UNDO', 'DEPENDS_ON_CURSOR' }
 
     rf_keymaps : RFKeyMaps = [
         (
@@ -82,28 +77,135 @@ class RFOperator_Patches_Insert_Corner(RFOperator_Invoke):
     ]
 
     def invoke(self, context : Context, event : Event) -> set[str]:
+        result = Patches_Logic.toggle_corner(context, event)
         context.area.tag_redraw()
-        return {'FINISHED'} if Patches_Logic.insert_corner(context, event) else {'CANCELLED'}
-        # RFGlobals.RFCore.tag_redraw_areas()
+        return { 'FINISHED' } if result else { 'CANCELLED' }
 
 
-class RFOperator_Patches_Commit_Patch(RFOperator_Execute):
-    bl_idname : str = 'retopoflow.patches_commit'
+class RFOperator_Patches_Create_Patch(RFOperator_Execute):
+    bl_idname : str = 'retopoflow.patches_create'
     bl_label : str = 'Create patch'
     bl_description : str = 'Create the patch'
-    bl_options : BL_OPTIONS = { 'INTERNAL', 'UNDO' }
+    bl_options : BL_OPTIONS = { 'INTERNAL', 'UNDO', 'REGISTER' }
 
     rf_keymaps : RFKeyMaps = [
-        ( bl_idname, { 'type': 'F', 'value': 'PRESS' }, None ),
+        ( bl_idname, { 'type': 'F', 'value': 'PRESS' }, {'km_label': 'Insert Patch'} ),
     ]
 
     def execute(self, context : Context) -> set[str]:
-        print('X'*100)
-        print('committing patch')
-        print('X'*100)
         Patches_Logic.commit()
         return { 'FINISHED' }
 
+
+class RFOperator_Patches_Reset(RFOperator_Execute):
+    bl_idname : str = 'retopoflow.patches_reset'
+    bl_label : str = 'Reset patch info'
+    bl_description : str = 'Reset patch information'
+    bl_options : BL_OPTIONS = { 'INTERNAL', 'UNDO' }
+
+    rf_keymaps : RFKeyMaps = [
+        ( bl_idname, { 'type': 'ESC', 'value': 'PRESS' }, {'km_label': 'Reset Corners'} ),
+    ]
+
+    def execute(self, context : Context) -> set[str]:
+        Patches_Logic.reset()
+        return { 'FINISHED' }
+
+class RFOperator_Patches_Increase_OuterRingOffset(RFOperator_Execute):
+    bl_idname : str = 'retopoflow.patches_increase_outerringoffset'
+    bl_label : str = 'Increase Offset'
+    bl_description : str = 'Increase outer ring offset in patch'
+    bl_options : BL_OPTIONS = { 'INTERNAL' }
+
+    rf_keymaps : RFKeyMaps = [
+        ( bl_idname, { 'type': 'LEFT_ARROW', 'value': 'PRESS' }, {'km_label': 'Offset+' } ),
+    ]
+
+    def execute(self, context : Context) -> set[str]:
+        Patches_Logic.increase_outer_ring_offset()
+        Patches_Logic.update(force_rebuild=True)
+        context.area.tag_redraw()
+        return { 'FINISHED' }
+
+class RFOperator_Patches_Decrease_OuterRingOffset(RFOperator_Execute):
+    bl_idname : str = 'retopoflow.patches_decrease_outerringoffset'
+    bl_label : str = 'Decrease Offset'
+    bl_description : str = 'Decrease outer ring offset in patch'
+    bl_options : BL_OPTIONS = { 'INTERNAL' }
+
+    rf_keymaps : RFKeyMaps = [
+        ( bl_idname, { 'type': 'RIGHT_ARROW', 'value': 'PRESS' }, {'km_label': 'Offset-'} ),
+    ]
+
+    def execute(self, context : Context) -> set[str]:
+        Patches_Logic.decrease_outer_ring_offset()
+        Patches_Logic.update(force_rebuild=True)
+        context.area.tag_redraw()
+        return { 'FINISHED' }
+
+class RFOperator_Patches_Toggle_Cap(RFOperator_Execute):
+    bl_idname : str = 'retopoflow.patches_toggle_cap'
+    bl_label : str = 'Toggle Cap'
+    bl_description : str = 'Toggle cap in patch'
+    bl_options : BL_OPTIONS = { 'INTERNAL' }
+
+    rf_keymaps : RFKeyMaps = [
+        ( bl_idname, { 'type': 'C', 'value': 'PRESS' }, {'km_label': 'Cap'} ),
+    ]
+
+    def execute(self, context : Context) -> set[str]:
+        Patches_Logic.toggle_cap()
+        Patches_Logic.update(force_rebuild=True)
+        context.area.tag_redraw()
+        return { 'FINISHED' }
+
+class RFOperator_Patches_Unset_Loops(RFOperator_Execute):
+    bl_idname : str = 'retopoflow.patches_unset_loops'
+    bl_label : str = 'Unset loops'
+    bl_description : str = 'Unset loop count in patch'
+    bl_options : BL_OPTIONS = { 'INTERNAL' }
+
+    rf_keymaps : RFKeyMaps = [
+        ( bl_idname, { 'type': 'EQUAL', 'value': 'PRESS' }, {'km_label': 'Unset Loops'} ),
+    ]
+
+    def execute(self, context : Context) -> set[str]:
+        Patches_Logic.unset_loops()
+        Patches_Logic.update(force_rebuild=True)
+        context.area.tag_redraw()
+        return { 'FINISHED' }
+
+class RFOperator_Patches_Increase_Loops(RFOperator_Execute):
+    bl_idname : str = 'retopoflow.patches_increase_loops'
+    bl_label : str = 'Increase loops'
+    bl_description : str = 'Increase loops in patch'
+    bl_options : BL_OPTIONS = { 'INTERNAL' }
+
+    rf_keymaps : RFKeyMaps = [
+        ( bl_idname, { 'type': 'NUMPAD_PLUS', 'value': 'PRESS' }, {'km_label': 'Loops+' } ),
+    ]
+
+    def execute(self, context : Context) -> set[str]:
+        Patches_Logic.increase_loops()
+        Patches_Logic.update(force_rebuild=True)
+        context.area.tag_redraw()
+        return { 'FINISHED' }
+
+class RFOperator_Patches_Decrease_Loops(RFOperator_Execute):
+    bl_idname : str = 'retopoflow.patches_decrease_loops'
+    bl_label : str = 'Decrease loops'
+    bl_description : str = 'Decrease loops in patch'
+    bl_options : BL_OPTIONS = { 'INTERNAL' }
+
+    rf_keymaps : RFKeyMaps = [
+        ( bl_idname, { 'type': 'NUMPAD_MINUS', 'value': 'PRESS' }, {'km_label': 'Loops-'} ),
+    ]
+
+    def execute(self, context : Context) -> set[str]:
+        Patches_Logic.decrease_loops()
+        Patches_Logic.update(force_rebuild=True)
+        context.area.tag_redraw()
+        return { 'FINISHED' }
 
 class RFOperator_Patches(RFOperator):
     bl_idname : str = 'retopoflow.patches'
@@ -159,7 +261,7 @@ class RFOperator_Patches_Selection_Overlay(RFOverlay_Base, RFOperator):
 class RFTool_Patches(RFTool_Base):
     bl_idname : str = "retopoflow.patches"
     bl_label : str = "Patches"
-    bl_description : str = "Retopologize holes!"
+    bl_description : str = "Fill holes and retopologize patches."
     bl_icon : str = get_path_to_blender_icon('patches')
     bl_widget : None = None
 
@@ -167,11 +269,19 @@ class RFTool_Patches(RFTool_Base):
 
     bl_keymap : BLKeyMaps = chain_rf_keymaps(
         RFOperator_Patches,
-        # RFOperator_Patches_Insert_Corner,
-        RFOperator_Patches_Insert_Corner,
-        RFOperator_Patches_Commit_Patch,
+        RFOperator_Patches_Reset,
+        RFOperator_Patches_Increase_OuterRingOffset,
+        RFOperator_Patches_Decrease_OuterRingOffset,
+        RFOperator_Patches_Toggle_Cap,
+        RFOperator_Patches_Unset_Loops,
+        RFOperator_Patches_Increase_Loops,
+        RFOperator_Patches_Decrease_Loops,
+        RFOperator_Patches_Toggle_Corner,
+        RFOperator_Patches_Create_Patch,
+
         # RFOperator_Patches_Insert_Template,
         # RFOperator_PatchesBrush_Adjust,
+
         RFOperator_TopoRotate,
     )
 
@@ -194,7 +304,6 @@ class RFTool_Patches(RFTool_Base):
     @classmethod
     def activate(cls, context : Context):
         cls.resetter = Resetter('Patches')
-
         # patches_templates.activate(cls, context)
 
     @classmethod
