@@ -497,22 +497,59 @@ class Patch:
         outer_ring = outer_ring[o:] + outer_ring[:o]
 
         with PVert.create(bm, layer, M):
-            # create initial PVerts
+            # create initial outer ring of PVerts
             ring = [ PVert(idx) for idx in outer_ring ]
             self._verts.extend(ring)
             self._rings.append(ring)
 
-            self.create_patch(options)
+            print('creating patch...')
+            self._create_loops(options)
+            self._create_cap(options)
 
+        print('snapping and (optionally) relaxing patch...')
         self._snap_and_relax(M, options)
 
         self.verts = [ M @ pv.co for pv in self._verts ]
         self.edges = [ (self.verts[i0], self.verts[i1]) for (i0, i1) in self._edges ]
         self.faces = [ tuple(self.verts[i] for i in f) for f in self._faces ]
 
+    def reset(self):
+        self._rings = []
+
+        self._verts = []
+        self._edges = []
+        self._faces = []
+
+        self.verts = []
+        self.edges = []
+        self.faces = []
+
+
+    def commit(self, bm : BMesh, M : Matrix):
+        Mi = M.inverted_safe()
+
+        # collect all existing BMVerts (note: PVert.bmv returns None if PVert was not from BMVert)
+        # IMPORTANT: must do this before creating new BMVerts so we don't trigger invalidation of indices
+        verts_existing = [ v.bmv(bm) for v in self._verts ]
+
+        # collect all BMVerts, creating any new BMVerts as needed
+        verts_all : list[BMVert] = [
+            bmv if bmv else bm.verts.new(Mi @ co_world)
+            for (bmv, co_world) in zip(verts_existing, self.verts)
+        ]
+
+        # create all new BMFaces
+        for f in self._faces:
+            _ = bm.faces.new([ verts_all[i] for i in f ])
+
+        self.reset()
+
+
+
+    ########################################################################
+    # Snap PVerts to high-poly mesh, and if enabled relax
 
     def _snap_and_relax(self, M : Matrix, options : Patch_Options):
-        print('snapping patch...')
         context = bpy.context
         Mi = M.inverted_safe()
 
@@ -588,35 +625,24 @@ class Patch:
         for (pvert, co) in zip(self._verts, verts):
             pvert.co = co
 
-    def reset(self):
-        self._rings = []
 
-        self._verts = []
-        self._edges = []
-        self._faces = []
+    ########################################################################
+    # Helper function
 
-        self.verts = []
-        self.edges = []
-        self.faces = []
-
-    def get_pvert_index_map(self) -> dict[PVert, INDEX_PVERT]:
+    def _get_pvert_index_map(self) -> dict[PVert, INDEX_PVERT]:
+        """
+        Generate a mapping of PVert to its index
+        """
         return {
             pvert: index
             for (index, pvert) in enumerate(self._verts)
         }
 
-    def create_patch(self, options : Patch_Options):
-        assert self._rings
-        print('creating patch...')
 
-        if options.loops != 0:
-            if options.loops is not None:
-                self._create_loops(options)
+    ########################################################################
+    # Create a cap for the innermost ring
 
-            elif all(pvert.corner in {Corner.BRIDGE, Corner.UNSET} for pvert in self._rings[-1]):
-                self._create_loops(options)
-
-
+    def _create_cap(self, options : Patch_Options):
         match options.cap:
             case Cap.PARALLEL:
                 self._create_cap_parallel()
@@ -630,14 +656,13 @@ class Patch:
             case Cap.NGON:
                 self._create_cap_ngon()
 
-
     def _create_cap_ngon(self):
         """
         Fill in rest with an n-gon
         """
         assert self._rings
         ring = self._rings[-1]
-        idx = self.get_pvert_index_map()
+        idx = self._get_pvert_index_map()
 
         print(f'filling patch with {len(ring)-1}-sided ngon')
         self._faces.append(tuple(
@@ -661,7 +686,7 @@ class Patch:
         central = PVert('average', *ring)
         self._verts.append(central)
 
-        idx = self.get_pvert_index_map()
+        idx = self._get_pvert_index_map()
 
         ic = idx[central]
         iside = [ idx[pvert] for pvert in ring ]
@@ -694,7 +719,7 @@ class Patch:
         central = PVert('average', *ring)
         self._verts.append(central)
 
-        idx = self.get_pvert_index_map()
+        idx = self._get_pvert_index_map()
 
         ic = idx[central]
         iside = [ idx[pvert] for pvert in ring ]
@@ -708,7 +733,7 @@ class Patch:
     def _create_cap_parallel(self):
         assert self._rings
         ring = self._rings[-1]
-        idx = self.get_pvert_index_map()
+        idx = self._get_pvert_index_map()
         c = len(ring)
 
         print(f'filling patch with {c} verts using parallel edges')
@@ -728,6 +753,9 @@ class Patch:
 
 
 
+    ########################################################################
+    # Create a bridged loop
+
     def _create_loops(self, options : Patch_Options):
         """
         Generate bridged loops.
@@ -741,9 +769,18 @@ class Patch:
                 'unset': inner ring is left as Corner.UNSET, so they will be calculated
         """
 
+        assert self._rings
+
         options.loops_made = 0
 
-        assert self._rings
+        if options.loops == 0:
+            return
+
+        if options.loops is None:
+            if not all(pvert.corner in {Corner.BRIDGE, Corner.UNSET} for pvert in self._rings[-1]):
+                return
+
+
         ring = self._rings[-1]
         ring_outer = ring
         cos = [ pvert.co for pvert in ring ]
@@ -829,51 +866,9 @@ class Patch:
 
 
 
-    def _border(self, sides : PATCH_SIDES_PVERTS, factor : FACTOR) -> PATCH_SIDES_PVERTS:
-        if len(sides) == 1:
-            assert sides[0] is not None
-            outer = sides[0][:-1]  # ignoring last PVert because it's a repeat of first
-            print(f'adding border loop with {len(outer)} sides')
-            c = len(outer)
-            def get_radius(i0 : INDEX_PVERT) -> RADIUS:
-                min_rad = float('inf')
-                p0 = outer[i0].co
-                IDX_DIST = 0
-                for io1 in range(1 + IDX_DIST, c - IDX_DIST):
-                    p1 = outer[(i0 + io1) % c].co
-                    for io2 in range(io1 + 1 + IDX_DIST, c - IDX_DIST):
-                        p2 = outer[(i0 + io2) % c].co
-                        for io3 in range(io2 + 1 + IDX_DIST, c - IDX_DIST):
-                            p3 = outer[(i0 + io3) % c].co
-                            _ctr, rad = find_sphere_circle(p0, p1, p2, p3)
-                            min_rad = min(min_rad, rad)
-                return min_rad
-            # center = sum((pv.co for pv in outer), Vector((0,0,0))) / c
-            # radius = max((pv.co - center).length for pv in outer)
-            inner = [
-                PVert(
-                    'quad',
-                    outer[(i-1)%c],
-                    outer[i],
-                    outer[(i+1)%c],
-                    get_radius(i) * factor,
-                )
-                for i in range(c)
-            ]
-            i_start = len(self._verts)
-            self._verts.extend(outer)
-            self._verts.extend(inner)
-            for i in range(c):
-                i0 = i_start + i
-                i1 = i_start + (i + 1) % c
-                i2 = i_start + (i + 1) % c + c
-                i3 = i_start + i + c
-                self._edges.extend([ (i1, i2), (i2, i3) ]) #, (i3, i0) ])
-                self._faces.append((i0, i1, i2, i3))
-            inner += [inner[0]]  # need to repeat first PVert for correct setup
-            sides = [inner]
-        return sides
-
+    ###################################################################
+    # the following is _OLD_ code that's here only for reference.
+    # it will be deleted soon!
 
     def _process_2_sided(
         self,
@@ -1044,24 +1039,6 @@ class Patch:
                     (j + 1) * w + (i + 0),
                 ))
 
-    def commit(self, bm : BMesh, M : Matrix):
-        Mi = M.inverted_safe()
-
-        # collect all existing BMVerts (note: PVert.bmv returns None if PVert was not from BMVert)
-        # IMPORTANT: must do this before creating new BMVerts so we don't trigger invalidation of indices
-        verts_existing = [ v.bmv(bm) for v in self._verts ]
-
-        # collect all BMVerts, creating any new BMVerts as needed
-        verts_all : list[BMVert] = [
-            bmv if bmv else bm.verts.new(Mi @ co_world)
-            for (bmv, co_world) in zip(verts_existing, self.verts)
-        ]
-
-        # create all new BMFaces
-        for f in self._faces:
-            _ = bm.faces.new([ verts_all[i] for i in f ])
-
-        self.reset()
 
 
 class Patches_Logic:

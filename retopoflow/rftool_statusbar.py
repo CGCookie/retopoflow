@@ -32,6 +32,7 @@ from bpy.types import Context, Header, UILayout, KeyMapItem
 import platform
 
 from .rfglobals import RFGlobals
+from .common.bpy_helper import BL_EVENT_TYPES, BL_ICONS
 from .common.icons import Icon
 from .common.accel import SourceCache
 from ..addon_common.common.useractions import blenderop_to_kmis, kmi_to_op_properties
@@ -375,15 +376,15 @@ SHARED_STATUSBAR_KEYMAPS__POST_TOOL = (
 # MARK: Draw Statusbar
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ #
 
-EVENT_TYPE_ICONS : dict[str, str] = {
-    'EQUAL': 'EVENT_EQUAL',
-    'ESC': 'EVENT_ESC',
-    'NUMPAD_PLUS': 'EVENT_PADPLUS',
+EVENT_TYPE_ICONS : dict[BL_EVENT_TYPES, BL_ICONS] = {
+    'EQUAL':        'EVENT_EQUAL',
+    'ESC':          'EVENT_ESC',
+    'NUMPAD_PLUS':  'EVENT_PADPLUS',
     'NUMPAD_MINUS': 'EVENT_PADMINUS',
-    'LEFT_ARROW': 'EVENT_LEFT_ARROW',
-    'RIGHT_ARROW': 'EVENT_RIGHT_ARROW',
-    'UP_ARROW': 'EVENT_UP_ARROW',
-    'DOWN_ARROW': 'EVENT_DOWN_ARROW',
+    'LEFT_ARROW':   'EVENT_LEFT_ARROW',
+    'RIGHT_ARROW':  'EVENT_RIGHT_ARROW',
+    'UP_ARROW':     'EVENT_UP_ARROW',
+    'DOWN_ARROW':   'EVENT_DOWN_ARROW',
 }
 
 def draw_rftool_statusbar(statusbar: Header, context: Context, tool: type[RFTool_Base]):
@@ -477,6 +478,7 @@ def draw_rftool_statusbar(statusbar: Header, context: Context, tool: type[RFTool
         if not isinstance(statusbar_event_value, str):
             statusbar_event_value = event_value
 
+
         for mod_key in ('ctrl', 'shift', 'alt'):
             if mod_key in km_event and bool(km_event[mod_key]) or f'LEFT_{mod_key.upper()}' == event_type:
                 row.label(text='', icon=f'EVENT_{mod_key.upper()}') # pyright: ignore[reportArgumentType]
@@ -485,6 +487,7 @@ def draw_rftool_statusbar(statusbar: Header, context: Context, tool: type[RFTool
                     row.separator(factor=1.5)
                 elif mod_key == 'alt':
                     row.separator(factor=1)
+
 
         if len(event_type) == 1 and 'A' <= event_type <= 'Z':
             row.label(text='', icon=f'EVENT_{event_type.upper()}') # pyright: ignore[reportArgumentType]
@@ -511,6 +514,7 @@ def draw_rftool_statusbar(statusbar: Header, context: Context, tool: type[RFTool
 
         elif event_type in EVENT_TYPE_ICONS:
             row.label(text='', icon=EVENT_TYPE_ICONS[event_type])
+
 
         # Extra alternative keys grouped under this one label
         for extra_icon in op_props.get('km_extra_icons', []):
