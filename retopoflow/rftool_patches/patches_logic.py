@@ -223,8 +223,14 @@ class PVert:
     Convenience class that handles computing LERPed and snapped positions
     """
 
+    # the following are assigned temporarily in PVert.create context
+    # IMPORTANT: DO NOT HOLD REFERENCES TO BMESH DATA!
+    #            IT WILL GO BAD AND CRASH THINGS!
+    #            INSTEAD, USE AN INDEX!
     _bm : ClassVar[BMesh | None] = None
     _layer : ClassVar[CornerLayer | None] = None
+
+    # the following are assigned in PVert.create context
     _M  : ClassVar[Matrix | None] = None
     _Mi : ClassVar[Matrix | None] = None
     _Mt : ClassVar[Matrix | None] = None
@@ -233,6 +239,15 @@ class PVert:
     idx : INDEX_BMVERT = -1     # BMVert index or -1 to indicate new
     _co : CO_LOCAL              # computed, snapped location of PVert
     _no : NO_LOCAL              # computed. snapped normal of PVert
+
+    # the following keeps track of dependent PVerts, which will be
+    # used to invalidate PVerts when corner type is changed and
+    # force parts of patch to be reconstructed
+    _dependents : list[PVert] = []
+
+
+    ##################################################################
+    # PVert.create will create a context for creating new PVerts.
 
     @contextmanager
     @staticmethod
@@ -350,29 +365,28 @@ class PVert:
                 return pvert
 
             case int() as index:
-                bmv = bm.verts[index]
-                pvert = super().__new__(cls)
-                pvert.corner = layer[bmv] if corner == Corner.UNSET else corner
-                pvert.idx = index
-                pvert.co = bmv.co
-                return pvert
+                return PVert(bm.verts[index], corner=corner)
 
             case 'lerp':
                 assert len(args) == 4, f'Expected three arguments for lerp (pt0, pt1, weight), but instead saw {args[1:]}'
                 pvert0 = PVert(args[1])     # pyright: ignore[reportAny]
                 pvert1 = PVert(args[2])     # pyright: ignore[reportAny]
                 weight = cast(float, args[3])
+
                 pvert = super().__new__(cls)
                 pvert.corner = corner
                 pvert.co = pvert0.co + (pvert1.co - pvert0.co) * weight
+                pvert._dependents = [pvert0, pvert1]
                 return pvert
 
             case 'average':
                 assert len(args) > 2, f'Expected at least arguments for lerp, but instead saw {args}'
                 pverts = [ PVert(arg) for arg in args[1:] ]    # pyright: ignore[reportAny]
+
                 pvert = super().__new__(cls)
                 pvert.corner = corner
                 pvert.co = sum((pv.co for pv in pverts), Vector((0,0,0))) / max(1, len(pverts))
+                pvert._dependents = pverts
                 return pvert
 
             case 'quad':
@@ -406,6 +420,7 @@ class PVert:
                 pvert = super().__new__(cls)
                 pvert.corner = corner
                 pvert.co = co3
+                pvert._dependents = [pvert0, pvert1, pvert2]
                 return pvert
 
             case _: # pyright: ignore[reportAny]
@@ -448,9 +463,9 @@ class Patch_Options:
     outer_ring_offset : int = 0
 
     cap : Cap = Cap.PARALLEL
+
     loops : int | None = None
     loops_corners : Literal['copy', 'unset'] = 'copy'
-
     loops_made : int | None = None  # not user-changeable, but records most recent number of loops made
 
     relax_enabled : bool = False
@@ -774,9 +789,11 @@ class Patch:
         options.loops_made = 0
 
         if options.loops == 0:
+            # NO LOOPS!
             return
 
         if options.loops is None:
+            # Loops should be determined by corners, hole radius, and edge lengths
             if not all(pvert.corner in {Corner.BRIDGE, Corner.UNSET} for pvert in self._rings[-1]):
                 return
 
@@ -796,10 +813,11 @@ class Patch:
             # as a1 moves to 0deg or 360deg, a0 and a2 should have less affect
             # factor for a0 or a2: 180 => 1, 90 or 270 => ~0.5, 0 or 360 => 0
             # factor for a1: 180 => 1, 0 or 360 => 0
-            f0 = 1 - (1 - abs(a0 - math.pi) / math.pi)**32
+            f0 = 1 - (1 - abs(a0 - math.pi) / math.pi)**64
             f1 = 1 - (1 - abs(a1 - math.pi) / math.pi)**16
-            f2 = 1 - (1 - abs(a2 - math.pi) / math.pi)**32
+            f2 = 1 - (1 - abs(a2 - math.pi) / math.pi)**64
             return radius * f0 * f1 * f2
+            # return (r0 * f0 + r1 * f1 + r2 * f2) / (f0 + f1 + f2)
 
         loops_made = 0
         while options.loops is None or loops_made < options.loops:
