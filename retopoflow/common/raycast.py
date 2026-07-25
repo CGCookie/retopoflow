@@ -576,6 +576,35 @@ def raycast_multiple_hits(context:Context, origin:Vector, direction:Vector, n:in
         pt = hit
     return hits
 
+def raycast_point_capped_valid_sources(
+    context : Context,
+    point_screen : Vector,
+    co_world_ref : Vector,
+    *,
+    cap : float = 0.0,
+    world : bool = False,
+    sources : Sequence[tuple[BObject, Matrix, Matrix]] | None = None,
+    respect_clip_planes : bool = True,
+) -> Vector | None:
+    ''' Screen-space project a point onto the sources, with protection against snapping to
+    far away surfaces. When the hit lands farther than `cap` from `co_world_ref`
+    (the point's current world position), the same screen point is reprojected onto the nearest
+    source surface at that reference's view depth instead of accepting the large jump.
+    cap <= 0 accepts any hit (no cap). Returns None when nothing was hit at all. '''
+    hit = raycast_valid_sources(context, point_screen, respect_clip_planes=respect_clip_planes)
+    hit_co = (Vector(hit['co_world']) if world else Vector(hit['co_local'])) if hit else None
+    if hit and (cap <= 0 or (Vector(hit['co_world']) - co_world_ref).length <= cap):
+        return hit_co
+    co_plane = region_2d_to_location_3d(context.region, context.region_data, point_screen, co_world_ref)
+    if co_plane:
+        snapped = nearest_point_valid_sources(
+            context, point_to_bvec3(co_plane), world=world, sources=sources, respect_clip_planes=respect_clip_planes
+        )
+        if snapped:
+            return snapped
+    # Nothing better available: keep the capped hit if there was one, else signal no-move.
+    return hit_co
+
 def nearest_point_valid_sources(
     context : Context,
     point_world : Vector,

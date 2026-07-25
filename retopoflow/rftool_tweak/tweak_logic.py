@@ -40,7 +40,7 @@ from ..common.bmesh_maths import (
 )
 from ..common.maths import point_to_bvec3, direction_to_bvec3, local_to_world
 from ..common.raycast import (
-    raycast_valid_sources, nearest_point_valid_sources,
+    raycast_valid_sources, nearest_point_valid_sources, raycast_point_capped_valid_sources,
     mouse_from_event, iter_all_valid_sources, make_hidden_tester,
 )
 
@@ -91,11 +91,11 @@ class Tweak_Logic(SourceSnapMixin):
     # is declared on FeatureRunsMixin
 
     nudge_loop_verts : 'set[BMVert]'  # loop elected once per Nudge-Loops stroke; empty for Brush mode
-    _nudge_vert_tangents : 'dict[BMVert, Vector]'  # slide tangent per vert, locked once (at election or first encounter)
+    nudge_vert_tangents : 'dict[BMVert, Vector]'  # slide tangent per vert, locked once (at election or first encounter)
 
     verts_filtered : list[BMVert]
     verts : list[tuple]  # (bmv, original co, projected xy, brush strength) captured at grab time
-    _active_island : 'set[BMVert] | None'  # verts of the island under the brush, or None when not isolating
+    active_island : 'set[BMVert] | None'  # verts of the island under the brush, or None when not isolating
 
     mouse : Vector
     mouse_prev : Vector
@@ -106,12 +106,12 @@ class Tweak_Logic(SourceSnapMixin):
         self.tweak = tweak
         # Capture Ctrl at stroke start to invert Pinch/Magnify for the whole stroke (mirrors Blender sculpt behavior).
         # The Ctrl+LMB keymap entry in rf_keymaps ensures Blender's Select Shortest Path never fires first.
-        self._pinch_ctrl_flip: bool = (
+        self.pinch_ctrl_flip: bool = (
             bool(getattr(event, 'ctrl', False))
             and getattr(tweak, 'brush_type', 'GRAB') == 'PINCH_MAGNIFY'
         )
         # Capture Alt at stroke start to toggle Loops mode for this stroke.
-        self._nudge_loops_alt_flip: bool = (
+        self.nudge_loops_alt_flip: bool = (
             bool(getattr(event, 'alt', False))
             and getattr(tweak, 'brush_type', 'GRAB') == 'NUDGE'
         )
@@ -159,10 +159,10 @@ class Tweak_Logic(SourceSnapMixin):
                 if len(bme.link_faces) == 2
                 and bme.calc_face_angle(0.0) > angle_threshold
             ]
-            _angle_accel = EdgeMarkAccel.from_bmedges(angle_bmedges)
-            self.angle_verts = _angle_accel.verts
+            angle_accel = EdgeMarkAccel.from_bmedges(angle_bmedges)
+            self.angle_verts = angle_accel.verts
             self.angle_edges = set(angle_bmedges)
-            self.angle_accel = _angle_accel
+            self.angle_accel = angle_accel
 
         self.sources = []
         for obj in iter_all_valid_sources(context):
@@ -186,12 +186,12 @@ class Tweak_Logic(SourceSnapMixin):
         self.run_segments = {}
         self.run_of_seg = {}
         self.demoted_by_runs = {}
-        self._vert_seed_seg = {}
+        self.vert_seed_seg = {}
         self.stroke_snap_radius = 0.0  # computed after collect_verts below
         self.nudge_loop_verts: set[BMVert] = set()
-        self._nudge_loop_elected: bool = False
-        self._nudge_stroke_dir_2d: 'Vector | None' = None  # locked at election time
-        self._nudge_vert_tangents: dict[BMVert, Vector] = {}  # locked at election or first encounter
+        self.nudge_loop_elected: bool = False
+        self.nudge_stroke_dir_2d: 'Vector | None' = None  # locked at election time
+        self.nudge_vert_tangents: dict[BMVert, Vector] = {}  # locked at election or first encounter
 
         # Spatial accel over all non-hidden retopo verts for O(1) corner-occupant lookup.
         # Only built when feature snapping is active
@@ -199,8 +199,8 @@ class Tweak_Logic(SourceSnapMixin):
         self.vert_accel : 'Accel | None' = Accel(context, all_verts, self.matrix_world) if all_verts else None
 
         # Cache mesh-wide edge-mark presence so per-vert checks in sweeps don't scan all edges.
-        self._has_any_seam  = any(bme.seam for bme in self.bm.edges)
-        self._has_any_sharp = any(not bme.smooth for bme in self.bm.edges)
+        self.has_any_seam  = any(bme.seam for bme in self.bm.edges)
+        self.has_any_sharp = any(not bme.smooth for bme in self.bm.edges)
 
         self.collect_verts(context, event)
 
@@ -231,7 +231,7 @@ class Tweak_Logic(SourceSnapMixin):
 
     def collect_verts(self, context, event):
         self.verts = []
-        self._active_island = None  # set below when isolating to one island
+        self.active_island = None  # set below when isolating to one island
         self.mouse = Vector(mouse_from_event(event))
         self.mouse_prev = self.mouse.copy()
 
@@ -366,8 +366,8 @@ class Tweak_Logic(SourceSnapMixin):
         # Keep focused on one mesh island at a time to prevent spillover unless "All Islands" masking option is on.
         if self.verts_filtered and not self.include_opt('all_islands'):
             nearest = min(self.verts_filtered, key=lambda v: ((M @ v.co) - brush_center_world).length_squared)
-            self._active_island = self.flood_island(nearest)
-            self.verts_filtered = [bmv for bmv in self.verts_filtered if bmv in self._active_island]
+            self.active_island = self.flood_island(nearest)
+            self.verts_filtered = [bmv for bmv in self.verts_filtered if bmv in self.active_island]
 
         self.verts = [
             (
@@ -408,7 +408,7 @@ class Tweak_Logic(SourceSnapMixin):
         M = self.matrix_world
         mouse_2d = self.mouse
         stroke_dir_2d = delta.normalized()
-        self._nudge_stroke_dir_2d = stroke_dir_2d  # lock direction for the whole stroke
+        self.nudge_stroke_dir_2d = stroke_dir_2d  # lock direction for the whole stroke
 
         # Score: (1 - parallelism with stroke) / (screen-space distance to edge + 1).
         # High score = edge runs perpendicular to stroke AND is close to the mouse.
@@ -437,7 +437,7 @@ class Tweak_Logic(SourceSnapMixin):
             best_edge = max(scored, key=lambda se: se[0])[1]
         else:
             scored.sort(key=lambda se: -se[0])
-            for _score, bme in scored:
+            for score, bme in scored:
                 if self.is_bmvert_hidden(bme.verts[0]) or self.is_bmvert_hidden(bme.verts[1]): continue
                 best_edge = bme
                 break
@@ -471,8 +471,8 @@ class Tweak_Logic(SourceSnapMixin):
         # Precompute a locked slide tangent for every loop vert from stable (pre-movement)
         # positions.  The tangent is the cross-edge direction (perpendicular to the loop)
         # derived from local loop geometry so curved loops work correctly.
-        self._nudge_vert_tangents.clear()
-        def _best_tangent_3d(bmv_):
+        self.nudge_vert_tangents.clear()
+        def best_tangent_3d(bmv_):
             # Build local loop tangent from this vert's loop-direction neighbors.
             loop_nbs_ = [bme_.other_vert(bmv_) for bme_ in bmv_.link_edges
                          if not bme_.other_vert(bmv_).hide
@@ -502,9 +502,9 @@ class Tweak_Logic(SourceSnapMixin):
                     best_t3d_ = d3d_n_  # sign is irrelevant: projection handles direction
             return best_t3d_
         for bmv_ in loop_verts:
-            t3d_ = _best_tangent_3d(bmv_)
+            t3d_ = best_tangent_3d(bmv_)
             if t3d_ is not None:
-                self._nudge_vert_tangents[bmv_] = t3d_
+                self.nudge_vert_tangents[bmv_] = t3d_
 
     def nudge_companion_verts(self, reach: float) -> 'set[BMVert]':
         ''' The elected loop plus every vert within `reach` of it from walking along mesh edges.
@@ -549,37 +549,25 @@ class Tweak_Logic(SourceSnapMixin):
         return p.xy if p else None
 
     def raycast_capped(self, context, bmv, screen_xy):
-        ''' Screen space project bmv onto the source, with protections for snapping to far away surfaces.
-        Returns a local-space co, or None. '''
-        M = self.matrix_world
-        hit = raycast_valid_sources(context, screen_xy, respect_clip_planes=True)
-        cur_world = M @ bmv.co
-        if hit:
-            cap = self.brush.get_scaled_radius()
-            if cap <= 0 or (Vector(hit['co_world']) - cur_world).length <= cap:
-                return hit['co_local']
-        # Fall back to nearest-surface projection at the vert's current view depth.
-        co_plane = region_2d_to_location_3d(context.region, context.region_data, screen_xy, cur_world)
-        if co_plane:
-            snapped = nearest_point_valid_sources(
-                context, point_to_bvec3(co_plane), world=True, sources=self.sources, respect_clip_planes=True
-            )
-            if snapped:
-                return self.matrix_world_inv @ snapped
-        # Nothing better available: keep the raw hit if there was one, else signal no-move.
-        return hit['co_local'] if hit else None
+        ''' Screen space project bmv onto the source, capped at one brush radius so a vert
+        whose screen point slides off the foreground silhouette doesn't teleport onto a far
+        background object.  Returns a local-space co, or None. '''
+        return raycast_point_capped_valid_sources(
+            context, screen_xy, self.matrix_world @ bmv.co,
+            cap=self.brush.get_scaled_radius(), sources=self.sources,
+        )
 
 
     # -------------------------------------------------------------------------
     # Masking helpers (used by nudge / pinch sweeps)
     # -------------------------------------------------------------------------
 
-    def _is_vert_excluded(self, bmv: BMVert, *, ignore_occluded: bool = False) -> bool:
+    def is_vert_excluded(self, bmv: BMVert, *, ignore_occluded: bool = False) -> bool:
         ''' True if bmv must not be moved by a sweep (replicates EXCLUDE/ONLY/corner filters
         from collect_verts so that nudge and pinch respect the same masking as GRAB).
         ignore_occluded skips only the occlusion test, for verts that move as a unit,
         i.e. a nudged loop and its neighbors. '''
-        if self._active_island is not None and bmv not in self._active_island:
+        if self.active_island is not None and bmv not in self.active_island:
             return True
         if self.mask_opt('selected') == 'ONLY' and not bmv.select:
             return True
@@ -598,9 +586,9 @@ class Tweak_Logic(SourceSnapMixin):
                 return True
             if self.bm.edges.layers.float.get('crease_edge') and is_bmvert_on_edgemark(self.bm, bmv, BMMarking.crease):
                 return True
-        if self.mask_opt('seams') == 'EXCLUDE' and self._has_any_seam and is_bmvert_on_edgemark(self.bm, bmv, BMMarking.seam):
+        if self.mask_opt('seams') == 'EXCLUDE' and self.has_any_seam and is_bmvert_on_edgemark(self.bm, bmv, BMMarking.seam):
             return True
-        if self.mask_opt('sharps') == 'EXCLUDE' and self._has_any_sharp and is_bmvert_on_edgemark(self.bm, bmv, BMMarking.sharp):
+        if self.mask_opt('sharps') == 'EXCLUDE' and self.has_any_sharp and is_bmvert_on_edgemark(self.bm, bmv, BMMarking.sharp):
             return True
         if self.mask_opt('angle') == 'EXCLUDE' and self.angle_verts and bmv in self.angle_verts:
             return True
@@ -621,7 +609,7 @@ class Tweak_Logic(SourceSnapMixin):
                 return True
         return False
 
-    def _apply_slide_constraints(self, bmv: BMVert, new_co: Vector) -> Vector:
+    def apply_slide_constraints(self, bmv: BMVert, new_co: Vector) -> Vector:
         ''' Snap new_co (local space) onto the nearest feature mark if bmv is a SLIDE vert. '''
         if self.mask_opt('boundary') == 'SLIDE' and bmv in self.boundary_verts:
             if self.boundary_accel:
@@ -650,7 +638,7 @@ class Tweak_Logic(SourceSnapMixin):
                     return p
         return new_co
 
-    def _apply_mirror_clip(self, context, bmv: BMVert, new_co: Vector) -> Vector:
+    def apply_mirror_clip(self, context, bmv: BMVert, new_co: Vector) -> Vector:
         ''' Apply mirror plane clamping to new_co (local space). Uses bmv.co as the
         reference side so verts that start on a mirror plane stay on it. '''
         if not self.mirror:
@@ -713,7 +701,7 @@ class Tweak_Logic(SourceSnapMixin):
         grabbed_promoted = promoted & members
         return not grabbed_promoted or any(v in self.verts_near_source_edge for v in grabbed_promoted)
 
-    def _update_source_context(self):
+    def update_source_context(self):
         ''' Recompute which grabbed verts lie near the feature, re-label local feature runs, and
         re-derive one promoted guide loop per run (union across loops feeds the mixin and drawing).
         Called once per mouse-move event since positions have changed. '''
@@ -732,7 +720,7 @@ class Tweak_Logic(SourceSnapMixin):
     def snap_grabbed_set(self):
         return {t[0] for t in self.verts}
 
-    def _push_crowded_edge_neighbors(self, context, stroke_disp_2d):
+    def push_crowded_edge_neighbors(self, context, stroke_disp_2d):
         ''' After grabbed verts have moved, check every snapped vert's direct neighbors.
         If a neighbor is also on the source edge and too close, push it off the edge perpendicularly '''
         if not self.source_edge_accel: return
@@ -805,7 +793,7 @@ class Tweak_Logic(SourceSnapMixin):
 
         is_nudge_loops = (
             getattr(self.tweak, 'brush_type', 'GRAB') == 'NUDGE'
-            and (getattr(self.tweak, 'nudge_loops', False) ^ self._nudge_loops_alt_flip)
+            and (getattr(self.tweak, 'nudge_loops', False) ^ self.nudge_loops_alt_flip)
         )
         # Nudge+Loops sweeps self.bm.verts directly so it works even with an empty brush.
         if not self.verts and not is_nudge_loops: return
@@ -821,9 +809,9 @@ class Tweak_Logic(SourceSnapMixin):
         # Recompute which verts are near the feature and refresh the guide loop election.
         # Vert positions have just changed, so this must run before the per-vert snap.
         if self.source_edge_accel:
-            self._update_source_context()
+            self.update_source_context()
 
-        # Snapshot world positions before moving anything so _smudge_sweep can
+        # Snapshot world positions before moving anything so smudge_sweep can
         # compute per-frame displacement (not accumulated stroke displacement).
         pre_frame_world: dict[BMVert, Vector] = {
             bmv: M @ bmv.co for bmv, *_ in self.verts if bmv.is_valid
@@ -831,8 +819,8 @@ class Tweak_Logic(SourceSnapMixin):
 
         is_nudge         = getattr(self.tweak, 'brush_type', 'GRAB') == 'NUDGE'
         is_pinch_magnify = getattr(self.tweak, 'brush_type', 'GRAB') == 'PINCH_MAGNIFY'
-        _mode_is_pinch   = getattr(self.tweak, 'pinch_magnify_mode', 'MAGNIFY') == 'PINCH'
-        is_pinch         = is_pinch_magnify and (_mode_is_pinch ^ self._pinch_ctrl_flip)
+        mode_is_pinch   = getattr(self.tweak, 'pinch_magnify_mode', 'MAGNIFY') == 'PINCH'
+        is_pinch         = is_pinch_magnify and (mode_is_pinch ^ self.pinch_ctrl_flip)
 
         for (bmv, co_orig, xy, strength) in self.verts:
             effective_strength = 0.0 if (is_nudge or is_pinch_magnify) else strength
@@ -917,12 +905,12 @@ class Tweak_Logic(SourceSnapMixin):
             # Loops mode: defer election to the first meaningful movement so stroke direction
             # is known and the most parallel nearby edge can be scored.
             if (
-                (getattr(self.tweak, 'nudge_loops', False) ^ self._nudge_loops_alt_flip)
-                and not self._nudge_loop_elected
+                (getattr(self.tweak, 'nudge_loops', False) ^ self.nudge_loops_alt_flip)
+                and not self.nudge_loop_elected
                 and delta.length > 3.0
             ):
                 self.elect_nudge_loop(context, delta)
-                self._nudge_loop_elected = True
+                self.nudge_loop_elected = True
             # Compute 3D displacement: raycast both the current and previous mouse positions
             # onto the source surface and take the difference as the true 3D brush motion.
             delta_3d: 'Vector | None' = None
@@ -935,12 +923,12 @@ class Tweak_Logic(SourceSnapMixin):
                 spike = world_per_px > 0.0 and d3.length > delta.length * world_per_px * 3.0
                 if d3.length > 1e-8 and not spike:
                     delta_3d = d3
-            self._smudge_sweep(context, mouse, delta, delta_3d, pressure, pre_frame_world)
+            self.smudge_sweep(context, mouse, delta, delta_3d, pressure, pre_frame_world)
         elif is_pinch_magnify:
-            self._pinch_magnify_sweep(context, mouse, delta, pressure, is_pinch=is_pinch)
+            self.pinch_magnify_sweep(context, mouse, delta, pressure, is_pinch=is_pinch)
 
         if self.source_edge_accel:
-            self._push_crowded_edge_neighbors(context, mouse - self.mouse)
+            self.push_crowded_edge_neighbors(context, mouse - self.mouse)
 
         # Live relax as the brush moves based on comparing stroke len to avg edge len
         relax_factor = float(getattr(self.tweak, 'post_relax_steps', 0.0))
@@ -949,13 +937,13 @@ class Tweak_Logic(SourceSnapMixin):
             threshold_px = self.relax_step_px * 0.05 / relax_factor
             while self.relax_accum_px >= threshold_px:
                 self.relax_accum_px -= threshold_px
-                self._do_relax_step(context)
+                self.do_relax_step(context)
 
         bmesh.update_edit_mesh(self.em)
         # context.area.tag_redraw()
         self.mouse_prev = mouse
 
-    def _smudge_sweep(self, context, mouse: Vector, delta: Vector, delta_3d: 'Vector | None', pressure: float, pre_frame_world: 'dict[BMVert, Vector]'):
+    def smudge_sweep(self, context, mouse: Vector, delta: Vector, delta_3d: 'Vector | None', pressure: float, pre_frame_world: 'dict[BMVert, Vector]'):
         ''' Nudge-style smear: every vert under the brush is pushed in the 3D stroke
         direction this frame, snapped back onto the source mesh via nearest-point projection.
         - Smooth-step falloff (t²(3-2t)) for a rounded profile.
@@ -973,8 +961,8 @@ class Tweak_Logic(SourceSnapMixin):
         # In Loops mode use the direction locked at election time so the loop slides
         # in a straight line regardless of how the brush moves after the first tick.
         stroke_dir_2d = (
-            self._nudge_stroke_dir_2d
-            if (self.nudge_loop_verts and self._nudge_stroke_dir_2d is not None)
+            self.nudge_stroke_dir_2d
+            if (self.nudge_loop_verts and self.nudge_stroke_dir_2d is not None)
             else delta.normalized()
         )
 
@@ -998,7 +986,7 @@ class Tweak_Logic(SourceSnapMixin):
             # The elected loop and the verts beside it move even where they dip behind the source.
             # Occlusion gates which loop gets elected, not which verts follow it.
             is_loop_vert = bmv in self.nudge_loop_verts
-            if self._is_vert_excluded(bmv, ignore_occluded=(is_loop_vert or bmv in companions)):
+            if self.is_vert_excluded(bmv, ignore_occluded=(is_loop_vert or bmv in companions)):
                 continue
 
             if self.nudge_loop_verts:
@@ -1036,7 +1024,7 @@ class Tweak_Logic(SourceSnapMixin):
                 # Loops mode: use the 3D tangent locked at election time (loop verts) or cached on
                 # first encounter (surrounding verts).  Never recompute from live positions —
                 # that caused diagonal-stroke flipping as edges drifted between frames.
-                tangent_3d = self._nudge_vert_tangents.get(bmv)
+                tangent_3d = self.nudge_vert_tangents.get(bmv)
                 if tangent_3d is None:
                     # First time this vert enters the brush: compute and lock from stable positions.
                     best_t3d_c: 'Vector | None' = None
@@ -1100,7 +1088,7 @@ class Tweak_Logic(SourceSnapMixin):
                                         best_t3d_c = d3d_c / d3d_c.length
 
                     if best_t3d_c is not None:
-                        self._nudge_vert_tangents[bmv] = best_t3d_c
+                        self.nudge_vert_tangents[bmv] = best_t3d_c
                         tangent_3d = best_t3d_c
                 if tangent_3d is not None:
                     proj_3d = delta_3d.dot(tangent_3d)
@@ -1118,11 +1106,11 @@ class Tweak_Logic(SourceSnapMixin):
             if new_pt is None:
                 continue
             new_co = self.matrix_world_inv @ new_pt
-            new_co = self._apply_slide_constraints(bmv, new_co)
-            new_co = self._apply_mirror_clip(context, bmv, new_co)
+            new_co = self.apply_slide_constraints(bmv, new_co)
+            new_co = self.apply_mirror_clip(context, bmv, new_co)
             bmv.co = new_co
 
-    def _pinch_magnify_sweep(self, context, mouse: Vector, delta: Vector, pressure: float, is_pinch: bool):
+    def pinch_magnify_sweep(self, context, mouse: Vector, delta: Vector, pressure: float, is_pinch: bool):
         ''' Pinch/Magnify: every vert under the brush is pulled toward (Pinch) or pushed
         away from (Magnify) the brush center in screen space each frame, then raycasted
         back onto the source mesh.  Movement magnitude scales with mouse speed (delta.length),
@@ -1153,7 +1141,7 @@ class Tweak_Logic(SourceSnapMixin):
         for bmv in self.bm.verts:
             if bmv.hide or not bmv.is_valid:
                 continue
-            if self._is_vert_excluded(bmv):
+            if self.is_vert_excluded(bmv):
                 continue
             dist = (M @ bmv.co - brush_centre_world).length
             if dist > radius3D:
@@ -1194,11 +1182,11 @@ class Tweak_Logic(SourceSnapMixin):
             new_co = self.raycast_capped(context, bmv, cur_2d + push_2d)
             if new_co is None:
                 continue
-            new_co = self._apply_slide_constraints(bmv, new_co)
-            new_co = self._apply_mirror_clip(context, bmv, new_co)
+            new_co = self.apply_slide_constraints(bmv, new_co)
+            new_co = self.apply_mirror_clip(context, bmv, new_co)
             bmv.co = new_co
 
-    def _do_relax_step(self, context):
+    def do_relax_step(self, context):
         ''' Run one Relax iteration on grabbed verts + expanded neighbours.
         Centre verts are excluded and outer verts get full strength. '''
         if not self.verts:

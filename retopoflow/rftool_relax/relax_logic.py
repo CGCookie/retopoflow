@@ -405,7 +405,7 @@ class Relax_Logic(FeatureRunsMixin):
         self.run_segments = {}
         self.run_of_seg = {}
         self.demoted_by_runs = {}
-        self._vert_seed_seg = {}
+        self.vert_seed_seg = {}
         self.verts_near_source_edge = {}
         self.snapped_verts = set()
 

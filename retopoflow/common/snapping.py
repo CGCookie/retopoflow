@@ -99,7 +99,7 @@ class FeatureRunsMixin:
     demoted_by_runs        : dict  = {}    # demoted BMVert -> run ids of the loops that demoted it
     guide_loop_seeds       : list  = []    # [(v0, v1)] persisted seed edges, one loop each
     verts_near_source_edge : dict  = {}    # BMVert -> local diff to nearest feature
-    _vert_seed_seg         : dict  = {}    # BMVert -> nearest source segment index (proximity-only)
+    vert_seed_seg         : dict  = {}    # BMVert -> nearest source segment index (proximity-only)
 
     # ------------------------------------------------------------------ knobs
 
@@ -143,7 +143,7 @@ class FeatureRunsMixin:
         source edge, length = distance to edge. Also records each vert's nearest segment index
         as a run labeling seed. '''
         result = {}
-        self._vert_seed_seg = {}
+        self.vert_seed_seg = {}
         if not self.source_edge_accel:
             return result
         Mi = self.matrix_world_inv
@@ -157,7 +157,7 @@ class FeatureRunsMixin:
             dist = diff.length
             if dist * self.scale_avg <= self.snap_proximity_world(bmv):
                 # Seeds feed the run labeling and deliberately skip the normal-facing gate below
-                self._vert_seed_seg[bmv] = seg_idx
+                self.vert_seed_seg[bmv] = seg_idx
                 if dist < 1e-8 or (diff / dist).dot(bmv.normal) > 0.3:
                     result[bmv] = diff
         return result
@@ -169,17 +169,17 @@ class FeatureRunsMixin:
         self.vert_feature_run = {}
         self.run_segments = {}
         self.run_of_seg = {}
-        if not self.source_edge_accel or not self._vert_seed_seg:
+        if not self.source_edge_accel or not self.vert_seed_seg:
             return
-        avg_lens = [get_bmv_avg_edge_len(v) for v in self._vert_seed_seg if v.link_edges]
+        avg_lens = [get_bmv_avg_edge_len(v) for v in self.vert_seed_seg if v.link_edges]
         if not avg_lens:
             return
         margin_world = max(
             (sum(avg_lens) / len(avg_lens)) * self.scale_avg * FEATURE_RUN_MARGIN_FACTOR,
             self.feature_run_extra_margin(),
         )
-        self.run_of_seg, self.run_segments = self.source_edge_accel.local_runs(set(self._vert_seed_seg.values()), margin_world)
-        self.vert_feature_run = {v: self.run_of_seg[s] for v, s in self._vert_seed_seg.items() if s in self.run_of_seg}
+        self.run_of_seg, self.run_segments = self.source_edge_accel.local_runs(set(self.vert_seed_seg.values()), margin_world)
+        self.vert_feature_run = {v: self.run_of_seg[s] for v, s in self.vert_seed_seg.items() if s in self.run_of_seg}
 
     def feature_run_at(self, v):
         ''' Run id of the feature v currently rides, by proximity alone, or None. Deliberately

@@ -39,7 +39,7 @@ from ..common.bmesh_maths import is_bmvert_hidden
 from ..common.operator import execute_operator, RFOperator, RFKeyMaps
 from ..common.raycast import (
     raycast_valid_sources,
-    raycast_point_valid_sources,
+    raycast_point_capped_valid_sources,
     mouse_from_event,
     nearest_point_valid_sources,
     nearest_normal_valid_sources,
@@ -488,10 +488,11 @@ class RFOperator_Translate(SourceSnapMixin, RFOperator):
                 factor = 1
 
             if self.snap_method == 'PROJECTED':
-                co = raycast_point_valid_sources(context, co2d_orig + delta * factor, world=False, respect_clip_planes=True)
-                if not co:
-                    co_world = region_2d_to_location_3d(context.region, context.region_data, co2d_orig + delta * factor, self.last_success[bmv])
-                    co = nearest_point_valid_sources(context, co_world, world=False, respect_clip_planes=True)
+                # No far-hit cap here, so this is the plain raycast with a nearest surface at current depth fallback.
+                co = raycast_point_capped_valid_sources(
+                    context, co2d_orig + delta * factor, self.matrix_world @ self.last_success[bmv],
+                    respect_clip_planes=True,
+                )
                 if not co:
                     co = self.last_success[bmv]
             elif self.snap_method == 'NEAREST':
