@@ -20,7 +20,7 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
-from bpy.types import Context, Event, UILayout, WorkSpaceTool
+from bpy.types import Context, Event, UILayout, WorkSpaceTool, OperatorProperties
 from mathutils import Vector
 
 from ..rfglobals import RFGlobals
@@ -343,7 +343,7 @@ class RFTool_PolyPen(RFTool_Base):
     rf_supports_curve_handles : bool = True
     rf_overlay : type[RFOverlay_Base] | None = RFOperator_PolyPen_Overlay
 
-    props = None  # needed to reset properties
+    props : OperatorProperties | None = None  # needed to reset properties
 
     bl_keymap : BLKeyMaps = chain_rf_keymaps(
         RFOperator_PolyPen,

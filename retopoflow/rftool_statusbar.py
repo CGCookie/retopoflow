@@ -32,6 +32,7 @@ from bpy.types import Context, Header, UILayout, KeyMapItem
 import platform
 
 from .rfglobals import RFGlobals
+from .common.bpy_helper import BL_EVENT_TYPES, BL_ICONS
 from .common.icons import Icon
 from .common.accel import SourceCache
 from ..addon_common.common.useractions import blenderop_to_kmis, kmi_to_op_properties
@@ -375,6 +376,17 @@ SHARED_STATUSBAR_KEYMAPS__POST_TOOL = (
 # MARK: Draw Statusbar
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ #
 
+EVENT_TYPE_ICONS : dict[BL_EVENT_TYPES, BL_ICONS] = {
+    'EQUAL':        'EVENT_EQUAL',
+    'ESC':          'EVENT_ESC',
+    'NUMPAD_PLUS':  'EVENT_PADPLUS',
+    'NUMPAD_MINUS': 'EVENT_PADMINUS',
+    'LEFT_ARROW':   'EVENT_LEFT_ARROW',
+    'RIGHT_ARROW':  'EVENT_RIGHT_ARROW',
+    'UP_ARROW':     'EVENT_UP_ARROW',
+    'DOWN_ARROW':   'EVENT_DOWN_ARROW',
+}
+
 def draw_rftool_statusbar(statusbar: Header, context: Context, tool: type[RFTool_Base]):
     RFCore = RFGlobals.RFCore_None
     if not RFCore: return
@@ -431,13 +443,14 @@ def draw_rftool_statusbar(statusbar: Header, context: Context, tool: type[RFTool
     for km in tool.bl_keymap:
         op_id, km_event, op_props = km
         if op_props is None: continue
-        if 'km_context' not in op_props: continue
-        if isinstance(op_props['km_context'], (tuple, list)):
-            if km_context not in op_props['km_context']:
-                continue
-        else:
-            if op_props['km_context'] != km_context:
-                continue
+
+        if 'km_context' in op_props:
+            if isinstance(op_props['km_context'], (tuple, list)):
+                if km_context not in op_props['km_context']:
+                    continue
+            else:
+                if op_props['km_context'] != km_context:
+                    continue
 
         km_poll = op_props.get('km_poll', None)
         if isinstance(km_poll, Callable) and not km_poll(context): continue
@@ -465,6 +478,7 @@ def draw_rftool_statusbar(statusbar: Header, context: Context, tool: type[RFTool
         if not isinstance(statusbar_event_value, str):
             statusbar_event_value = event_value
 
+
         for mod_key in ('ctrl', 'shift', 'alt'):
             if mod_key in km_event and bool(km_event[mod_key]) or f'LEFT_{mod_key.upper()}' == event_type:
                 row.label(text='', icon=f'EVENT_{mod_key.upper()}') # pyright: ignore[reportArgumentType]
@@ -473,9 +487,12 @@ def draw_rftool_statusbar(statusbar: Header, context: Context, tool: type[RFTool
                     row.separator(factor=1.5)
                 elif mod_key == 'alt':
                     row.separator(factor=1)
+
+
         if len(event_type) == 1 and 'A' <= event_type <= 'Z':
             row.label(text='', icon=f'EVENT_{event_type.upper()}') # pyright: ignore[reportArgumentType]
-        if event_type.endswith('MOUSE') and not event_type.startswith(('M', 'W')):
+
+        elif event_type.endswith('MOUSE') and not event_type.startswith(('M', 'W')):
             mouse_button_key: str = event_type[0].upper() # L->'LMB', M->'MMB', R->'RMB'
             icon = f'MOUSE_{mouse_button_key}MB'
             if statusbar_event_value == 'DOUBLE_CLICK' and mouse_button_key == 'L':
@@ -487,12 +504,17 @@ def draw_rftool_statusbar(statusbar: Header, context: Context, tool: type[RFTool
             elif statusbar_event_value == 'CLICK_DRAG':
                 icon += '_DRAG'
             row.label(text='', icon=icon) # pyright: ignore[reportArgumentType]
-        if 'WHEEL' in event_type:
+
+        elif 'WHEEL' in event_type:
             if bpy.app.version >= (4, 3, 0):
                 # MOUSE_MMB_SCROLL did not show up until Blender 4.3
                 # https://docs.blender.org/api/4.2/bpy_types_enum_items/icon_items.html
                 # https://docs.blender.org/api/4.3/bpy_types_enum_items/icon_items.html
                 row.label(text='', icon='MOUSE_MMB_SCROLL')
+
+        elif event_type in EVENT_TYPE_ICONS:
+            row.label(text='', icon=EVENT_TYPE_ICONS[event_type])
+
 
         # Extra alternative keys grouped under this one label
         for extra_icon in op_props.get('km_extra_icons', []):

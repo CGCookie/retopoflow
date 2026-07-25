@@ -127,9 +127,9 @@ def _reset_kmi_properties(
         if not isinstance(val, dict):
             setattr(kmi_props, key, val)
 
-        elif (p := getattr(kmi_props, key, None)):
+        elif (prop := getattr(kmi_props, key, None)):
             for (k, v) in val.items(): # pyright: ignore[reportUnknownVariableType]
-                setattr(p, k, v)
+                setattr(prop, k, v)
 
 def _override_kmi_properties(
     keymap : KeyMap,

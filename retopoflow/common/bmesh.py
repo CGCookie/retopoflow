@@ -23,13 +23,14 @@ import bpy
 import bmesh
 import heapq
 from bpy.types import Mesh, Context, MirrorModifier
-from bmesh.types import BMVert, BMEdge, BMFace, BMesh
+from bmesh.types import BMVert, BMEdge, BMFace, BMesh, BMLayerCollection, BMLayerItem
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 from mathutils.bvhtree import BVHTree
 from mathutils import Vector, Matrix
+from enum import IntEnum
 from math import inf, isnan, cos, radians
-from typing import Callable, Iterator, Sequence
-from collections.abc import Sequence
+from typing import cast, override, TypeVar, TypeAlias, Generic
+from collections.abc import Sequence, Iterator, Callable
 
 from ...addon_common.common.decorators import add_cache
 from ...addon_common.common import bmesh_ops as bmops
@@ -113,13 +114,94 @@ def clear_object_bmesh():
     except Exception:
         pass
 
-def clean_select_layers(bm):
-    if 'rf_vert_select_after_move' in bm.verts.layers.int:
-        bm.verts.layers.int.remove(bm.verts.layers.int.get('rf_vert_select_after_move'))
-    if 'rf_edge_select_after_move' in bm.edges.layers.int:
-        bm.edges.layers.int.remove(bm.edges.layers.int.get('rf_edge_select_after_move'))
-    if 'rf_face_select_after_move' in bm.faces.layers.int:
-        bm.faces.layers.int.remove(bm.faces.layers.int.get('rf_face_select_after_move'))
+
+def clean_select_layers(bm : BMesh):
+    def del_int_layer(
+        layers : BMLayerCollection, # pyright: ignore[reportMissingTypeArgument, reportUnknownParameterType]
+        name : str,
+    ):
+        if isinstance(layer := layers.get(name), BMLayerItem):
+            layers.remove(layer)
+    del_int_layer(bm.verts.layers.int, 'rf_vert_select_after_move')
+    del_int_layer(bm.edges.layers.int, 'rf_edge_select_after_move')
+    del_int_layer(bm.faces.layers.int, 'rf_face_select_after_move')
+
+
+class BMVertLayer_Int:
+    bm : BMesh
+    layer : BMLayerItem
+
+    @staticmethod
+    def remove(bm : BMesh, layer_name : str):
+        layers = bm.verts.layers.int
+        if isinstance(layer := layers.get(layer_name), BMLayerItem):
+            layers.remove(layer)
+
+    def __init__(self, bm : BMesh, layer_name : str):
+        self.bm = bm
+        layers = bm.verts.layers.int
+        if layer_name not in layers:
+            layer = layers.new(layer_name)
+        else:
+            layer = layers[layer_name]
+        assert isinstance(layer, BMLayerItem)
+        self.layer = layer
+
+    def __iter__(self) -> Iterator[tuple[BMVert, int]]:
+        layer = self.layer
+        for bmv in self.bm.verts:
+            yield (bmv, cast(int, cast(object, bmv[layer])))
+
+    def __getitem__(self, bmv : BMVert) -> int:
+        return cast(int, cast(object, bmv[self.layer]))
+
+    def __setitem__(self, bmv : BMVert, val : int):
+        bmv[self.layer] = val
+
+
+IE = TypeVar('IE', bound=IntEnum)
+
+class BMVertLayer_IntEnum(Generic[IE]):
+    bm : BMesh
+    layer : BMLayerItem
+    enum_cls : type[IE]
+    default : IE
+
+    @staticmethod
+    def remove(bm : BMesh, layer_name : str):
+        layers = bm.verts.layers.int
+        if isinstance(layer := layers.get(layer_name), BMLayerItem):
+            layers.remove(layer)
+
+    def __init__(self, bm : BMesh, layer_name : str, enum_cls : type[IE], default : IE):
+        self.bm = bm
+        layers = bm.verts.layers.int
+        if layer_name not in layers:
+            layer = layers.new(layer_name)
+        else:
+            layer = layers[layer_name]
+        assert isinstance(layer, BMLayerItem)
+        self.layer = layer
+        self.enum_cls = enum_cls
+        self.default = default
+
+    def __iter__(self) -> Iterator[tuple[BMVert, IE]]:
+        layer = self.layer
+        enum_cls = self.enum_cls
+        for bmv in self.bm.verts:
+            yield (bmv, enum_cls(cast(int, cast(object, bmv[layer]))))
+
+    def __getitem__(self, bmv: BMVert) -> IE:
+        val = cast(int, cast(object, bmv[self.layer]))
+        try:
+            return self.enum_cls(val)
+        except ValueError:
+            return self.default
+
+    def __setitem__(self, bmv : BMVert, val : IE):
+        bmv[self.layer] = val
+
+
 
 
 @add_cache('triangle_inds', [])
