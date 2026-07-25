@@ -34,7 +34,7 @@ from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 
 from ..common.accel import EdgeMarkAccel, SourceAccel, Accel, SourceCache
-from ..common.snapping import source_snap_radius, source_snap_settings, FEATURE_RUN_MARGIN_FACTOR
+from ..common.snapping import FeatureRunsMixin, source_snap_radius, source_snap_settings
 from ..common.bmesh import (
     get_bmesh_emesh, is_bmedge_boundary, is_bmvert_boundary, is_bmvert_corner, is_bmvert_on_ngon,
     bmv_is_interior, bme_midpoint, bmf_midpoint,
@@ -97,7 +97,7 @@ class RelaxOptions:
     source_edge_guide_loops: float = 1.0
 
 
-class Relax_Logic:
+class Relax_Logic(FeatureRunsMixin):
     bm : BMesh
     em : Mesh
     matrix_world : Matrix
@@ -137,11 +137,7 @@ class Relax_Logic:
     source_sharp_proximity : float
     source_use_fixed : bool
     source_fixed_distance : float
-    promoted_loop_verts : set[BMVert]
-    demoted_verts : set[BMVert]
-    guide_loop_seeds : 'list[tuple[BMVert, BMVert]]'
-    vert_feature_run : 'dict[BMVert, int]'  # near vert -> local feature run id (transient per step)
-    run_segments : 'dict[int, set[int]]'  # run id -> source segment indices
+    # run/guide-loop state (promoted/demoted, vert_feature_run, ...) is declared on FeatureRunsMixin
 
     forward : Vector
     right : Vector
@@ -422,7 +418,6 @@ class Relax_Logic:
         self.initial_setup(context, relax, rf_options=rf_options)
         return self
 
-
     def mask_opt(self, name : str) -> str:
         return str(getattr(self.rf_options, f'mask_{name}', 'INCLUDE'))  # pyright: ignore[reportAny]
     def include_opt(self, name : str) -> bool:
@@ -475,6 +470,37 @@ class Relax_Logic:
 
         return set(filtered)
 
+    def snap_proximity_world(self, bmv):
+        return get_bmv_avg_edge_len(bmv) * self.scale_avg * self.source_sharp_proximity
+
+    def corner_snap_threshold_world(self, bmv, factor):
+        # Corner tests scale the raw avg edge length (no proximity factor), unlike Tweak.
+        return get_bmv_avg_edge_len(bmv) * self.scale_avg * factor
+
+    def feature_run_extra_margin(self):
+        return self.loop_run_margin
+
+    def guide_seed_edges_by_run(self, exclude_runs):
+        run_edges: 'dict[int, list]' = {}
+        for bme in self.guide_candidate_edges:
+            # Election still requires the normal-checked near set while seeds don't.
+            # A loop must never be elected onto a feature on the far side of a thin source.
+            if bme.verts[0] not in self.verts_near_source_edge: continue
+            if bme.verts[1] not in self.verts_near_source_edge: continue
+            r0 = self.vert_feature_run.get(bme.verts[0])
+            if r0 is None or r0 in exclude_runs: continue
+            if self.vert_feature_run.get(bme.verts[1]) != r0: continue
+            run_edges.setdefault(r0, []).append(bme)
+        return run_edges
+
+    def guide_anchor_co_local(self):
+        return (self.matrix_world_inv @ Vector((*self.guide_anchor_world, 1.0))).xyz
+
+    def seed_still_valid(self, gv0, gv1, members):
+        if not super().seed_still_valid(gv0, gv1, members):
+            return False
+        # The seed edge itself must still exist between the two verts.
+        return any(e.other_vert(gv0) is gv1 for e in gv0.link_edges)
 
     def update(self, context:Context, event:Event, *, debug_print:bool=False): #MARK: Update
         match event.type:
@@ -621,6 +647,12 @@ class Relax_Logic:
         weight_mult = (1.0 / enabled_algorithms_count) if enabled_algorithms_count else 0.0
         loops_strength  = getattr(relax, 'source_edge_guide_loops', getattr(context.scene.retopoflow.snapping, 'source_edge_guide_loops', 0.5))
 
+        self.loops_strength = loops_strength
+        self.loop_run_margin = (radius3D or 0.0) * 2.0
+        self.guide_candidate_edges = edges
+        self.guide_anchor_world = brush_center_world
+        self.corner_owner_factor = self.source_sharp_proximity * getattr(relax, 'algorithm_source_corner_proximity', 2.0)
+
         self.verts_near_source_edge = {}
         self.snapped_verts = set()
 
@@ -671,10 +703,7 @@ class Relax_Logic:
             return None
 
         def source_corner_of_vert(bmv, margin):
-            if not self.source_edge_accel: return
-            cr = self.source_edge_accel.find_corner(local_to_world(bmv.co, M))
-            if cr and cr[2] < get_bmv_avg_edge_len(bmv) * self.scale_avg * margin:
-                return cr
+            return self.source_corner_of_vert(bmv, self.corner_snap_threshold_world(bmv, margin))
 
         def get_face_topology(bmf):
             cached = self.face_topology_cache.get(bmf)
@@ -1100,7 +1129,7 @@ class Relax_Logic:
                             target_local = Mi @ Vector(co_corner)
                     # Fall back to the nearest point on the vert's own feature run.
                     if target_local is None:
-                        closest_result = closest_on_own_run(bmv, bmv_world)
+                        closest_result = self.closest_on_own_run(bmv, bmv_world)
                         if not closest_result: continue
                         target_local = Mi @ Vector(closest_result[0])
                     to_target = target_local - bmv.co
@@ -1137,350 +1166,28 @@ class Relax_Logic:
                         continue
                     add_force(bmv, to_edge * loops_strength * -1)
 
-        def collect_verts_near_source_edge() -> 'dict[BMVert, Vector]':
-            # Returns verts and their local space vectors to the closest point on the source edge
-            # length = distance to edge
-            result = {}
-            self._vert_seed_seg = {}
-            if not self.source_edge_accel:
-                return result
-            for bmv in chk_verts:
-                bmv_world = local_to_world(bmv.co, M)
-                if closest := self.source_edge_accel.closest_point_with_index(bmv_world):
-                    if bmv.link_edges:
-                        closest_v, _tangent, seg_idx = closest
-                        diff   = Mi @ Vector(closest_v) - bmv.co
-                        dist   = diff.length
-                        proximity_local_vert = get_bmv_avg_edge_len(bmv) * self.source_sharp_proximity
-                        if dist <= proximity_local_vert:
-                            # Seeds feed the run labeling and deliberately skip the normal-facing gate below.
-                            # On a shallow crease the direction to the feature lies in the surface (dot ~ 0),
-                            # so gating seeds on it leaves the run window patchy and constrained snap targets land on fragment boundaries.
-                            self._vert_seed_seg[bmv] = seg_idx
-                            # Only include verts with normals pointing towards the edge
-                            if dist < 1e-8 or (diff / dist).dot(bmv.normal) > 0.3:
-                                result[bmv] = diff
-            return result
-
-        def refresh_feature_runs():
-            ''' Label locally-connected feature runs around the near verts and tag each near vert
-            with its run id. Locality is geodesic along the feature, so two parallel features or
-            two windings of a spiral one face apart get distinct ids even when close together. '''
-            self.vert_feature_run = {}
-            self.run_segments = {}
-            self.run_of_seg = {}
-            if not self.source_edge_accel or not self._vert_seed_seg:
-                return
-            avg_lens = [get_bmv_avg_edge_len(v) for v in self._vert_seed_seg if v.link_edges]
-            if not avg_lens:
-                return
-            # Cover at least the brush diameter along the feature so promoted verts anywhere under
-            # the brush find their own run's geometry beneath them, however sparse the seeds are.
-            margin_world = max(
-                (sum(avg_lens) / len(avg_lens)) * self.scale_avg * FEATURE_RUN_MARGIN_FACTOR,
-                (radius3D or 0.0) * 2.0,
-            )
-            self.run_of_seg, self.run_segments = self.source_edge_accel.local_runs(set(self._vert_seed_seg.values()), margin_world)
-            self.vert_feature_run = {v: self.run_of_seg[s] for v, s in self._vert_seed_seg.items() if s in self.run_of_seg}
-
-        def feature_run_at(v):
-            ''' Run id of the feature v currently rides, by proximity alone, or None. '''
-            v_run = self.vert_feature_run.get(v)
-            if v_run is not None:
-                return v_run
-            if not self.source_edge_accel or not self.run_of_seg or not v.link_edges:
-                return None
-            v_world = local_to_world(v.co, M)
-            result = self.source_edge_accel.closest_point_with_index(v_world)
-            if not result:
-                return None
-            pt, _tangent, seg_idx = result
-            if (Mi @ Vector(pt) - v.co).length > get_bmv_avg_edge_len(v) * self.source_sharp_proximity * 1.5:
-                return None
-            return self.run_of_seg.get(seg_idx)
-
-        def closest_on_own_run(bmv, co_world):
-            ''' (closest_point, tangent) on bmv's own feature run when it has one, else on the
-            nearest feature. Keeps a vert riding feature A from targeting a parallel feature B. '''
-            run_id = self.vert_feature_run.get(bmv)
-            if run_id is not None:
-                segs = self.run_segments.get(run_id)
-                if segs:
-                    return self.source_edge_accel.closest_point_in_segments(co_world, segs)
-            return self.source_edge_accel.closest_point_with_tangent(co_world)
-
-        def demoted_net_push_world(bmv, co_world_pt, max_dist):
-            ''' Total world space push vector for a demoted vert. Pushed away from every run whose loop
-            demoted it (within max_dist), summed. The attribution is topological and stable, so a
-            vert between two promoted rails settles at the midline instead of being bounced off whichever
-            feature is nearest each step. None = no run attribution, caller falls back to the nearest-feature push. '''
-            runs = self.demoted_by_runs.get(bmv)
-            if not runs: return None
-            total = Vector((0.0, 0.0, 0.0))
-            for run_id in runs:
-                segs = self.run_segments.get(run_id)
-                if not segs: continue
-                result = self.source_edge_accel.closest_point_in_segments(co_world_pt, segs)
-                if not result: continue
-                to_edge = Vector(result[0]) - co_world_pt
-                if 1e-8 < to_edge.length <= max_dist:
-                    total -= to_edge
-            return total
-
-        def is_on_source_corner(v):
-            return source_corner_of_vert(v, margin=0.05) is not None
-
-        def is_on_source_edge(v):
-            # True if v currently lies on (within snap proximity of) a source feature edge.
-            # Lets guide-loop demotion spare verts that legitimately ride a source edge.
-            if not self.source_edge_accel or not v.link_edges:
-                return False
-            if closest_v := self.source_edge_accel.closest_point(local_to_world(v.co, M)):
-                return (Mi @ Vector(closest_v) - v.co).length <= get_bmv_avg_edge_len(v) * self.source_sharp_proximity
-            return False
-
-        def is_loop_continuation(v):
-            if is_on_source_corner(v):
-                return False
-            if any(e.is_boundary for e in v.link_edges):
-                return len(v.link_edges) == 3
-            return len(v.link_edges) == 4 and len(v.link_faces) == 4
-
-        def elect_loop_from_edge(guide_edge, run_id):
-            ''' Walk guide_edge's retopo loop in both directions and return (promoted, demoted) or None.
-            run_id is the loop's feature run so verts riding a different run are never demoted and the
-            rail on a parallel feature one face away keeps its own snap. '''
-            def rides_other_run(v):
-                v_run = feature_run_at(v)
-                if v_run is None:
-                    return False
-                # On some feature with the loop's run unknown: spare, don't risk pushing it off.
-                return run_id is None or v_run != run_id
-
-            v0, v1 = guide_edge.verts[0], guide_edge.verts[1]
-
-            promoted = set()
-            limit = 100
-            def walk_from(cur, prev):
-                while cur not in promoted and len(promoted) < limit:
-                    # The current vert is always part of the loop, including the corner the loop ends on
-                    promoted.add(cur)
-                    if not is_loop_continuation(cur):
-                        break
-                    nxt = get_bmv_next_loop_vert(prev, cur)
-                    if nxt is None:
-                        break
-                    prev, cur = cur, nxt
-
-            walk_from(v0, v1)
-            walk_from(v1, v0)
-            if not promoted:
-                return None  # guide edge sits on a corner/pole
-
-            # Terminal verts are those the walk stopped on, corners, poles, and on source corners
-            terminal_at_corner = {
-                v for v in promoted
-                if not is_loop_continuation(v) and (
-                    not any(e.is_boundary for e in v.link_edges)
-                    or is_on_source_corner(v)
-                )
-            }
-
-            demoted = set()
-            for v in promoted:
-                if v in terminal_at_corner:
-                    # All direct edge-neighbors of the corner are protected
-                    # Face-diagonal verts, those sharing a face but not an edge with the corner, are demoted
-                    all_adj = {bme.other_vert(v) for bme in v.link_edges}
-                    v_is_boundary = any(e.is_boundary for e in v.link_edges)
-                    for bmf in v.link_faces:
-                        if len(bmf.verts) != 4: continue
-                        for fv in bmf.verts:
-                            if fv is v or fv in all_adj: continue
-                            # A vert that itself rides a source edge (e.g. the perpendicular feature
-                            # meeting the loop where it ends at a corner) belongs there, so don't demote it.
-                            if is_bmvert_corner(fv) or rides_other_run(fv) or is_on_source_edge(fv): continue
-                            # When the loop ends at a boundary corner, never demote its fellow boundary verts.
-                            if v_is_boundary and any(e.is_boundary for e in fv.link_edges): continue
-                            demoted.add(fv)
-                else:
-                    # Demote adjacent loop verts not already promoted
-                    for bme in v.link_edges:
-                        nb = bme.other_vert(v)
-                        if nb not in promoted and not rides_other_run(nb) and is_loop_continuation(nb):
-                            demoted.add(nb)
-
-            return promoted, demoted
-
-        def guide_edges_by_run(exclude_runs=frozenset()):
-            ''' Retopo edges whose both endpoints ride the same local feature run, grouped by run.
-            Requiring a shared run keeps a rung spanning two parallel features from seeding a loop
-            perpendicular to them. '''
-            run_edges: 'dict[int, list]' = {}
-            for bme in edges:
-                # Election still requires the normal-checked near set while seeds don't.
-                # A loop must never be elected onto a feature on the far side of a thin source.
-                if bme.verts[0] not in self.verts_near_source_edge: continue
-                if bme.verts[1] not in self.verts_near_source_edge: continue
-                r0 = self.vert_feature_run.get(bme.verts[0])
-                if r0 is None or r0 in exclude_runs: continue
-                if self.vert_feature_run.get(bme.verts[1]) != r0: continue
-                run_edges.setdefault(r0, []).append(bme)
-            return run_edges
-
-        def seed_guide_loops(exclude_runs):
-            ''' Brush mode: pick one seed edge per local feature run not in exclude_runs — the edge
-            whose midpoint is closest to the brush centre. Returns [(guide_edge, run_id), ...]. '''
-            run_edges = guide_edges_by_run(exclude_runs)
-            if not run_edges:
-                return []  # no snapped edge yet; try again next frame
-            co_local = (Mi @ Vector((*brush_center_world, 1.0))).xyz
-            seeds = []
-            for run_id, run_bmes in run_edges.items():
-                guide_edge = min(
-                    run_bmes,
-                    key=lambda e: ((e.verts[0].co + e.verts[1].co) * 0.5 - Vector(co_local)).length,
-                )
-                seeds.append((guide_edge, run_id))
-            return seeds
-
-        def seed_all_guide_loops():
-            ''' Elect one guide loop per local feature run near the selection. Runs replace the old
-            tangent-parallelism clustering, which could not distinguish parallel features. '''
-            run_edges = guide_edges_by_run()
-            if not run_edges:
-                return
-
-            all_promoted = set()
-            all_demoted = set()
-
-            for run_id, component in run_edges.items():
-                # Elect the edge whose midpoint is closest to the component's own centroid
-                comp_center = sum(
-                    ((bme.verts[0].co + bme.verts[1].co) * 0.5 for bme in component),
-                    Vector((0.0, 0.0, 0.0))
-                ) / len(component)
-                guide_edge = min(
-                    component,
-                    key=lambda e: ((e.verts[0].co + e.verts[1].co) * 0.5 - comp_center).length,
-                )
-                result = elect_loop_from_edge(guide_edge, run_id)
-                if result is None:
-                    continue
-                promoted, demoted = result
-                all_promoted.update(promoted)
-                all_demoted.update(demoted)
-                # The loop's run overrides the nearest-feature id for its promoted verts
-                for v in promoted:
-                    self.vert_feature_run[v] = run_id
-                # Remember which runs demoted each vert so the demoted push has a stable,
-                # per-run direction (summed) instead of chasing the nearest feature.
-                for v in demoted:
-                    self.demoted_by_runs.setdefault(v, set()).add(run_id)
-
-            # A vert elected by one loop must not be demoted by another
-            self.promoted_loop_verts = all_promoted
-            self.demoted_verts = all_demoted - all_promoted
-            self.guide_loop_seeds = []
-
         def update_source_context():
             ''' Recompute which verts lie near/on the source edge and re-derive the promoted/demoted guide loops.
             This is position-dependent but only needs to run once per step and not once per RK4 sub-evaluation '''
             if self.source_edge_accel:
-                self.verts_near_source_edge = collect_verts_near_source_edge()
+                self.verts_near_source_edge = self.collect_verts_near_source_edge(chk_verts)
             else:
                 self.verts_near_source_edge = {}
-            refresh_feature_runs()
+            self.refresh_feature_runs()
             self.demoted_by_runs = {}
 
             if loops_strength == 0:
-                self.promoted_loop_verts.clear()
-                self.demoted_verts.clear()
-                self.guide_loop_seeds.clear()
+                self.clear_guide_state()
             elif is_brush_call:
-                # Keep each elected loop's seed edge until it leaves the brush region, but re-derive
-                # promoted/demoted from it each step so a vert that snaps to a source corner mid-stroke is
-                # recognised as a corner for the rest of the stroke.
+                self.update_source_context_brush(chk_verts)
+            else:
+                # Not a brush so recompute every step. One elected loop per local feature run.
                 self.promoted_loop_verts = set()
                 self.demoted_verts = set()
-                kept_seeds = []
-                claimed_runs = set()
-                loops = []
-                for (gv0, gv1) in self.guide_loop_seeds:
-                    seed_bme = next((e for e in gv0.link_edges if e.other_vert(gv0) is gv1), None)
-                    if gv0 not in chk_verts or gv1 not in chk_verts or seed_bme is None:
-                        continue
-                    run_id = self.vert_feature_run.get(gv0)
-                    if run_id is None:
-                        run_id = self.vert_feature_run.get(gv1)
-                    result = elect_loop_from_edge(seed_bme, run_id)
-                    if result is None:
-                        continue
-                    kept_seeds.append((gv0, gv1))
-                    if run_id is not None:
-                        claimed_runs.add(run_id)
-                    loops.append((run_id, *result))
-
-                # Elect a loop for every feature run under the brush that doesn't have one yet.
                 if self.verts_near_source_edge:
-                    for (guide_edge, run_id) in seed_guide_loops(claimed_runs):
-                        result = elect_loop_from_edge(guide_edge, run_id)
-                        if result is None:
-                            continue
-                        kept_seeds.append((guide_edge.verts[0], guide_edge.verts[1]))
-                        claimed_runs.add(run_id)
-                        loops.append((run_id, *result))
+                    self.seed_all_guide_loops()
 
-                self.guide_loop_seeds = kept_seeds
-                for run_id, promoted, demoted in loops:
-                    self.promoted_loop_verts |= promoted
-                    self.demoted_verts |= demoted
-                    # The loop's run overrides the nearest-feature id for its promoted verts.
-                    if run_id is not None:
-                        for v in promoted:
-                            self.vert_feature_run[v] = run_id
-                        # Track which runs demoted each vert. The demoted push sums these stable
-                        # per-run directions instead of chasing the nearest feature.
-                        for v in demoted:
-                            self.demoted_by_runs.setdefault(v, set()).add(run_id)
-                # A vert elected by one loop must not be demoted by another.
-                self.demoted_verts -= self.promoted_loop_verts
-            else:
-                # Not a brush so recompute every step: one elected loop per local feature run.
-                self.promoted_loop_verts.clear()
-                self.demoted_verts.clear()
-                if self.verts_near_source_edge:
-                    seed_all_guide_loops()
-
-            # The vert that owns each source corner demotes the face-mates that are not one step
-            # away, except those that themselves ride a source edge. Usually the diagonal opposite
-            # verts. One vert per corner, otherwise every nearby vert fans demotion across its faces.
-            if self.source_edge_accel and self.promoted_loop_verts and self.verts_near_source_edge:
-                corner_prox_mult = getattr(relax, 'algorithm_source_corner_proximity', 2.0)
-                corner_owner = {}
-                for cv in self.verts_near_source_edge:
-                    corner = source_corner_of_vert(cv, self.source_sharp_proximity * corner_prox_mult)
-                    if not corner: continue
-                    _, corner_idx, dist_corner = corner
-                    if corner_idx not in corner_owner or dist_corner < corner_owner[corner_idx][0]:
-                        corner_owner[corner_idx] = (dist_corner, cv)
-                for _dist, cv in corner_owner.values():
-                    # All direct neighbors of the corner must be protected
-                    all_adj = {bme.other_vert(cv) for bme in cv.link_edges}
-                    cv_is_boundary = any(e.is_boundary for e in cv.link_edges)
-                    cv_run = self.vert_feature_run.get(cv)
-                    for bmf in cv.link_faces:
-                        if len(bmf.verts) != 4: continue  # only meaningful for quads
-                        for fv in bmf.verts:
-                            if fv is cv or fv in all_adj: continue
-                            if fv in self.promoted_loop_verts or is_bmvert_corner(fv) or is_on_source_edge(fv): continue
-                            fv_run = feature_run_at(fv)
-                            if fv_run is not None and (cv_run is None or fv_run != cv_run): continue
-                            # When the owner is a boundary corner, never demote its fellow boundary verts.
-                            if cv_is_boundary and any(e.is_boundary for e in fv.link_edges): continue
-                            self.demoted_verts.add(fv)
-                            if cv_run is not None:
-                                self.demoted_by_runs.setdefault(fv, set()).add(cv_run)
+            self.apply_corner_owner_demotion()
 
         def build_loop_interpolation_cache(bmv, loop_cache):
             ''' The cache stores (P_a, n_a, t, P_b, n_b) tuples with positions
@@ -1836,7 +1543,7 @@ class Relax_Logic:
                     co_pt = point_to_bvec3(co_world.xyz)
                     if apply_edge_snap:
                         # Sticky verts project straight to their own feature run
-                        result = closest_on_own_run(bmv, co_pt)
+                        result = self.closest_on_own_run(bmv, co_pt)
                         if result is not None:
                             co_world_snapped = Vector(result[0])
                         elif bmv_is_interior(bmv):
@@ -1898,7 +1605,7 @@ class Relax_Logic:
                     if self.demoted_verts and bmv in self.demoted_verts:
                         # Demoted vert entered the snap zone so push it back out
                         max_push_dist = snap_avg_edge_len * self.scale_avg * self.source_sharp_proximity
-                        push = demoted_net_push_world(bmv, Vector(co_world_pt), max_push_dist)
+                        push = self.demoted_net_push_world(bmv, Vector(co_world_pt), max_push_dist)
                         if push is not None:
                             if push.length > 1e-8:
                                 co_local_snapped = Mi @ (Vector(co_world_pt) + push * 0.5)
@@ -1916,7 +1623,9 @@ class Relax_Logic:
                         snapped_to_corner = False
                         if corner_result := self.source_edge_accel.find_corner(co_world_pt):
                             co_corner, corner_idx, dist_corner = corner_result
-                            if dist_corner < corner_threshold:
+                            # A vert with a known feature run may only be captured by corners on that run
+                            # A corner of a parallel feature must not grab it.
+                            if dist_corner < corner_threshold and self.corner_allowed_for_vert(bmv, co_corner):
                                 # Only snap to the corner if no direct neighbor is already there.
                                 neighbor_at_corner = any(
                                     vert_to_corner_idx.get(bme.other_vert(bmv)) == corner_idx
@@ -1927,7 +1636,7 @@ class Relax_Logic:
                                     snapped_to_corner = True
                                     self.snapped_verts.add(bmv)
                         if apply_edge_snap and not snapped_to_corner:
-                            if closest_result := closest_on_own_run(bmv, co_world_pt):
+                            if closest_result := self.closest_on_own_run(bmv, co_world_pt):
                                 closest_p = Vector(closest_result[0])
                                 if (closest_p - Vector(co_world_pt)).length <= snap_threshold:
                                     co_local_snapped = Mi @ closest_p
@@ -1948,16 +1657,16 @@ class Relax_Logic:
                     co_world_pt = point_to_bvec3(co_world.xyz)
                     if is_demoted:
                         # Demoted: push away regardless of direction, from every demoting run.
-                        push = demoted_net_push_world(bmv, Vector(co_world_snapped), snap_threshold)
+                        push = self.demoted_net_push_world(bmv, Vector(co_world_snapped), snap_threshold)
                         if push is not None:
                             if push.length > 1e-8:
                                 co_local_snapped = Mi @ (Vector(co_world_snapped) + push * 0.5)
-                        elif closest_result := closest_on_own_run(bmv, co_world_pt):
+                        elif closest_result := self.closest_on_own_run(bmv, co_world_pt):
                             p_vec = Vector(closest_result[0])
                             if (p_vec - co_world_pt).length <= snap_threshold:
                                 to_edge_from_snapped = p_vec - Vector(co_world_snapped)
                                 co_local_snapped = Mi @ (Vector(co_world_snapped) - to_edge_from_snapped * 0.5)
-                    elif closest_result := closest_on_own_run(bmv, co_world_pt):
+                    elif closest_result := self.closest_on_own_run(bmv, co_world_pt):
                         p_vec = Vector(closest_result[0])
                         to_edge_w = p_vec - co_world_pt
                         if to_edge_w.length <= snap_threshold:

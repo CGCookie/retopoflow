@@ -315,6 +315,13 @@ class SourceAccel:
         self._junction_keys = {q(p) for p in corner_pts}
         self._junction_keys.update(k for k, segs in self._seg_adjacency.items() if len(segs) != 2)
 
+    def corner_on_segments(self, corner_co, seg_indices: 'set[int]') -> bool:
+        ''' True when corner_co coincides with an endpoint of any of the given segments,
+        i.e. the corner belongs to that run of feature edges. '''
+        key = self._get_endpoint_hash(corner_co)
+        keys = self._seg_keys
+        return any(key in keys[idx] for idx in seg_indices if idx < len(keys))
+
     def local_runs(self, seed_seg_indices: 'set[int]', margin_world: float) -> 'tuple[dict[int, int], dict[int, set[int]]]':
         ''' Label locally connected runs of feature segments around the given seeds.
         Expands each seed along the feature, never through a pole, up to margin_world of accumulated arc length,
@@ -913,7 +920,6 @@ class SourceAccel:
 
     @staticmethod
     def _dedupe_features(segments: list, corner_pts: list) -> 'tuple[list, list]':
-        # TODO: Check if this is still needed now that the cache should not create duplicates
         ''' Drop duplicate feature segments and corner points. Each detection type is scanned in
         its own pass (sharps / seams / creases / angle), so an edge matching several criteria is
         reported once per pass. Consumers assume segment uniqueness — e.g. run-topology walls
