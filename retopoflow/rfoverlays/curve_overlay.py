@@ -99,6 +99,15 @@ def shrink_segment(p_from, p_to, shrink_from, shrink_to):
     return p_from + d * sf, p_to - d * st
 
 
+def slerp_dirs(d0 : Vector, d1 : Vector, f : float) -> Vector:
+    ''' Interpolate between two normalized directions. Vector.slerp raises on opposite vectors as
+    there is no shortest arc to travel, so every plane through them is equally valid. Falls back to
+    whichever end of the arc is being asked for. '''
+    if d0.dot(d1) <= -1.0 + 1e-4:
+        return d1 if f >= 0.5 else d0
+    return d0.slerp(d1, f)
+
+
 def get_label_pos(context : Context, lbl : str, cos : Sequence[Vector]) -> Vector | None:
     if not context.edit_object:
         return None
@@ -562,7 +571,7 @@ def create_curve_overlay(
 
                 if new_type == 'aligned':
                     # collinear: smallest rotation onto the pair's shared bisector
-                    avg = dir_out.slerp(-dir_in, 0.5)
+                    avg = slerp_dirs(dir_out, -dir_in, 0.5)
                     if avg.length < 1e-9:
                         return
                     new_out, new_in = avg.normalized(), -avg.normalized()
@@ -609,7 +618,7 @@ def create_curve_overlay(
                 pa = target - origin
                 if ln < 1e-9 or pa.length < 1e-9 or smooth_dir.length < 1e-9:
                     return None
-                nd = smooth_dir.normalized().slerp(pa.normalized(), f)
+                nd = slerp_dirs(smooth_dir.normalized(), pa.normalized(), f)
                 if nd.length < 1e-9:
                     return None
                 nd = nd.normalized()

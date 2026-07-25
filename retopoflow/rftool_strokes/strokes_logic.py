@@ -197,6 +197,10 @@ class Strokes_Logic:
         self.important_indices = []
         self.important_lengths = {}
         self.important_corner_co = {}
+        self.snap_claims = [] # feature snap spots taken by verts created during this insertion
+        self.snap_seg_run = {} # feature segment index -> key of the run it belongs to
+        self.snap_crossing_runs = set() # run keys the stroke crosses rather than follows
+        self.snap_run_target = {} # crossed run key -> the one local point where the stroke meets it
 
         self.process_selected(context)          # gather details about selected geometry
         self.process_mirror(context)            # can change stroke, depends on selected geo
@@ -382,27 +386,138 @@ class Strokes_Logic:
             spacing3D, use_fixed=use_fixed, fixed_distance=fixed_distance, avg_edge_factor=proximity,
         )
 
+        self.process_snap_runs()
         self.force_stroke_angle_indices()
         self.force_corner_indices(context)
 
-    def snap_co_to_feature(self, co_local):
-        ''' Snap a local space coordinate onto the nearest source feature if within the radius.
-        Returns the (possibly unchanged) local coordinate. '''
+    def process_snap_runs(self):
+        ''' Label the feature runs the stroke passes and work out, per run, whether the stroke follows
+        it or crosses it. And, for a crossed run, the one point where the stroke meets it. '''
+        accel = self.source_accel
+        if not accel or self.feature_radius <= 0 or self.spacing3D <= 0: return
+        Mi = self.matrix_world_inv
+        pts = [ local_to_world(pt, self.matrix_world) for pt in self.stroke3D ]
+
+        # Every feature segment the stroke passes within the radius of, with its own closest approach to the stroke
+        approach = {} # segment index -> (world distance to the stroke, world point on the segment)
+        feet = {}     # stroke index -> (segment index, world point on the nearest feature)
+        for i, pt in enumerate(pts):
+            best = None
+            for (seg, loc, dist) in accel.segments_in_range(pt, self.feature_radius):
+                if seg not in approach or dist < approach[seg][0]:
+                    approach[seg] = (dist, loc)
+                if best is None or dist < best[0]:
+                    best = (dist, seg, loc)
+            if best: feet[i] = (best[1], best[2])
+        if not approach: return
+
+        # one labeling pass for the whole stroke, so run keys are comparable across every vert it creates
+        _, run_segs = accel.local_runs(set(approach), 2 * self.spacing3D)
+        segs_of = {} # run key -> that run's segment indices
+        for run_id, segs in run_segs.items():
+            segs_of[('run', run_id)] = segs
+            for seg in segs:
+                self.snap_seg_run[seg] = ('run', run_id)
+        runs = set()
+        for seg in approach:
+            run = self.snap_seg_run.setdefault(seg, ('seg', seg)) # a segment the labeling missed stands alone
+            segs_of.setdefault(run, set()).add(seg)
+            runs.add(run)
+
+        # Following a run, or crossing it?
+        # Compare how far the stroke drags its nearest point along the run against how far the stroke travels.
+        moved, travel, nearest = {}, {}, {}
+        for i in sorted(feet):
+            seg, foot = feet[i]
+            run = self.snap_seg_run[seg]
+            last = nearest.get(run)
+            if last and last[0] == i - 1:
+                moved[run] = moved.get(run, 0.0) + (foot - last[1]).length
+                travel[run] = travel.get(run, 0.0) + (pts[i] - pts[i - 1]).length
+            nearest[run] = (i, foot)
+        FEATURE_SNAP_PARALLEL = 0.866  # How parallel a feature must be to the stroke to count as one the stroke is following rather than crossing.
+        self.snap_crossing_runs = {
+            run for run in runs
+            # a run that is never even the stroke's nearest feature is not one the stroke follows
+            if run not in nearest or travel.get(run, 0.0) < 1e-9
+            or moved[run] / travel[run] < FEATURE_SNAP_PARALLEL
+        }
+
+        # where the stroke meets each crossed run: the closest approach over all of that run's segments
+        crossing = {} # run key -> (world distance to the stroke, local point on the run)
+        for seg, (dist, loc) in approach.items():
+            run = self.snap_seg_run[seg]
+            if run in self.snap_crossing_runs and (run not in crossing or dist < crossing[run][0]):
+                crossing[run] = (dist, Mi @ Vector(loc))
+
+        self.snap_run_target = { run: co for (run, (_dist, co)) in crossing.items() }
+
+    def feature_snap_targets(self, co_local):
+        ''' Where a local space coordinate may snap, best first, as a list of (local co, world
+        distance). Empty when no source feature is within feature_radius. '''
         accel = self.source_accel
         if not accel or self.feature_radius <= 0:
-            return co_local
+            return []
+        Mi = self.matrix_world_inv
         co_world = local_to_world(co_local, self.matrix_world)
+        follow, cross = None, None
+        for (seg, loc, dist) in accel.segments_in_range(co_world, self.feature_radius):
+            run = self.snap_seg_run.get(seg)
+            if run in self.snap_crossing_runs:
+                target = self.snap_run_target.get(run)
+                if target is None: continue
+                dist = (local_to_world(target, self.matrix_world) - co_world).length
+                if dist <= self.feature_radius and (cross is None or dist < cross[1]):
+                    cross = (target, dist)
+            elif follow is None or dist < follow[1]:
+                follow = (Mi @ Vector(loc), dist)
+        targets = sorted((t for t in (follow, cross) if t), key=lambda t: t[1])
         corner = accel.find_corner(co_world)
         if corner and corner[2] <= self.feature_radius:
-            return self.matrix_world_inv @ Vector(corner[0])
-        closest = accel.closest_point(co_world)
-        if closest and (Vector(closest) - co_world).length <= self.feature_radius:
-            return self.matrix_world_inv @ Vector(closest)
-        return co_local
+            targets = [ (Mi @ Vector(corner[0]), corner[2]) ] + targets
+        return targets
+
+    def feature_snap_conflicts(self, co_local):
+        ''' Claims standing in the way of a snap to co_local: verts already snapped close enough to
+        have collapsed onto it. '''
+        # How far apart two snapped verts must stay, as a fraction of the spacing between the verts being created.
+        FEATURE_SNAP_MIN_SEPARATION = 0.25
+        co_world = local_to_world(co_local, self.matrix_world)
+        min_sep = FEATURE_SNAP_MIN_SEPARATION * self.spacing3D
+        return [ claim for claim in self.snap_claims if (co_world - claim['target']).length < min_sep ]
+
+    def take_feature_snap(self, bmv, co, dist, origin, rest):
+        ''' Move a vert onto a snap spot and record that it holds it, keeping the targets it passed
+        over in case a nearer vert takes this one away from it. '''
+        bmv.co = co
+        self.snap_claims += [ {
+            'target': local_to_world(co, self.matrix_world), 'dist': dist,
+            'bmv': bmv, 'origin': origin, 'rest': rest,
+        } ]
+
+    def drop_feature_snap(self, claim):
+        ''' A nearer vert took this claim's spot. Move the displaced vert to its next clear target so
+        it still lands on a feature, or back to where it started if it has none left. '''
+        for i, (co, dist) in enumerate(claim['rest']):
+            if not self.feature_snap_conflicts(co):
+                self.take_feature_snap(claim['bmv'], co, dist, claim['origin'], claim['rest'][i+1:])
+                return
+        claim['bmv'].co = claim['origin']
 
     def new_feature_vert(self, co_local):
-        ''' Create a new bmvert at co_local after snapping it to a nearby source feature. '''
-        return self.bm.verts.new(self.snap_co_to_feature(co_local))
+        ''' Create a new bmvert at co_local, snapped onto a nearby source feature unless a vert already
+        created in this insertion is using that spot. Nearest wins. '''
+        bmv = self.bm.verts.new(co_local)
+        targets = self.feature_snap_targets(co_local)
+        for i, (co, dist) in enumerate(targets):
+            conflicts = self.feature_snap_conflicts(co)
+            if any(claim['dist'] <= dist for claim in conflicts):
+                continue # something nearer is already there, try the next target
+            for claim in conflicts: self.snap_claims.remove(claim)
+            self.take_feature_snap(bmv, co, dist, co_local, targets[i+1:])
+            for claim in conflicts: self.drop_feature_snap(claim)
+            break
+        return bmv
 
     def force_stroke_angle_indices(self):
         ''' Force a vert at sharp bends in the stroke. '''
@@ -451,15 +566,21 @@ class Strokes_Logic:
         if not best_per_corner:
             return
 
+        # arc length at each stroke index, so how close two forced verts would sit is judged by distance.
+        cum = [0.0] * l
+        for i in range(1, l):
+            cum[i] = cum[i - 1] + (self.stroke3D[i] - self.stroke3D[i - 1]).length
+
         # build the forced index set and always include endpoints so insert_strip spans the full stroke
         forced = set(self.important_indices) | {0, l - 1}
         chosen = sorted(best_per_corner.values(), key=lambda e: e[0])  # nearest corners win ties
         corner_co_by_index = {}
         for _dist, stroke_idx, corner_co in chosen:
-            # skip if it would cluster a forced vert next to an already-forced index
-            if any(abs(stroke_idx - fi) <= 1 for fi in forced):
-                if stroke_idx not in forced:
-                    continue
+            # A source corner is a better place for a vert than the stroke's own bend beside it.
+            crowded = { fi for fi in forced if abs(cum[stroke_idx] - cum[fi]) < self.spacing3D }
+            if crowded & ({0, l - 1} | set(corner_co_by_index)):
+                continue # an endpoint, or a nearer corner, already holds this stretch of the stroke
+            forced -= crowded
             forced.add(stroke_idx)
             corner_co_by_index[stroke_idx] = Mi @ Vector(corner_co)
 
@@ -693,7 +814,8 @@ class Strokes_Logic:
                 # print('snap first')
                 bmvs += [self.snap_bmv0]
             elif 0 in self.important_corner_co:
-                bmvs += [self.bm.verts.new(self.important_corner_co[0])] # place vert in snapped corner
+                # place vert in snapped corner, and let it claim that corner so no other vert snaps there
+                bmvs += [self.new_feature_vert(self.important_corner_co[0])]
             else:
                 bmvs += [self.new_feature_vert(self.find_point3D(0))]
             for (i0,i1,_,c) in segment_spans:
@@ -706,7 +828,8 @@ class Strokes_Logic:
                         bmvs += [self.snap_bmv1]
                         break
                     if p == c - 1 and i1 in self.important_corner_co:
-                        bmvs += [self.bm.verts.new(self.important_corner_co[i1])] # place vert in snapped corner
+                        # place vert in snapped corner, claiming it so no other vert snaps there
+                        bmvs += [self.new_feature_vert(self.important_corner_co[i1])]
                         continue
                     v = (l0 + (l1 - l0) * (p + 1) / c) / self.length3D
                     pt = self.find_point3D(v)

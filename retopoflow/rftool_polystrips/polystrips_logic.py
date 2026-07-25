@@ -80,7 +80,7 @@ from ...addon_common.common.utils import iter_pairs, enumerate_reversed, enumera
 import math
 from itertools import chain
 
-DEBUG_SIDEJOIN = True
+DEBUG_SIDEJOIN = False
 
 
 r'''
@@ -1288,8 +1288,99 @@ class PolyStrips_Logic:
                 if bmv in reused_bmvs: continue
                 if snapped := nearest_point_valid_sources(context, M @ bmv.co, world=False, respect_clip_planes=True):
                     bmv.co = snapped
-                if bmv not in existing_bmvs:
-                    bmv.co = self.snap_co_to_feature(bmv.co)
+
+            # Feature snapping is decided a rung at a time, then compared across rungs.
+            #  - a feature parallel to the stroke may take one rail from every rung it reaches, but never both of a rung's rails,
+            #    or else that rung collapses to no width. Per feature run.
+            #  - a feature perpendicular to the stroke may take both of that rung's rails, but only for the single rung nearest
+            #    it, or else the neighboring rungs pile onto the same edge. Per feature run.
+            #  - and whatever the classification, a single point (a corner, the end of a run) may take
+            #    only one vert, or else the strip fans onto it.
+            FEATURE_SNAP_PARALLEL = 0.866 # How parallel a feature must be to a rung before both of the rung's rail verts are allowed to snap to it
+            cands = []       # per rung: [candidate or None, candidate or None]
+            rung_lengths = [] # world length of each rung, parallel to cands
+            crosswise = []   # (rung index, side) whose candidate feature lies along the rung
+            lengthwise = []  # rung indices whose two rails both snap to features lying across the rungs
+            for i in range(len(bmvs[0])):
+                pair = [
+                    None if (bmv in reused_bmvs or bmv in existing_bmvs) else self.feature_snap_candidate(bmv.co)
+                    for bmv in (bmvs[0][i], bmvs[1][i])
+                ]
+                cands += [ pair ]
+                rung = (M @ bmvs[1][i].co) - (M @ bmvs[0][i].co)
+                rung_lengths += [ rung.length ]
+                if rung.length < 1e-9: continue # same vert on both rails: either snap writes the same co
+                rung_dir = Direction(rung)
+                along = [ bool(c and c['tangent'] and abs(c['tangent'].dot(rung_dir)) >= FEATURE_SNAP_PARALLEL) for c in pair ]
+                crosswise += [ (i, side) for side in (0, 1) if along[side] ]
+                if pair[0] and pair[1] and not all(along): lengthwise += [ i ]
+
+            # Label the feature runs around every rung in question in a single pass, so the ids are
+            # comparable strip-wide and the two limits below can be applied per run.
+            involved = { i for (i, _) in crosswise } | set(lengthwise)
+            if involved and self.source_accel:
+                seeds = { s for i in involved for c in cands[i] if c and (s := c['seg']) is not None }
+                margin = 2 * max(rung_lengths[i] for i in involved) # reach enough feature to connect a rung's two feet
+                seg_run, _ = self.source_accel.local_runs(seeds, margin)
+
+                # Across the rungs: keep, per run, the rail that is nearer to it overall.
+                # Deciding per rung instead would zigzag the surviving rail from side to side when the feature runs down the middle of the strip.
+                # Deciding per strip would force one rail on a strip that runs alongside one feature and then another.
+                by_run = {}
+                for i in lengthwise:
+                    run = seg_run.get(cands[i][0]['seg'])
+                    # No run topology to compare against: assume one run and veto rather than collapse.
+                    if seg_run and run != seg_run.get(cands[i][1]['seg']): continue
+                    by_run.setdefault(run, []).append(i)
+                for rungs in by_run.values():
+                    d0 = sum(cands[i][0]['dist'] for i in rungs)
+                    d1 = sum(cands[i][1]['dist'] for i in rungs)
+                    drop = 1 if d0 <= d1 else 0
+                    for i in rungs: cands[i][drop] = None
+
+                # Along a rung: keep only the nearest rung per run. A fold rung is already sitting on its
+                # crease, so it wins over its neighbors on distance alone.
+                by_run = {}
+                for (i, side) in crosswise:
+                    if not cands[i][side]: continue # already dropped as the farther rail
+                    by_run.setdefault(seg_run.get(cands[i][side]['seg']), []).append((i, side))
+                for entries in by_run.values():
+                    nearest = {}
+                    for (i, side) in entries:
+                        d = cands[i][side]['dist']
+                        nearest[i] = min(d, nearest.get(i, d))
+                    keep = min(nearest, key=nearest.get)
+                    for (i, side) in entries:
+                        if i != keep: cands[i][side] = None
+
+            # Only one vert should be allowed per feature corner
+            def local_edge_length(i, side):
+                ''' World length of the shortest strip edge meeting this rail vert, measured before any
+                feature snapping. This is the scale a collapse has to beat. '''
+                co = M @ bmvs[side][i].co
+                nbrs = [ bmvs[1 - side][i] ] + [ bmvs[side][j] for j in (i - 1, i + 1) if 0 <= j < len(bmvs[side]) ]
+                return min(((M @ nbr.co) - co).length for nbr in nbrs)
+            claimed = []
+
+            FEATURE_SNAP_MIN_SEPARATION = 0.25 # How far apart two snapped verts must stay, as a fraction of the shortest strip edge meeting them.
+            for (i, side) in sorted(
+                ( (i, side) for i, pair in enumerate(cands) for side in (0, 1) if pair[side] ),
+                key=lambda e: cands[e[0]][e[1]]['dist'],
+            ):
+                cand = cands[i][side]
+                min_sep = FEATURE_SNAP_MIN_SEPARATION * local_edge_length(i, side)
+                for (co, dist) in [ (cand['co'], cand['dist']) ] + ([ cand['edge'] ] if cand['edge'] else []):
+                    target = M @ co
+                    if all((target - taken).length >= min_sep for taken in claimed):
+                        cand['co'], cand['dist'] = co, dist
+                        claimed += [ target ]
+                        break
+                else:
+                    cands[i][side] = None
+
+            for i, pair in enumerate(cands):
+                for side, cand in enumerate(pair):
+                    if cand: bmvs[side][i].co = cand['co']
 
             ######################################################
             # handle mirror
@@ -1383,21 +1474,35 @@ class PolyStrips_Logic:
     def nearest_point(self, context, p):
         snapped = nearest_point_valid_sources(context, self.matrix_world @ p, respect_clip_planes=True)
         return self.matrix_world_inv @ snapped if snapped else p
-    def snap_co_to_feature(self, co_local):
-        ''' Snap a local-space coordinate onto the nearest source feature (corner first,
-        then edge) if within feature_radius. Returns the (possibly unchanged) local
-        coordinate. '''
+    def feature_snap_candidate(self, co_local):
+        ''' Nearest source feature to a local-space coordinate, or None when nothing is within
+        feature_radius. Never write this straight onto a vert. The caller has to arbitrate between
+        the rung's two rails and its neighbouring rungs first. Returns a dict of:
+            co, dist        the snap target in local space and its world distance — the nearest
+                            corner when one is in range, else the nearest point on a feature edge
+            tangent, seg    direction and segment index of the nearest feature edge, given even
+                            when a corner won the target, so callers can tell which way the
+                            feature runs and which run it belongs to
+            edge            the feature edge target as (co, dist), for a caller that has to give
+                            up a corner but wants to stay on the feature. None when the target
+                            already is the edge, or no edge is in range. '''
         accel = self.source_accel
         if not accel or self.feature_radius <= 0:
-            return co_local
+            return None
         co_world = self.matrix_world @ co_local
+        found = accel.closest_point_with_index(co_world)
+        tangent, seg = (Direction(found[1]), found[2]) if found else (None, None)
+        edge = None
+        if found and (dist := (Vector(found[0]) - co_world).length) <= self.feature_radius:
+            edge = (self.matrix_world_inv @ Vector(found[0]), dist)
         corner = accel.find_corner(co_world)
         if corner and corner[2] <= self.feature_radius:
-            return self.matrix_world_inv @ Vector(corner[0])
-        closest = accel.closest_point(co_world)
-        if closest and (Vector(closest) - co_world).length <= self.feature_radius:
-            return self.matrix_world_inv @ Vector(closest)
-        return co_local
+            co, dist, fallback = self.matrix_world_inv @ Vector(corner[0]), corner[2], edge
+        elif edge:
+            co, dist, fallback = edge[0], edge[1], None
+        else:
+            return None
+        return { 'co': co, 'dist': dist, 'tangent': tangent, 'seg': seg, 'edge': fallback }
     def fold_crease_point(self, p_local, p_before, n_before, p_after, n_after, *, max_plane_dist):
         ''' Thin wrapper over common.snapping.fold_crease using this tool's source accel /
         feature radius. Returns (crease_point, crease_dir) in local space, or None. '''

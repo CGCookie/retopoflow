@@ -224,6 +224,17 @@ class EdgeMarkAccel:
         if best_pt is None: return None
         return (best_pt, best_tan)
 
+    def segments_in_range(self, co: Vector, radius: float) -> 'list[tuple[int, Vector, float]]':
+        '''(segment index, closest point on it, distance) for every feature segment with a point within
+        radius of co, not just the nearest one. Lets a caller see a feature it is near even where
+        another feature is the closer one, and compare them.'''
+        if self.bvh is None: return []
+        return [
+            (idx, Vector(loc), dist)
+            for (loc, _normal, idx, dist) in self.bvh.find_nearest_range(co, radius)
+            if idx is not None and idx < len(self._segments)
+        ]
+
     @classmethod
     def from_bmedges(cls, edges: list) -> 'EdgeMarkAccel':
         '''Build from a list of BMEdge objects.'''
@@ -294,6 +305,9 @@ class SourceAccel:
 
     def closest_point_in_segments(self, co: Vector, seg_indices: 'set[int]') -> 'tuple[Vector, Vector] | None':
         return self.edge_accel.closest_point_in_segments(co, seg_indices) if self.edge_accel else None
+
+    def segments_in_range(self, co: Vector, radius: float) -> 'list[tuple[int, Vector, float]]':
+        return self.edge_accel.segments_in_range(co, radius) if self.edge_accel else []
 
     @staticmethod
     def _get_endpoint_hash(co) -> tuple:
