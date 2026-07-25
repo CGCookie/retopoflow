@@ -366,7 +366,7 @@ class Tweak_Logic(SourceSnapMixin):
         # Keep focused on one mesh island at a time to prevent spillover unless "All Islands" masking option is on.
         if self.verts_filtered and not self.include_opt('all_islands'):
             nearest = min(self.verts_filtered, key=lambda v: ((M @ v.co) - brush_center_world).length_squared)
-            self._active_island = self._flood_island(nearest)
+            self._active_island = self.flood_island(nearest)
             self.verts_filtered = [bmv for bmv in self.verts_filtered if bmv in self._active_island]
 
         self.verts = [
@@ -383,7 +383,7 @@ class Tweak_Logic(SourceSnapMixin):
         self.grab_brush_centre_world: Vector | None = Vector(self.brush.hit_p) if self.brush.hit_p else None
         self.grab_brush_radius: float = self.brush.get_scaled_radius()
 
-    def _flood_island(self, seed: BMVert) -> 'set[BMVert]':
+    def flood_island(self, seed: BMVert) -> 'set[BMVert]':
         ''' All verts reachable from seed through edges, i.e. the whole connected mesh island.
         Locked once at stroke start so the sweep stays on the starting island even as the brush moves. '''
         island = {seed}
@@ -398,7 +398,7 @@ class Tweak_Logic(SourceSnapMixin):
         return island
 
 
-    def _elect_nudge_loop(self, context, delta: Vector):
+    def elect_nudge_loop(self, context, delta: Vector):
         ''' Score each screen-space edge by proximity to the mouse AND parallelism with the
         stroke direction, then walk its full loop.  Calling on the first meaningful mouse
         movement ensures stroke direction is known, so the right loop is chosen even when
@@ -413,8 +413,8 @@ class Tweak_Logic(SourceSnapMixin):
         # Score: (1 - parallelism with stroke) / (screen-space distance to edge + 1).
         # High score = edge runs perpendicular to stroke AND is close to the mouse.
         # Perpendicular edges are the cross-edges whose loop runs parallel to the stroke direction.
-        best_edge: BMEdge | None = None
-        best_score = -1.0
+        check_occluded = self.exclude_opt('occluded')
+        scored: 'list[tuple[float, BMEdge]]' = []
         for bme in self.bm.edges:
             if bme.verts[0].hide or bme.verts[1].hide: continue
             p0 = location_3d_to_region_2d(rgn, r3d, M @ bme.verts[0].co)
@@ -427,9 +427,20 @@ class Tweak_Logic(SourceSnapMixin):
             dist = (p0 + seg_vec * t - mouse_2d).length
             parallelism = abs((seg_vec / seg_len).dot(stroke_dir_2d))
             score = (1.0 - parallelism) / (dist + 1.0)
-            if score > best_score:
-                best_score = score
+            scored.append((score, bme))
+
+        if not scored:
+            return
+
+        best_edge: BMEdge | None = None
+        if not check_occluded:
+            best_edge = max(scored, key=lambda se: se[0])[1]
+        else:
+            scored.sort(key=lambda se: -se[0])
+            for _score, bme in scored:
+                if self.is_bmvert_hidden(bme.verts[0]) or self.is_bmvert_hidden(bme.verts[1]): continue
                 best_edge = bme
+                break
 
         if best_edge is None:
             return
@@ -495,6 +506,32 @@ class Tweak_Logic(SourceSnapMixin):
             if t3d_ is not None:
                 self._nudge_vert_tangents[bmv_] = t3d_
 
+    def nudge_companion_verts(self, reach: float) -> 'set[BMVert]':
+        ''' The elected loop plus every vert within `reach` of it from walking along mesh edges.
+        Allows topologically close vertices to be nudged even if occluded. '''
+        if not self.nudge_loop_verts:
+            return set()
+
+        M = self.matrix_world
+        dist: dict[BMVert, float] = {v: 0.0 for v in self.nudge_loop_verts if v.is_valid and not v.hide}
+        frontier = list(dist)
+        while frontier:
+            advanced = []
+            for bmv in frontier:
+                d_bmv = dist[bmv]
+                bmv_world = M @ bmv.co
+                for bme in bmv.link_edges:
+                    nb = bme.other_vert(bmv)
+                    if nb.hide or not nb.is_valid: continue
+                    d_nb = d_bmv + ((M @ nb.co) - bmv_world).length
+                    if d_nb > reach: continue
+                    if nb in dist and dist[nb] <= d_nb: continue
+                    dist[nb] = d_nb
+                    advanced.append(nb)
+            frontier = advanced
+
+        return set(dist)
+
 
     def cancel(self, context):
         if not self.verts: return
@@ -511,7 +548,7 @@ class Tweak_Logic(SourceSnapMixin):
         p = self.project_pt(context, bmv.co)
         return p.xy if p else None
 
-    def _raycast_capped(self, context, bmv, screen_xy):
+    def raycast_capped(self, context, bmv, screen_xy):
         ''' Screen space project bmv onto the source, with protections for snapping to far away surfaces.
         Returns a local-space co, or None. '''
         M = self.matrix_world
@@ -537,9 +574,11 @@ class Tweak_Logic(SourceSnapMixin):
     # Masking helpers (used by nudge / pinch sweeps)
     # -------------------------------------------------------------------------
 
-    def _is_vert_excluded(self, bmv: BMVert) -> bool:
+    def _is_vert_excluded(self, bmv: BMVert, *, ignore_occluded: bool = False) -> bool:
         ''' True if bmv must not be moved by a sweep (replicates EXCLUDE/ONLY/corner filters
-        from collect_verts so that nudge and pinch respect the same masking as GRAB). '''
+        from collect_verts so that nudge and pinch respect the same masking as GRAB).
+        ignore_occluded skips only the occlusion test, for verts that move as a unit,
+        i.e. a nudged loop and its neighbors. '''
         if self._active_island is not None and bmv not in self._active_island:
             return True
         if self.mask_opt('selected') == 'ONLY' and not bmv.select:
@@ -565,7 +604,7 @@ class Tweak_Logic(SourceSnapMixin):
             return True
         if self.mask_opt('angle') == 'EXCLUDE' and self.angle_verts and bmv in self.angle_verts:
             return True
-        if self.exclude_opt('occluded') and self.is_bmvert_hidden(bmv):
+        if not ignore_occluded and self.exclude_opt('occluded') and self.is_bmvert_hidden(bmv):
             return True
         # SLIDE intersection verts (> 2 marked edges) are also immovable (same as collect_verts Tier 6)
         if self.mask_opt('seams') == 'SLIDE' and self.seam_verts and bmv in self.seam_verts:
@@ -813,7 +852,7 @@ class Tweak_Logic(SourceSnapMixin):
                             new_co = p
             else:
                 cur_xy = self.project_bmv(context, bmv) or xy
-                new_co = self._raycast_capped(context, bmv, cur_xy + delta * effective_strength * pressure)
+                new_co = self.raycast_capped(context, bmv, cur_xy + delta * effective_strength * pressure)
                 if new_co is None: continue
                 if self.mask_opt('seams') == 'SLIDE' and bmv in self.seam_verts:
                     if self.seam_accel:
@@ -835,12 +874,12 @@ class Tweak_Logic(SourceSnapMixin):
                     snap_new_co = new_co
                     if is_nudge:
                         # In Nudge the per-frame move differs from the brush move and we need the distance travelled per-vert.
-                        capped = self._raycast_capped(context, bmv, cur_xy + delta * strength * pressure)
+                        capped = self.raycast_capped(context, bmv, cur_xy + delta * strength * pressure)
                         if capped is not None:
                             snap_new_co = capped
                     # Velocity-independent release signal: where the vert would be if unconstrained over the whole stroke.
                     # Capped too, so a snapped vert doesn't teleport to a background object the moment it releases.
-                    free_co = self._raycast_capped(context, bmv, xy + (mouse - self.mouse) * strength * pressure)
+                    free_co = self.raycast_capped(context, bmv, xy + (mouse - self.mouse) * strength * pressure)
                     snapped_co = self.snap_to_source_feature(bmv, snap_new_co, strength, context, delta * strength * pressure, mouse - self.mouse, free_co)
                     # In Nudge, snap_new_co is only a probe, showing where the vert would be IF it were dragged full strength.
                     # Only verts the source feature snap actually holds take its result and the rest move via the smudge sweep.
@@ -882,7 +921,7 @@ class Tweak_Logic(SourceSnapMixin):
                 and not self._nudge_loop_elected
                 and delta.length > 3.0
             ):
-                self._elect_nudge_loop(context, delta)
+                self.elect_nudge_loop(context, delta)
                 self._nudge_loop_elected = True
             # Compute 3D displacement: raycast both the current and previous mouse positions
             # onto the source surface and take the difference as the true 3D brush motion.
@@ -948,17 +987,22 @@ class Tweak_Logic(SourceSnapMixin):
 
         # In Loops mode, precompute world positions of loop verts once for O(loop) distance queries per vert.
         loop_vert_worlds: list[Vector] = []
+        companions: 'set[BMVert]' = set()
         if self.nudge_loop_verts:
             loop_vert_worlds = [M @ v.co for v in self.nudge_loop_verts if v.is_valid and not v.hide]
+            companions = self.nudge_companion_verts(radius3D)
 
         for bmv in self.bm.verts:
             if bmv.hide or not bmv.is_valid:
                 continue
-            if self._is_vert_excluded(bmv):
+            # The elected loop and the verts beside it move even where they dip behind the source.
+            # Occlusion gates which loop gets elected, not which verts follow it.
+            is_loop_vert = bmv in self.nudge_loop_verts
+            if self._is_vert_excluded(bmv, ignore_occluded=(is_loop_vert or bmv in companions)):
                 continue
 
             if self.nudge_loop_verts:
-                if bmv in self.nudge_loop_verts:
+                if is_loop_vert:
                     # Loop vert: always pushed at full strength.
                     t_lin = 1.0
                     t = 1.0
@@ -997,9 +1041,9 @@ class Tweak_Logic(SourceSnapMixin):
                     # First time this vert enters the brush: compute and lock from stable positions.
                     best_t3d_c: 'Vector | None' = None
 
-                    if bmv in self.nudge_loop_verts:
+                    if is_loop_vert:
                         # Loop vert off-screen at election: use local loop tangent geometry,
-                        # matching _elect_nudge_loop exactly.
+                        # matching elect_nudge_loop exactly.
                         loop_nbs_c = [bme.other_vert(bmv) for bme in bmv.link_edges
                                       if not bme.other_vert(bmv).hide
                                       and bme.other_vert(bmv) in self.nudge_loop_verts]
@@ -1147,7 +1191,7 @@ class Tweak_Logic(SourceSnapMixin):
 
             push_2d = radial_dir_2d * delta.length * t * brush_strength * pressure * perp_weight * 0.25
 
-            new_co = self._raycast_capped(context, bmv, cur_2d + push_2d)
+            new_co = self.raycast_capped(context, bmv, cur_2d + push_2d)
             if new_co is None:
                 continue
             new_co = self._apply_slide_constraints(bmv, new_co)
