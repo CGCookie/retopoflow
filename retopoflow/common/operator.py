@@ -360,6 +360,10 @@ class RFOperator(RFOperator_KeymapContext):
     fullscreen_keymaps : list[KeyMapItem] = []
     _draw_postpixel_overlay : object | None = None
 
+    had_init : bool = False
+    prevented_invalidation : bool = False
+    had_teardown : bool = False
+
     @staticmethod
     def handle_tickle():
         tickled = RFOperator.tickled
@@ -400,9 +404,57 @@ class RFOperator(RFOperator_KeymapContext):
 
         return True
 
+    def teardown(self, context : Context) -> bool:
+        '''
+        Single teardown for every way this operator can end:
+            - modal() returning FINISHED or CANCELLED
+            - stop() from RFCore
+            - cancel() from Blender
+            - invoke() failing
+
+        Returns False only when self.finish() raised.
+        '''
+        if self.had_teardown: return True
+        self.had_teardown = True
+
+        ok = True
+        if self.had_init:
+            self.had_init = False
+            try:
+                self.finish(context)
+            except Exception as e:
+                print(f'RFOperator.teardown: Unhandled Exception Caught in self.finish: {e}')
+                _ = Debugger.print_exception()
+                ok = False
+
+        if self._draw_postpixel_overlay:
+            try:
+                SpaceView3D.draw_handler_remove(self._draw_postpixel_overlay, 'WINDOW')
+            except Exception as e:
+                print(f'RFOperator.teardown: could not remove draw handler: {e}')
+            self._draw_postpixel_overlay = None
+
+        if self in RFOperator.active_operators:
+            RFOperator.active_operators.remove(self)
+        type(self)._is_running = False
+
+        if self.prevented_invalidation:
+            # Only resume if there was a matching prevent, otherwise the count goes negative
+            self.prevented_invalidation = False
+            RFGlobals.InvalidationManager.resume_invalidation()
+
+        return ok
+
+    def cancel(self, context : Context):
+        ''' Blender calls this when it ends the modal operator itself. '''
+        _ = self.teardown(context)
+
     def invoke(self, context : Context, event : Event) -> set[str]:
         if not self.can_init(context, event):
             return {'CANCELLED'}
+        self.had_init = False
+        self.prevented_invalidation = False
+        self.had_teardown = False
         type(self)._is_running = True
         RFOperator.active_operators.append(self)
         _ = context.window_manager.modal_handler_add(self)
@@ -413,6 +465,9 @@ class RFOperator(RFOperator_KeymapContext):
 
         user_keyconfigs = context.window_manager.keyconfigs.user
         if not user_keyconfigs:
+            # bailing out after registering above. Otherwise the operator would stay
+            # in active_operators with _is_running set, and poll() refuses to start it again
+            _ = self.teardown(context)
             return {'CANCELLED'}
         keymap_items = user_keyconfigs.keymaps['Screen'].keymap_items
         self.fullscreen_keymaps = [
@@ -429,15 +484,15 @@ class RFOperator(RFOperator_KeymapContext):
             self._draw_postpixel_overlay = None
 
         RFGlobals.InvalidationManager.prevent_invalidation()
+        self.prevented_invalidation = True
 
         try:
+            self.had_init = True
             self.init(context, event)
         except Exception as e:
             print(f'Caught Exception in operator init: {e}')
             _ = Debugger.print_exception()
-            if self in RFOperator.active_operators:
-                RFOperator.active_operators.remove(self)
-            type(self)._is_running = False
+            _ = self.teardown(context)
             return {'CANCELLED'}
         context.area.tag_redraw()
         return {'RUNNING_MODAL'}
@@ -457,14 +512,10 @@ class RFOperator(RFOperator_KeymapContext):
                 print(f'Caught ReferenceError while trying to stop operator')
                 print(f'  {re}')
 
-        if self._draw_postpixel_overlay:
-            SpaceView3D.draw_handler_remove(self._draw_postpixel_overlay, 'WINDOW')
-            self._draw_postpixel_overlay = None
-        bpy.context.workspace.status_text_set(None)
+        if bpy.context.workspace:
+            bpy.context.workspace.status_text_set(None)
 
-        if self in RFOperator.active_operators:
-            RFOperator.active_operators.remove(self)
-        type(self)._is_running = False
+        _ = self.teardown(bpy.context)
 
     def modal(self, context : Context, event : Event) -> set[str]:
         RFCore = RFGlobals.RFCore_None
@@ -503,31 +554,19 @@ class RFOperator(RFOperator_KeymapContext):
                     ret = {'CANCELLED'}
 
         if ret & {'FINISHED', 'CANCELLED'}:
-            try:
-                self.finish(context)
-            except Exception as e:
-                print(f'RFOperator.modal: Unhandled Exception Caught in self.finish: {e}')
-                _ = Debugger.print_exception()
-                ret = {'CANCELLED'}
-            if self._draw_postpixel_overlay:
-                _wm, space = bpy.types.WindowManager, bpy.types.SpaceView3D
-                space.draw_handler_remove(self._draw_postpixel_overlay, 'WINDOW')
-                self._draw_postpixel_overlay = None
             if RFOperator.active_operator() != self:
                 # print(f'RFOperator: currently finishing operator is not top??')
                 # print(self)
                 # print(RFOperator.active_operators)
                 pass
-            if self in RFOperator.active_operators:
-                RFOperator.active_operators.remove(self)
+            if not self.teardown(context):
+                ret = {'CANCELLED'}
             for area in context.screen.areas:
                 area.tag_redraw()
             Cursors.restore()
             if RFOperator.active_operators:
                 # other RF operators on stack, so tickle them so they can see the changes
                 RFOperator.tickle(context)
-            RFGlobals.InvalidationManager.resume_invalidation()
-            type(self)._is_running = False
             return ret
 
         if 'PASS_THROUGH' in ret:

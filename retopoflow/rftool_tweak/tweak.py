@@ -236,7 +236,7 @@ class RFOperator_Tweak(RFOperator):
     )
 
     logic : Tweak_Logic | None = None
-    timer : TimerHandler
+    timer : TimerHandler | None = None
 
     def init(self, context : Context, event : Event):
         # print(f'STARTING POLYPEN')
@@ -271,7 +271,9 @@ class RFOperator_Tweak(RFOperator):
         return {'RUNNING_MODAL'} # allow other operators, such as UNDO!!!
 
     def finish(self, _context : Context):
-        self.timer.stop()
+        if self.timer:
+            self.timer.stop()
+            self.timer = None
         self.logic = None # Clear now, otherwise Blender can crash trying to clear it after the bmesh is destroyed
 
     def draw_postpixel(self, context : Context):

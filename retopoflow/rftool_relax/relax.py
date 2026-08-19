@@ -210,7 +210,7 @@ class RFOperator_Relax(RFOperator):
     )
 
     logic : Relax_Logic | None = None
-    timer : TimerHandler
+    timer : TimerHandler | None = None
 
     def init(self, context, event):
         self.logic = Relax_Logic(
@@ -248,10 +248,14 @@ class RFOperator_Relax(RFOperator):
         return {'RUNNING_MODAL'} # allow other operators, such as UNDO!!!
 
     def finish(self, context : Context):
-        self.timer.stop()
-        if not self.logic: return
-        self.logic.finish(context)
-        self.logic = None # Clear now, otherwise Blender can crash trying to clear it after the bmesh is destroyed
+        if self.timer:
+            self.timer.stop()
+            self.timer = None
+        # Clear now, otherwise Blender can crash trying to clear it after the bmesh is destroyed.
+        # Detach _before_ logic.finish(), which references the bmesh.
+        logic, self.logic = self.logic, None
+        if not logic: return
+        logic.finish(context)
 
     def draw_postpixel(self, context : Context):
         RFCore = RFGlobals.RFCore_None

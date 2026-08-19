@@ -663,7 +663,7 @@ class RFCore:
         if not RFCore.is_exiting and bpy.context.workspace:
             bpy.context.workspace.status_text_set(None) # reset status bar
 
-        for rfop in RFOperator.active_operators:
+        for rfop in list(RFOperator.active_operators):
             try:
                 rfop.stop()
             except ReferenceError as e:
