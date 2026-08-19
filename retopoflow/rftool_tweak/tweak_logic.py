@@ -351,10 +351,12 @@ class Tweak_Logic(SourceSnapMixin):
                     for fn in is_bmvert_hidden_list
                 )
 
+            visibility_cache = self.visibility_cache  # Bind to a local to avoid a reference cycle
+
             def is_bmvert_hidden(bmv : BMVert) -> bool:
-                if bmv not in self.visibility_cache:
-                    self.visibility_cache[bmv] = is_point_hidden_fast(matrix_world @ bmv.co)
-                return self.visibility_cache[bmv]
+                if bmv not in visibility_cache:
+                    visibility_cache[bmv] = is_point_hidden_fast(matrix_world @ bmv.co)
+                return visibility_cache[bmv]
 
             self.is_bmvert_hidden = is_bmvert_hidden
 
