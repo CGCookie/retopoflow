@@ -111,6 +111,7 @@ class RFCore:
     is_running     : bool = False  # RFCore modal operator is running
     is_controlling : bool = False  # RFCore is top modal operator
     is_paused      : bool = False  # Allows for switching modes and tools in operators without restarting RF
+    is_exiting     : bool = False  # Blender is shutting down, window manager state (status bar, tools) is off limits
     event_mouse    : tuple[int, int] | None = None   # keeps track of last mouse update, hack used to determine if RFCore is top modal operator
     depsgraph_version : int = 0
 
@@ -139,6 +140,7 @@ class RFCore:
         if RFCore._is_registered:
             print('RFCore is already registered!!')
             return
+        RFCore.is_exiting = False   # in case a previous session set it and the add-on was re-enabled
 
         # register RF operator and RF tools
         icons_module.register()
@@ -173,6 +175,10 @@ class RFCore:
             fn_pre=RFCore.tool_changed,
         ))
 
+        if bpy.app.version >= (5,1,0):
+            # Needs to manage handlers that were added during register
+            bpy.app.handlers.exit_pre.append(RFCore.handle_exit_pre)
+
         bpy.types.VIEW3D_MT_mesh_add.append(RFCore.draw_menu_items)
         bpy.types.VIEW3D_MT_paint_vertex.append(menu_mesh.draw_paint_vertex_menu_items)
         bpy.types.VIEW3D_MT_edit_mesh_vertices.append(menu_mesh.draw_vertex_menu_items)
@@ -194,6 +200,14 @@ class RFCore:
         RFCore._is_registered = True
 
     @staticmethod
+    def unwrap_tool_change():
+        ''' Remove the space_toolsystem_common.activate_by_id wrapper. Safe to call more than once. '''
+        fn_unwrap : Callable[[], None] | None = getattr(RFCore, '_unwrap_activate_tool', None)
+        if not fn_unwrap: return
+        fn_unwrap()
+        setattr(RFCore, '_unwrap_activate_tool', None)
+
+    @staticmethod
     def unregister():
         print('RFCore.unregister')
         if not RFCore._is_registered:
@@ -209,10 +223,9 @@ class RFCore:
             RFCore._original_bmesh_update_edit_mesh = None
 
         # unwrap tool change function, also before the early-return so activate_by_id is always removed
-        fn_unwrap : Callable[[], None] | None = getattr(RFCore, '_unwrap_activate_tool', None)
-        if fn_unwrap:
-            fn_unwrap()
-            setattr(RFCore, '_unwrap_activate_tool', None)
+        RFCore.unwrap_tool_change()
+        if bpy.app.version >= (5,1,0) and RFCore.handle_exit_pre in bpy.app.handlers.exit_pre:
+            bpy.app.handlers.exit_pre.remove(RFCore.handle_exit_pre)
 
         if not bpy.context.workspace:
             # no workspace?  blender might be closing, which unregisters add-ons (DON'T KNOW WHY)
@@ -349,6 +362,8 @@ class RFCore:
     @staticmethod
     def _update_statusbar(context: Context):
         # print(f'RFOperator._update_statusbar {RFCore.selected_RFTool_idname}')
+        if RFCore.is_exiting or not context.workspace:
+            return
         # get the statusbar text from the active/selected RFTool.
         if tool_idname := RFCore.selected_RFTool_idname:
             if StatusbarYield.is_active():
@@ -373,7 +388,7 @@ class RFCore:
         ''' Re-apply the RF status bar callback to force a redraw without disturbing the current keymap context.
         Used to animate the source cache build progress. It does not reset km_context. '''
         tool_idname = RFCore.selected_RFTool_idname
-        if not tool_idname:
+        if not tool_idname or RFCore.is_exiting:
             return
 
         if StatusbarYield.is_active():
@@ -405,7 +420,7 @@ class RFCore:
 
         # print(f'tool_changed(context, {_space_type=}, {idname=}, {as_fallback=})')
 
-        if RFCore.is_paused:
+        if RFCore.is_paused or RFCore.is_exiting:
             return
 
         prev_selected_RFTool_idname = RFCore.selected_RFTool_idname
@@ -500,8 +515,6 @@ class RFCore:
         bpy.app.handlers.load_pre.append(RFCore.handle_load_pre)
         bpy.app.handlers.depsgraph_update_post.append(RFCore.handle_depsgraph_update)
         bpy.app.handlers.save_pre.append(RFCore.handle_save_pre)
-        if bpy.app.version >= (5,1,0):
-            bpy.app.handlers.exit_pre.append(RFCore.handle_exit_pre)
 
         prefs = preferences.RF_Prefs.get_prefs(context)
         props = getattr(context.scene, 'retopoflow', None)
@@ -647,7 +660,8 @@ class RFCore:
         RFCore.is_controlling = False
 
         StatusbarYield.cancel() # Cancel any pending status bar suppression timers
-        bpy.context.workspace.status_text_set(None) # reset status bar
+        if not RFCore.is_exiting and bpy.context.workspace:
+            bpy.context.workspace.status_text_set(None) # reset status bar
 
         for rfop in RFOperator.active_operators:
             try:
@@ -666,8 +680,6 @@ class RFCore:
         bpy.app.handlers.redo_post.remove(RFCore.handle_redo_post)
         bpy.app.handlers.undo_post.remove(RFCore.handle_undo_post)
         bpy.app.handlers.depsgraph_update_post.remove(RFCore.handle_depsgraph_update)
-        if bpy.app.version >= (5,1,0):
-            bpy.app.handlers.exit_pre.remove(RFCore.handle_exit_pre)
 
         RFCore.remove_handlers()
 
@@ -784,7 +796,11 @@ class RFCore:
 
     @staticmethod
     def handle_exit_pre(_is_not_background_process : bool):
-        bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', 'builtin.move')
+        # Any add-on unregistering before RF can reset the active tool
+        if RFCore.selected_RFTool_idname:
+            bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', 'builtin.move')
+        RFCore.is_exiting = True
+        RFCore.unwrap_tool_change()
 
     @staticmethod
     def handle_save_pre(_path_blend : str):
