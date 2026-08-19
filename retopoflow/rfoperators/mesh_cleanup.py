@@ -137,7 +137,7 @@ class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
         # Not ideal to do outside the main bmesh section,
         # but select interior faces is a fairly complex algorithm
         if props.cleaning_use_delete_interior:
-            prev_select_mode = context.tool_settings.mesh_select_mode
+            prev_select_mode = tuple(context.tool_settings.mesh_select_mode) # mesh_select_mode is a live reference, so save a copy
             prev_selection = get_selected(context)
             prev_faces = prev_selection[obj.name]['faces']
             prev_edges = prev_selection[obj.name]['edges']
@@ -160,10 +160,8 @@ class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
                 if e.index in selected_interior_edges and e.is_wire:
                     removed[obj.name]['edges'].append(e.index)
                     bm.edges.remove(e)
-            bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
             bmesh.update_edit_mesh(obj.data)
             restore_selected(context, prev_selection, skip=removed)
-            bpy.ops.object.mode_set(mode='EDIT', toggle=False)
             context.tool_settings.mesh_select_mode = prev_select_mode
 
         return {'FINISHED'}
