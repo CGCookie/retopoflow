@@ -37,7 +37,7 @@ from ..addon_common.common.debug import debugger
 from ..addon_common.common.resetter import Resetter
 from ..config.theme import Theme
 from ..config.keymaps import alter_user_keymaps, restore_user_keymaps
-from .common.bmesh import get_object_bmesh, get_bmesh_emesh, clear_object_bmesh
+from .common.bmesh import get_object_bmesh, get_bmesh_emesh, clear_object_bmesh, free_object_bmeshes
 from .common.bpy_helper import bpy_ops_retopoflow, BL_SPACE_TYPES
 from .common.operator import RFOperator_Base, RFOperator, RFOperator_Execute, RFRegisterClass, RFAssetShelf
 from .common.raycast import prep_raycast_valid_sources, iter_all_valid_sources
@@ -685,7 +685,7 @@ class RFCore:
 
         RFCore.running_in_areas.clear()
 
-        get_object_bmesh.cache.clear()
+        free_object_bmeshes()
 
         if not getattr(RFCore, 'is_saving', False):
             bpy.context.scene.retopoflow.saved_tool = ''

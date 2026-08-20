@@ -106,8 +106,19 @@ def get_object_bmesh(obj):
             eval_obj.to_mesh_clear()
     return bm
 
-def clear_object_bmesh():
+def free_object_bmeshes():
+    # These are bmesh.new() copies of source meshes that we own, so
+    # free them rather than leaving them for whenever the GC gets around to it
+    for bm in get_object_bmesh.cache.values(): # pyright: ignore[reportFunctionMemberAccess]
+        if bm.is_valid: bm.free()
     get_object_bmesh.cache.clear() # pyright: ignore[reportFunctionMemberAccess]
+
+def evict_object_bmesh(obj):
+    bm = get_object_bmesh.cache.pop(obj, None) # pyright: ignore[reportFunctionMemberAccess]
+    if bm and bm.is_valid: bm.free()
+
+def clear_object_bmesh():
+    free_object_bmeshes()
     try:
         from .accel import SourceMeshCache
         SourceMeshCache.clear()
