@@ -219,7 +219,7 @@ class RFOperator_PolyPen(RFOperator):
         default = False
     )
 
-    logic : PP_Logic
+    logic : PP_Logic | None = None
     done : bool
     shift_held : bool
     _prev_state : object = None  # last drawn PP_Action state, to redraw on change without mouse movement
@@ -241,9 +241,16 @@ class RFOperator_PolyPen(RFOperator):
         self._last_mouse = None
 
     def reset(self):
+        if not self.logic: return
         self.logic.reset()
 
+    def finish(self, context : Context):
+        self.set_statusbar_override(None)
+        self.logic = None # Clear now, otherwise Blender can crash trying to clear it after the bmesh is destroyed
+
     def update(self, context : Context, event : Event) -> set[str]:
+        if not self.logic: return {'CANCELLED'}
+
         if self.shift_held != event.shift:
             self.shift_held = event.shift
             context.area.tag_redraw()
@@ -296,6 +303,7 @@ class RFOperator_PolyPen(RFOperator):
         RFCore = RFGlobals.RFCore_None
         if not RFCore or not RFCore.is_current_area(context):
             return
+        if not self.logic: return
 
         self.logic.draw(context)
 

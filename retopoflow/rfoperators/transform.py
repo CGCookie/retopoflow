@@ -91,6 +91,9 @@ class RFOperator_Slide(RFOperator):
     def init(self, context, event):
         self.bm, self.em = get_bmesh_emesh(context, ensure_lookup_tables=True)
 
+    def finish(self, context):
+        self.bm, self.em = None, None # Clear now, otherwise Blender can crash trying to clear them after the bmesh is destroyed
+
     def update(self, context, event):
         selected_edges = bmops.get_all_selected_bmedges(self.bm)
         selected_verts = bmops.get_all_selected_bmverts(self.bm)
@@ -366,6 +369,25 @@ class RFOperator_Translate(SourceSnapMixin, RFOperator):
 
         # Cursors.set('NONE')  # PAINT_CROSS
 
+    def finish(self, context):
+        # Drop every BMesh reference while the bmesh is still alive.
+        # Nothing reads these after finish() but it can crash if released by Blender after the bmesh is gone.
+        self.bm, self.em = None, None
+        self.bmvs = ()
+        self.data = {}
+        self.bmvs_co_orig = {}
+        self.bmvs_co2d_orig = {}
+        self.bmfs = []
+        self.moving = None
+        self.highlight = set()
+        self.nearest_bmv = None
+        self.nearest_bme = None
+        self.nearest_bmf = None
+        self.vert_accel = None
+        self.source_edge_accel = None
+        self.proportional_edit_overlay = None
+        self.snap_release_state()
+
     def update(self, context, event):
 
         if self.use_slide or (event.type == 'G' and event.value == 'PRESS'):
@@ -427,7 +449,7 @@ class RFOperator_Translate(SourceSnapMixin, RFOperator):
                     p = location_3d_to_region_2d(context.region, context.region_data, co)
                     draw.vertex(p)
 
-        if hasattr(self, 'proportional_edit_overlay'):
+        if getattr(self, 'proportional_edit_overlay', None):
             self.proportional_edit_overlay.draw_2d(context)
 
     def automerge(self, context, event):

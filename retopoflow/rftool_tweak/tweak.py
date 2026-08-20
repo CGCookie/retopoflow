@@ -235,8 +235,8 @@ class RFOperator_Tweak(RFOperator):
         min=0.1, max=10.0, default=2.0,
     )
 
-    logic : Tweak_Logic
-    timer : TimerHandler
+    logic : Tweak_Logic | None = None
+    timer : TimerHandler | None = None
 
     def init(self, context : Context, event : Event):
         # print(f'STARTING POLYPEN')
@@ -253,6 +253,7 @@ class RFOperator_Tweak(RFOperator):
         return True
 
     def update(self, context : Context, event : Event):
+        if not self.logic: return {'CANCELLED'}
         self.logic.update(context, event)
 
         if event.type == 'LEFTMOUSE' and event.value == 'RELEASE':
@@ -270,11 +271,15 @@ class RFOperator_Tweak(RFOperator):
         return {'RUNNING_MODAL'} # allow other operators, such as UNDO!!!
 
     def finish(self, _context : Context):
-        self.timer.stop()
+        if self.timer:
+            self.timer.stop()
+            self.timer = None
+        self.logic = None # Clear now, otherwise Blender can crash trying to clear it after the bmesh is destroyed
 
     def draw_postpixel(self, context : Context):
         RFCore = RFGlobals.RFCore_None
         if not RFCore or not RFCore.is_current_area(context): return
+        if not self.logic: return
         self.logic.draw(context)
 
 

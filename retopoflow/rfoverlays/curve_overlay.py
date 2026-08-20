@@ -187,6 +187,8 @@ def create_curve_overlay(
             cls = type(self)
             cls.depsgraph_version = -42
             cls.instance = self
+            cls.paused_update = False
+            cls.paused_overlay = False
 
         def finish(self, _context : Context):
             cls = type(self)

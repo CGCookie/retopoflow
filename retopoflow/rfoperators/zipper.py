@@ -470,6 +470,7 @@ class RFOperator_Zipper(RFOperator):
         'ready': ('LMB: Zip / Unzip', ),
     }
 
+    logic : Zipper_Logic | None = None
 
     def init(self, context, event):
         self.logic = Zipper_Logic(context, event)
@@ -478,7 +479,11 @@ class RFOperator_Zipper(RFOperator):
     def reset(self):
         pass
 
+    def finish(self, context):
+        self.logic = None # Clear now, otherwise Blender can crash trying to clear it after the bmesh is destroyed
+
     def update(self, context, event):
+        if not self.logic: return {'CANCELLED'}
         print(f'zip {time.time()}')
         if self.logic.update(context, event):
             self.tickle(context)
@@ -494,4 +499,5 @@ class RFOperator_Zipper(RFOperator):
     def draw_postpixel(self, context):
         RFCore = RFGlobals.RFCore_None
         if not RFCore or not RFCore.is_current_area(context): return
+        if not self.logic: return
         self.logic.draw(context)

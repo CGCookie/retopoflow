@@ -260,6 +260,25 @@ class RFOperator_TopoRotate(RFOperator):
         self.mouse = Vector((event.mouse_region_x, event.mouse_region_y))
         self.mouse_angle = math.atan2(self.mouse_start.y - self.patch_center.y, self.mouse_start.x - self.patch_center.x)
 
+    def finish(self, context):
+        # Drop every BMesh reference while the bmesh is still alive.
+        self.bm, self.em = None, None
+        self.bmfaces = set()
+        self.all_bmverts = set()
+        self.all_bmedges = set()
+        self.inner_bmverts = set()
+        self.inner_bmedges = set()
+        self.outer_bmverts = set()
+        self.perimeter0 = []
+        self.perimeter1 = []
+        self.perimeter0_bmverts = []
+        self.perimeter1_bmverts = []
+        self.perimeter_bmverts = set()
+        self.perimeter_bmedges = set()
+        self.original_positions = {}
+        self.original_positions_local = {}
+        self.merging = {}
+
     def revert_to_original(self):
         # undo everything
         self.merging = {
