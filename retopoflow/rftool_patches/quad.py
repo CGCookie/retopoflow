@@ -1,11 +1,11 @@
 from mathutils import Vector
 import math
 
-auto_pvert_type = 'angle'
+auto_pvert_type = 'topo'
 
 merge = [True, True, True, True, True, True, True, True, True, True, True]
-graph_positioned : bool = True
-relax_enabled : bool = False
+graph_positioned : bool = False
+relax_enabled : bool = True
 
 def quad(
     co0 : Vector,

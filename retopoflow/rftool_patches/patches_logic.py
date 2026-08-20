@@ -547,6 +547,7 @@ class PVert:
 
         match quad.auto_pvert_type:
             case 'topo':
+                print(f'{edge_count=}')
                 match edge_count:
                     case 0:
                         self.pvtype = PVType.EDGE
@@ -969,7 +970,8 @@ class Ring:
                 ip2 = (ip1 + 1) % len(self.pverts_new)
                 pv0 = self.pverts_new[ip0]
                 pv2 = self.pverts_new[ip2]
-                pvert.update_pvtype(pv0, pv2, len(new_edges.get(i, [])))
+                new_edge_count = len(new_edges.get(pvert_index[pvert], []))
+                pvert.update_pvtype(pv0, pv2, new_edge_count)
             if depth < 5 and len(self.pverts_new) >= 3:
                 self.ring_next = Ring(self, depth=depth+1)
 
