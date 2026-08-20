@@ -1356,6 +1356,20 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
             bpy.types.SpaceView3D.draw_handler_remove(h, 'WINDOW')
             self._draw_handle = None
 
+    def release(self):
+        ''' Drop the draw handler and every BMesh reference while the bmesh is still alive. '''
+        self._highlight_remove()
+        self._bm = None
+        self._em = None
+        self._sel_verts = []
+        self._component_data = []
+
+    def cancel(self, context):
+        # this operator has its own modal loop other than RFOperator's, so it needs its own cancel()
+        self.release()
+        if context.area:
+            context.area.header_text_set(None)
+
     def modal(self, context, event):
         if event.type == 'MOUSEMOVE':
             delta_px = event.mouse_x - self._initial_mouse_x
@@ -1388,7 +1402,7 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
             self.use_proportional_edit = ts.use_proportional_edit
             self.proportional_distance = ts.proportional_distance
             self.proportional_falloff  = ts.proportional_edit_falloff
-            self._highlight_remove()
+            self.release()
             if context.area:
                 context.area.header_text_set(None)
             return {'FINISHED'}
@@ -1401,7 +1415,7 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
                     v.co = co0.copy()
             self._bm.normal_update()
             bmesh.update_edit_mesh(self._em, loop_triangles=False)
-            self._highlight_remove()
+            self.release()
             if context.area:
                 context.area.header_text_set(None)
             return {'CANCELLED'}

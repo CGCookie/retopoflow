@@ -397,6 +397,14 @@ class FeatureRunsMixin:
         self.demoted_by_runs = {}
         self.guide_loop_seeds = []
 
+    def release_feature_runs(self):
+        ''' Drop every BMVert this mixin is holding. Call from the consumer's finish(). '''
+        self.clear_guide_state()
+        self.vert_seed_seg = {}
+        self.vert_feature_run = {}
+        self.run_segments = {}
+        self.run_of_seg = {}
+
     def update_source_context_brush(self, members):
         ''' Brush mode: one promoted guide loop per feature run over the `members` vert set.
         Keep each elected loop's seed edge until it leaves the brush region, but re-derive
@@ -488,6 +496,12 @@ class SourceSnapMixin(FeatureRunsMixin):
         self.snapped_verts: set = set()
         self.snap_target_world: dict = {}
         self.vert_corner_idx: dict = {}
+
+    def snap_release_state(self):
+        ''' Mirror of snap_init_state, for the consumer's finish(). Same reason as
+        release_feature_runs: these are keyed by BMVert and must not outlive the bmesh. '''
+        self.snap_init_state()
+        self.release_feature_runs()
 
     def snap_grabbed_set(self) -> set:
         ''' Override in each subclass. Returns the set of grabbed BMVerts. '''
