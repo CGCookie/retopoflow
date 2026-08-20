@@ -234,6 +234,20 @@ def create_stroke_brush(
             self.snap_bmf1 = None
             self.snap_join = set()
 
+        def release_bmesh(self):
+            ''' Drop every bmesh reference the brush holds as it outlives the bmesh.
+            Stroke geometry is left alone so this is safe to call mid-stroke. '''
+            self.reset()
+            self.bme_cache_left = {}
+            self.bme_cache_right = {}
+            self.bme_join_cache = {}
+            self.snap_caps = set()
+
+        @classmethod
+        def depsgraph_update(cls):
+            for brush in cls.get_instances():
+                brush.release_bmesh()
+
 
         def reset_nearest(self, context):
             # Clear nearest references
@@ -266,7 +280,8 @@ def create_stroke_brush(
                 print('Warning: Could not get valid BMesh')
 
             if not self.operator:
-                self.reset()
+                # no operator means this is teardown, so drop the caches too
+                self.release_bmesh()
 
 
         def get_scaled_radius(self) -> float:
