@@ -42,7 +42,7 @@ from ..common.bmesh_maths import (
     compute_n,
     bmes_get_prevnext_bmvs,
     get_strip_bmvs,
-    check_bmf_normals,
+    orient_bmf_normals,
     fit_template2D,
     vec_screenspace_angle,
     vecs_screenspace_angle,
@@ -55,14 +55,12 @@ from ..common.raycast import raycast_point_valid_sources, nearest_point_valid_so
 from ..common.accel import SourceCache
 from ..common.snapping import source_snap_radius, source_snap_settings, fold_crease
 from ..common.maths import (
-    view_forward_direction,
     lerp,
     point_to_bvec3,
     vector_to_bvec3,
     point_to_bvec4,
     distance_point_linesegment,
     distance_point_bmedge,
-    xform_direction,
 )
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.bezier import interpolate_cubic
@@ -1412,8 +1410,7 @@ class PolyStrips_Logic:
                 bmf = self.bm.faces.new(verts)
                 bmfs += [ bmf ]
                 select_geo.append(bmf)
-            fwd = xform_direction(Mi, view_forward_direction(context))
-            check_bmf_normals(fwd, bmfs)
+            orient_bmf_normals(context, bmfs)
 
             if snap_bmf1 is None: snap_bmf1 = bmfs[-1]
             actual_strip_count += 1

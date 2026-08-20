@@ -34,7 +34,6 @@ from .bmesh import (
     bmes_shared_bmv,
     bme_other_bmv,
 )
-from .bmesh_maths import check_bmf_normals
 from ...addon_common.common.utils import dedup
 
 
@@ -101,7 +100,7 @@ def corner_reroute_is_legal(faces, rungs, k, *, cyclic : bool) -> bool:
     return True
 
 
-def insert_corner(bm : BMesh, faces, rungs, k, *, fwd : Vector) -> dict | None:
+def insert_corner(bm : BMesh, faces, rungs, k) -> dict | None:
     ''' Turn the strip into an L at pivot face `faces[k]`, restitching the single downstream face `faces[k+1]`.
     The turn follows the strip's existing geometric bend. Returns {'pivot_vert', 'cap_vert', 'new_face'} or None. '''
     if not corner_reroute_is_legal(faces, rungs, k, cyclic=False):
@@ -206,11 +205,10 @@ def insert_corner(bm : BMesh, faces, rungs, k, *, fwd : Vector) -> dict | None:
             P[1].co = pivot_old + dirB * wB
             Q[1].co = pivot_old + dirA * wA + dirB * wB
 
-    check_bmf_normals(fwd, [nf])
     return {'pivot_vert': P[0], 'cap_vert': Q[1], 'new_face': nf, 'moved_verts': [P[0], P[1], Q[0], Q[1]]}
 
 
-def remove_corner(bm : BMesh, faces, rungs, k, *, fwd : Vector) -> dict | None:
+def remove_corner(bm : BMesh, faces, rungs, k) -> dict | None:
     ''' Straighten the L-corner at pivot face `faces[k]` back into a plain ladder,
     restitching the downstream neighbor `faces[k+1]`. Inverse of insert_corner.
     Returns {'pivot_vert', 'new_face'} or None if `faces[k]` isn't a corner. '''
@@ -286,5 +284,4 @@ def remove_corner(bm : BMesh, faces, rungs, k, *, fwd : Vector) -> dict | None:
         v13.co, v23.co = hermite_pts(a.co, b.co, dir_in, dir_out, (1/3, 2/3))
         moved_verts += [v13, v23]
 
-    check_bmf_normals(fwd, [nf])
     return {'pivot_vert': pivot, 'new_face': nf, 'moved_verts': moved_verts}

@@ -36,7 +36,6 @@ from ...addon_common.common.decorators import add_cache
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.maths import clamp, closest_point_segment
 from .maths import (
-    view_forward_direction,
     distance_point_linesegment,
     distance_point_bmedge,
     distance2d_point_bmedge,
@@ -292,6 +291,36 @@ def bme_other_bmv(bme : BMEdge, bmv : BMVert) -> BMVert|None:
     return bmv0 if bmv1 == bmv else bmv1
 def bme_other_bmf(bme : BMEdge, bmf : BMFace) -> BMFace|None:
     return next((bmf_ for bmf_ in bme.link_faces if bmf_ != bmf), None)
+
+def order_bmvs_for_new_bmf(bme : BMEdge, bmvs : Sequence[BMVert]) -> list[BMVert]:
+    ''' Reorder bmvs so the new face is wound the same way as the face already using bme. '''
+    loop = next(iter(bme.link_loops), None)
+    bmvs = list(bmvs)
+    if not loop: return bmvs
+    # loop.vert is the vert the existing face walks *from*, so starting there would match its direction
+    return list(reversed(bmvs)) if bmvs[0] == loop.vert else bmvs
+def wind_bmf_to_match_neighbors(bmf : BMFace, ignore : set[BMFace]) -> bool:
+    ''' Flip bmf if it is wound against the faces it is attached to, skipping any in ignore. '''
+    votes = 0
+    for loop in bmf.loops:
+        for loop_n in loop.edge.link_loops:
+            if loop_n is loop or loop_n.face in ignore: continue
+            # loop.vert is the vert each face walks *from*, so sharing it means sharing a direction
+            votes += -1 if loop_n.vert == loop.vert else 1
+    if votes == 0: return False
+    if votes < 0: bmf.normal_flip()
+    return True
+def wind_bmfs_to_match_neighbors(bmfs : Sequence[BMFace]) -> list[BMFace]:
+    ''' Flip whichever of bmfs are wound against what they are attached to.
+    A face in bmfs is not used as a reference until it has been settled,
+    which lets a decision spread outward from the surrounding mesh. '''
+    pending = set(bmfs)
+    while pending:
+        settled = [bmf for bmf in pending if wind_bmf_to_match_neighbors(bmf, pending)]
+        if not settled: break
+        pending.difference_update(settled)
+    return [bmf for bmf in bmfs if bmf in pending]
+
 def bmes_share_bmv(bme0 : BMEdge | None, bme1 : BMEdge | None) -> bool:
     if not bme0 or not bme1: return False
     a0,a1 = bme0.verts

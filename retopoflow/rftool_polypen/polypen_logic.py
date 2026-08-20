@@ -40,6 +40,7 @@ from ..preferences import RF_Prefs
 from ..common.bmesh import (
     bmvs_share_bmf, bmf_opposite_bmelem,
     bme_other_bmv, bme_other_bmf, bme_midpoint, bme_cos, bme_length,
+    order_bmvs_for_new_bmf,
     bmes_share_bmv, bmes_shared_bmv,
     bmf_midpoint, bmf_opposite_bme, bmf_is_quad, bmf_is_pentagon, bmf_radius_squared,
     bmf_is_tri,
@@ -51,7 +52,7 @@ from ..common.bmesh import (
 )
 from ..common.accel import SourceCache
 from ..common.snapping import source_snap_radius, source_snap_settings
-from ..common.bmesh_maths import is_bmvert_hidden
+from ..common.bmesh_maths import is_bmvert_hidden, orient_bmf_normals
 from ..common.enums import ValueIntEnum
 from ..common.raycast import (
     nearest_point_valid_sources,
@@ -1785,6 +1786,7 @@ class PP_Logic:
 
         snap_verts = []          # to be snapped to the surface (or a feature, in knife states) before wrapping up
         feature_snap_verts = []  # already surface-positioned (view-ray/wire) knife verts: feature snap only, no reproject
+        orient_bmfs = []         # freshly created faces to orient once the verts above have landed on the source
         select_now = []     # to be selected before move
         select_later = []   # to be selected after move
         free_move = not self.constrain_edge_vert
@@ -1940,12 +1942,7 @@ class PP_Logic:
                 bmf1 = self.bm.faces.new([bmv0_new, bmv0, bmvo, bmv_new])
                 bmf2 = self.bm.faces.new([bmv1_new, bmv_new, bmvo, bmv1])
 
-                bmf0.normal_update()
-                bmf1.normal_update()
-                bmf2.normal_update()
-                if bmf0.normal.dot(self.vec_forward) > 0: bmf0.normal_flip()
-                if bmf1.normal.dot(self.vec_forward) > 0: bmf1.normal_flip()
-                if bmf2.normal.dot(self.vec_forward) > 0: bmf2.normal_flip()
+                orient_bmfs += [bmf0, bmf1, bmf2]
 
                 select_now = [bmv1_new]
                 select_later = []
@@ -2275,10 +2272,8 @@ class PP_Logic:
                         bmf1, _ = bmesh.utils.face_split(bmf, bmv1, bmv)
                         select_later += [bmf1]
                 else:
-                    bmf = self.bm.faces.new((bmv0,bmv1,bmv))
-                    bmf.normal_update()
-                    if xform_direction(self.matrix_world_inv, view_forward_direction(context)).dot(bmf.normal) > 0:
-                        bmf.normal_flip()
+                    bmf = self.bm.faces.new(order_bmvs_for_new_bmf(self.bme, (bmv0, bmv1, bmv)))
+                    orient_bmfs.append(bmf)
                 select_later += [bmf]
                 free_move = True
 
@@ -2286,10 +2281,8 @@ class PP_Logic:
                 # create quad between selected and hovered edges
                 bmv0, bmv1 = self.bme.verts
                 bmv2, bmv3 = self.bme_hovered_bmvs
-                bmf = self.bm.faces.new((bmv0, bmv1, bmv2, bmv3))
-                bmf.normal_update()
-                if xform_direction(self.matrix_world_inv, view_forward_direction(context)).dot(bmf.normal) > 0:
-                    bmf.normal_flip()
+                # wind from the selected edge as the hovered edge can belong to a separately wound island
+                orient_bmfs.append(bmf)
                 select_now = [bmv2, bmv3]
                 select_later = [bmf]
 
@@ -2308,10 +2301,8 @@ class PP_Logic:
                     co3 = self.correct_mirror_side(context, self.hit3, self.bme.verts)
                     bmv3 = self.bm.verts.new(co3)
                     snap_verts.append(bmv3)
-                bmf = self.bm.faces.new((bmv0, bmv1, bmv2, bmv3))
-                bmf.normal_update()
-                if xform_direction(self.matrix_world_inv, view_forward_direction(context)).dot(bmf.normal) > 0:
-                    bmf.normal_flip()
+                bmf = self.bm.faces.new(order_bmvs_for_new_bmf(self.bme, (bmv0, bmv1, bmv2, bmv3)))
+                orient_bmfs.append(bmf)
                 select_now = [bmv2, bmv3]
                 select_later = [bmf]
                 free_move = True
@@ -2358,6 +2349,8 @@ class PP_Logic:
             for bmv in feature_snap_verts:
                 if bmv.is_valid:
                     bmv.co = self.snap_co_to_feature(bmv.co)
+
+        orient_bmf_normals(context, orient_bmfs)
 
         bmops.deselect_all(self.bm)
         for bmelem in select_now:

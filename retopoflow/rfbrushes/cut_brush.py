@@ -39,7 +39,7 @@ from ..common.drawing import (
     CC_3D_TRIANGLES,
 )
 from ..common.icons import get_path_to_blender_icon
-from ..common.maths import view_forward_direction, lerp
+from ..common.maths import lerp
 from ..common.operator import (
     RFOperator,
     chain_rf_keymaps,

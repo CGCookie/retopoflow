@@ -83,13 +83,6 @@ def draw_tweaking_options(context : Context, layout : UILayout):
             row2.enabled = context.scene.tool_settings.use_mesh_automerge
             row2.prop(context.scene.tool_settings, 'double_threshold', text='')
 
-        snapping = context.scene.retopoflow.snapping
-        use_native = ( snapping.snap_vertex or snapping.snap_edge or snapping.snap_edge_center
-            or snapping.snap_edge_perpendicular or snapping.snap_face_center )
-        col2 = panel.column()
-        col2.enabled = not use_native
-        col2.row(heading='Normals').prop(props, 'tweaking_update_normals', text='Update')
-
     header, panel = layout.panel(idname='RF_curve_handles', default_closed=False)
     curve_props = context.scene.retopoflow.curve_handles
     header.use_property_split = False

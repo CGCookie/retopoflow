@@ -24,16 +24,17 @@ from collections.abc import Sequence
 
 import bpy
 from mathutils import Vector, Matrix
-from bmesh.types import BMVert, BMEdge, BMesh
+from bmesh.types import BMVert, BMEdge, BMFace, BMesh
 from bpy.types import Context, Region, RegionView3D
 
 from .bmesh import (
     get_boundary_strips_cycles,
     bme_other_bmv,
     bme_length,
+    wind_bmfs_to_match_neighbors,
 )
-from .raycast import raycast_valid_sources
-from .maths import point_to_bvec4
+from .raycast import raycast_valid_sources, MatrixInfo, FindNearest
+from .maths import point_to_bvec4, view_forward_direction
 from ...addon_common.common.maths import closest_point_segment, Point, Direction, Plane
 from ...addon_common.ext.circle_fit import hyperLSQ
 from ...addon_common.common.utils import iter_pairs
@@ -181,6 +182,50 @@ def check_bmf_normals(fwd, bmfs):
         bmf.normal_update()
         if fwd.dot(bmf.normal) > 0:
             bmf.normal_flip()
+
+def orient_bmf_normals(
+    context : Context,
+    bmfs : Sequence[BMFace],
+    *,
+    matinfo : MatrixInfo | None = None,
+    view_fallback : bool = True,
+) -> None:
+    '''
+    Point newly created or freshly moved faces outwards if Correct Face Normals is on.
+
+    Faces are compared against the source mesh, so call this after snapping, not before.
+    Falls back to its neighbor's direction, then to the view direction, then to doing nothing.
+    Blender's default is pointing away from the object origin.
+    '''
+    bmfs = [bmf for bmf in bmfs if bmf is not None and bmf.is_valid]
+    if not bmfs: return
+
+    if not context.scene.retopoflow.snapping.correct_face_normals: return
+
+    if not matinfo: matinfo = MatrixInfo(context=context)
+    bmfs_unresolved = []
+    for bmf in bmfs:
+        bmf.normal_update()
+        # Sample every vert not the face midpoint. On a thin surface the midpoint lands
+        # on either side more or less at random: https://github.com/CGCookie/retopoflow/issues/1762
+        no_local = Vector((0, 0, 0))
+        for bmv in bmf.verts:
+            nearest = FindNearest(context, point_world=matinfo.l2w_point(bmv.co), matinfo=matinfo)
+            if not nearest.found: continue
+            no_local += nearest.normal_local
+        if no_local.length_squared < 1e-12:
+            # no source under the face, or the sampled normals cancelled out on a thin fin
+            bmfs_unresolved.append(bmf)
+            continue
+        if bmf.normal.dot(no_local) < 0:
+            bmf.normal_flip()
+    if not bmfs_unresolved: return
+
+    # the source had nothing to say, so agree with the surrounding faces instead
+    bmfs = wind_bmfs_to_match_neighbors(bmfs_unresolved)
+    if not bmfs or not view_fallback: return  # whatever is left is attached to nothing settled
+
+    check_bmf_normals(matinfo.w2l_direction(view_forward_direction(context)), bmfs)
 
 def fit_template2D(template, p0, *, target=None, along=None):
     t0, t1 = template[0], template[-1]

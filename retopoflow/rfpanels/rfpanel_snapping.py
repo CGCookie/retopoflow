@@ -144,6 +144,8 @@ def draw_snapping_options(context, layout, *, guide_loops: bool = False):
         row.enabled = snapping.projection == 'WORLD_SPACE' or 'FACE_NEAREST' in context.scene.tool_settings.snap_elements_individual
         row.prop(context.scene.tool_settings, 'snap_face_nearest_steps', text='Steps')
 
+    layout.row(heading='Normals').prop(snapping, 'correct_face_normals', text='Correct')
+
     layout.use_property_split = False
     split = layout.split(factor=0.4)
     col = split.column()
@@ -175,8 +177,9 @@ def draw_snapping_options(context, layout, *, guide_loops: bool = False):
     # tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
     # if tool.idname not in ['retopoflow.relax', 'retopoflow.tweak']:
     #     return
-    feat_header, feat_panel = layout.panel(idname='RF_feature_detection', default_closed=False)
-    feat_header.label(text='Source Feature Detection')
+    layout.separator()
+    feat_header, feat_panel = layout.panel(idname='RF_feature_detection', default_closed=True)
+    feat_header.label(text='Source Feature Detection (Experimental)')
     if feat_panel:
         props = context.scene.retopoflow.snapping
         feat_panel.use_property_split = True

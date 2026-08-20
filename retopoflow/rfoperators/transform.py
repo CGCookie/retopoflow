@@ -31,11 +31,10 @@ from ..preferences import RF_Prefs
 from ..common.accel import SourceCache, Accel
 from ..common.bmesh import (
     get_bmesh_emesh,
-    bmf_midpoint,
     NearestBMVert, NearestBMEdge, NearestBMFace,
     get_bmv_avg_edge_len,
 )
-from ..common.bmesh_maths import is_bmvert_hidden
+from ..common.bmesh_maths import is_bmvert_hidden, orient_bmf_normals
 from ..common.operator import execute_operator, RFOperator, RFKeyMaps
 from ..common.raycast import (
     raycast_valid_sources,
@@ -44,10 +43,8 @@ from ..common.raycast import (
     nearest_point_valid_sources,
     nearest_normal_valid_sources,
     MatrixInfo,
-    FindNearest,
 )
 from ..common.maths import (
-    view_forward_direction,
     proportional_edit,
     xform_direction,
     normal_to_bvec3, normal_to_bvec4,
@@ -188,7 +185,6 @@ class RFOperator_Translate(SourceSnapMixin, RFOperator):
         self.nearest_bmv = NearestBMVert(self.bm, self.matrix_world, self.matrix_world_inv, ensure_lookup_tables=False)
         self.nearest_bme = NearestBMEdge(self.bm, self.matrix_world, self.matrix_world_inv, ensure_lookup_tables=False)
         self.nearest_bmf = NearestBMFace(self.bm, self.matrix_world, self.matrix_world_inv, ensure_lookup_tables=False)
-        self.use_update_normals = prefs.tweaking_update_normals
         sync_projection_from_blender(context)
         self.tweaking_projection = context.scene.retopoflow.snapping.projection
         if self.use_native == 'AUTO':
@@ -569,30 +565,12 @@ class RFOperator_Translate(SourceSnapMixin, RFOperator):
         context.area.tag_redraw()
 
     def update_normals(self, context, event):
-        # get normal of nearest point on surface from each bmvert of bmface
-        # if that normal and bmface's normal are opposite, then flip the bmface normal
-        # this should work regardless of snap method (project or nearest)
-        # see https://github.com/CGCookie/retopoflow/issues/1731
-        # see https://github.com/CGCookie/retopoflow/issues/1762
-        matinfo = MatrixInfo(context=context)
-        for (bmf, _) in self.bmfs:
-            if not bmf.is_valid: continue
-            bmf.normal_update()
-            if False:
-                # broken #1762
-                co_world = matinfo.l2w_point(bmf_midpoint(bmf))
-                nearest = FindNearest(context, point_world=co_world, matinfo=matinfo)
-                if not nearest.found: continue
-                v = nearest.normal_local
-            else:
-                v = Vector((0,0,0))
-                for bmv in bmf.verts:
-                    co_world = matinfo.l2w_point(bmv.co)
-                    nearest = FindNearest(context, point_world=co_world, matinfo=matinfo)
-                    if not nearest.found: continue
-                    v += nearest.normal_local
-            if bmf.normal.dot(v) < 0:
-                bmf.normal_flip()
+        orient_bmf_normals(
+            context,
+            [bmf for (bmf, _) in self.bmfs],
+            matinfo=MatrixInfo(context=context),
+            view_fallback=False,
+        )
 
     def snap_grabbed_set(self):
         return set(self.bmvs)

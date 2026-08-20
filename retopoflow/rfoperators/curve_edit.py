@@ -32,10 +32,11 @@ from collections.abc import Callable
 
 from ..common.accel import SourceCache
 from ..common.bmesh import get_bmesh_emesh
+from ..common.bmesh_maths import orient_bmf_normals
 from ..common.curves import ordered_rungs
 from ..common.topology_corners import insert_corner, remove_corner
 from ..common.drawing import Drawing
-from ..common.maths import view_right_direction, view_forward_direction, xform_direction, proportional_edit
+from ..common.maths import view_right_direction, xform_direction, proportional_edit
 from ..common.raycast import raycast_point_valid_sources, nearest_point_valid_sources, iter_all_valid_sources, mouse_from_event
 from ..common.snapping import source_snap_settings, source_snap_radius
 from ..common.operator import RFOperator, RFKeyMaps, execute_operator, Operator_Execute_Function
@@ -1629,11 +1630,9 @@ def create_curve_toggle_handle_type_operator(
         rungs = ordered_rungs(faces, False)
 
         M = context.edit_object.matrix_world
-        Mwi = M.inverted_safe()
-        fwd = xform_direction(Mwi, view_forward_direction(context))
 
         edit = remove_corner if is_corner else insert_corner
-        result = edit(bm, faces, rungs, face_pos, fwd=fwd)
+        result = edit(bm, faces, rungs, face_pos)
         if result is None:
             return {'CANCELLED'}  # attached to existing geometry / degenerate so leave unchanged
 
@@ -1641,6 +1640,9 @@ def create_curve_toggle_handle_type_operator(
         for bmv in result.get('moved_verts', ()):
             if snapped := nearest_point_valid_sources(context, M @ bmv.co, world=False, respect_clip_planes=True):
                 bmv.co = snapped
+
+        # only decide the normal after it is on the surface
+        orient_bmf_normals(context, [result['new_face']] if result.get('new_face') is not None else [])
 
         # reselect the whole resulting strip so the overlay re-detects the same chain
         new_faces = [f for f in faces if f.is_valid]
