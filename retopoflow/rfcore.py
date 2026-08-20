@@ -983,6 +983,10 @@ class RFCore:
             # this can happen when Blender is closing
             return
 
+        if not depsgraph.updates:
+            # Evaluation-only event: nothing actually changed
+            return
+
         RFCore.depsgraph_version += 1
 
         SourceCache.note_depsgraph_update(bpy.context, depsgraph) # Auto source cache rebuild trigger
