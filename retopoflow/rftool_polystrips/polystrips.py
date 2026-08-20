@@ -434,8 +434,12 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
         self.set_statusbar_override(None)
         self.km_context = 'init'
         RFTool_PolyStrips.rf_brush.set_operator(None)
-        RFTool_PolyStrips.rf_brush.reset_nearest(context)
-        RFTool_PolyStrips.rf_overlay.unpause_overlay()
+        try:
+            RFTool_PolyStrips.rf_brush.reset_nearest(context)
+        finally:
+            # reset_nearest can throw on a dying bmesh.
+            # Leaving the overlay paused would hide it for the rest of the session.
+            RFTool_PolyStrips.rf_overlay.unpause_overlay()
 
     def reset(self):
         RFTool_PolyStrips.rf_brush.reset()

@@ -1358,11 +1358,13 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
 
     def release(self):
         ''' Drop the draw handler and every BMesh reference while the bmesh is still alive. '''
-        self._highlight_remove()
-        self._bm = None
-        self._em = None
-        self._sel_verts = []
-        self._component_data = []
+        try:
+            self._highlight_remove()
+        finally:
+            self._bm = None
+            self._em = None
+            self._sel_verts = []
+            self._component_data = []
 
     def cancel(self, context):
         # this operator has its own modal loop other than RFOperator's, so it needs its own cancel()

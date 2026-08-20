@@ -551,15 +551,23 @@ def create_curve_edit_operator(
             #
             # On cancel this is moot either way: update() restored the verts
             # (and the spline snapshot) to the positions already in the cache.
-            overlay = get_overlay().instance
-            if overlay is not None:
-                cache_key = self.chain['cache_key']
-                cached = getattr(overlay, '_curve_struct_cache', {}).get(cache_key)
-                if cached:
-                    new_cos = self.chain['current_points'](self.bm)
-                    if new_cos and len(new_cos) == len(cached['cos']):
-                        cached['cos'] = new_cos
-            get_overlay().unpause_update()
+            try:
+                overlay = get_overlay().instance
+                bm    = getattr(self, 'bm', None)
+                chain = getattr(self, 'chain', None)
+                if overlay is not None and chain and bm and bm.is_valid:
+                    cached = getattr(overlay, '_curve_struct_cache', {}).get(chain['cache_key'])
+                    if cached:
+                        new_cos = chain['current_points'](bm)
+                        if new_cos and len(new_cos) == len(cached['cos']):
+                            cached['cos'] = new_cos
+            finally:
+                # finish() also runs from cancel() / stop(), where the bmesh may already be
+                # gone and init may not have finished. The cache sync above is best effort, but
+                # skipping unpause_update() would freeze curve handles for the rest of the session.
+                get_overlay().unpause_update()
+                # nothing reads these after finish() but they can crash on operator release if the bmesh is gone
+                self.bm, self.em = None, None
 
         def apply_handle(self, context, delta, rgn, r3d, M, Mi, alt, shift):
             h = self.handle

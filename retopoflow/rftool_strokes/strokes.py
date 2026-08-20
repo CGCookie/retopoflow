@@ -488,7 +488,12 @@ class RFOperator_Strokes(RFOperator_Stroke_Insert_Properties, RFOperator):
         self.set_statusbar_override(None)
         self.km_context = 'init'
         RFTool_Strokes.rf_brush.set_operator(None)
-        RFTool_Strokes.rf_brush.reset_nearest(context)
+        try:
+            RFTool_Strokes.rf_brush.reset_nearest(context)
+        finally:
+            # reset_nearest can throw on a dying bmesh.
+            # Leaving the overlay paused would hide it for the rest of the session.
+            RFTool_Strokes.rf_overlay.unpause_overlay()
 
     def reset(self):
         RFTool_Strokes.rf_brush.reset()
