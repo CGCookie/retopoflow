@@ -2350,7 +2350,7 @@ class PP_Logic:
                 if bmv.is_valid:
                     bmv.co = self.snap_co_to_feature(bmv.co)
 
-        orient_bmf_normals(context, orient_bmfs)
+        orient_bmf_normals(context, orient_bmfs, new_faces=True)
 
         bmops.deselect_all(self.bm)
         for bmelem in select_now:

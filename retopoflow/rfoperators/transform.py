@@ -565,12 +565,7 @@ class RFOperator_Translate(SourceSnapMixin, RFOperator):
         context.area.tag_redraw()
 
     def update_normals(self, context, event):
-        orient_bmf_normals(
-            context,
-            [bmf for (bmf, _) in self.bmfs],
-            matinfo=MatrixInfo(context=context),
-            view_fallback=False,
-        )
+        orient_bmf_normals(context, [bmf for (bmf, _) in self.bmfs], matinfo=MatrixInfo(context=context))
 
     def snap_grabbed_set(self):
         return set(self.bmvs)

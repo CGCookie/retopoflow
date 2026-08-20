@@ -315,10 +315,17 @@ def wind_bmfs_to_match_neighbors(bmfs : Sequence[BMFace]) -> list[BMFace]:
     A face in bmfs is not used as a reference until it has been settled,
     which lets a decision spread outward from the surrounding mesh. '''
     pending = set(bmfs)
-    while pending:
-        settled = [bmf for bmf in pending if wind_bmf_to_match_neighbors(bmf, pending)]
+    frontier = list(bmfs)   # everything is worth a look on the first pass
+    while frontier:
+        settled = [bmf for bmf in frontier if bmf in pending and wind_bmf_to_match_neighbors(bmf, pending)]
         if not settled: break
         pending.difference_update(settled)
+        # Only a face next to one that just settled can have a new answer.
+        frontier = set()
+        for bmf in settled:
+            for loop in bmf.loops:
+                for loop_n in loop.edge.link_loops:
+                    if loop_n.face in pending: frontier.add(loop_n.face)
     return [bmf for bmf in bmfs if bmf in pending]
 
 def bmes_share_bmv(bme0 : BMEdge | None, bme1 : BMEdge | None) -> bool:

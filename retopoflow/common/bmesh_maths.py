@@ -188,10 +188,12 @@ def orient_bmf_normals(
     bmfs : Sequence[BMFace],
     *,
     matinfo : MatrixInfo | None = None,
-    view_fallback : bool = True,
+    new_faces : bool = False,
 ) -> None:
     '''
     Point newly created or freshly moved faces outwards if Correct Face Normals is on.
+
+    Pass new_faces = True for newly created faces.
 
     Faces are compared against the source mesh, so call this after snapping, not before.
     Falls back to its neighbor's direction, then to the view direction, then to doing nothing.
@@ -200,7 +202,9 @@ def orient_bmf_normals(
     bmfs = [bmf for bmf in bmfs if bmf is not None and bmf.is_valid]
     if not bmfs: return
 
-    if not context.scene.retopoflow.snapping.correct_face_normals: return
+    if not context.scene.retopoflow.snapping.correct_face_normals:
+        if new_faces: wind_bmfs_to_match_neighbors(bmfs)
+        return
 
     if not matinfo: matinfo = MatrixInfo(context=context)
     bmfs_unresolved = []
@@ -223,7 +227,7 @@ def orient_bmf_normals(
 
     # the source had nothing to say, so agree with the surrounding faces instead
     bmfs = wind_bmfs_to_match_neighbors(bmfs_unresolved)
-    if not bmfs or not view_fallback: return  # whatever is left is attached to nothing settled
+    if not bmfs or not new_faces: return  # whatever is left is attached to nothing settled
 
     check_bmf_normals(matinfo.w2l_direction(view_forward_direction(context)), bmfs)
 

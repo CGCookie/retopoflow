@@ -1034,7 +1034,7 @@ class Strokes_Logic:
                 bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
                 bmfs.append(bmf)
 
-        orient_bmf_normals(context, bmfs)
+        orient_bmf_normals(context, bmfs, new_faces=True)
 
         # select newly created geometry
         bmops.deselect_all(self.bm)
@@ -1114,7 +1114,7 @@ class Strokes_Logic:
                 bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
                 bmfs.append(bmf)
 
-        orient_bmf_normals(context, bmfs)
+        orient_bmf_normals(context, bmfs, new_faces=True)
 
         # select newly created geometry
         bmops.deselect_all(self.bm)
@@ -1207,7 +1207,7 @@ class Strokes_Logic:
                 bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
                 bmfs.append(bmf)
 
-        orient_bmf_normals(context, bmfs)
+        orient_bmf_normals(context, bmfs, new_faces=True)
 
         # select newly created geometry
         bmops.deselect_all(self.bm)
@@ -1418,7 +1418,7 @@ class Strokes_Logic:
                 bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
                 bmfs.append(bmf)
 
-        orient_bmf_normals(context, bmfs)
+        orient_bmf_normals(context, bmfs, new_faces=True)
 
         # zip patch sides into adjacent boundary geometry
         patch_all_bmvs = {bmv for row in bmvs for bmv in row if bmv}
@@ -1517,7 +1517,7 @@ class Strokes_Logic:
                 bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
                 bmfs.append(bmf)
 
-        orient_bmf_normals(context, bmfs)
+        orient_bmf_normals(context, bmfs, new_faces=True)
 
         # zip patch sides into adjacent boundary geometry
         patch_all_bmvs = {bmv for row in bmvs for bmv in row if bmv}
@@ -1617,7 +1617,7 @@ class Strokes_Logic:
                 if not (bmv00 and bmv01 and bmv10 and bmv11): continue
                 bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
                 bmfs.append(bmf)
-        orient_bmf_normals(context, bmfs)
+        orient_bmf_normals(context, bmfs, new_faces=True)
 
         # select bottom row
         bmops.deselect_all(self.bm)
@@ -1732,7 +1732,7 @@ class Strokes_Logic:
                 if not (bmv00 and bmv01 and bmv10 and bmv11): continue
                 bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
                 bmfs.append(bmf)
-        orient_bmf_normals(context, bmfs)
+        orient_bmf_normals(context, bmfs, new_faces=True)
 
         # select bottom row
         bmops.deselect_all(self.bm)
@@ -2016,7 +2016,7 @@ class Strokes_Logic:
             for i in range(llc_lr - 1)
             for j in range(llc_tb - 1)
         ]))
-        orient_bmf_normals(context, bmfs)
+        orient_bmf_normals(context, bmfs, new_faces=True)
 
         # zip bottom row into adjacent boundary geometry when snap anchors are available
         patch_all_bmvs = {bmv for row in bmvs for bmv in row if bmv}

@@ -1410,7 +1410,7 @@ class PolyStrips_Logic:
                 bmf = self.bm.faces.new(verts)
                 bmfs += [ bmf ]
                 select_geo.append(bmf)
-            orient_bmf_normals(context, bmfs)
+            orient_bmf_normals(context, bmfs, new_faces=True)
 
             if snap_bmf1 is None: snap_bmf1 = bmfs[-1]
             actual_strip_count += 1

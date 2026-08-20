@@ -1642,7 +1642,7 @@ def create_curve_toggle_handle_type_operator(
                 bmv.co = snapped
 
         # only decide the normal after it is on the surface
-        orient_bmf_normals(context, [result['new_face']] if result.get('new_face') is not None else [])
+        orient_bmf_normals(context, [result['new_face']] if result.get('new_face') is not None else [], new_faces=True)
 
         # reselect the whole resulting strip so the overlay re-detects the same chain
         new_faces = [f for f in faces if f.is_valid]

@@ -450,7 +450,7 @@ class QuadStripProvider(SegmentGeometryProvider):
             ))
 
         # Create the quads
-        new_faces : list[BMFace] = []
+        bmfs : list[BMFace] = []
         npairs = nstations if cyclic else nstations - 1
         for i in range(npairs):
             j = (i + 1) % nstations
@@ -458,13 +458,13 @@ class QuadStripProvider(SegmentGeometryProvider):
             if len(verts) < 3:
                 continue
             try:
-                new_faces.append(bm.faces.new(verts))
+                bmfs.append(bm.faces.new(verts))
             except ValueError:
                 # Face already exists, probably degenerate overlap on a very tight bend
                 continue
-        orient_bmf_normals(context, new_faces)
+        orient_bmf_normals(context, bmfs, new_faces=True)
 
-        return new_faces
+        return bmfs
 
 
 # tried in order, first to recognise the selection wins.
