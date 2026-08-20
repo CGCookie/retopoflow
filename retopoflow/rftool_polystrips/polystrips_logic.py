@@ -1400,6 +1400,7 @@ class PolyStrips_Logic:
             # create bmfaces
 
             bmfs = []
+            new_bmfs = []
             for i in range(0, len(bmvs[0])-1):
                 bmv00, bmv01 = bmvs[0][i], bmvs[0][i+1]
                 bmv10, bmv11 = bmvs[1][i], bmvs[1][i+1]
@@ -1407,10 +1408,16 @@ class PolyStrips_Logic:
                 if len(verts) < 3:
                     print(f'WARNING: Cannot create face with {len(verts)=} verts {verts=}')
                     continue
-                bmf = self.bm.faces.new(verts)
+                # Existing faces can join the strip as-is
+                bmf = self.bm.faces.get(verts)
+                if bmf is None:
+                    bmf = self.bm.faces.new(verts)
+                    new_bmfs.append(bmf)
+                elif DEBUG_SIDEJOIN:
+                    print(f'[sidejoin] seg {i_strip}: quad {i} already exists, reusing {bmf.index=}')
                 bmfs += [ bmf ]
                 select_geo.append(bmf)
-            orient_bmf_normals(context, bmfs, new_faces=True)
+            orient_bmf_normals(context, new_bmfs, new_faces=True)
 
             if snap_bmf1 is None: snap_bmf1 = bmfs[-1]
             actual_strip_count += 1
