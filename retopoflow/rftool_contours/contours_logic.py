@@ -426,6 +426,13 @@ class Contours_Logic:
 
         self.initial = False
 
+    def release(self):
+        """ Drop the BMesh working state to avoid stale references. """
+        self.bm, self.em = None, None
+        self.edge_ring = None
+        self.sel_path = None
+        self.bridge = None
+
     def process_source(self, context:Context) -> bool:
         # process source only once, unless settings have changed
         if (not self.initial and

@@ -1436,6 +1436,10 @@ class PolyStrips_Logic:
         self.initial = False
 
 
+    def release(self):
+        """ Drop the BMesh working state to avoid stale references. """
+        self.bm, self.em = None, None
+
     def update_context(self, context):
         # this should be called whenever the context could change
 

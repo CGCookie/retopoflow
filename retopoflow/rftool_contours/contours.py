@@ -410,6 +410,9 @@ class RFOperator_Contours_Insert(
             print(f'{type(self).__name__}.execute: Caught Exception {e}')
             debugger.print_exception()
             return {'CANCELLED'}
+        finally:
+            # keep the logic for redo, but don't let it hold BMesh data between executes
+            logic.release()
 
         self.span_count            = logic.span_count
         self.process_source_method = logic.process_source_method

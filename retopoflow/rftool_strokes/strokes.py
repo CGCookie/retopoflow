@@ -351,6 +351,9 @@ class RFOperator_Stroke_Insert(
             print(f'{type(self).__name__}.execute: Caught Exception {e}')
             debugger.print_exception()
             return {'CANCELLED'}
+        finally:
+            # keep the logic for redo, but don't let it hold BMesh data between executes
+            logic.release()
 
         self.extrapolate_mode = logic.extrapolate_mode
         self.bridging_offset  = logic.bridging_offset

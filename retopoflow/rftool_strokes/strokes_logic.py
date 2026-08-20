@@ -141,7 +141,8 @@ class Strokes_Logic:
 
         self.show_is_cycle = True
         self.is_cycle = is_cycle
-        self.snapped_geo = snapped_geo
+        snapped_bmvs = snapped_geo[0] # Keeping snapped_geo itself could leave the insert op holding stale Bmesh elements
+        self.snapped_ends = (snapped_bmvs[0] is not None, snapped_bmvs[1] is not None)
         self.snapped_mirror = snapped_mirror
 
         self.span_insert_mode = span_insert_mode
@@ -624,12 +625,18 @@ class Strokes_Logic:
         fix_strip(self.longest_strip0)
         fix_strip(self.longest_strip1)
 
+    def release(self):
+        """ Drop the BMesh working state to avoid stale references. """
+        self.bm, self.em = None, None
+        self.sel_edges = []
+        self.longest_strip0 = self.longest_strip1 = None
+        self.longest_cycle0 = self.longest_cycle1 = None
+        self.snap_bmv0 = self.snap_bmv1 = None
+
     def process_snap_geometry(self, context):
-        # NOTE: snapped geo could be stale (from redo panel), so do not rely on it having valid geometry
-        #       however, we can still check if it is None to see if we _should_ try to consider snapping
-        snapped_bmvs, snapped_bmes, snapped_bmfs = self.snapped_geo
-        self.snap_bmv0 = self.bmv_closest(context, self.bm.verts, self.stroke3D[0]) if snapped_bmvs[0] is not None else None
-        self.snap_bmv1 = self.bmv_closest(context, self.bm.verts, self.stroke3D[-1]) if snapped_bmvs[1] is not None else None
+        snapped_end0, snapped_end1 = self.snapped_ends
+        self.snap_bmv0 = self.bmv_closest(context, self.bm.verts, self.stroke3D[0]) if snapped_end0 else None
+        self.snap_bmv1 = self.bmv_closest(context, self.bm.verts, self.stroke3D[-1]) if snapped_end1 else None
 
         # cycle
         self.snap_bmv0_cycle0 = self.snap_bmv0 and self.longest_cycle0 and any(self.snap_bmv0 in bme.verts for bme in self.longest_cycle0)

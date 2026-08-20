@@ -266,8 +266,8 @@ class RFOperator_PolyStrips_Insert(
             layout.prop(self, 'mirror_correct', text='Mirror Side')
 
     def execute(self, context):
+        logic = RFOperator_PolyStrips_Insert.logic
         try:
-            logic = RFOperator_PolyStrips_Insert.logic
             logic.count = self.count
             logic.scale_start = self.scale_start
             logic.scale_end = self.scale_end
@@ -286,6 +286,9 @@ class RFOperator_PolyStrips_Insert(
             print(f'{type(self).__name__}.execute: Caught Exception {e}')
             debugger.print_exception()
             return {'CANCELLED'}
+        finally:
+            # keep the logic for redo, but don't let it hold BMesh data between executes
+            if logic: logic.release()
 
         return {'FINISHED'}
 
