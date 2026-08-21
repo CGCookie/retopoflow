@@ -59,6 +59,7 @@ from ..common.raycast import (
     mouse_from_event,
     iter_all_valid_sources,
     make_hidden_tester,
+    source_ray_cast,
 )
 from ..common.drawing import (
     Drawing,
@@ -1559,7 +1560,7 @@ class Relax_Logic(FeatureRunsMixin):
                                 ray_o  = (Mi_obj @ Vector((*co_pt, 1.0))).xyz
                                 ray_d  = (Mi_obj_3x3 @ normal_world).normalized()
                                 for d in (ray_d, -ray_d):
-                                    result, co_hit, _, _ = obj.ray_cast(ray_o, d)
+                                    result, co_hit, _, _ = source_ray_cast(obj, ray_o, d)
                                     if not result:
                                         continue
                                     hit_world = point_to_bvec3((M_obj @ Vector((*co_hit, 1.0))).xyz)

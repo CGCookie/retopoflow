@@ -23,7 +23,7 @@ import bpy
 
 import time
 import math
-from typing import Callable, cast
+from typing import Callable, TypeAlias, cast
 from collections.abc import Sequence, Iterable
 
 from bpy.types import Context, Event, Scene, Region, RegionView3D
@@ -221,21 +221,53 @@ def is_point_hidden(context : Context, co_edit : Vector, *, factor : float = 1.0
     dist : float = hit['distance']
     return dist + offset < (ray_e.xyz - co_world.xyz).length * factor
 
+# Testing whether a CURVE/SURFACE/META/FONT object has faces requires tessellation,
+# so we don't want to do this every single raycast.
+has_faces_cache : dict[str, bool] = {}
+
+def clear_has_faces_cache():
+    has_faces_cache.clear()
+
 def has_faces(context, obj):
     if obj.type == 'MESH' and bool(obj.data.polygons):
         return True
     elif obj.type in ['CURVE', 'SURFACE', 'META', 'FONT']:
+        cached = has_faces_cache.get(obj.name)
+        if cached is not None:
+            return cached
         depsgraph = context.evaluated_depsgraph_get()
         eval_obj = obj.evaluated_get(depsgraph)
         eval_mesh = eval_obj.to_mesh()
         if not eval_mesh:
-            # Conversion to mesh can fail (e.g. invalid geometry, as in the case of a curve object with an unlinked GN modifier); treat as empty.
-            return False
-        result = bool(eval_mesh.polygons)
-        eval_obj.to_mesh_clear()
+            # Conversion to mesh can fail (e.g. invalid geometry, a curve object with an unlinked GN modifier, etc.)
+            result = False
+        else:
+            result = bool(eval_mesh.polygons)
+            eval_obj.to_mesh_clear()
+        has_faces_cache[obj.name] = result
         return result
     else:
         return False
+
+
+GeometryQueryResult : TypeAlias = tuple[bool, Vector, Vector, int]
+GEOMETRY_QUERY_MISS : GeometryQueryResult = (False, Vector(), Vector(), -1) # (hit, location, normal, face index)
+
+def source_ray_cast(obj : BObject, *args : ..., **kwargs : ...) -> GeometryQueryResult:
+    ''' obj.ray_cast, treating a source with no evaluated mesh as a miss. '''
+    try:
+        return cast(GeometryQueryResult, obj.ray_cast(*args, **kwargs))
+    except RuntimeError:
+        has_faces_cache.pop(obj.name, None)  # stale: re-test faces on the next pass
+        return GEOMETRY_QUERY_MISS
+
+def source_closest_point_on_mesh(obj : BObject, *args : ..., **kwargs : ...) -> GeometryQueryResult:
+    ''' obj.closest_point_on_mesh, treating a source with no evaluated mesh as a miss. '''
+    try:
+        return cast(GeometryQueryResult, obj.closest_point_on_mesh(*args, **kwargs))
+    except RuntimeError:
+        has_faces_cache.pop(obj.name, None)  # stale: re-test faces on the next pass
+        return GEOMETRY_QUERY_MISS
 
 def is_valid_source(context:Context, obj:BObject) -> bool:
     scene : Scene|None = context.scene
@@ -269,8 +301,9 @@ def iter_all_valid_sources(context:Context) -> Iterable[BObject]:
 def prep_raycast_valid_sources(context):
     print(f'CACHING BVHS FOR ALL SOURCE OBJECTS')
     start = time.time()
+    clear_has_faces_cache()  # sources may have changed while RF was not running
     for obj in iter_all_valid_sources(context):
-        obj.ray_cast(Vector((0,0,0)), Vector((1,0,0)))
+        source_ray_cast(obj, Vector((0,0,0)), Vector((1,0,0)))
     print(f'  {time.time() - start:0.2f}secs')
 
 CLIP_MAX_SKIPS = 16    # max out-of-clip-region hits to punch through before giving up
@@ -311,7 +344,7 @@ def make_hidden_tester(context: Context, obj) -> 'Callable[[Vector, Vector, floa
             dist_left = max_distance - dist_spent
             if dist_left <= 0: return False
             ray_e_local = point_to_bvec3(Mi @ cur_e)
-            result, co, normal, idx = obj.ray_cast(ray_e_local, ray_d_local, distance=dist_left)
+            result, co, normal, idx = source_ray_cast(obj, ray_e_local, ray_d_local, distance=dist_left)
             if not result: return False
             co_world = (M @ Vector((*co, 1.0))).to_3d()
             if not is_point_in_clip_region(context, co_world):
@@ -379,7 +412,8 @@ class Raycast:
                     Mi @ current_origin,
                     (Mi @ ray_dir).normalized(),
                 )
-                result, co_hit, no_hit, idx = hitobj.ray_cast(
+                result, co_hit, no_hit, idx = source_ray_cast(
+                    hitobj,
                     point_to_bvec3(ray_local[0]),
                     vector_to_bvec3(ray_local[1]),
                 )
@@ -457,7 +491,8 @@ def raycast_valid_sources(
                 Mi @ current_origin,
                 (Mi @ ray_dir).normalized(),
             )
-            result, co_hit, no_hit, idx = hitobj.ray_cast(
+            result, co_hit, no_hit, idx = source_ray_cast(
+                hitobj,
                 point_to_bvec3(ray_local[0]),
                 vector_to_bvec3(ray_local[1]),
             )
@@ -535,7 +570,7 @@ def raycast_ray_valid_sources(context:Context, ray_world:tuple[Vector,Vector], *
                 Mi @ current_origin,
                 (Mi @ vector_to_bvec4(ray_dir)).normalized(),
             )
-            result, co, normal, idx = obj.ray_cast(point_to_bvec3(ray_local[0]), vector_to_bvec3(ray_local[1]))
+            result, co, normal, idx = source_ray_cast(obj, point_to_bvec3(ray_local[0]), vector_to_bvec3(ray_local[1]))
             if not result:
                 break
 
@@ -634,7 +669,7 @@ def nearest_point_valid_sources(
     for src in sources:
         obj, M, Mi = src[0], src[1], src[2]
         point_local = Mi @ point_world
-        result, co, _normal, _idx = obj.closest_point_on_mesh(point_local.xyz)
+        result, co, _normal, _idx = source_closest_point_on_mesh(obj, point_local.xyz)
         if not result:
             continue
 
@@ -668,7 +703,7 @@ def nearest_normal_valid_sources(context, point_world, *, world=True):
         Mi = M.inverted_safe()
         Mit = Mi.transposed()
         point_local = point_to_bvec3(xform_point(Mi, point_world))
-        result, co, normal, idx = obj.closest_point_on_mesh(point_local)
+        result, co, normal, idx = source_closest_point_on_mesh(obj, point_local)
         if not result: continue
         co_world = xform_point(M, co)
         no_world = xform_normal(Mit, normal)
@@ -708,7 +743,7 @@ def nearest_point_normal_valid_sources(
         Mi = M.inverted_safe()
         Mit = Mi.transposed()
         point_local = point_to_bvec3(xform_point(Mi, point_world))
-        result, co, normal, idx = obj.closest_point_on_mesh(point_local)
+        result, co, normal, idx = source_closest_point_on_mesh(obj, point_local)
         if not result: continue
         co_world = xform_point(M, co)
         if respect_clip_planes and not is_point_in_clip_region(context, co_world):
@@ -815,7 +850,7 @@ class FindNearest:
         for obj in iter_all_valid_sources(context):
             matinfo_obj = MatrixInfo(object=obj)
             point_local_obj = matinfo_obj.w2l_point(point_world)
-            result, co, normal, idx = obj.closest_point_on_mesh(point_local_obj)
+            result, co, normal, idx = source_closest_point_on_mesh(obj, point_local_obj)
             if not result: continue
             co_world = matinfo_obj.l2w_point(co)
             no_world = matinfo_obj.l2w_normal(normal)
