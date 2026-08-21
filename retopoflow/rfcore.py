@@ -618,6 +618,8 @@ class RFCore:
     @staticmethod
     def restart():
         print('RFCore.restart()')
+        # retire all currently running core operators so the relaunch replaces them instead of stacking
+        RFCore_Operator.current_generation += 1
         def rerun():
             screen : Screen = bpy.context.screen
             area : Area | None = next(iter_all_view3d_areas(screen=screen), None)
@@ -1124,8 +1126,12 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
 
     running_operators : ClassVar[int] = 0
 
+    # bumped by restart() so instances from before the restart retire themselves in modal()
+    current_generation : ClassVar[int] = 0
+
     is_running : bool = False
     running_in_area : Area | None = None
+    generation : int = 0
 
     @classmethod
     def poll(cls, context : Context) -> bool:
@@ -1183,6 +1189,7 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
         context.window_manager.modal_handler_add(self)
         self.running_in_area = context.area
         self.is_running = True
+        self.generation = RFCore_Operator.current_generation
         RFCore.running_in_areas.append(context.area)
 
         # Display an alert message if no sources are detected.
@@ -1216,6 +1223,15 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
         # print(f' {context.space_data=}')
         # print(f' {context.space_data.region_3d=}')
         # print(event.type, [op for op in context.window.modal_operators], random.random())
+
+        if self.generation != RFCore_Operator.current_generation:
+            # restart() launched a replacement core operator, so retire this one.
+            # Remove our area entry now so handle_draw_cursor can relaunch if the replacement fails.
+            print('RFCore_Operater.modal: superseded by RFCore.restart. exiting!')
+            if self.running_in_area and self.running_in_area in RFCore.running_in_areas:
+                RFCore.running_in_areas.remove(self.running_in_area)
+            self.running_in_area = None
+            return {'FINISHED'}
 
         if RFOperator.tickled:
             RFOperator.tickled()
