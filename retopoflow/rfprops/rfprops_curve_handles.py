@@ -26,18 +26,9 @@ from ..common.maths import map_range, clamp
 
 
 class RFProps_CurveHandles(bpy.types.PropertyGroup):
-    '''
-    Curve-handle display/fit settings shared by every tool that builds a
-    CubicBezierSpline overlay (Strokes, PolyStrips) -- scene-level rather
-    than per-tool operator properties, so switching tools doesn't reset them
-    and both tools always agree on how a curve is fit.
-    '''
+    ''' Curve handle settings shared by every tool that builds a CubicBezierSpline overlay.
+    Whether the handles are shown is a per tool property. '''
 
-    show_curve_handles: bpy.props.BoolProperty(
-        name = 'Curve Handles',
-        description = 'Show Bézier curve control handles on selected edge strips and loops',
-        default = True
-    )
     curve_handle_density: bpy.props.FloatProperty(
         name = 'Density',
         description = 'How many curve handles to show on the selection',

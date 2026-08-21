@@ -1501,6 +1501,10 @@ def create_curve_edit_operator(
                 for h in self.chain['handles']
                 if h['kind'] == 'tangent' and knot_type_by_vert.get(h['owner_vert_index']) == 'automatic'
             }
+            # also hide handles with too few verts in their segment to reshape
+            hidden_tangents |= {
+                h['pos'] for h in self.chain['handles'] if h['kind'] == 'tangent' and h.get('inert')
+            }
             for i, cb in enumerate(cbs):
                 curve_pts = [location_3d_to_region_2d(rgn, r3d, M @ Vector(cb.eval(v / 20))) for v in range(21)]
                 curve_pts = [p for p in curve_pts if p]
@@ -1518,6 +1522,7 @@ def create_curve_edit_operator(
                     Drawing.draw2D_lines(context, arm_lines, CONTROL_POLYGON_COLOR, width=2)
             knot_pts2d, free_knot_pts2d, auto_knot_pts2d, tan_pts2d = [], [], [], []
             for h in self.chain['handles']:
+                if h['kind'] == 'knot' and h.get('inert'): continue
                 seg, attr = h['pos']
                 p = location_3d_to_region_2d(rgn, r3d, M @ Vector(getattr(cbs[seg], attr)))
                 if not p: continue

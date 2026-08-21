@@ -425,6 +425,11 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
         default=0.5,
     )
 
+    show_curve_handles: bpy.props.BoolProperty(
+        name = 'Curve Handles',
+        description = 'Show Bézier curve control handles on selected edge strips and loops',
+        default = True
+    )
 
     def init(self, context, event):
         self.km_context = 'ready'
@@ -703,7 +708,6 @@ class RFTool_PolyStrips(RFTool_Base):
     bl_widget : str | None = None
 
     rf_operator_idname : str | None = 'retopoflow.polystrips'
-    rf_supports_curve_handles = True
     rf_brush = RFBrush_Strokes()
     rf_overlay : type[RFOverlay_Base] | None = RFOperator_PolyStrips_Overlay
 

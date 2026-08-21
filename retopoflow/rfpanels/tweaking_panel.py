@@ -31,7 +31,7 @@ from ..rftool_base import RFTool_Base
 
 def _active_rftool(context):
     tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
-    if 'retopoflow' not in tool.idname: return None, None
+    if not tool or 'retopoflow' not in tool.idname: return None, None
 
     # get RFTool_Base class corresponding to Blender WorkSpaceTool
     # NOTE: tool.idname might not match an operator, so using rf_operator_idname
@@ -83,15 +83,17 @@ def draw_tweaking_options(context : Context, layout : UILayout):
             row2.enabled = context.scene.tool_settings.use_mesh_automerge
             row2.prop(context.scene.tool_settings, 'double_threshold', text='')
 
-    header, panel = layout.panel(idname='RF_curve_handles', default_closed=False)
-    curve_props = context.scene.retopoflow.curve_handles
-    header.use_property_split = False
-    header.prop(curve_props, 'show_curve_handles', text='Curve Handles')
-    if panel:
-        sub = panel.column()
-        sub.enabled = curve_props.show_curve_handles
-        sub.prop(curve_props, 'curve_handle_density', text='Density')
-        sub.prop(curve_props, 'curve_corner_angle')
+    _, tool_props = _active_rftool(context)
+    if hasattr(tool_props, 'show_curve_handles'):
+        header, panel = layout.panel(idname='RF_curve_handles', default_closed=False)
+        curve_props = context.scene.retopoflow.curve_handles
+        header.use_property_split = False
+        header.prop(tool_props, 'show_curve_handles', text='Curve Handles')
+        if panel:
+            sub = panel.column()
+            sub.enabled = tool_props.show_curve_handles
+            sub.prop(curve_props, 'curve_handle_density', text='Density')
+            sub.prop(curve_props, 'curve_corner_angle')
 
 
     header, panel = layout.panel(idname='RF_selection', default_closed=True)
@@ -112,12 +114,11 @@ def draw_tweaking_panel(context : Context, layout : UILayout):
 
 
 def draw_tweaking_popover(context: Context, layout: UILayout, tool_props):
-    rftool, _ = _active_rftool(context)
     loops = hasattr(tool_props, 'select_loops')
-    curves = getattr(rftool, 'rf_supports_curve_handles', False)
+    curves = hasattr(tool_props, 'show_curve_handles')
     row = layout.row(align=True)
     if loops: row.prop(tool_props, 'select_loops', text='', toggle=True, icon_value=Icon.LOOP.icon_id)
-    if curves: row.prop(context.scene.retopoflow.curve_handles, 'show_curve_handles', toggle=True, text='', icon='IPO_BEZIER')
+    if curves: row.prop(tool_props, 'show_curve_handles', toggle=True, text='', icon='IPO_BEZIER')
     row.popover('RF_PT_TweakCommon')
 
 

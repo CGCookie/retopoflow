@@ -213,6 +213,11 @@ class RFOperator_PolyPen(RFOperator):
         description = "Allow PolyPen's knife to follow along quad loops",
         default = True,
     )
+    show_curve_handles: bpy.props.BoolProperty(
+        name = 'Curve Handles',
+        description = 'Show Bézier curve control handles on selected edge strips and loops',
+        default = False
+    )
     select_loops: bpy.props.BoolProperty(
         name = 'Tweak Loops',
         description = 'Select and transform loops while tweaking edges with the mouse',
@@ -349,7 +354,6 @@ class RFTool_PolyPen(RFTool_Base):
     bl_icon : str = get_path_to_blender_icon('polypen')
     bl_widget : str | None = None
     rf_operator_idname : str | None = 'retopoflow.polypen'
-    rf_supports_curve_handles : bool = True
     rf_overlay : type[RFOverlay_Base] | None = RFOperator_PolyPen_Overlay
 
     props : OperatorProperties | None = None  # needed to reset properties
