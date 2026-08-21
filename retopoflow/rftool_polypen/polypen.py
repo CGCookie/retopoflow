@@ -259,8 +259,9 @@ class RFOperator_PolyPen(RFOperator):
             self.done = True
 
         if self.done:
-            if not self.is_active():
-                # wait until we're active (could happen when transforming)
+            if self.is_waiting_on_operator():
+                # wait for the operator on top (like a transform) to finish so cleanup does
+                # not pull the select layers out from under it.
                 return {'PASS_THROUGH'}
 
             self.logic.cleanup()

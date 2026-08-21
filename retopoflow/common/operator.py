@@ -41,6 +41,7 @@ from bpy.types import (
 from bpy.props import EnumProperty, StringProperty, IntProperty, FloatProperty
 
 from ..rfglobals import RFGlobals
+from ..rfoverlay_base import RFOverlay_Base
 from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.debug import Debugger
 from ...addon_common.common.useractions import event_match_blenderop
@@ -384,6 +385,18 @@ class RFOperator(RFOperator_KeymapContext):
     @classmethod
     def is_running(cls) -> bool:
         return any(cls is type(op) for op in RFOperator.active_operators)
+
+    def operators_above(self) -> list[RFOperator]:
+        ''' RF operators that started after this one and are still running. '''
+        ops = RFOperator.active_operators
+        if self not in ops: return []
+        return ops[ops.index(self) + 1:]
+
+    def is_waiting_on_operator(self) -> bool:
+        ''' True while a RF operator that started above this one is still working.
+        Used so an operator that wants to tear down can hold off until it is safe. '''
+        # Overlays ignored because they are always running on top
+        return any(not isinstance(op, RFOverlay_Base) for op in self.operators_above())
 
 
     @classmethod
