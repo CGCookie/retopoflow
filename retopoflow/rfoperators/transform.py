@@ -336,6 +336,7 @@ class RFOperator_Translate(SourceSnapMixin, RFOperator):
             for bmv in self.bmvs
         }
         self.moving = None
+        self.bmfs_moving = None
 
         self.mirror = set()
         self.mirror_clip = False
@@ -375,6 +376,7 @@ class RFOperator_Translate(SourceSnapMixin, RFOperator):
         self.bmvs_co2d_orig = {}
         self.bmfs = []
         self.moving = None
+        self.bmfs_moving = None
         self.highlight = set()
         self.nearest_bmv = None
         self.nearest_bme = None
@@ -416,7 +418,12 @@ class RFOperator_Translate(SourceSnapMixin, RFOperator):
             if self.moving:
                 for bmv in self.moving:
                     bmv.co = self.bmvs_co_orig[bmv]
+                # normal_flip() doesn't undo with the co reset, so re-orient now
+                # before these faces drop out of a shrinking radius
+                if self.use_update_normals:
+                    self.update_normals(context, event)
             self.moving = None
+            self.bmfs_moving = None
 
         if event.type in {'LEFT_SHIFT', 'RIGHT_SHIFT'} and event.value in {'PRESS', 'RELEASE'}:
             self.slow = (event.value == 'PRESS')
@@ -493,6 +500,7 @@ class RFOperator_Translate(SourceSnapMixin, RFOperator):
                 bmv for bmv in self.bmvs
                 if self.data[bmv] <= prop_dist_world
             ]
+            self.bmfs_moving = list({ bmf for bmv in self.moving for bmf in bmv.link_faces })
 
         self.highlight = set()
         for bmv in self.moving:
@@ -565,7 +573,10 @@ class RFOperator_Translate(SourceSnapMixin, RFOperator):
         context.area.tag_redraw()
 
     def update_normals(self, context, event):
-        orient_bmf_normals(context, [bmf for (bmf, _) in self.bmfs], matinfo=MatrixInfo(context=context))
+        # self.bmfs is the whole mesh under proportional editing
+        # only faces on verts that actually moved should change
+        bmfs = self.bmfs_moving if self.bmfs_moving is not None else [bmf for (bmf, _) in self.bmfs]
+        orient_bmf_normals(context, bmfs, matinfo=MatrixInfo(context=context))
 
     def snap_grabbed_set(self):
         return set(self.bmvs)
