@@ -68,9 +68,6 @@ SEGMENT_KEEP_FIT_TOLERANCE = 1
 # min seconds between rebuilds from a UI slider drag
 TUNABLE_REBUILD_THROTTLE = 0.1
 
-# How far an edge-loop Vector knot's crease is rotated from the smooth fit toward a full point-at
-VECTOR_POINT_AT_FACTOR = 1
-
 MAX_HANDLE_VERTS = 250
 MAX_HANDLE_SEGMENTS = 25
 
@@ -392,6 +389,24 @@ def create_curve_overlay(
                 return handle_type_overrides.get(k) or ('vector' if k in display_forced_vector else 'automatic')
             corners_for_fit = { k for k in knots if resolve_handle_type(k) == 'vector' } | endpoints
 
+            # Nothing of this chain would display, so skip the fit
+            if coupled and knots:
+                ext_knots = knots + ([knots[0] + n] if cyclic else [])
+                if (
+                    all(kb - ka - 1 < MIN_SEGMENT_POINTS for ka, kb in zip(ext_knots, ext_knots[1:]))
+                    and not any(resolve_handle_type(k) == 'automatic' for k in knots)
+                ):
+                    self._curve_struct_cache[cache_key] = {
+                        'knots': knots,
+                        'corner_set': corner_set,
+                        'tunables': tunables,
+                        'handle_tunables': handle_tunables,
+                        'cos': [Vector(co) for co in cos],
+                        'spline': None,
+                        'handles': None,
+                    }
+                    return None, None
+
             # only reached on a structural rebuild or just after an edit, never per-frame.
             # On a handle type change, don't lock or seed from the cached fit at all. The verts haven't moved,
             # so the old segments still "fit well" and would suppress the crease the new Vector type is supposed to introduce.
@@ -425,9 +440,6 @@ def create_curve_overlay(
                         smooth_junctions.add(i)
 
             handles = self._build_handles(spline, cyclic, smooth_junctions, knots, resolve_handle_type, display_forced_vector, coupled, corner_eligible_knots, corner_removable_knots)
-
-            if coupled:
-                self._blend_coupled_vector_arms(spline, handles, resolve_handle_type, cyclic)
 
             # always cache as we need a baseline for the next call
             self._curve_struct_cache[cache_key] = {
@@ -620,74 +632,6 @@ def create_curve_overlay(
                 setattr(cbs[seg_in], attr_in, knot_pos + new_in * len_in)
                 return
 
-        def _blend_coupled_vector_arms(self, spline, handles, resolve_handle_type, cyclic):
-            ''' On a coupled (edge-loop) chain, rotate every Vector knot's crease to VECTOR_POINT_AT_FACTOR
-            of a full point-at, computed fresh from the smooth geometry each rebuild so toggling is fully reversible. '''
-            cbs = spline.cbs
-            f = VECTOR_POINT_AT_FACTOR
-            knots_h = [h for h in handles if h['kind'] == 'knot' and len(h.get('move', ())) == 2]
-            nkn = len(knots_h)
-            if nkn < 3:
-                return
-            types = [resolve_handle_type(h['vert_index']) for h in knots_h]
-
-            def knot_pos(h):
-                seg, attr = h['pos']
-                return Vector(getattr(cbs[seg], attr))
-
-            def rotate_arm(origin, seg, attr, smooth_dir, target):
-                # re-aim arm (seg,attr) to slerp(smooth_dir -> point-at target, f), keeping its length
-                cur = Vector(getattr(cbs[seg], attr)) - origin
-                ln = cur.length
-                pa = target - origin
-                if ln < 1e-9 or pa.length < 1e-9 or smooth_dir.length < 1e-9:
-                    return None
-                nd = slerp_dirs(smooth_dir.normalized(), pa.normalized(), f)
-                if nd.length < 1e-9:
-                    return None
-                nd = nd.normalized()
-                setattr(cbs[seg], attr, origin + nd * ln)
-                return nd
-
-            for i, h in enumerate(knots_h):
-                if types[i] != 'vector':
-                    continue
-                origin = knot_pos(h)
-                (seg_in, attr_in), (seg_out, attr_out) = h['move']  # p2 faces prev knot, p1 faces next
-                prev_pos, next_pos = Vector(cbs[seg_in].p0), Vector(cbs[seg_out].p3)
-                centered = (next_pos - prev_pos)
-                if centered.length < 1e-9:
-                    continue
-                centered = centered.normalized()
-                # the Vector knot's own two arms
-                rotate_arm(origin, seg_out, attr_out, centered, next_pos)
-                rotate_arm(origin, seg_in, attr_in, -centered, prev_pos)
-                # its neighbors' facing arm (prev neighbor faces via its OUT arm, next via its IN)
-                for ni, facing_out in ((i - 1, True), (i + 1, False)):
-                    if not cyclic and not (0 <= ni < nkn):
-                        continue
-                    nj = ni % nkn
-                    if types[nj] in ('aligned', 'vector'):
-                        continue
-                    nh = knots_h[nj]
-                    n_origin = knot_pos(nh)
-                    (n_seg_in, n_attr_in), (n_seg_out, n_attr_out) = nh['move']
-                    n_centered = (Vector(cbs[n_seg_out].p3) - Vector(cbs[n_seg_in].p0))
-                    if n_centered.length < 1e-9:
-                        continue
-                    n_centered = n_centered.normalized()
-                    if facing_out:
-                        face_seg, face_attr, face_smooth = n_seg_out, n_attr_out, n_centered
-                        far_seg, far_attr = n_seg_in, n_attr_in
-                    else:
-                        face_seg, face_attr, face_smooth = n_seg_in, n_attr_in, -n_centered
-                        far_seg, far_attr = n_seg_out, n_attr_out
-                    new_face = rotate_arm(n_origin, face_seg, face_attr, face_smooth, origin)
-                    if new_face is not None:  # keep the neighbor collinear (still reads Automatic)
-                        far_len = (Vector(getattr(cbs[far_seg], far_attr)) - n_origin).length
-                        if far_len > 1e-9:
-                            setattr(cbs[far_seg], far_attr, n_origin - new_face * far_len)
-
         # ----------------------------------------------------------- hit-testing
 
         def hovered_handle(
@@ -781,27 +725,32 @@ def create_curve_overlay(
                                      if (p := location_3d_to_region_2d(rgn, r3d, M @ Vector(cb.eval(v / 20))))]
                         if len(curve_pts) >= 2:
                             Drawing.draw2D_linestrip(context, curve_pts, CURVE_LINE_COLOR, width=2, stipple=[5,5])
+                    show_p1, show_p2 = (i, 'p1') not in hidden_tangents, (i, 'p2') not in hidden_tangents
+                    if not show_p1 and not show_p2:
+                        continue  # both arms hidden, nothing here to project
                     p0_, p1_, p2_, p3_ = (location_3d_to_region_2d(rgn, r3d, M @ Vector(getattr(cb, a))) for a in ('p0','p1','p2','p3'))
                     knot_r, tan_r = Drawing.scale(KNOT_RADIUS/2), Drawing.scale(TANGENT_RADIUS/2)
                     arm_lines = []
-                    if (i, 'p1') not in hidden_tangents:
+                    if show_p1:
                         arm_lines += shrink_segment(p0_, p1_, knot_r, tan_r)
-                    if (i, 'p2') not in hidden_tangents:
+                    if show_p2:
                         arm_lines += shrink_segment(p2_, p3_, tan_r, knot_r)
                     if arm_lines:
                         Drawing.draw2D_lines(context, arm_lines, CONTROL_POLYGON_COLOR, width=2)
 
                 knot_pts2d, free_knot_pts2d, auto_knot_pts2d, tan_pts2d = [], [], [], []
                 for h in chain['handles']:
-                    if h['kind'] == 'knot' and h.get('inert'):
-                        continue  # both of its arms are inert, so the knot isn't needed
+                    if h['kind'] == 'knot':
+                        if h.get('inert'):
+                            continue  # both of its arms are inert, so the knot isn't needed
+                    elif h['pos'] in hidden_tangents:
+                        continue  # hidden, so don't bother projecting it
                     seg, attr = h['pos']
                     p = location_3d_to_region_2d(rgn, r3d, M @ Vector(getattr(cbs[seg], attr)))
                     if not p:
                         continue
                     if h['kind'] != 'knot':
-                        if h['pos'] not in hidden_tangents:
-                            tan_pts2d.append(p)
+                        tan_pts2d.append(p)
                     elif h.get('handle_type') == 'automatic':
                         auto_knot_pts2d.append(p)
                     elif h.get('free'):

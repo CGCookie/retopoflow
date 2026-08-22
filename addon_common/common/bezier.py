@@ -23,6 +23,7 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence, Iterator, Callable
 
+import numpy as np
 from mathutils import Vector, Matrix
 
 from .maths import Point, Vec
@@ -989,14 +990,31 @@ class CubicBezierSpline:
                 step *= 0.5
         return best_t
 
+    bernstein_cache = {} # Bernstein basis sampled at `split` uniform ts, as a (split x 4) matrix
+
+    @staticmethod
+    def bernstein_weights(split):
+        W = CubicBezierSpline.bernstein_cache.get(split)
+        if W is None:
+            ts = np.arange(split, dtype=np.float64) / (split - 1)
+            t1 = 1.0 - ts
+            W = np.stack((t1**3, 3.0*ts*t1**2, 3.0*ts*ts*t1, ts**3), axis=1)
+            CubicBezierSpline.bernstein_cache[split] = W
+        return W
+
     @staticmethod
     def total_distance(cb, run):
-        ''' Sum of distances from every interior point of `run` to its closest position on `cb`. '''
+        ''' Sum of distances from every interior point of `run` to its closest position on `cb`.
+        This is refine_handles' scoring function, called hundreds of times per fit. '''
         if len(run) <= 2:
             return 0.0
-        fn_dist = lambda a, b: (a - b).length
-        cb.tessellate_uniform(fn_dist=fn_dist)
-        return sum(cb.approximate_distance_to_point_tessellation(pt) for pt in run[1:-1])
+        W = CubicBezierSpline.bernstein_weights(CubicBezier.split_default)
+        P = np.array((cb.p0, cb.p1, cb.p2, cb.p3), dtype=np.float64)
+        tess = W @ P                                        # split x 3 curve samples
+        R = np.array(run[1:-1], dtype=np.float64)           # interior points only
+        d = R[:, None, :] - tess[None, :, :]
+        d2_min = (d * d).sum(axis=2).min(axis=1)            # sqrt only after the min: same argmin
+        return float(np.sqrt(d2_min).sum())
 
     @staticmethod
     def refine_handles(cbs, runs, aligned, cyclic, *, rounds=3, locked_segs=frozenset(), boundary_handles=frozenset()):
