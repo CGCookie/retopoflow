@@ -369,12 +369,12 @@ class RFTool_Tweak(RFTool_Base):
                     panel.row().prop(props_tweak, 'pinch_magnify_mode', expand=True, text=' ')
             header, panel = layout.panel(idname='tweak_relax_panel', default_closed=False)
             header.label(text="Relax")
-            if panel:
-                panel.prop(props_tweak, 'post_relax_steps', slider=True)
-                if props_tweak.post_relax_steps > 0:
-                    panel.prop(props_tweak, 'post_relax_expand')
-                    panel.separator()
-                    draw_relax_algo_options(context, panel, props=props_tweak)
+            # if panel:
+            #     panel.prop(props_tweak, 'post_relax_steps', slider=True)
+            #     if props_tweak.post_relax_steps > 0:
+            #         panel.prop(props_tweak, 'post_relax_expand')
+            #         panel.separator()
+            #         draw_relax_algo_options(context, panel, props=props_tweak)
             draw_masking_panel(context, layout)
             draw_snapping_panel(context, layout, idname='tweak_snapping_panel', guide_loops=True)
             draw_cleanup_panel(context, layout)
