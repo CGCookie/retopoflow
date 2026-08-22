@@ -47,22 +47,12 @@ def interpolate_cubic(v0, v1, v2, v3, t):
 
 def fit_tangent_lengths(pts, us, t1, t2, fallback):
     '''
-    Given a run of points `pts` (p0 = pts[0], p3 = pts[-1]) sampled at chord-length
-    parameters `us` in [0, 1], and fixed unit tangent directions `t1` (leaving p0)
-    and `t2` (leaving p3, pointing back into the curve), solves the 2x2
-    least-squares system for the scalar handle lengths alpha1, alpha2 such that
-        p1 = p0 + alpha1 * t1
-        p2 = p3 + alpha2 * t2
-    best fits `pts` -- i.e. each handle is scaled independently to match how the
-    points actually behave on its side, rather than both sides sharing one
-    uniform third-of-the-run length.
-
-    Reference: Schneider, "An Algorithm for Fitting Digitized Curves",
-    Graphics Gems I -- the tangent directions are fixed (already known to be
-    locally correct), only their lengths are solved for.
-
-    Falls back to `fallback` for both lengths if the run is degenerate (too few
-    points, or the fit yields a non-positive length).
+    Solve the 2x2 least-squares system for scalar handle lengths (alpha1, alpha2) so
+    p1 = pts[0] + alpha1*t1, p2 = pts[-1] + alpha2*t2 best fits `pts`, sampled at
+    chord-length parameters `us` in [0, 1]. `t1`/`t2` are fixed unit tangents (`t2`
+    points back into the curve); only the lengths are solved. Returns (fallback,
+    fallback) for a degenerate fit.
+    Reference: Schneider, "An Algorithm for Fitting Digitized Curves", Graphics Gems I.
     '''
     p0, p3 = pts[0], pts[-1]
     c00 = c01 = c11 = x0 = x1 = 0.0
@@ -159,11 +149,8 @@ def fit_cubicbezier_spline(
     min_count_split=15, max_depth_split=4,
 ):
     '''
-    fits cubic bezier to given points
-    returns list of tuples of (t0,t3,p0,p1,p2,p3)
-    that best fits the given points l_co
-    where t0 and t3 are the passed-in t0 and t3
-    and p0,p1,p2,p3 are the control points of bezier
+    Fit a cubic bezier spline to points `l_co`, splitting recursively where the
+    error is too high. Returns [(t0, t3, p0, p1, p2, p3)] per segment.
     '''
     count = len(l_co)
     if t3 == -1:
@@ -352,17 +339,8 @@ class CubicBezier:
         return cb0.subdivide(iters=iters-1) + cb1.subdivide(iters=iters-1)
 
     def compute_linearity(self, fn_dist : Callable[[Vector, Vector], float]) -> float:
-        '''
-        Estimating measure of linearity as ratio of distances
-        of curve mid-point and mid-point of end control points
-        over half the distance between end control points
-          p1 _
-            / ﹨
-           |   ﹨
-        p0 *    ﹨   * p3
-                 ﹨_/
-                 p2
-        '''
+        ''' Linearity measure: distance from the curve midpoint to the p0-p3 midpoint,
+        over half the p0-p3 distance. 0 = straight. '''
         p0 = Vector(self.p0)
         p1 = Vector(self.p1)
         p2 = Vector(self.p2)
@@ -443,13 +421,8 @@ class CubicBezier:
         fn_dist : Callable[[Vector, Vector], float],
         split : int | None = None,
     ) -> float:
-        '''
-        Returns the fraction (0 to 1) of this curve's total arc length that lies
-        between p0 and eval(t). Inverse of approximate_t_at_arc_length_fraction --
-        used to capture a point's proportional position along the curve so it can
-        be preserved (instead of its raw parameter t, which isn't proportional to
-        arc length) as the curve's shape changes under editing.
-        '''
+        ''' Fraction (0..1) of total arc length between p0 and eval(t).
+        Inverse of approximate_t_at_arc_length_fraction. '''
         samples = self.get_tessellate_uniform(fn_dist, split=split)
         total = sum(d for _, _, d in samples)
         if total < 1e-9:
@@ -470,17 +443,8 @@ class CubicBezier:
         fn_dist : Callable[[Vector, Vector], float],
         split : int | None = None,
     ) -> float:
-        '''
-        Returns the t whose arc length from p0 is `fraction` of the curve's
-        total arc length. Inverse of approximate_arc_length_fraction_at_t.
-
-        Interpolates within the bracketing tessellation samples rather than
-        snapping to the nearest one (as approximate_t_at_interval_uniform does)
-        -- needed because this is called every frame while a segment's shape is
-        changing continuously under editing; snapping to one of only `split`
-        discrete t values would make the result visibly pop between those steps
-        instead of sliding smoothly.
-        '''
+        ''' The t whose arc length from p0 is `fraction` of the total.
+        Inverse of approximate_arc_length_fraction_at_t. '''
         samples = self.get_tessellate_uniform(fn_dist, split=split)
         total = sum(d for _, _, d in samples)
         if total < 1e-9:
@@ -488,6 +452,8 @@ class CubicBezier:
         target = fraction * total
         cum = 0.0
         prev_t = 0.0
+        # interpolate within the bracketing samples rather than snapping to one of
+        # `split` discrete ts -- called per-frame during edits, snapping visibly pops
         for s, _, d in samples:
             if cum + d >= target:
                 local = 0.0 if d < 1e-9 else (target - cum) / d
@@ -527,13 +493,7 @@ class CubicBezier:
         ps = [self.eval(t) for t in ts]
         return ps
 
-    #########################################
-    #                                       #
-    # the following code **requires** that  #
-    # self.tessellate_uniform() is called   #
-    # beforehand!                           #
-    #                                       #
-    #########################################
+    # NOTE: everything below requires tessellate_uniform() to have been called first
 
     def tessellate_uniform(
         self,
@@ -563,10 +523,8 @@ class CubicBezier:
         return bt
 
     def approximate_distance_to_point_tessellation(self, point : Vector) -> float:
-        ''' Distance from `point` to its closest position on the tessellation --
-        for a caller that only needs the distance, not eval(t) + fn_dist() on the
-        t approximate_t_at_point_tessellation would return (the search already
-        computes this distance to find that t). '''
+        ''' Distance from `point` to its closest tessellation sample -- for
+        callers needing only the distance, not the t. '''
         _, bd = self._closest_point_tessellation(point)
         return bd
 
@@ -660,83 +618,26 @@ class CubicBezierSpline:
     @staticmethod
     def acceptable_alternative(alt_score, original_score, chord_length):
         ''' Whether alt_score is close enough to original_score to prefer the
-        alternative on other (non-fit-quality) grounds -- e.g. a degenerately
-        short or near-perpendicular handle that technically scored best (see
-        refine_handles), or a free knot's own cached position vs its
-        underlying vert (see create_catmull_rom). Allows up to double the
-        original score, plus a small margin scaled to the segment's own chord
-        so an original score near zero doesn't make every alternative look
-        unacceptably worse by comparison. '''
+        alternative on other, non-fit-quality grounds (refine_handles' guardrails,
+        create_catmull_rom's free-knot candidates). '''
+        # the chord-scaled margin keeps a near-zero original score from making
+        # every alternative look unacceptable
         return alt_score <= original_score * 2.0 + 0.02 * chord_length
 
     @staticmethod
     def create_catmull_rom(pts, knot_indices, *, cyclic=False, corner_indices=(), locked_cbs=None, prev_pts=None, cached_cbs=None):
         '''
-        Build a multi-segment Bézier through pts: first a fast Catmull-Rom
-        tangent fit for every segment as a starting guess, then refine_handles
-        directly searches for the length and rotation that actually fit each
-        segment's own points best (see its docstring).
+        Build a multi-segment Bézier through `pts` with knots at `knot_indices`:
+        a fast Catmull-Rom tangent fit per segment, refined by refine_handles.
 
-        `locked_cbs`, if given, maps a segment index to a CubicBezier to reuse
-        for that segment instead of fitting it fresh -- for a caller that's
-        already established (by some outside measure) that a previous fit is
-        still a good match for that segment's current points, so redoing the
-        work would just spend time to land back on the same answer. The
-        segment's endpoints are still snapped to pts (a coupled knot's vert
-        may have nudged slightly), translating its handles along with them;
-        refine_handles then leaves it untouched entirely.
-
-        `prev_pts`, if given (parallel to `pts`, the positions locked_cbs/
-        cached_cbs was last built against), lets a *free* knot -- not tied to
-        any particular vert, so it doesn't snap onto one the way a coupled
-        knot's side does -- still track a rigid shift of its own
-        neighborhood: it's translated by however far the vert at that same
-        index moved, rather than staying frozen at its old absolute position
-        while everything around it moves. Without `prev_pts`, a free knot's
-        side is left exactly as cached.
-
-        `cached_cbs`, if given, maps a segment index to the CubicBezier it had
-        in the *previous* build -- for a free knot flanked by two segments
-        that AREN'T locked (both need a full refit) but whose manually-set
-        position is worth trying to keep anyway. This is resolved ONCE per
-        free knot, jointly for both flanking segments, never independently
-        per side: the candidate anchor (the cached free-knot position,
-        translated by prev_pts the same way locked_cbs's is) is scored via
-        total_distance -- summed across BOTH segments' own points -- against
-        the plain vert-anchored fit on both sides, and the swap is applied to
-        both sides together only when CubicBezierSpline.acceptable_alternative()
-        says the combined candidate is still a comparably good fit. Resolving
-        it jointly matters because each side's own fit-quality check can
-        disagree with the other's (one segment's points might still favor the
-        cached anchor while the other's don't) -- deciding independently would
-        leave one side using the cached point and the other the vert, pulling
-        the shared knot apart into two different positions (the exact "handle
-        separated from itself" bug the locked/unlocked reconciliation pass
-        below already exists to prevent, just via a different combination of
-        locked/unlocked neighbors).
-
-        The candidate's tangent direction is read from the cached segment's
-        own handle, not re-derived from vertex-neighbor geometry the way the
-        default (vert-anchored) fit is: tangent_out/tangent_in estimate a
-        direction appropriate to a curve anchored AT the vertex, which has no
-        particular relationship to a free knot sitting away from it. Reusing
-        the cached direction gives the refit a starting point that's actually
-        consistent with the anchor being tried; forcing a vertex-based
-        direction onto a deliberately offset anchor is its own source of a
-        refit scoring worse than the fit it's replacing, independent of
-        whether the anchor point itself was a good choice.
-
-        A free knot's anchor vert can move for reasons that have nothing to
-        do with the free knot itself (e.g. a DIFFERENT free knot's drag
-        redistributes verts along its own combined run, see
-        RFOperator_Strokes_CurveEdit, incidentally moving this one's anchor
-        vert too), so a cached position can be stale or simply unrelated to
-        this segment's current shape. An earlier version of this preserved
-        the cached position unconditionally and caused exactly that: free
-        knots snapping to nonsense positions whenever some unrelated vert
-        moved. Scoring both candidates and falling back to the vert-anchored
-        pair whenever the cached one doesn't hold up keeps the benefit (a
-        deliberately-placed free knot survives a refit) without that risk.
+        `locked_cbs`: {seg index: CubicBezier} to reuse as-is instead of refitting
+        (the caller already knows it still fits); endpoints are still snapped to
+        pts, handles translated along.
+        `prev_pts`: the pts locked_cbs/cached_cbs were built against, so a free
+        knot can follow a rigid shift of its neighborhood instead of freezing.
+        `cached_cbs`: {seg index: previous build's CubicBezier}, offering a free
+        knot's cached position as a candidate anchor even where a full refit is
+        needed -- see the candidate pass below.
         '''
         n = len(pts)
         if n < 2:
@@ -777,14 +678,10 @@ class CubicBezierSpline:
         nseg = len(knot_pairs)
         aligned_junction = [(kb % n) not in corners for _, kb in knot_pairs]
 
-        # a locked segment whose handle is aligned-paired with an unlocked
-        # neighbor's is about to be re-searched by refine_handles anyway (see
-        # its docstring) -- starting that handle from the fresh fast-fit guess
-        # a fully-unlocked segment gets, instead of the cached value, gives
-        # that search a starting point that actually matches the neighbor's
-        # current shape rather than whatever shape it was cached against.
-        # refine_handles needs this same boundary set for its own search, so
-        # it's computed once here (in its (seg_i, attr) form) and passed in.
+        # a locked handle aligned-paired with an unlocked neighbor gets re-searched
+        # by refine_handles anyway -- start it from the fresh fast-fit guess, which
+        # matches the neighbor's current shape, not the cached value. refine_handles
+        # needs the same boundary set, so compute it once here and pass it in.
         boundary_handles = set()
         wrap_ok = cyclic and nseg >= 2
         junction_range = range(nseg) if wrap_ok else range(max(0, nseg - 1))
@@ -805,15 +702,10 @@ class CubicBezierSpline:
 
             locked = locked_cbs.get(seg_i)
             if locked is not None:
-                # a coupled knot's vert may have nudged slightly -- snap p0/p3
-                # to it and carry the tangent handle along by the same delta.
-                # A free knot was never tied to pts[k] in the first place (the
-                # whole point of it being free), so its side keeps the locked
-                # position exactly as given instead of snapping to whichever
-                # vert happens to be at that index now -- except it's still
-                # carried along by that same vert's own delta, if prev_pts
-                # says how far that is, so a rigid move of the whole chain
-                # doesn't leave it behind while everything around it shifts.
+                # snap p0/p3 to the (possibly nudged) vert, carrying the handle by
+                # the same delta. A free knot was never tied to pts[k]: keep its
+                # locked position, translated by its anchor vert's delta (prev_pts)
+                # so a rigid move of the whole chain doesn't leave it behind.
                 if CubicBezierSpline.is_free_knot(ka % n, corners, cyclic, n):
                     p0 = Vector(locked.p0)
                     if prev_pts is not None:
@@ -842,18 +734,11 @@ class CubicBezierSpline:
             inds.append((ka, kb))
             runs.append(run)
 
-        # a FREE knot at a locked/unlocked boundary can come out of the loop
-        # above with two different positions for what's meant to be one
-        # shared point: the locked side correctly preserved (and translated)
-        # its own manually-set position, but the unlocked side has no such
-        # rule -- its branch above always uses pts[k] directly, since that's
-        # exactly right for a COUPLED knot (both sides read the very same
-        # vert, so they can't disagree) but wrong for a free one. A locked
-        # and unlocked segment sharing a coupled knot never has this problem,
-        # only a free one -- reconcile it here by having the unlocked side
-        # inherit the locked side's position, carrying its own tangent handle
-        # along by the resulting delta the same way the locked branch above
-        # already does for a coupled vert's small nudge.
+        # a FREE knot at a locked/unlocked boundary can leave the loop above with
+        # two positions for one shared point: the locked side preserved its cached
+        # position, the unlocked side used pts[k] (right for a coupled knot, wrong
+        # for a free one). The unlocked side inherits the locked side's position,
+        # carrying its handle along by the delta.
         for i in junction_range:
             j = (i + 1) % nseg
             if (i in locked_cbs) == (j in locked_cbs):
@@ -872,11 +757,13 @@ class CubicBezierSpline:
                 cbs[i].p3 = canonical
                 cbs[i].p2 = Vector(cbs[i].p2) + delta
 
-        # a free knot flanked by two UNLOCKED segments has no locked side to
-        # defer to (the pass above only resolves a locked/unlocked mismatch),
-        # but cached_cbs may still offer a position worth keeping -- see its
-        # param docs above for why this has to be ONE decision shared by both
-        # sides rather than each side checking independently.
+        # a free knot flanked by two UNLOCKED segments has no locked side to defer
+        # to, but cached_cbs may offer a position worth keeping. Score the cached
+        # anchor against the vert-anchored fit summed across BOTH sides and swap
+        # both together or neither -- deciding per side can pull the shared knot
+        # apart into two positions. Falling back whenever the cached anchor doesn't
+        # hold up keeps a stale position (its anchor vert can move for unrelated
+        # reasons) from snapping the knot to nonsense.
         for i in junction_range:
             j = (i + 1) % nseg
             if i in locked_cbs or j in locked_cbs:
@@ -893,11 +780,10 @@ class CubicBezierSpline:
             if prev_pts is not None:
                 cand_point = cand_point + (Vector(pts[k]) - Vector(prev_pts[k]))
 
-            # dir_j: direction leaving the shared knot INTO segment j (see
-            # fit_segment_fast) -- read straight from whichever cached
-            # segment has it; a smooth (non-corner, i.e. free) knot's two
-            # arms are collinear, so segment i's own p2-arm direction mirrors
-            # it exactly when segment j's isn't cached.
+            # dir_j: direction leaving the shared knot INTO segment j, read from the
+            # cached handle (a vertex-derived tangent has no relationship to an anchor
+            # sitting away from the vert); a free knot's arms are collinear, so
+            # segment i's p2-arm mirrors it when j isn't cached.
             dir_j = None
             if cached_j is not None:
                 d = Vector(cached_j.p1) - Vector(cached_j.p0)
@@ -937,19 +823,11 @@ class CubicBezierSpline:
 
     @staticmethod
     def fit_segment_fast(run, p0, p3, t1, t2):
-        '''
-        Fits the two interior control points (p1, p2) for a single knot-to-knot
-        segment along the *fixed* Catmull-Rom directions `t1` (leaving p0) and
-        `t2` (leaving p3, pointing back into the curve) -- solving only for
-        each handle's length (see fit_tangent_lengths), not its direction.
-
-        This is the cheap starting guess create_catmull_rom hands to
-        refine_handles, and is also used directly (with no refinement) for the
-        live per-frame handle preview while dragging a knot -- see
-        RFOperator_Strokes_CurveEdit, where refining every frame would be too
-        slow for something that's discarded and rebuilt properly once the drag
-        ends anyway.
-        '''
+        ''' Fit p1/p2 for one knot-to-knot segment along fixed tangent directions
+        `t1` (leaving p0) and `t2` (leaving p3, pointing back into the curve) --
+        solves only the lengths (fit_tangent_lengths), not the directions.
+        The fast starting guess for refine_handles, and used alone for the live
+        per-frame preview while dragging a knot, where refining would be too slow. '''
         seglens = [0.0] + [(b - a).length for a, b in zip(run[:-1], run[1:])]
         L = max(sum(seglens), 1e-9)
         us, cum = [], 0.0
@@ -961,18 +839,10 @@ class CubicBezierSpline:
 
     @staticmethod
     def hot_cold_search(evaluate, *, num_tests=10, initial_step=1.0, initial_t=0.0):
-        '''
-        Minimizes a 1D function via "hot and cold" pattern search: starts at
-        `initial_t` (0.0, the current/unmodified value, unless the caller has
-        reason to start somewhere else -- e.g. the result of a coarser scan)
-        and tries a step in one direction, accelerating in that direction
-        while it keeps improving ("hot"), or reversing direction and shrinking
-        the step when it doesn't ("cold"). Runs for exactly `num_tests` calls
-        to `evaluate(t)` and returns whichever `t` scored lowest across all of
-        them -- not just the last one tried, since a step can overshoot past
-        the best point on its way to discovering that stepping further is
-        worse.
-        '''
+        ''' Minimize a 1D function by pattern search from `initial_t`: accelerate
+        while a step improves ("hot"), reverse and shrink the step when it doesn't
+        ("cold"). Runs exactly `num_tests` evaluations and returns the best t seen
+        -- not the last tried, since a step can overshoot past the best point. '''
         best_t, best_score = initial_t, evaluate(initial_t)
         cur_t, cur_score = best_t, best_score
         step = initial_step
@@ -1019,64 +889,22 @@ class CubicBezierSpline:
     @staticmethod
     def refine_handles(cbs, runs, aligned, cyclic, *, rounds=3, locked_segs=frozenset(), boundary_handles=frozenset()):
         '''
-        Improves on cbs' initial (fast Catmull-Rom) handles in place by
-        directly searching for the length and direction that best fit each
-        segment's own points, alternating:
-          - scale: every handle's length, always independently -- G1
-            continuity only requires the two handles at a shared knot to point
-            in the same direction, not have the same length
-          - rotate: every handle's direction -- *together*, as a single shared
-            direction, for the two handles flanking a knot marked `aligned`;
-            independently for everything else (corners, and the ends of an
-            open strip)
-        for `rounds` passes. Each handle (or aligned pair) is optimized with
-        hot_cold_search: 10 candidate values tested, keeping whichever gives
-        the lowest total_distance for the vert(s) that specific handle (or
-        pair) actually affects.
+        Improve cbs' initial handles in place: for `rounds` passes, hot_cold_search
+        every handle's length (scale pass, always independent) and direction
+        (rotate pass -- jointly, as one shared direction, for the two handles
+        flanking a knot marked `aligned`; independently otherwise), scored by
+        total_distance against the segment's own points.
 
-        This replaces trying many arbitrary starting guesses and hoping one
-        lands somewhere good: every test is judged by the same fit-to-the-
-        actual-points criterion, so the search always moves toward a better
-        fit instead of occasionally landing on a worse one that then needs a
-        separate pass to detect and undo.
+        Guardrails after each pass catch results that score marginally better but
+        look broken -- degenerately short handles, overshooting long ones,
+        near-perpendicular directions -- each explained at its own code block.
+        Their triggers are deliberately generous: acceptable_alternative decides
+        what's kept, so a wide trigger only means more candidates considered.
 
-        Four guardrails run after each pass, since raw fit-to-points score
-        alone can settle on a technically-marginally-better result that looks
-        visually broken: after scale, a handle that ended up under 3/10ths its
-        counterpart's length is tried at the counterpart's length instead, if
-        that doesn't cost much fit quality (see acceptable_alternative);
-        independent of its counterpart, a handle under 15% of its own
-        segment's chord is also tried at increasing fractions of that chord
-        (a pair can sit at a "balanced" ratio to each other while both are an
-        absolute pinprick, which the counterpart check alone can't see); a
-        handle longer than half its own segment's chord is tried at half
-        instead, under the same generous margin, and a handle beyond the
-        *full* chord length is held to a much stricter bar (needs to be a
-        clearly better fit, not merely acceptable, to earn keeping that much
-        overshoot -- and even then, never past twice the chord length, since
-        a run with too few interior points to pin the curve down can
-        otherwise keep "improving" without limit); after rotate, a handle
-        within 40 degrees of perpendicular to its own run's local tangent is
-        similarly tried aligned with that tangent. All the
-        "acceptable_alternative" triggers are deliberately generous -- that
-        check is what actually decides whether the alternative is kept, so a
-        wider trigger only means
-        more candidates get *considered*, not more get accepted.
-
-        A segment index in `locked_segs` is a caller-established good fit
-        already -- skip its handles entirely in the scale pass, and skip the
-        rotate pass too for any aligned-pair group where *both* sides are
-        locked (nothing there is free to move regardless). A group with only
-        one side locked still runs the normal joint search -- forcing the
-        unlocked side to match the locked side's exact current direction
-        would also satisfy G1 alignment, but can settle on a worse fit for
-        the unlocked side than letting both sides move to find it together.
-
-        `boundary_handles` is the (seg_i, attr) set of handles sitting right at
-        a locked/unlocked boundary -- the caller already had to compute this
-        same set to know which handles to re-fit fresh instead of translating
-        from cache (see create_catmull_rom), so it's passed in rather than
-        re-derived here.
+        `locked_segs`: segment indices whose fit is already established; their
+        handles are skipped (see frozen_handles below for the exception).
+        `boundary_handles`: caller-computed (seg_i, attr) handles at a
+        locked/unlocked boundary (see create_catmull_rom, the sole caller).
         '''
         nseg = len(cbs)
         if nseg == 0:
@@ -1093,42 +921,20 @@ class CubicBezierSpline:
             return axis.normalized()
 
         def significantly_better(better_score, worse_score, chord_length):
-            ''' The inverse, much stricter bar from acceptable_alternative --
-            whether better_score improves on worse_score by enough to justify
-            keeping something as visually disruptive as an over-chord-length
-            handle (see the long-handle guardrail). Deliberately an absolute
-            margin only, not a ratio: a run with very few interior points can
-            have both scores sitting near zero, where even a 10x-or-more
-            relative improvement is still visually meaningless -- the gap has
-            to be a real fraction of the segment's own chord to be worth an
-            overshoot this size. '''
+            ''' Stricter inverse of acceptable_alternative: is the improvement big
+            enough to justify an over-chord-length handle. Absolute margin only --
+            with few interior points both scores sit near zero, where any relative
+            improvement is visually meaningless. '''
             return worse_score - better_score > 0.2 * chord_length
 
         wrap_ok = cyclic and nseg >= 2
         junction_range = range(nseg) if wrap_ok else range(max(0, nseg - 1))
 
-        # A handle is frozen (skipped by both scale and rotate) only if its own
-        # segment is locked AND it isn't paired at an aligned junction with an
-        # unlocked segment. An unpaired locked handle (a corner or an open
-        # strip's end) has no neighbor to accommodate, so it stays frozen. One
-        # that IS paired with an unlocked neighbor needs to stay eligible for
-        # both -- pinning its length while only its direction can move is its
-        # own source of forcing a worse joint fit, the same issue as pinning
-        # direction outright.
-        # `boundary_handles` (a caller-computed (seg_i, attr) set -- see
-        # create_catmull_rom, the sole caller) marks handles right at a
-        # locked/unlocked boundary. These start the search from whatever the
-        # locked side happened to have cached, not the fresh Catmull-Rom guess
-        # a fully-unlocked handle gets -- give them a wider search so a
-        # possibly-stale starting point doesn't strand them in a worse local
-        # optimum than a from-scratch fit would have found. They stay eligible
-        # despite their segment being locked -- pinning them like the rest of
-        # a locked segment's handles is its own source of forcing a worse
-        # joint fit with the unlocked neighbor, the same issue as pinning
-        # direction outright (see the rotate-pass note above). These are few
-        # (at most two per contiguous locked run), so searching them harder
-        # doesn't meaningfully undercut the savings from skipping the rest of
-        # a locked region entirely.
+        # A handle is frozen (skipped by scale and rotate) only if its segment is
+        # locked AND it isn't aligned-paired with an unlocked neighbor -- pinning
+        # half of a joint search forces a worse joint fit. boundary_handles stay
+        # eligible too, and get a wider search: they start from a possibly-stale
+        # cached value, and there are at most two per contiguous locked run.
         frozen_handles = set()
         for seg_i in locked_segs:
             frozen_handles.add((seg_i, 'p1'))
@@ -1137,10 +943,8 @@ class CubicBezierSpline:
 
         for _ in range(rounds):
             # --- scale: every handle, always independent ---
-            # scale_scores[seg_i] tracks the total_distance each committed
-            # evaluate() call below already computed, so the degenerate-length
-            # guardrail just after this loop can reuse it as `original_score`
-            # instead of recomputing the same thing fresh.
+            # scale_scores keeps each committed evaluate()'s total_distance for the
+            # degenerate-length guardrail below to reuse as original_score
             scale_scores = {}
             for seg_i, (cb, run) in enumerate(zip(cbs, runs)):
                 for attr, anchor_attr in (('p1', 'p0'), ('p2', 'p3')):
@@ -1161,10 +965,9 @@ class CubicBezierSpline:
                     at_boundary = (seg_i, attr) in boundary_handles
                     initial_t = 0.0
                     if at_boundary:
-                        # same reasoning as the rotate pass's coarse scan: this
-                        # handle's cached length was tuned for a shape its
-                        # neighbor no longer has, so try a spread of multipliers
-                        # first instead of only ever nudging from 1x
+                        # the cached length was tuned for a shape the neighbor no
+                        # longer has -- coarse-scan a spread of multipliers before
+                        # the local search, instead of only nudging from 1x
                         initial_t, coarse_best_score = 0.0, evaluate(0.0)
                         for mult in (0.2, 0.5, 1.5, 2.0, 3.0, 5.0):
                             t = mult - 1.0
@@ -1178,32 +981,12 @@ class CubicBezierSpline:
                     )
                     scale_scores[seg_i] = evaluate(best_t)
 
-            # a handle that shrank to near nothing relative to its counterpart
-            # looks visually broken (the curve makes an abrupt transition right
-            # at the knot) even though the scale search, per handle, found it
-            # technically fits marginally better there. Jumping straight to the
-            # counterpart's own length is often too far a stretch to be
-            # acceptable (the two handles can legitimately need very different
-            # lengths), which would make this guardrail give up and leave the
-            # degenerate length in place even when a much more modest stretch
-            # was well within budget. Try a ladder of chord-relative rungs
-            # instead, capped at the counterpart's length, and keep the
-            # longest one that doesn't cost much fit quality -- so a handle
-            # that can't reach its counterpart at least stops looking like a
-            # cusp.
-            #
-            # This runs even for a frozen (locked) segment's handles -- locking
-            # only means the fit-to-points was good enough to skip the search
-            # above, and a run with very few interior points can have plenty
-            # of degenerate-looking handle configurations that all score just
-            # as well as a reasonable-looking one (see the long-handle
-            # guardrail's own note on this). A visually broken handle
-            # shouldn't get to survive indefinitely just because it happened
-            # to be "locked in" once. The cheap ratio check just below still
-            # gates the (tessellation-based) score comparisons, so this only
-            # costs anything extra for the rare handle that actually looks
-            # degenerate, not for the common case of an already-fine locked
-            # segment.
+            # a handle that shrank to near nothing relative to its counterpart reads
+            # as a cusp at the knot even when it scored marginally better. Try a
+            # ladder of chord-relative lengths, capped at the counterpart's, and keep
+            # the longest acceptable one. Runs even on locked segments -- locking
+            # means the fit was good enough, not that the handle looks sane -- and
+            # the cheap ratio check below gates the expensive scoring.
             for seg_i, (cb, run) in enumerate(zip(cbs, runs)):
                 len1 = (Vector(cb.p1) - Vector(cb.p0)).length
                 len2 = (Vector(cb.p2) - Vector(cb.p3)).length
@@ -1222,14 +1005,8 @@ class CubicBezierSpline:
                 if original_score is None:
                     original_score = CubicBezierSpline.total_distance(cb, run)
                 chord_length = (Vector(cb.p3) - Vector(cb.p0)).length
-                # descending: fit quality only gets worse as the candidate
-                # gets longer (confirmed empirically -- see this guardrail's
-                # own history), so the first (largest) rung that's acceptable
-                # is guaranteed to be the best one available, and everything
-                # smaller than it would also pass without needing to check.
-                # Stopping there instead of testing the whole ladder saves a
-                # total_distance call (tessellation + closest-point search)
-                # per rung that would've just confirmed what's already known.
+                # descending: fit only degrades as the candidate grows, so the first
+                # acceptable rung is the best available -- stop there
                 rungs = sorted({
                     min(f * chord_length, long_len)
                     for f in (0.15, 0.2, 0.3, 0.5, 0.75, 1.0)
@@ -1243,15 +1020,9 @@ class CubicBezierSpline:
                         break
                 setattr(cb, short_attr, anchor + direction * best_len)
 
-            # the guardrail above only compares a handle to its OWN
-            # counterpart, so a pair sitting at, say, a 0.3:1 ratio to each
-            # other never triggers it -- even when BOTH are an absolute
-            # pinprick relative to their own chord (seen in practice: two
-            # handles under 1% of the chord, "balanced" enough to slip past
-            # the ratio check entirely). That symmetric case looks just as
-            # broken at the knot as the asymmetric one above, so each handle
-            # is also checked independently against its own chord here,
-            # using the same descending, break-on-first-acceptable ladder.
+            # the check above compares a handle only to its counterpart, so a
+            # "balanced" pair that are BOTH pinpricks relative to their own chord
+            # slips past it -- also check each against its own chord, same ladder
             for seg_i, (cb, run) in enumerate(zip(cbs, runs)):
                 chord_length = (Vector(cb.p3) - Vector(cb.p0)).length
                 if chord_length < 1e-9:
@@ -1276,23 +1047,11 @@ class CubicBezierSpline:
                             break
                     setattr(cb, attr, anchor + direction * best_len)
 
-            # a handle much longer than its own segment's chord risks a visible
-            # bulge or loop overshooting the curve, even when the search found
-            # it fits the points marginally better. Half the chord is
-            # preferred (using the same generous acceptable_alternative margin
-            # as the other guardrails); beyond the full chord length is
-            # discouraged much more strongly -- kept only when it's a clearly
-            # *better* fit, not merely an acceptable one. A run with very few
-            # interior points is under-constrained enough that "longer keeps
-            # scoring better" can continue indefinitely (nothing else pins the
-            # curve down) without the length ever reflecting a real visual
-            # need -- so regardless of score, a handle is never let past twice
-            # the chord length; "significantly better" only ever gets to
-            # choose between half the chord and that hard cap, never the raw
-            # (possibly far longer) search result directly.
-            #
-            # Also runs on frozen (locked) handles, same reasoning as the
-            # short-handle guardrail above.
+            # a handle much longer than its own chord risks a visible bulge or loop.
+            # Half the chord is preferred (same generous margin); past the full chord
+            # is kept only when clearly better (significantly_better), and never past
+            # twice the chord -- an under-constrained run can keep "scoring better"
+            # with length indefinitely. Also runs on locked handles, as above.
             for seg_i, (cb, run) in enumerate(zip(cbs, runs)):
                 chord_length = (Vector(cb.p3) - Vector(cb.p0)).length
                 if chord_length < 1e-9:
@@ -1331,22 +1090,12 @@ class CubicBezierSpline:
                     groups.append(([(cbs[i], 'p2', 'p3', runs[i])], (i,)))
 
             for group, seg_indices in groups:
-                # skip the (expensive) search for a group that's *entirely*
-                # locked -- nothing there can move regardless. A group with a
-                # mix of locked and unlocked arms runs the same search as a
-                # fully-unlocked one: forcing the unlocked side to match the
-                # locked side's exact current direction would satisfy G1
-                # alignment too, but with no room for the locked side to also
-                # give a little, that can settle on a worse fit for the
-                # unlocked side than a real joint search would -- and the
-                # locked side's own fit was only ever established as *good
-                # enough* (within tolerance), not perfect, so there was never
-                # a hard requirement to hold it at exactly its current value
-                # in the first place. A fully-locked group still runs the
-                # near-perpendicular guardrail below, though (skip_search
-                # only bypasses the search, not that check) -- same reasoning
-                # as the scale-pass guardrails above: locking is about
-                # fit-to-points, not about the handle direction looking sane.
+                # skip the search only when the whole group is locked. A mixed group
+                # runs the normal joint search: forcing the unlocked side to match the
+                # locked side's current direction satisfies G1 too, but can settle on
+                # a worse fit -- the locked fit was only ever "good enough", not
+                # exact. A fully-locked group still runs the near-perpendicular
+                # guardrail below.
                 locked_flags = [seg_i in locked_segs for seg_i in seg_indices]
                 skip_search = all(locked_flags)
                 is_boundary = any(locked_flags) and not skip_search
@@ -1359,12 +1108,9 @@ class CubicBezierSpline:
                     if length < 1e-9:
                         arms = []
                         break
-                    # p1 points away from its knot in the curve's direction of
-                    # travel; p2 points backward against it -- so at a shared
-                    # knot the two handles' raw vectors are supposed to be
-                    # opposite, not equal. `sign` converts each into a common
-                    # "direction of travel" so they can be averaged/rotated as
-                    # one, and converts back when writing the result below.
+                    # p1 points along the direction of travel, p2 against it, so a
+                    # shared knot's raw vectors are opposite. `sign` maps both into
+                    # travel direction for averaging, and back when writing below.
                     sign = 1.0 if attr == 'p1' else -1.0
                     arms.append((cb, attr, anchor, vec / length, length, run, sign))
                 if not arms:
@@ -1392,22 +1138,15 @@ class CubicBezierSpline:
                     return apply_direction((rot @ shared).normalized())
 
                 if skip_search:
-                    # nothing here is free to move -- evaluate(0.0) just
-                    # confirms the arms' current (already-aligned, since
-                    # `shared` is their own combined direction) state without
-                    # spending a search on it, so the guardrail below still
-                    # has a committed_dir/best_score to compare against.
+                    # nothing free to move -- evaluate(0.0) below just commits the
+                    # current state so the guardrail has a score to compare against
                     best_t = 0.0
                 else:
                     initial_t = 0.0
                     if is_boundary:
-                        # hot_cold_search is a greedy local search: starting at
-                        # the locked side's cached direction, it can get stuck
-                        # without ever finding a much-better direction on "the
-                        # other side" of a worse one in between. A coarse scan
-                        # around the full circle first finds roughly the right
-                        # neighborhood for the normal search to then refine
-                        # from -- affordable here since boundary groups are few.
+                        # a greedy local search can strand a stale cached direction
+                        # behind a worse region -- coarse-scan the full circle first;
+                        # affordable since boundary groups are few
                         initial_t, coarse_best_score = 0.0, evaluate(0.0)
                         for k in range(1, 12):
                             t = k * (2 * math.pi / 12)
@@ -1421,17 +1160,11 @@ class CubicBezierSpline:
                     )
                 best_score = evaluate(best_t)
 
-                # a handle nearly perpendicular to the curve's own local tangent
-                # looks visually wrong even if the search found it technically
-                # fits marginally better -- e.g. a slight kink right at this
-                # knot can make a handle pointing "sideways" score well for the
-                # few nearby points without looking anything like the curve's
-                # actual direction of travel there. local_tangent is a simple,
-                # run-only estimate of that direction (the secant to each arm's
-                # nearest interior point, or its chord if it has none), grouped
-                # and sign-corrected the same way `shared` is. If a direction
-                # closer to it doesn't cost much fit quality, prefer that over
-                # a near-perpendicular (or reversed) result.
+                # a handle near-perpendicular to the run's local tangent looks wrong
+                # even when it scores marginally better (a slight kink can reward
+                # "sideways"). If a direction near the tangent doesn't cost much fit,
+                # prefer it. local_tangent: secant to each arm's nearest interior
+                # point, grouped and sign-corrected like `shared`.
                 local_tangent = Vector((0.0, 0.0, 0.0))
                 tangent_ok = True
                 for _cb, attr, _anchor, _direction, _length, run, _sign in arms:
@@ -1570,13 +1303,7 @@ class CubicBezierSpline:
                                      max_linearity=max_linearity
                                  ))
 
-    #########################################
-    #                                       #
-    # the following code **requires** that  #
-    # self.tessellate_uniform() is called   #
-    # beforehand!                           #
-    #                                       #
-    #########################################
+    # NOTE: everything below requires tessellate_uniform() to have been called first
 
     def tessellate_uniform(self, *, fn_dist=None, split=None):
         if not fn_dist: fn_dist = lambda a, b: (a - b).length
@@ -1643,10 +1370,8 @@ class CubicBezierSpline:
 
 
 class GenVector(list):
-    '''
-    Generalized Vector, allows for some simple ordered items to be linearly combined
-    which is useful for interpolating arbitrary points of Bezier Spline.
-    '''
+    ''' Generalized vector: ordered items that can be linearly combined, for
+    interpolating arbitrary Bezier spline point data. '''
 
     def __mul__(self, scalar: float):  # ->GVector:
         for idx in range(len(self)):
