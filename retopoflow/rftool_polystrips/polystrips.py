@@ -266,8 +266,8 @@ class RFOperator_PolyStrips_Insert(
             layout.prop(self, 'mirror_correct', text='Mirror Side')
 
     def execute(self, context):
+        logic = RFOperator_PolyStrips_Insert.logic
         try:
-            logic = RFOperator_PolyStrips_Insert.logic
             logic.count = self.count
             logic.scale_start = self.scale_start
             logic.scale_end = self.scale_end
@@ -286,6 +286,9 @@ class RFOperator_PolyStrips_Insert(
             print(f'{type(self).__name__}.execute: Caught Exception {e}')
             debugger.print_exception()
             return {'CANCELLED'}
+        finally:
+            # keep the logic for redo, but don't let it hold BMesh data between executes
+            if logic: logic.release()
 
         return {'FINISHED'}
 
@@ -422,6 +425,11 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
         default=0.5,
     )
 
+    show_curve_handles: bpy.props.BoolProperty(
+        name = 'Curve Handles',
+        description = 'Show Bézier curve control handles on selected edge strips and loops',
+        default = True
+    )
 
     def init(self, context, event):
         self.km_context = 'ready'
@@ -700,7 +708,6 @@ class RFTool_PolyStrips(RFTool_Base):
     bl_widget : str | None = None
 
     rf_operator_idname : str | None = 'retopoflow.polystrips'
-    rf_supports_curve_handles = True
     rf_brush = RFBrush_Strokes()
     rf_overlay : type[RFOverlay_Base] | None = RFOperator_PolyStrips_Overlay
 

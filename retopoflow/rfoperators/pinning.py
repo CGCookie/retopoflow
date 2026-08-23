@@ -25,6 +25,8 @@ from ..rfglobals import RFGlobals
 from ..common.operator import RFRegisterClass
 
 
+DEBUG = False
+
 original_crease_color = [0.8, 0, 0.6]
 
 
@@ -91,11 +93,13 @@ def restore_pinning(context):
     global original_crease_color
     set_theme_crease(context, original_crease_color)
 
+    owned = False
     if context.mode == 'EDIT_MESH':
         bm = bmesh.from_edit_mesh(obj.data)
     else:
         bm = bmesh.new()
         bm.from_mesh(obj.data)
+        owned = True
 
     bm.verts.ensure_lookup_table()
     bm.edges.ensure_lookup_table()
@@ -105,6 +109,8 @@ def restore_pinning(context):
     pin_vert_layer = bm.verts.layers.float.get('retopoflow_pins')
 
     if not pin_vert_layer:
+        # bailing out before the free at the end of the function
+        if owned: bm.free()
         return
 
     if crease_vert_layer:
@@ -131,8 +137,9 @@ def restore_pinning(context):
         bmesh.update_edit_mesh(obj.data)
     else:
         bm.to_mesh(obj.data)
-        print('pinning.py')
-        bm.free()
+        if owned:
+            if DEBUG: print('Retopoflow pinning.py: freeing own bmesh')
+            bm.free()
 
 
 def toggle_pinning(context, enable):

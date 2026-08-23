@@ -42,7 +42,7 @@ from ..common.bmesh_maths import (
     compute_n,
     bmes_get_prevnext_bmvs,
     get_strip_bmvs,
-    check_bmf_normals,
+    orient_bmf_normals,
     fit_template2D,
     vec_screenspace_angle,
     vecs_screenspace_angle,
@@ -55,14 +55,12 @@ from ..common.raycast import raycast_point_valid_sources, nearest_point_valid_so
 from ..common.accel import SourceCache
 from ..common.snapping import source_snap_radius, source_snap_settings, fold_crease
 from ..common.maths import (
-    view_forward_direction,
     lerp,
     point_to_bvec3,
     vector_to_bvec3,
     point_to_bvec4,
     distance_point_linesegment,
     distance_point_bmedge,
-    xform_direction,
 )
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.bezier import interpolate_cubic
@@ -1402,6 +1400,7 @@ class PolyStrips_Logic:
             # create bmfaces
 
             bmfs = []
+            new_bmfs = []
             for i in range(0, len(bmvs[0])-1):
                 bmv00, bmv01 = bmvs[0][i], bmvs[0][i+1]
                 bmv10, bmv11 = bmvs[1][i], bmvs[1][i+1]
@@ -1409,11 +1408,16 @@ class PolyStrips_Logic:
                 if len(verts) < 3:
                     print(f'WARNING: Cannot create face with {len(verts)=} verts {verts=}')
                     continue
-                bmf = self.bm.faces.new(verts)
+                # Existing faces can join the strip as-is
+                bmf = self.bm.faces.get(verts)
+                if bmf is None:
+                    bmf = self.bm.faces.new(verts)
+                    new_bmfs.append(bmf)
+                elif DEBUG_SIDEJOIN:
+                    print(f'[sidejoin] seg {i_strip}: quad {i} already exists, reusing {bmf.index=}')
                 bmfs += [ bmf ]
                 select_geo.append(bmf)
-            fwd = xform_direction(Mi, view_forward_direction(context))
-            check_bmf_normals(fwd, bmfs)
+            orient_bmf_normals(context, new_bmfs, new_faces=True)
 
             if snap_bmf1 is None: snap_bmf1 = bmfs[-1]
             actual_strip_count += 1
@@ -1435,6 +1439,10 @@ class PolyStrips_Logic:
         # Subsequent (redo/scroll) builds must respect the artist's adjustments instead of re-deriving.
         self.initial = False
 
+
+    def release(self):
+        """ Drop the BMesh working state to avoid stale references. """
+        self.bm, self.em = None, None
 
     def update_context(self, context):
         # this should be called whenever the context could change

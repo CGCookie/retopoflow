@@ -161,6 +161,7 @@ class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
                     removed[obj.name]['edges'].append(e.index)
                     bm.edges.remove(e)
             bmesh.update_edit_mesh(obj.data)
+            # NOTE: Do NOT use index_update() between the removals above and restoring the selection
             restore_selected(context, prev_selection, skip=removed)
             context.tool_settings.mesh_select_mode = prev_select_mode
 

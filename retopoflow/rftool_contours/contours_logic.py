@@ -34,7 +34,7 @@ from bpy.types import Context, Mesh
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 from mathutils import Matrix, Vector
 from ..common.bmesh import (
-    get_bmesh_emesh, get_object_bmesh,
+    get_bmesh_emesh, get_object_bmesh, evict_object_bmesh,
     has_mirror_x, has_mirror_y, has_mirror_z,
     bmf_midpoint_radius, bme_other_bmf, bmf_is_quad, quad_bmf_opposite_bme,
     ensure_correct_normals,
@@ -425,6 +425,13 @@ class Contours_Logic:
             debugger.print_exception()
 
         self.initial = False
+
+    def release(self):
+        """ Drop the BMesh working state to avoid stale references. """
+        self.bm, self.em = None, None
+        self.edge_ring = None
+        self.sel_path = None
+        self.bridge = None
 
     def process_source(self, context:Context) -> bool:
         # process source only once, unless settings have changed
@@ -1844,7 +1851,7 @@ class Contours_Logic:
         face_index = self.hit['face_index']
         if face_index >= len(hit_bm.faces):
             # cache is stale, source mesh changed face count
-            get_object_bmesh.cache.pop(hit_obj, None)
+            evict_object_bmesh(hit_obj)
             hit_bm = get_object_bmesh(hit_obj)
         if face_index >= len(hit_bm.faces):
             print(f'CONTOURS: face_index {face_index} out of range for mesh with {len(hit_bm.faces)} faces')

@@ -42,7 +42,7 @@ from ..common.bmesh_maths import (
     compute_n,
     bmes_get_prevnext_bmvs,
     get_strip_bmvs,
-    check_bmf_normals,
+    orient_bmf_normals,
     fit_template2D,
     vec_screenspace_angle,
     vecs_screenspace_angle,
@@ -52,8 +52,8 @@ from ..common.bmesh_maths import (
     fit_plane_of_verts,
 )
 from ..common.raycast import raycast_point_valid_sources, nearest_normal_valid_sources, nearest_point_valid_sources
-from ..common.maths import view_forward_direction, lerp, bvec_to_point, point_to_bvec3, bvec_point_to_bvec4, bvec_vector_to_bvec4
-from ..common.maths import xform_point, xform_vector, xform_direction, local_to_world
+from ..common.maths import lerp, bvec_to_point, point_to_bvec3, bvec_point_to_bvec4, bvec_vector_to_bvec4
+from ..common.maths import xform_point, xform_vector, local_to_world
 from ..common.accel import SourceCache
 from ..common.snapping import source_snap_radius, source_snap_settings
 from ...addon_common.common import bmesh_ops as bmops
@@ -141,7 +141,8 @@ class Strokes_Logic:
 
         self.show_is_cycle = True
         self.is_cycle = is_cycle
-        self.snapped_geo = snapped_geo
+        snapped_bmvs = snapped_geo[0] # Keeping snapped_geo itself could leave the insert op holding stale Bmesh elements
+        self.snapped_ends = (snapped_bmvs[0] is not None, snapped_bmvs[1] is not None)
         self.snapped_mirror = snapped_mirror
 
         self.span_insert_mode = span_insert_mode
@@ -624,12 +625,18 @@ class Strokes_Logic:
         fix_strip(self.longest_strip0)
         fix_strip(self.longest_strip1)
 
+    def release(self):
+        """ Drop the BMesh working state to avoid stale references. """
+        self.bm, self.em = None, None
+        self.sel_edges = []
+        self.longest_strip0 = self.longest_strip1 = None
+        self.longest_cycle0 = self.longest_cycle1 = None
+        self.snap_bmv0 = self.snap_bmv1 = None
+
     def process_snap_geometry(self, context):
-        # NOTE: snapped geo could be stale (from redo panel), so do not rely on it having valid geometry
-        #       however, we can still check if it is None to see if we _should_ try to consider snapping
-        snapped_bmvs, snapped_bmes, snapped_bmfs = self.snapped_geo
-        self.snap_bmv0 = self.bmv_closest(context, self.bm.verts, self.stroke3D[0]) if snapped_bmvs[0] is not None else None
-        self.snap_bmv1 = self.bmv_closest(context, self.bm.verts, self.stroke3D[-1]) if snapped_bmvs[1] is not None else None
+        snapped_end0, snapped_end1 = self.snapped_ends
+        self.snap_bmv0 = self.bmv_closest(context, self.bm.verts, self.stroke3D[0]) if snapped_end0 else None
+        self.snap_bmv1 = self.bmv_closest(context, self.bm.verts, self.stroke3D[-1]) if snapped_end1 else None
 
         # cycle
         self.snap_bmv0_cycle0 = self.snap_bmv0 and self.longest_cycle0 and any(self.snap_bmv0 in bme.verts for bme in self.longest_cycle0)
@@ -963,7 +970,6 @@ class Strokes_Logic:
             self.stroke3D.reverse()
 
         # align closest points between selected cyclic bmvs and stroke
-        M, Mi = self.matrix_world, self.matrix_world_inv
         closest_i, closest_pt0, closest_j, closest_pt1, closest_d = None, None, None, None, float('inf')
         for i in range(llc):
             bme_pre = self.longest_cycle0[(i-1) % llc]
@@ -1028,8 +1034,7 @@ class Strokes_Logic:
                 bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
                 bmfs.append(bmf)
 
-        fwd = xform_direction(Mi, view_forward_direction(context))
-        check_bmf_normals(fwd, bmfs)
+        orient_bmf_normals(context, bmfs, new_faces=True)
 
         # select newly created geometry
         bmops.deselect_all(self.bm)
@@ -1046,7 +1051,6 @@ class Strokes_Logic:
         if DEBUG: print(f'insert_cycle_T()')
 
         llc = len(self.longest_cycle0)
-        M, Mi = self.matrix_world, self.matrix_world_inv
 
         # make sure stroke and selected cycle share first point at index 0
         if self.snap_bmv1_cycle0: self.reverse_stroke()
@@ -1110,8 +1114,7 @@ class Strokes_Logic:
                 bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
                 bmfs.append(bmf)
 
-        fwd = xform_direction(Mi, view_forward_direction(context))
-        check_bmf_normals(fwd, bmfs)
+        orient_bmf_normals(context, bmfs, new_faces=True)
 
         # select newly created geometry
         bmops.deselect_all(self.bm)
@@ -1127,7 +1130,6 @@ class Strokes_Logic:
         if DEBUG: print(f'insert_cycle_I()')
 
         llc = len(self.longest_cycle0)
-        M, Mi = self.matrix_world, self.matrix_world_inv
 
         # make sure stroke starts on longest cycle
         if self.snap_bmv0_cycle1:
@@ -1205,8 +1207,7 @@ class Strokes_Logic:
                 bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
                 bmfs.append(bmf)
 
-        fwd = xform_direction(Mi, view_forward_direction(context))
-        check_bmf_normals(fwd, bmfs)
+        orient_bmf_normals(context, bmfs, new_faces=True)
 
         # select newly created geometry
         bmops.deselect_all(self.bm)
@@ -1417,8 +1418,7 @@ class Strokes_Logic:
                 bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
                 bmfs.append(bmf)
 
-        fwd = xform_direction(Mi, view_forward_direction(context))
-        check_bmf_normals(fwd, bmfs)
+        orient_bmf_normals(context, bmfs, new_faces=True)
 
         # zip patch sides into adjacent boundary geometry
         patch_all_bmvs = {bmv for row in bmvs for bmv in row if bmv}
@@ -1440,7 +1440,6 @@ class Strokes_Logic:
         if DEBUG: print(f'insert_strip_I()')
 
         llc = len(self.longest_strip0)
-        M, Mi = self.matrix_world, self.matrix_world_inv
 
         # make sure stroke starts on longest strip
         i_select = -1
@@ -1518,8 +1517,7 @@ class Strokes_Logic:
                 bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
                 bmfs.append(bmf)
 
-        fwd = xform_direction(Mi, view_forward_direction(context))
-        check_bmf_normals(fwd, bmfs)
+        orient_bmf_normals(context, bmfs, new_faces=True)
 
         # zip patch sides into adjacent boundary geometry
         patch_all_bmvs = {bmv for row in bmvs for bmv in row if bmv}
@@ -1542,7 +1540,6 @@ class Strokes_Logic:
         if DEBUG: print(f'insert_strip_C()')
 
         llc = len(self.longest_strip0)
-        M, Mi = self.matrix_world, self.matrix_world_inv
 
         # make sure stroke and selected strip point in same direction
         v_stroke = self.stroke3D[-1] - self.stroke3D[0]
@@ -1620,8 +1617,7 @@ class Strokes_Logic:
                 if not (bmv00 and bmv01 and bmv10 and bmv11): continue
                 bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
                 bmfs.append(bmf)
-        fwd = xform_direction(Mi, view_forward_direction(context))
-        check_bmf_normals(fwd, bmfs)
+        orient_bmf_normals(context, bmfs, new_faces=True)
 
         # select bottom row
         bmops.deselect_all(self.bm)
@@ -1638,7 +1634,6 @@ class Strokes_Logic:
         if DEBUG: print(f'insert_strip_L()')
 
         # fallback to insert_strip_T if we cannot make L-shape work
-        M, Mi = self.matrix_world, self.matrix_world_inv
 
         if   self.snap_bmv0_sel and self.snap_bmv1_nosel: pass
         elif self.snap_bmv1_sel and self.snap_bmv0_nosel: self.reverse_stroke()
@@ -1737,8 +1732,7 @@ class Strokes_Logic:
                 if not (bmv00 and bmv01 and bmv10 and bmv11): continue
                 bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
                 bmfs.append(bmf)
-        fwd = xform_direction(Mi, view_forward_direction(context))
-        check_bmf_normals(fwd, bmfs)
+        orient_bmf_normals(context, bmfs, new_faces=True)
 
         # select bottom row
         bmops.deselect_all(self.bm)
@@ -1753,7 +1747,6 @@ class Strokes_Logic:
     def insert_strip_equals(self, context):
         if DEBUG: print(f'insert_strip_equals()')
 
-        M, Mi = self.matrix_world, self.matrix_world_inv
 
         ###########################
         # build templates
@@ -2023,8 +2016,7 @@ class Strokes_Logic:
             for i in range(llc_lr - 1)
             for j in range(llc_tb - 1)
         ]))
-        fwd = xform_direction(Mi, view_forward_direction(context))
-        check_bmf_normals(fwd, bmfs)
+        orient_bmf_normals(context, bmfs, new_faces=True)
 
         # zip bottom row into adjacent boundary geometry when snap anchors are available
         patch_all_bmvs = {bmv for row in bmvs for bmv in row if bmv}

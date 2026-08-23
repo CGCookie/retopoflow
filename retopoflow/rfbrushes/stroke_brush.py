@@ -219,6 +219,20 @@ def create_stroke_brush(
             # note: artist just used another operator, so the data likely changed.
             #       reset nearest info so that we can rebuild structure!
             self.operator = operator
+            # a stroke in progress was interrupted (a completed stroke is cleared on LMB release),
+            # so abandon it rather than letting the next operator resume a stale stroke
+            self.cancel_stroke()
+
+        def cancel_stroke(self):
+            # abandon any in-progress stroke so is_stroking() cannot get stuck True after inturruption
+            if self.timer:
+                try:
+                    self.timer.stop()
+                except Exception as e:
+                    print(f'RFBrush_Stroke.cancel_stroke: could not stop timer: {e}')
+                self.timer = None
+            self.clear_stroke()
+            self.reset()
 
         def reset(self):
             self.nearest_bmv = None
@@ -233,6 +247,20 @@ def create_stroke_brush(
             self.snap_bmf0 = None
             self.snap_bmf1 = None
             self.snap_join = set()
+
+        def release_bmesh(self):
+            ''' Drop every bmesh reference the brush holds as it outlives the bmesh.
+            Stroke geometry is left alone so this is safe to call mid-stroke. '''
+            self.reset()
+            self.bme_cache_left = {}
+            self.bme_cache_right = {}
+            self.bme_join_cache = {}
+            self.snap_caps = set()
+
+        @classmethod
+        def depsgraph_update(cls):
+            for brush in cls.get_instances():
+                brush.release_bmesh()
 
 
         def reset_nearest(self, context):
@@ -266,7 +294,8 @@ def create_stroke_brush(
                 print('Warning: Could not get valid BMesh')
 
             if not self.operator:
-                self.reset()
+                # no operator means this is teardown, so drop the caches too
+                self.release_bmesh()
 
 
         def get_scaled_radius(self) -> float:
@@ -355,7 +384,7 @@ def create_stroke_brush(
                 self.operator = None
 
             if not self.operator and not RFOperator_StrokeBrush_Adjust.is_active():
-                self.reset()
+                self.cancel_stroke()
                 self.mouse = None
                 self.hit = False
                 return
@@ -381,10 +410,7 @@ def create_stroke_brush(
                 return
 
             if event.type == 'RIGHTMOUSE' and event.value == 'PRESS':
-                self.clear_stroke()
-                self.reset()
-                if self.timer: self.timer.stop()
-                self.timer = None
+                self.cancel_stroke()
                 context.area.tag_redraw()
                 print('return 3')
                 return

@@ -532,18 +532,34 @@ def try_join_quad_chains(a : dict, b : dict) -> dict | None:
     return None
 
 
-def find_quadstrip_chains(bmfs : Sequence[BMFace]) -> tuple[list[dict], list[list[BMFace]]]:
-    ''' Discover chains of edge-adjacent selected quads, open chains and closed rings.
-    A lone quad with no in-selection neighbors yields neither. '''
-    bmfs_set : set[BMFace] = set(bmfs)
-    network : dict[BMFace, set[BMFace]] = {
+def quad_face_network(bmfs_set : set[BMFace]) -> dict[BMFace, set[BMFace]]:
+    ''' Each of the selected quads mapped to the selected quads sharing one of its edges. '''
+    return {
         bmf: {
             bme.link_faces[0] if bme.link_faces[1] == bmf else bme.link_faces[1]
             for bme in bmf.edges
-            if len(bme.link_faces) == 2 and all(bmef in bmfs for bmef in bme.link_faces)
+            if len(bme.link_faces) == 2 and all(bmef in bmfs_set for bmef in bme.link_faces)
         }
         for bmf in bmfs_set
     }
+
+
+def selection_has_patch(bmfs : Sequence[BMFace]) -> bool:
+    ''' True when some connected run of the selected quads is more than one face wide. '''
+    bmfs_set = set(bmfs)
+    network = quad_face_network(bmfs_set)
+    if any(len(neighbors) >= 3 for neighbors in network.values()):
+        return True
+    return any(
+        len(bmv.link_faces) == 4 and all(f in bmfs_set and len(network[f]) == 2 for f in bmv.link_faces)
+        for bmf in bmfs_set for bmv in bmf.verts
+    )
+
+
+def find_quadstrip_chains(bmfs : Sequence[BMFace]) -> tuple[list[dict], list[list[BMFace]]]:
+    ''' Discover chains of edge-adjacent selected quads, open chains and closed rings. '''
+    bmfs_set : set[BMFace] = set(bmfs)
+    network = quad_face_network(bmfs_set)
 
     def walk_chain(start : BMFace) -> tuple[list[BMFace], set[int]]:
         # Prefer a straight continuation and turn through an L-attached corner when there's none.
@@ -646,10 +662,13 @@ class QuadStripChainProvider(ChainProvider):
     ''' Selected quad faces -> quad chains and rings, represented by their centerlines. '''
 
     MAX_FACES = 1000  # cap total faces, not chain count (matches legacy PolyStrips)
+    MIN_STRIP_FACES = 3  # two faces make one bend, which the two faces' own verts already describe
 
     def collect(self, context : Context, bm : BMesh) -> list[ChainSpec] | None:
         sel_bmfs = [bmf for bmf in bmops.get_all_selected_bmfaces(bm) if len(bmf.edges) == 4]
         if not sel_bmfs or len(sel_bmfs) > self.MAX_FACES:
+            return None
+        if selection_has_patch(sel_bmfs):
             return None
 
         open_chains, rings = find_quadstrip_chains(sel_bmfs)
@@ -671,6 +690,8 @@ class QuadStripChainProvider(ChainProvider):
         segments = [[f.index for f in seg] for seg in open_chain['segment_faces']]
         bmf_indices = [i for seg in segments for i in seg]
         n = sum(len(seg) for seg in open_chain['segment_faces'])
+        if n < self.MIN_STRIP_FACES:
+            return None
         avg_len = max(sum((a - b).length for a, b in iter_pairs(points, False)) / max(len(points) - 1, 1), 1e-6)
         deform_bmv_indices = sorted({
             bmv.index for f in

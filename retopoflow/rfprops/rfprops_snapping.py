@@ -172,6 +172,16 @@ class RFProps_Snapping(bpy.types.PropertyGroup):
         ),
     )
 
+    """ Face Normals """
+    correct_face_normals: bpy.props.BoolProperty(
+        name='Correct Face Normals',
+        description=(
+            'Point newly created and transformed faces outwards, matching the nearest surface on '
+            'the source mesh where there is one and the surrounding faces where there is not'
+        ),
+        default=True,
+    )
+
     """ Snap Elements """
     snap_vertex: bpy.props.BoolProperty(
         name='Vertex', description='Snap to vertices', default=False,

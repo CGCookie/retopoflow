@@ -74,6 +74,9 @@ VECTOR_POINT_AT_FACTOR = 1
 MAX_HANDLE_VERTS = 250
 MAX_HANDLE_SEGMENTS = 25
 
+# Avoids drawing handles when there aren't enough points to control to make it useful
+MIN_SEGMENT_POINTS = 2
+
 
 def _internal_bl_idname(dotted_idname : str) -> str:
     category, _, name = dotted_idname.partition('.')
@@ -229,7 +232,10 @@ def create_curve_overlay(
             return context.scene.retopoflow.curve_handles
 
         def _curve_handles_enabled(self, context : Context) -> bool:
-            return self._curve_props(context).show_curve_handles
+            tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
+            if not tool:
+                return False
+            return getattr(tool.operator_properties(rftool_idname), 'show_curve_handles', False)
 
         def _bend_tolerance_factor(self, context : Context) -> float:
             return self._curve_props(context).bend_tolerance_factor
@@ -519,7 +525,23 @@ def create_curve_overlay(
                     h_p2['g1_peer'] = ((i + 1) % nseg, 'p1')
                 handles.append(h_p2)
 
+            self._mark_inert_handles(handles, spline, coupled, resolve_handle_type)
             return handles
+
+        def _mark_inert_handles(self, handles, spline, coupled, resolve_handle_type):
+            ''' Flag handles that have nothing to reshape so the user doesn't have to see them '''
+            usable = [(kb - ka - 1) >= MIN_SEGMENT_POINTS for (ka, kb) in spline.inds]
+            for h in handles:
+                if h['kind'] == 'tangent':
+                    owner, segs = h['owner_vert_index'], [h['pos'][0]]   # one arm, one segment
+                else:
+                    owner, segs = h['vert_index'], [seg for seg, _ in h['set']]  # one per side
+                sides = [seg for seg in segs if seg < len(usable)]
+                h['inert'] = bool(
+                    coupled and sides
+                    and resolve_handle_type(owner) != 'automatic'
+                    and not any(usable[seg] for seg in sides)
+                )
 
         _HANDLE_TYPE_CYCLE = {'aligned': 'vector', 'vector': 'automatic', 'automatic': 'aligned'}
 
@@ -693,6 +715,8 @@ def create_curve_overlay(
                     for hi, h in enumerate(chain['handles']):
                         if h['kind'] != want_kind:
                             continue
+                        if h.get('inert'):
+                            continue
                         seg, attr = h['pos']
                         p = location_3d_to_region_2d(rgn, r3d, M @ Vector(getattr(spline.cbs[seg], attr)))
                         if not p:
@@ -747,6 +771,10 @@ def create_curve_overlay(
                     for h in chain['handles']
                     if h['kind'] == 'tangent' and knot_type_by_vert.get(h['owner_vert_index']) == 'automatic'
                 }
+                # plus any arm with too few verts in its own segment to bend anything
+                hidden_tangents |= {
+                    h['pos'] for h in chain['handles'] if h['kind'] == 'tangent' and h.get('inert')
+                }
                 for i, cb in enumerate(cbs):
                     if DEBUG_SHOW_CURVE_LINE:
                         curve_pts = [p for v in range(21)
@@ -765,6 +793,8 @@ def create_curve_overlay(
 
                 knot_pts2d, free_knot_pts2d, auto_knot_pts2d, tan_pts2d = [], [], [], []
                 for h in chain['handles']:
+                    if h['kind'] == 'knot' and h.get('inert'):
+                        continue  # both of its arms are inert, so the knot isn't needed
                     seg, attr = h['pos']
                     p = location_3d_to_region_2d(rgn, r3d, M @ Vector(getattr(cbs[seg], attr)))
                     if not p:

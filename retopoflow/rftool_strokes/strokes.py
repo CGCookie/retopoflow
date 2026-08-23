@@ -351,6 +351,9 @@ class RFOperator_Stroke_Insert(
             print(f'{type(self).__name__}.execute: Caught Exception {e}')
             debugger.print_exception()
             return {'CANCELLED'}
+        finally:
+            # keep the logic for redo, but don't let it hold BMesh data between executes
+            logic.release()
 
         self.extrapolate_mode = logic.extrapolate_mode
         self.bridging_offset  = logic.bridging_offset
@@ -467,16 +470,16 @@ class RFOperator_Strokes(RFOperator_Stroke_Insert_Properties, RFOperator):
         max=1.0,
         default=0.5,
     )
+    show_curve_handles: bpy.props.BoolProperty(
+        name = 'Curve Handles',
+        description = 'Show Bézier curve control handles on selected edge strips and loops',
+        default = True
+    )
     select_loops: bpy.props.BoolProperty(
         name = 'Tweak Loops',
         description = 'Select and transform loops while tweaking edges with the mouse',
         default = False
     )
-    # show_curve_handles/curve_handle_density/curve_corner_angle moved to
-    # context.scene.retopoflow.curve_handles (rfprops_curve_handles.py) --
-    # shared scene-level settings, not per-tool operator properties, so
-    # PolyStrips' curve overlay agrees with Strokes' without needing its own
-    # copies of the same three props (see RFTool_Base.rf_supports_curve_handles)
 
     def init(self, context, event):
         self.km_context = 'ready'
@@ -590,7 +593,6 @@ class RFTool_Strokes(RFTool_Base):
     bl_icon = get_path_to_blender_icon('strokes')
     bl_widget = None
     rf_operator_idname : str | None = 'retopoflow.strokes'
-    rf_supports_curve_handles = True
 
     rf_brush = RFBrush_Strokes()
     rf_overlay = RFOperator_Strokes_Overlay

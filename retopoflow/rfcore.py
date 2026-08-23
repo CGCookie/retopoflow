@@ -29,6 +29,7 @@ import time
 from typing import ClassVar
 from collections.abc import Sequence, Callable
 from textwrap import dedent
+from contextlib import contextmanager
 
 from . import rfglobals
 
@@ -37,7 +38,7 @@ from ..addon_common.common.debug import debugger
 from ..addon_common.common.resetter import Resetter
 from ..config.theme import Theme
 from ..config.keymaps import alter_user_keymaps, restore_user_keymaps
-from .common.bmesh import get_object_bmesh, get_bmesh_emesh, clear_object_bmesh
+from .common.bmesh import get_object_bmesh, get_bmesh_emesh, clear_object_bmesh, free_object_bmeshes
 from .common.bpy_helper import bpy_ops_retopoflow, BL_SPACE_TYPES
 from .common.operator import RFOperator_Base, RFOperator, RFOperator_Execute, RFRegisterClass, RFAssetShelf
 from .common.raycast import prep_raycast_valid_sources, iter_all_valid_sources
@@ -617,6 +618,8 @@ class RFCore:
     @staticmethod
     def restart():
         print('RFCore.restart()')
+        # retire all currently running core operators so the relaunch replaces them instead of stacking
+        RFCore_Operator.current_generation += 1
         def rerun():
             screen : Screen = bpy.context.screen
             area : Area | None = next(iter_all_view3d_areas(screen=screen), None)
@@ -648,6 +651,29 @@ class RFCore:
     def resume():
         RFCore.is_paused = False
 
+    @staticmethod
+    @contextmanager
+    def paused(*, object_mode : bool = False):
+        '''
+        Pause RFCore for the duration of the block, resuming even if the block raises.
+        A stuck is_paused makes it so RF's overrides can't restore.
+        Pass object_mode=True for work that cannot happen in Edit Mode.
+        '''
+        RFCore.pause()
+        return_to_edit = False
+        try:
+            if object_mode:
+                return_to_edit = bpy.context.mode == 'EDIT_MESH'
+                bpy.ops.object.mode_set(mode='OBJECT')
+            yield
+        finally:
+            if return_to_edit:
+                try:
+                    bpy.ops.object.mode_set(mode='EDIT')
+                except Exception as e:
+                    print(f'RFCore.paused: could not return to Edit Mode: {e}')
+            RFCore.resume()
+
 
     @staticmethod
     def stop():
@@ -659,42 +685,59 @@ class RFCore:
         RFCore.event_mouse = None
         RFCore.is_controlling = False
 
-        StatusbarYield.cancel() # Cancel any pending status bar suppression timers
-        if not RFCore.is_exiting and bpy.context.workspace:
-            bpy.context.workspace.status_text_set(None) # reset status bar
-
-        for rfop in list(RFOperator.active_operators):
+        # Each step is attempted on its own so one failure cannot skip the rest
+        def attempt(label : str, fn : Callable[[], None]):
             try:
-                rfop.stop()
-            except ReferenceError as e:
+                fn()
+            except ReferenceError:
                 # ReferenceError likely means that Blender is shutting down
                 # we will gracefully "handle" this by ignoring it
                 pass
             except Exception as e:
-                print('Caught unexpected Exception while trying to stop active RetopoFlow operators')
+                print(f'Caught unexpected Exception while trying to {label}')
                 print(f'  {e}')
                 debugger.print_exception()
 
-        bpy.app.handlers.save_pre.remove(RFCore.handle_save_pre)
-        bpy.app.handlers.load_pre.remove(RFCore.handle_load_pre)
-        bpy.app.handlers.redo_post.remove(RFCore.handle_redo_post)
-        bpy.app.handlers.undo_post.remove(RFCore.handle_undo_post)
-        bpy.app.handlers.depsgraph_update_post.remove(RFCore.handle_depsgraph_update)
+        def reset_statusbar():
+            StatusbarYield.cancel() # Cancel any pending status bar suppression timers
+            if not RFCore.is_exiting and bpy.context.workspace:
+                bpy.context.workspace.status_text_set(None) # reset status bar
 
-        RFCore.remove_handlers()
+        def stop_active_operators():
+            for rfop in list(RFOperator.active_operators):
+                attempt(f'stop active RetopoFlow operator {rfop}', rfop.stop)
 
-        RFCore.running_in_areas.clear()
+        def remove_app_handlers():
+            # an RFOperator teardown or another add-on can pull these out from under us
+            for handlers, fn in (
+                (bpy.app.handlers.save_pre,              RFCore.handle_save_pre),
+                (bpy.app.handlers.load_pre,              RFCore.handle_load_pre),
+                (bpy.app.handlers.redo_post,             RFCore.handle_redo_post),
+                (bpy.app.handlers.undo_post,             RFCore.handle_undo_post),
+                (bpy.app.handlers.depsgraph_update_post, RFCore.handle_depsgraph_update),
+            ):
+                if fn in handlers:
+                    handlers.remove(fn)
+                else:
+                    print(f'RFCore.stop: app handler {fn.__name__} was already removed')
 
-        get_object_bmesh.cache.clear()
+        def clear_saved_tool():
+            if not getattr(RFCore, 'is_saving', False):
+                bpy.context.scene.retopoflow.saved_tool = ''
 
-        if not getattr(RFCore, 'is_saving', False):
-            bpy.context.scene.retopoflow.saved_tool = ''
-
-        pinning.restore_pinning(bpy.context)
-        mirror.cleanup_mirror(bpy.context)
-        restore_user_keymaps(bpy.context)
-
-        RFCore.resetter.reset()
+        try:
+            attempt('reset the statusbar', reset_statusbar)
+            attempt('walk the active RetopoFlow operators', stop_active_operators)
+            attempt('remove RetopoFlow app handlers', remove_app_handlers)
+            attempt('remove RetopoFlow draw handlers', RFCore.remove_handlers)
+            attempt('clear the running areas', RFCore.running_in_areas.clear)
+            attempt('free the cached object bmeshes', free_object_bmeshes)
+            attempt('clear the saved tool', clear_saved_tool)
+            attempt('restore pinning', lambda: pinning.restore_pinning(bpy.context))
+            attempt('clean up the mirror', lambda: mirror.cleanup_mirror(bpy.context))
+            attempt('restore user keymaps', lambda: restore_user_keymaps(bpy.context))
+        finally:
+            attempt('restore the Blender settings', RFCore.resetter.reset)
 
     @staticmethod
     def remove_handlers():
@@ -942,6 +985,10 @@ class RFCore:
             # this can happen when Blender is closing
             return
 
+        if not depsgraph.updates:
+            # Evaluation-only event: nothing actually changed
+            return
+
         RFCore.depsgraph_version += 1
 
         SourceCache.note_depsgraph_update(bpy.context, depsgraph) # Auto source cache rebuild trigger
@@ -1079,8 +1126,12 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
 
     running_operators : ClassVar[int] = 0
 
+    # bumped by restart() so instances from before the restart retire themselves in modal()
+    current_generation : ClassVar[int] = 0
+
     is_running : bool = False
     running_in_area : Area | None = None
+    generation : int = 0
 
     @classmethod
     def poll(cls, context : Context) -> bool:
@@ -1138,6 +1189,7 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
         context.window_manager.modal_handler_add(self)
         self.running_in_area = context.area
         self.is_running = True
+        self.generation = RFCore_Operator.current_generation
         RFCore.running_in_areas.append(context.area)
 
         # Display an alert message if no sources are detected.
@@ -1171,6 +1223,15 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
         # print(f' {context.space_data=}')
         # print(f' {context.space_data.region_3d=}')
         # print(event.type, [op for op in context.window.modal_operators], random.random())
+
+        if self.generation != RFCore_Operator.current_generation:
+            # restart() launched a replacement core operator, so retire this one.
+            # Remove our area entry now so handle_draw_cursor can relaunch if the replacement fails.
+            print('RFCore_Operater.modal: superseded by RFCore.restart. exiting!')
+            if self.running_in_area and self.running_in_area in RFCore.running_in_areas:
+                RFCore.running_in_areas.remove(self.running_in_area)
+            self.running_in_area = None
+            return {'FINISHED'}
 
         if RFOperator.tickled:
             RFOperator.tickled()

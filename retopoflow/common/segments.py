@@ -31,9 +31,9 @@ from ..common.bmesh import (
     bme_length,
     has_mirror_x, has_mirror_y, has_mirror_z, mirror_threshold,
 )
-from ..common.bmesh_maths import check_bmf_normals
+from ..common.bmesh_maths import orient_bmf_normals
 from ..common.curves import find_quadstrip_chains, fit_centerline_spline, ordered_rungs, sharp_angle_indices
-from ..common.maths import view_forward_direction, xform_direction, lerp, clamp, interp_piecewise
+from ..common.maths import lerp, clamp, interp_piecewise
 from ..common.raycast import nearest_point_valid_sources, nearest_normal_valid_sources
 from ..common.accel import SourceCache
 from ..common.snapping import fold_crease, source_snap_radius, source_snap_settings
@@ -450,7 +450,7 @@ class QuadStripProvider(SegmentGeometryProvider):
             ))
 
         # Create the quads
-        new_faces : list[BMFace] = []
+        bmfs : list[BMFace] = []
         npairs = nstations if cyclic else nstations - 1
         for i in range(npairs):
             j = (i + 1) % nstations
@@ -458,14 +458,13 @@ class QuadStripProvider(SegmentGeometryProvider):
             if len(verts) < 3:
                 continue
             try:
-                new_faces.append(bm.faces.new(verts))
+                bmfs.append(bm.faces.new(verts))
             except ValueError:
                 # Face already exists, probably degenerate overlap on a very tight bend
                 continue
-        fwd = xform_direction(Mw.inverted_safe(), view_forward_direction(context))
-        check_bmf_normals(fwd, new_faces)
+        orient_bmf_normals(context, bmfs, new_faces=True)
 
-        return new_faces
+        return bmfs
 
 
 # tried in order, first to recognise the selection wins.

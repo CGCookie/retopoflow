@@ -90,11 +90,8 @@ def setup_nodes_preview(context):
     node_name = mirror_node_tree_name
 
     if '.' + node_name not in [x.name for x in bpy.data.node_groups]:
-        RFCore.pause()
-        bpy.ops.object.mode_set(mode='OBJECT')
-        node_group = append_node('.' + node_name)
-        bpy.ops.object.mode_set(mode='EDIT')
-        RFCore.resume()
+        with RFCore.paused(object_mode=True):
+            node_group = append_node('.' + node_name)
     else:
         node_group = bpy.data.node_groups['.' + node_name]
 
@@ -280,16 +277,12 @@ class RFOperator_ApplyMirror(RFRegisterClass, bpy.types.Operator):
         RFCore = RFGlobals.RFCore_None
         if not RFCore: return {'CANCELLED'}
 
-        RFCore.pause()
-        bpy.ops.object.mode_set(mode='OBJECT')
-
         obj = context.active_object
         props_obj = obj.retopoflow
         mod = get_mirror_mod(obj)
-        bpy.ops.object.modifier_apply(modifier=mod.name)
-        props_obj.mirror_axis = (False, False, False)
 
-        bpy.ops.object.mode_set(mode='EDIT')
-        RFCore.resume()
+        with RFCore.paused(object_mode=True):
+            bpy.ops.object.modifier_apply(modifier=mod.name)
+            props_obj.mirror_axis = (False, False, False)
 
         return {'FINISHED'}

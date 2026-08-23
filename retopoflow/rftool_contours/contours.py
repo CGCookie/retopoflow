@@ -35,7 +35,6 @@ from ..common.accel import SourceAccel
 from ..common.bmesh import get_bmesh_emesh
 from ..common.drawing import Drawing
 from ..common.icons import get_path_to_blender_icon
-from ..common.maths import view_forward_direction
 from ..common.operator import (
     execute_operator,
     RFOperator, RFRegisterClass, RFOperator_Execute, RFKeyMaps, BLKeyMaps,
@@ -410,6 +409,9 @@ class RFOperator_Contours_Insert(
             print(f'{type(self).__name__}.execute: Caught Exception {e}')
             debugger.print_exception()
             return {'CANCELLED'}
+        finally:
+            # keep the logic for redo, but don't let it hold BMesh data between executes
+            logic.release()
 
         self.span_count            = logic.span_count
         self.process_source_method = logic.process_source_method
