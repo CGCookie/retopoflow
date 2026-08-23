@@ -34,6 +34,7 @@ import math
 import time
 from math import cos, radians
 from heapq import heappush, heappop
+from itertools import combinations
 
 import bpy
 from bpy.types import Mesh, Context, Event
@@ -510,7 +511,6 @@ class PVert:
 
         match Patch_Options.pvert_type_detect:
             case PVTypeDetect.EDGE_COUNT:
-                print(f'{edge_count=}')
                 match edge_count:
                     case 0:
                         self.pvtype = PVType.EDGE
@@ -528,11 +528,17 @@ class PVert:
             case PVTypeDetect.EDGE_ANGLE:
                 co0, co1, co2 = pv0.co, self.co, pv1.co
                 d10, d12 = (co0 - co1).normalized(), (co2 - co1).normalized()
-                inside = d12.cross(d10).dot(self.no) < 0
-                angle = math.degrees(d10.angle(d12))
-                if angle > 135:
+
+                if d10.length_squared == 0.0 or d12.length_squared == 0.0:
+                    self.pvtype = PVType.FINAL
+                    return
+
+                is_inside = d12.cross(d10).dot(self.no) < 0
+                is_obtuse = math.degrees(d10.angle(d12)) > 135
+
+                if is_obtuse:
                     self.pvtype = PVType.EDGE
-                elif inside:
+                elif is_inside:
                     self.pvtype = PVType.QUAD
                 else:
                     self.pvtype = PVType.OUTER
@@ -584,7 +590,7 @@ class Ring:
     pvert_index_offset : int
     pvert_index_count : int
 
-    def __init__(self, from_ring_or_bmverts : Ring | list[BMVert], *, depth : int = 0):
+    def __init__(self, patch : Patch, from_ring_or_bmverts : Ring | list[BMVert], *, depth : int = 0):
         match from_ring_or_bmverts:
             case list() as from_bmverts:
                 self.ring_prev = None
@@ -609,7 +615,9 @@ class Ring:
         self._faces = []
         self.pverts_new = []
 
-        if all(pvert.pvtype in { PVType.NONE, PVType.OUTER } for pvert in self._pverts):
+        total_count = len(self._pverts)
+        corner_count = len([pvert for pvert in self._pverts if pvert.pvtype in {PVType.NONE, PVType.OUTER}])
+        if corner_count >= total_count - 1:
             self._faces.append(list(range(len(self._pverts))))
             self.pvert_index_count = 0
             return
@@ -725,7 +733,7 @@ class Ring:
                     for pverts_edges in list_new_pverts_edges
                     for pvert_edge in pverts_edges
                 ]
-                print(f'  merging {len(merge_pverts)} PVerts on either side of OUTER')
+                # print(f'  merging {len(merge_pverts)} PVerts on either side of OUTER')
                 pvert_merged = PVert('average', *merge_pverts, pvtype=PVType.FINAL)
                 for i_c in range(c):
                     pverts_edges = list_new_pverts_edges[i_c]
@@ -745,7 +753,7 @@ class Ring:
                     for pverts_edges in list_new_pverts_edges
                     for pvert_edge in pverts_edges
                 ]
-                print(f'  merging {len(merge_pverts)} PVerts on either side of non-OUTER')
+                # print(f'  merging {len(merge_pverts)} PVerts on either side of non-OUTER')
                 pvert_merged = PVert('average', *merge_pverts, pvtype=PVType.FINAL)
                 for i_c in range(c):
                     pverts_edges = list_new_pverts_edges[i_c]
@@ -772,7 +780,7 @@ class Ring:
                     i_e = -1 if i_c == i_prev else 0
                     merge_pverts.append(list_new_pverts_edges[i_c][i_e][0])
 
-            print(f'  merging {i_prev}[-1]--{i_next}[0] ({len(merge_pverts)})')
+            # print(f'  merging {i_prev}[-1]--{i_next}[0] ({len(merge_pverts)})')
 
             # create merged PVert
             pvert_merged = PVert('average', *merge_pverts)
@@ -783,7 +791,7 @@ class Ring:
                 i_c %= c
                 already_merged.add(i_c)
                 l = len(list_new_pverts_edges[i_c])
-                print(f'    {i_c}: {l}')
+                # print(f'    {i_c}: {l}')
                 if l == 0:
                     continue
                 elif l == 1:
@@ -825,9 +833,6 @@ class Ring:
             c = len(pverts)
             inds : list[INDEX_PVERT] = [ pvert_index[pvert] for pvert in pverts ]
             inds_filtered : list[INDEX_PVERT] = [ inds[i] for i in range(c) if inds[i] != inds[(i + 1) % c] ]
-            print(f'  creating face {len(pverts)} => {len(inds_filtered)}')
-            print(f'    {inds}')
-            print(f'    {inds_filtered}')
             if len(inds_filtered) < 3:
                 return True
             inds_filtered_tuple = tuple(inds_filtered)
@@ -916,6 +921,9 @@ class Ring:
 
         actual_total_faces = len(self._faces)
         print(f'  total faces: calc={calc_total_faces} => actual={actual_total_faces}')
+        print(f'  {len(self.pverts_new) = }')
+
+        patch.position_pverts_graph()
 
         for ip1, pvert in enumerate(self.pverts_new):
             ip0 = (ip1 - 1) % len(self.pverts_new)
@@ -924,8 +932,11 @@ class Ring:
             pv2 = self.pverts_new[ip2]
             new_edge_count = len(new_edges.get(pvert_index[pvert], []))
             pvert.update_pvtype(pv0, pv2, new_edge_count)
+
         if depth < 20 and len(self.pverts_new) >= 3:
-            self.ring_next = Ring(self, depth=depth+1)
+            self.ring_next = Ring(patch, self, depth=depth+1)
+
+
 
     def pverts(self) -> Iterator[PVert]:
         if not self.ring_prev:
@@ -995,7 +1006,7 @@ class Patch_Options:
     relax_scale_edge : float = 0.01
     relax_scale_face : float = 0.01
 
-    pvert_type_detect : PVTypeDetect = PVTypeDetect.EDGE_COUNT
+    pvert_type_detect : PVTypeDetect = PVTypeDetect.EDGE_ANGLE
 
 
 class Patch:
@@ -1030,7 +1041,6 @@ class Patch:
         layer : PVTypeLayer,
         M : Matrix,
         outer_ring_of_bmverts : list[INDEX_BMVERT],
-        options : Patch_Options,
         prev_patch : Patch | None,
         new_pvtypes : list[list[PVType]] | None,
     ):
@@ -1053,29 +1063,29 @@ class Patch:
 
         with PVert.create(bm, layer, M, prev_pverts, new_pvtypes):
             # create initial outer ring of PVerts
-            outer_ring = Ring([bm.verts[i] for i in outer_ring_of_bmverts])
+            outer_ring = Ring(self, [bm.verts[i] for i in outer_ring_of_bmverts])
 
             ring = outer_ring
             while ring:
                 self._rings.append(ring)
                 ring = ring.ring_next
-            print(f'{len(self._rings)=}')
+            # print(f'{len(self._rings)=}')
 
             self.pverts = list(outer_ring.pverts())
             self._edges = list(outer_ring.edges())
             self._bridge_edges = list(outer_ring.bridge_edges())
             self._ring_edges = list(outer_ring.ring_edges())
             self._faces = list(outer_ring.faces())
-            print(len(self.pverts))
-            print(self._edges)
-            print(self._faces)
+            # print(len(self.pverts))
+            # print(self._edges)
+            # print(self._faces)
 
             # print('creating topology...')
             # self._create_loops(options)
             # self._create_cap(options)
 
-            print('snapping and (optionally) relaxing patch...')
-            self._snap_and_relax(M, options)
+            self.position_pverts_graph()
+            self.relax_pverts()
 
         self.verts = [ M @ pv.co for pv in self.pverts ]
         self.edges = [ (self.verts[i0], self.verts[i1]) for (i0, i1) in self._edges ]
@@ -1140,200 +1150,133 @@ class Patch:
         self.reset()
 
 
+    def position_pverts_graph(self):
+        if not Patch_Options.graph_positioned:
+            return
 
-    ########################################################################
-    # Snap PVerts to high-poly mesh, and if enabled relax
+        print('using graph to determine positions...')
+        t0 = time.time()
 
-    def _snap_and_relax(self, M : Matrix, options : Patch_Options):
-        context = bpy.context
-        Mi = M.inverted_safe()
+        # build graph based on edges
+        graph : dict[INDEX_PVERT, dict[INDEX_PVERT, float]] = {
+            i: {}
+            for i in range(len(self.pverts))
+        }
+        def update(i : INDEX_PVERT, j : INDEX_PVERT, d : DISTANCE):
+            graph[i][j] = min(graph[i].get(j, float('inf')), d)
+            graph[j][i] = min(graph[j].get(i, float('inf')), d)
+        if (d := Patch_Options.graph_face_distance) > 0:
+            for inds in self._faces:
+                for (i, j) in combinations(inds, 2):
+                    update(i, j, d)
+        if (d := Patch_Options.graph_edge_distance) > 0:
+            for (i, j) in self._edges:
+                update(i, j, d)
 
-        def snap(co_local : CO_LOCAL) -> CO_LOCAL:
-            co_world = M @ co_local
-            co_snapped_world = nearest_point_valid_sources(context, co_world) or co_world
-            co_snapped_local = Mi @ co_snapped_world
-            return co_snapped_local
+        for i, pvert in enumerate(self.pverts):
+            if pvert.from_bmvert:
+                # this is a BMVert PVert; nothing to do!
+                continue
 
-        verts = [ pvert.co for pvert in self.pverts ]
+            working : list[tuple[float, INDEX_PVERT]] = ([(0, i)])
+            touched : set[INDEX_PVERT] = set()
+            bmverts : list[tuple[Vector, float]] = []
+            while working:
+                (d, j) = heappop(working)
+                if j in touched: continue
+                touched.add(j)
+                pvert_other = self.pverts[j]
+                if pvert_other.from_bmvert:
+                    # we have reached a BMVert PVert!
+                    bmverts.append((pvert_other.co, d))
+                for k in graph[j]:
+                    heappush(working, (d + graph[j][k], k))
 
-        if Patch_Options.graph_positioned:
-            print('using graph to determine positions...')
+            if not bmverts:
+                continue
 
-            # build graph based on edges
-            graph : dict[INDEX_PVERT, dict[INDEX_PVERT, float]] = {
-                i: {}
-                for i in range(len(self.pverts))
-            }
-            if Patch_Options.graph_face_distance > 0:
-                for inds in self._faces:
-                    for i in inds:
-                        for j in inds:
-                            if i == j: continue
-                            graph[i][j] = Patch_Options.graph_face_distance
-                            graph[j][i] = Patch_Options.graph_face_distance
-            if Patch_Options.graph_edge_distance > 0:
-                for inds in self._edges:
-                    i, j = inds # assuming exactly two indices for each edge
-                    graph[i][j] = min(graph[i].get(j, float('inf')), Patch_Options.graph_edge_distance)
-                    graph[j][i] = min(graph[j].get(i, float('inf')), Patch_Options.graph_edge_distance)
+            co_sum = Vector((0,0,0))
+            w_sum = 0
+            for co_j, d_j in bmverts:
+                w = (1.0 / d_j) ** 3
+                co_sum = co_sum + co_j * w
+                w_sum += w
 
-            bmverts_indices = { i for (i, p) in enumerate(self.pverts) if p.from_bmvert }
+            pvert.co = co_sum / w_sum
 
-            def compute_dist_map(i : INDEX_PVERT) -> dict[INDEX_PVERT, DISTANCE]:
-                working : list[tuple[DISTANCE, INDEX_PVERT]] = ([(0, i)])
-                touched : set[INDEX_PVERT] = set()
-                dist : dict[INDEX_PVERT, DISTANCE] = {}
-                while working:
-                    (d, j) = heappop(working)
-                    if j in touched: continue
-                    touched.add(j)
-                    if j in bmverts_indices:
-                        dist[j] = d
-                    for k in graph[j]:
-                        if k not in touched:
-                            heappush(working, (d + graph[j][k], k))
-                return dist
+        t1 = time.time()
+        print(f'  time: {t1-t0:0.4f}secs')
 
-            pwr = 3.0
-            bmverts_dist_maps = { i: compute_dist_map(i) for i in bmverts_indices }
 
-            for i, pvert_i in enumerate(self.pverts):
-                if pvert_i.from_bmvert:
-                    # this is a BMVert PVert; nothing to do!
-                    continue
+    def relax_pverts(self):
+        if not Patch_Options.relax_enabled:
+            return
 
-                dist_map = compute_dist_map(i)
+        print('relaxing patch...')
+        t0 = time.time()
 
-                if False:
-                    co_sum = Vector((0,0,0))
-                    weight_sum = 0.0
-                    for j in bmverts_indices:
-                        co_j = self.pverts[j].co
-                        for k in bmverts_indices:
-                            if k <= j: continue
-                            co_k = self.pverts[k].co
-                            dist_jk = bmverts_dist_maps[j][k]
-                            dist_ij = dist_map[j]
-                            dist_ik = dist_map[k]
-                            dist_ijk = dist_ij + dist_ik
-                            # if dist_ijk ~= dist_jk, then we LERP!
-                            # however, if dist_ijk > dist_jk, we have less confidence
-                            # and if dist_ijk >> dist_jk, we have even less confidence
-                            per = dist_ij / dist_jk
-                            co = co_j + (co_k - co_j) * per
-                            weight = (dist_jk / dist_ijk) ** 5.0
-                            co_sum += co * weight
-                            weight_sum += weight
-                    co = co_sum / weight_sum
-                    print(f'  {pvert_i.co} -> {co}')
-                    verts[i] = co
+        pverts = self.pverts
+        count = len(pverts)
 
-                else:
-                    max_dist = max(dist_map.get(j, float('inf')) for j in bmverts_indices)
+        def get_info(inds : Sequence[int]) -> tuple[CO_LOCAL, RADIUS]:
+            vs = [ pverts[i].co for i in inds ]
+            center = sum(vs, Vector((0,0,0))) / len(vs)
+            radius = sum((v - center).length for v in vs) / len(vs)
+            return (center, radius)
 
-                    working : list[tuple[float, INDEX_PVERT]] = ([(0, i)])
-                    touched : set[INDEX_PVERT] = set()
-                    bmverts : list[tuple[Vector, float]] = []
-                    max_dist : float = 0
-                    while working:
-                        (d, j) = heappop(working)
-                        if j in touched: continue
-                        touched.add(j)
-                        pvert_j = self.pverts[j]
-                        if pvert_j.from_bmvert:
-                            # we have reached a BMVert PVert!
-                            bmverts.append((pvert_j.co, d))
-                            max_dist = max(max_dist, d)  # should be strictly increasing b/c we are doing a BFS
-                        for k in graph[j]:
-                            heappush(working, (d + graph[j][k], k))
-                    if max_dist == 0:
-                        print(f'max distance to BMVerts is 0?!? should never happen')
-                        continue
-                    assert max_dist > 0, f'max distance to BMVerts is 0?'  # should never happen!
-                    # print(f'  {max_dist}: {[d for (_,d) in bmverts]}')
-                    co_sum = Vector((0,0,0))
-                    w_sum = 0
-                    report = []
-                    for co_j, d_j in bmverts:
-                        w = (1 / d_j) ** 3  #((max_dist - d_j + 1) / max_dist) ** pwr
-                        co_sum = co_sum + co_j * w
-                        w_sum += w
-                        report.append(f'{w:0.3f}')
-                    if w_sum > 0:
-                        co_prev = pvert_i.co
-                        co_new = co_sum / w_sum
-                        verts[i] = co_new
-                        # pvert_i.co = co_new
-                        print(f'  {i}: {co_prev} -> {co_new} {(co_prev-co_new).length}')
-                        print(f'       {max_dist} {report}')
-                    else:
-                        verts[i] = co_sum
-                        # pvert_i.co = co_sum
+        fixed = [ pvert.from_bmvert for pvert in self.pverts ]
+        link_edges : dict[INDEX_PVERT, list[int]] = { i: [] for i in range(count) }
+        for (i_edge, inds) in enumerate(self._edges):
+            for i in inds:
+                link_edges[i].append(i_edge)
+        link_faces : dict[INDEX_PVERT, list[int]] = { i: [] for i in range(count) }
+        for (i_face, inds) in enumerate(self._faces):
+            for i in inds:
+                link_faces[i].append(i_face)
 
-        if Patch_Options.relax_enabled:
-            print('relaxing patch...')
-            t0 = time.time()
-            def get_info(inds : Sequence[int]) -> tuple[CO_LOCAL, RADIUS]:
-                vs = [ verts[i] for i in inds ]
-                center = sum(vs, Vector((0,0,0))) / len(vs)
-                radius = sum((v - center).length for v in vs) / len(vs)
-                return (center, radius)
+        for _iteration in range(Patch_Options.relax_iterations):
+            edge_infos = [ get_info(inds) for inds in self._edges ]
+            face_infos = [ get_info(inds) for inds in self._faces ]
 
-            fixed = [ pvert.from_bmvert for pvert in self.pverts ]
-            link_edges : dict[INDEX_PVERT, list[int]] = { i: [] for i in range(len(verts)) }
-            for (i_edge, inds) in enumerate(self._edges):
+            forces = [Vector((0,0,0)) for _ in range(count)]
+
+            for (i, pvert) in enumerate(pverts):
+                co_sum = pvert.co
+                if len(link_edges[i]) == 0: continue
+                goal = sum(edge_infos[i_edge][1] for i_edge in link_edges[i]) / len(link_edges[i])
+                for i_edge in link_edges[i]:
+                    center = edge_infos[i_edge][0]
+                    vec_center_co = co_sum - center
+                    current = vec_center_co.length
+                    dir_center_co = vec_center_co / max(0.00001, current)
+                    forces[i] += dir_center_co * (Patch_Options.relax_scale_edge * (goal - current))
+
+            for inds, info in zip(self._faces, face_infos):
+                center, R = info
+                r = R * cos(radians(180 / len(inds)))
+                goal = r
+                for (i0, i1) in iter_pairs(inds, True):
+                    co0, co1 = pverts[i0].co, pverts[i1].co
+                    com = co0 + (co1 - co0) / 2
+
+                    vec_center_com = com - center
+                    current = vec_center_com.length
+                    dir_center_com = vec_center_com / max(0.00001, current)
+                    forces[i0] += dir_center_com * (Patch_Options.relax_scale_face * (goal - current))
+                    forces[i1] += dir_center_com * (Patch_Options.relax_scale_face * (goal - current))
+
                 for i in inds:
-                    link_edges[i].append(i_edge)
-            link_faces : dict[INDEX_PVERT, list[int]] = { i: [] for i in range(len(verts)) }
-            for (i_face, inds) in enumerate(self._faces):
-                for i in inds:
-                    link_faces[i].append(i_face)
+                    vec_center_co = pverts[i].co - center
+                    current = vec_center_co.length
+                    dir_center_co = vec_center_co / max(0.00001, current)
+                    forces[i] += dir_center_co * (Patch_Options.relax_scale_face * (goal - current))
 
-            for _iteration in range(options.relax_iterations):
-                edge_infos = [ get_info(inds) for inds in self._edges ]
-                face_infos = [ get_info(inds) for inds in self._faces ]
+            for (i, (pvert, fix, force)) in enumerate(zip(pverts, fixed, forces)):
+                if fix: continue
+                pvert.co = pvert.co + force
 
-                forces = [Vector((0,0,0)) for _ in verts]
-
-                for (i, co_sum) in enumerate(verts):
-                    if len(link_edges[i]) == 0: continue
-                    goal = sum(edge_infos[i_edge][1] for i_edge in link_edges[i]) / len(link_edges[i])
-                    for i_edge in link_edges[i]:
-                        center = edge_infos[i_edge][0]
-                        vec_center_co = co_sum - center
-                        current = vec_center_co.length
-                        dir_center_co = vec_center_co / max(0.00001, current)
-                        forces[i] += dir_center_co * (options.relax_scale_edge * (goal - current))
-
-                for inds, info in zip(self._faces, face_infos):
-                    center, R = info
-                    r = R * cos(radians(180 / len(inds)))
-                    goal = r
-                    for (i0, i1) in iter_pairs(inds, True):
-                        co0, co1 = verts[i0], verts[i1]
-                        com = co0 + (co1 - co0) / 2
-
-                        vec_center_com = com - center
-                        current = vec_center_com.length
-                        dir_center_com = vec_center_com / max(0.00001, current)
-                        forces[i0] += dir_center_com * (options.relax_scale_face * (goal - current))
-                        forces[i1] += dir_center_com * (options.relax_scale_face * (goal - current))
-
-                    for i in inds:
-                        vec_center_co = verts[i] - center
-                        current = vec_center_co.length
-                        dir_center_co = vec_center_co / max(0.00001, current)
-                        forces[i] += dir_center_co * (options.relax_scale_face * (goal - current))
-
-                verts = [
-                    co if fix else snap(co + force)
-                    for (co, fix, force) in zip(verts, fixed, forces)
-                ]
-            t1 = time.time()
-            print(f'  time: {t1-t0:0.4f}secs')
-
-        for (pvert, co_sum) in zip(self.pverts, verts):
-            pvert.co = co_sum
+        t1 = time.time()
+        print(f'  time: {t1-t0:0.4f}secs')
 
 
     ########################################################################
@@ -1768,7 +1711,6 @@ class Patches_Logic:
 
     # detected patch based on sides
     patch : ClassVar[Patch | None] = None
-    patch_options : ClassVar[Patch_Options | None] = None
 
     new_pvtypes : ClassVar[list[list[PVType]] | None] = None
 
@@ -1798,16 +1740,13 @@ class Patches_Logic:
         layer = Patches_Logic.get_corner_layer(bm)
         # Patches_Logic._update_corners(layer)
         Patches_Logic._update_outer_ring(bm, layer)
-        if not Patches_Logic.patch_options:
-            Patches_Logic.patch_options = Patch_Options()
-        Patches_Logic.patch_options.loops_made = 0
+        Patch_Options.loops_made = 0
 
         Patches_Logic.patch = Patch(
             bm,
             layer,
             M,
             Patches_Logic.outer_ring,
-            Patches_Logic.patch_options,
             Patches_Logic.patch,
             Patches_Logic.new_pvtypes,
         )
@@ -1816,40 +1755,28 @@ class Patches_Logic:
 
     @staticmethod
     def increase_outer_ring_offset():
-        if not Patches_Logic.patch_options:
-            Patches_Logic.patch_options = Patch_Options()
-        Patches_Logic.patch_options.cap_rotate += 1
+        Patch_Options.cap_rotate += 1
 
     @staticmethod
     def decrease_outer_ring_offset():
-        if not Patches_Logic.patch_options:
-            Patches_Logic.patch_options = Patch_Options()
-        Patches_Logic.patch_options.cap_rotate -= 1
+        Patch_Options.cap_rotate -= 1
 
 
     @staticmethod
     def toggle_cap():
-        if not Patches_Logic.patch_options:
-            Patches_Logic.patch_options = Patch_Options()
-        Patches_Logic.patch_options.cap = Cap.toggle(Patches_Logic.patch_options.cap)
+        Patch_Options.cap = Cap.toggle(Patch_Options.cap)
 
     @staticmethod
     def unset_loops():
-        if not Patches_Logic.patch_options:
-            Patches_Logic.patch_options = Patch_Options()
-        Patches_Logic.patch_options.loops = None
+        Patch_Options.loops = None
 
     @staticmethod
     def increase_loops():
-        if not Patches_Logic.patch_options:
-            Patches_Logic.patch_options = Patch_Options()
-        Patches_Logic.patch_options.loops = (Patches_Logic.patch_options.loops_made or 0) + 1
+        Patch_Options.loops = (Patch_Options.loops_made or 0) + 1
 
     @staticmethod
     def decrease_loops():
-        if not Patches_Logic.patch_options:
-            Patches_Logic.patch_options = Patch_Options()
-        Patches_Logic.patch_options.loops = max((Patches_Logic.patch_options.loops_made or 0) - 1, 0)
+        Patch_Options.loops = max((Patch_Options.loops_made or 0) - 1, 0)
 
     @staticmethod
     def reset():
@@ -1860,7 +1787,8 @@ class Patches_Logic:
         Patches_Logic.reset_corners(bm)
         bmesh.update_edit_mesh(em)
         Patches_Logic.patch = None
-        Patches_Logic.patch_options = None
+
+        # TODO: need a way to reset Patch_Options??
 
     @staticmethod
     def get_corner_layer(bm : BMesh) -> PVTypeLayer:
@@ -1908,6 +1836,9 @@ class Patches_Logic:
                     if bme0.hide or not bme0.select:
                         continue
 
+                    if not bme0.is_boundary and not bme0.is_wire:
+                        continue
+
                     touched_bmes : set[BMEdge] = { bme0 }
                     side_bmvs : list[BMVert] = [ bmv0 ]
 
@@ -1928,7 +1859,7 @@ class Patches_Logic:
                             (
                                 bme
                                 for bme in bmv1.link_edges
-                                if bme.select and not bme.hide and bme not in touched_bmes
+                                if bme.select and not bme.hide and (bme.is_boundary or bme.is_wire) and bme not in touched_bmes
                             ),
                             None
                         )
