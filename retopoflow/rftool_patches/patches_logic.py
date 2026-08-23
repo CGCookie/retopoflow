@@ -917,20 +917,15 @@ class Ring:
         actual_total_faces = len(self._faces)
         print(f'  total faces: calc={calc_total_faces} => actual={actual_total_faces}')
 
-        if len(self.pverts_new) <= 4:
-            for pvert in self.pverts_new:
-                pvert.pvtype = PVType.NONE
+        for ip1, pvert in enumerate(self.pverts_new):
+            ip0 = (ip1 - 1) % len(self.pverts_new)
+            ip2 = (ip1 + 1) % len(self.pverts_new)
+            pv0 = self.pverts_new[ip0]
+            pv2 = self.pverts_new[ip2]
+            new_edge_count = len(new_edges.get(pvert_index[pvert], []))
+            pvert.update_pvtype(pv0, pv2, new_edge_count)
+        if depth < 20 and len(self.pverts_new) >= 3:
             self.ring_next = Ring(self, depth=depth+1)
-        else:
-            for ip1, pvert in enumerate(self.pverts_new):
-                ip0 = (ip1 - 1) % len(self.pverts_new)
-                ip2 = (ip1 + 1) % len(self.pverts_new)
-                pv0 = self.pverts_new[ip0]
-                pv2 = self.pverts_new[ip2]
-                new_edge_count = len(new_edges.get(pvert_index[pvert], []))
-                pvert.update_pvtype(pv0, pv2, new_edge_count)
-            if depth < 5 and len(self.pverts_new) >= 3:
-                self.ring_next = Ring(self, depth=depth+1)
 
     def pverts(self) -> Iterator[PVert]:
         if not self.ring_prev:
