@@ -49,6 +49,7 @@ from ..preferences import RF_Prefs
 
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.colors import Color4
+from ...addon_common.common.maths import Plane
 from ...addon_common.common.utils import iter_pairs
 from ..common.bmesh import get_bmesh_emesh, BMVertLayer_IntEnum
 from ..common.drawing import Drawing, CC_2D_LINES, CC_2D_POINTS, CC_2D_TRIANGLES
@@ -104,12 +105,13 @@ CREATE_EDGE : TypeAlias = bool
 PATCH_SIDE_PVERTS : TypeAlias = list['PVert']
 PATCH_SIDES_PVERTS : TypeAlias = list[PATCH_SIDE_PVERTS | None]
 
-PVERT_BUILD : TypeAlias = (
-    tuple[Literal['BMVert'], INDEX_BMVERT]
-    | tuple[Literal['lerp'], 'PVERT_BUILD', 'PVERT_BUILD', LERP_WEIGHT]
-    | tuple[Literal['average'], tuple['PVERT_BUILD', ...]]
-    | tuple[Literal['quad'], 'PVERT_BUILD', 'PVERT_BUILD', 'PVERT_BUILD'] #, RADIUS, RADIANS]
-)
+PVERT_BUILD : TypeAlias = int
+# PVERT_BUILD : TypeAlias = (
+#     tuple[Literal['BMVert'], INDEX_BMVERT]
+#     | tuple[Literal['lerp'], 'PVERT_BUILD', 'PVERT_BUILD', LERP_WEIGHT]
+#     | tuple[Literal['average'], tuple['PVERT_BUILD', ...]]
+#     | tuple[Literal['quad'], 'PVERT_BUILD', 'PVERT_BUILD', 'PVERT_BUILD'] #, RADIUS, RADIANS]
+# )
 
 class PVTypeDetect(IntEnum):
     EDGE_COUNT = 0
@@ -210,12 +212,20 @@ def get_ring_radius(ring : list[PVert], i_from : INDEX_PVERT) -> RADIUS:
         return float('inf')
     i_from %= c
     tess : list[Vector] = []
+    c = min(c, 20)
     for i in range(c):
         i0, i1 = (i_from + i) % c, (i_from + i + 1) % c
         co0, co1 = ring[i0].co, ring[i1].co
         com = co0 + (co1 - co0) * 0.5
-        tess.append(co0)
-        tess.append(com)
+        if i < 5:
+            tess.append(co0)
+            tess.append(com)
+        elif i < 20:
+            tess.append(co0)
+        elif i < 40 and i % 2 == 0:
+            tess.append(co0)
+        elif i % 4 == 0:
+            tess.append(co0)
     c_tess = len(tess)
     return min(
         find_circle_radius(tess[0], tess[i1], tess[i2])
@@ -282,6 +292,36 @@ def quad(
 
     return co3
 
+
+def poly2d_area(xys : list[Vector]) -> float:
+    return 0.5 * sum(
+        xy1.cross(xy0).length
+        for (xy0, xy1) in iter_pairs(xys, True)
+    )
+
+def poly2d_perimeter(xys : list[Vector]) -> float:
+    return sum(
+        (xy1 - xy0).length
+        for (xy0, xy1) in iter_pairs(xys, True)
+    )
+
+def poly2d_radius(xys : list[Vector]) -> float:
+    c = sum(xys, Vector((0,0,0))) / len(xys)
+    r = sum((xy - c).length for xy in xys) / len(xys)
+    return r
+
+def poly_to_poly2d(cos : list[Vector]) -> list[Vector]:
+    plane = Plane.fit_to_points(cos)
+    if not plane:
+        return []
+    dx, dy = plane.frame.x, plane.frame.y
+    return [ Vector((dx.dot(co), dy.dot(co), 0)) for co in cos ]
+
+def poly_quotient(cos : list[Vector]) -> float:
+    xys = poly_to_poly2d(cos)
+    area = poly2d_area(xys)
+    perimeter = poly2d_perimeter(xys)
+    return area / (perimeter * perimeter)
 
 
 class PVert:
@@ -445,7 +485,7 @@ class PVert:
 
             case BMVert() as bmv:
                 pvert = create()
-                pvert.build = ('BMVert', bmv.index)
+                pvert.build = hash(('BMVert', bmv.index))
                 pvert.pvtype = pvtype
                 pvert.idx = bmv.index
                 pvert.co = bmv.co
@@ -461,7 +501,7 @@ class PVert:
                 weight = cast(float, args[3])
 
                 pvert = create(pvert0, pvert1)
-                pvert.build = ('lerp', pvert0.build, pvert1.build, weight)
+                pvert.build = hash(('lerp', pvert0.build, pvert1.build, weight))
                 pvert.pvtype = pvtype
                 pvert.co = pvert0.co + (pvert1.co - pvert0.co) * weight
 
@@ -471,7 +511,7 @@ class PVert:
                 pverts = [ PVert(arg) for arg in args[1:] ]    # pyright: ignore[reportAny]
 
                 pvert = create(*pverts)
-                pvert.build = ('average', tuple(pvert.build for pvert in pverts))
+                pvert.build = hash(('average', tuple(pvert.build for pvert in pverts)))
                 pvert.pvtype = pvtype
                 pvert.co = sum((pv.co for pv in pverts), Vector((0,0,0))) / max(1, len(pverts))
 
@@ -486,7 +526,7 @@ class PVert:
                 angle  = cast(float, args[5])
 
                 pvert = create(pvert0, pvert1, pvert2)
-                pvert.build = ('quad', pvert0.build, pvert1.build, pvert2.build) #, radius, angle)
+                pvert.build = hash(('quad', pvert0.build, pvert1.build, pvert2.build)) #, radius, angle)
                 pvert.pvtype = pvtype
                 pvert.co = quad(pvert0.co, pvert1.co, pvert1.no, pvert2.co, radius, angle)
 
@@ -534,7 +574,7 @@ class PVert:
                     return
 
                 is_inside = d12.cross(d10).dot(self.no) < 0
-                is_obtuse = math.degrees(d10.angle(d12)) > 135
+                is_obtuse = math.degrees(d10.angle(d12)) > 130 # 135
 
                 if is_obtuse:
                     self.pvtype = PVType.EDGE
@@ -589,8 +629,10 @@ class Ring:
     _faces : list[list[INDEX_PVERT]]
     pvert_index_offset : int
     pvert_index_count : int
+    ratio : float
 
     def __init__(self, patch : Patch, from_ring_or_bmverts : Ring | list[BMVert], *, depth : int = 0):
+        t0 = time.time()
         match from_ring_or_bmverts:
             case list() as from_bmverts:
                 self.ring_prev = None
@@ -606,6 +648,8 @@ class Ring:
                 self.ring_prev = from_ring
                 self._pverts = list(from_ring.pverts_new)
                 self.pvert_index_offset = self.ring_prev.pvert_index_offset + self.ring_prev.pvert_index_count
+        t1 = time.time()
+        print(f'ring init {t1-t0:0.3f}s')
 
 
         self.pverts_old = list(self._pverts)
@@ -614,6 +658,22 @@ class Ring:
         self._ring_edges = []
         self._faces = []
         self.pverts_new = []
+
+
+        poly2d = poly_to_poly2d([pvert.co for pvert in self._pverts])
+        area = poly2d_area(poly2d)
+        perimeter = poly2d_perimeter(poly2d)
+        radius = poly2d_perimeter(poly2d)
+        avg_edge_len = perimeter / len(poly2d)
+        apothem = avg_edge_len / ( 2 * math.tan(math.pi / len(poly2d)))
+        reg_poly_area = 0.5 * apothem * perimeter
+        self.ratio = area / reg_poly_area
+        print(f'{area:0.3f} {avg_edge_len:0.3f} {radius:0.3f} {reg_poly_area:0.3f} {self.ratio : 0.5f} <<<<<<<<<<<<<<')
+
+        if self.ring_prev and self.ring_prev.ratio > self.ratio:
+            self._faces.append(list(range(len(self._pverts))))
+            self.pvert_index_count = 0
+            return
 
         total_count = len(self._pverts)
         corner_count = len([pvert for pvert in self._pverts if pvert.pvtype in {PVType.NONE, PVType.OUTER}])
@@ -625,11 +685,12 @@ class Ring:
         pverts = self._pverts
         c = len(pverts)
 
-        print(f'Ring {depth} {len(pverts)}: {[pvert.pvtype for pvert in pverts]}')
+        print(f'Ring {depth} {len(pverts)}') #: {[pvert.pvtype for pvert in pverts]}')
 
         ###################################################
         # determine new PVerts and edges
 
+        t0 = time.time()
         list_new_pverts_edges : list[list[tuple[PVert, CREATE_EDGE]]] = []
         for i in range(c):
             pp, pc, pn = pverts[(i-1)%c], pverts[i], pverts[(i+1)%c]
@@ -674,7 +735,8 @@ class Ring:
                         (PVert('quad', pp, pc, pn, radius, 0),            False),
                         (PVert('quad', pp, pc, pn, radius, -math.pi / 2), True ),
                     ])
-
+        t1 = time.time()
+        print(f'determine new pverts and edges {t1 - t0:0.3f}s')
 
 
         #######################################
@@ -706,6 +768,7 @@ class Ring:
 
             return None  # wrapped around
 
+        t0 = time.time()
         count = sum(
             len(pverts_edges)
             for pverts_edges in list_new_pverts_edges
@@ -805,11 +868,14 @@ class Ring:
                         list_new_pverts_edges[i_c][i_e][1]
                     )
                 first = False
+        t1 = time.time()
+        print(f'merging verts in inner ring {t1 - t0:0.3f}s')
 
 
         #############################
         # record new PVerts
 
+        t0 = time.time()
         for new_pverts_edges in list_new_pverts_edges:
             for (npvert, _nedge) in new_pverts_edges:
                 if not self.pverts_new or self.pverts_new[-1] is not npvert:
@@ -823,6 +889,8 @@ class Ring:
             for (i, pvert) in enumerate(self._pverts)
         }
         print(f'  {len(self.pverts_new) = }')
+        t1 = time.time()
+        print(f'record new pverts {t1-t0:0.3f}s')
 
 
         ############################
@@ -858,6 +926,7 @@ class Ring:
             else:
                 self._bridge_edges.append([i0, i1])
 
+        t0 = time.time()
         calc_total_faces = sum(
             1 if edge else 0
             for new_pverts_edges in list_new_pverts_edges
@@ -922,9 +991,16 @@ class Ring:
         actual_total_faces = len(self._faces)
         print(f'  total faces: calc={calc_total_faces} => actual={actual_total_faces}')
         print(f'  {len(self.pverts_new) = }')
+        t1 = time.time()
+        print(f'create faces {t1-t0:0.3f}s')
 
+        outer_ring = self
+        while outer_ring.ring_prev:
+            outer_ring = outer_ring.ring_prev
+        patch.update_topo(outer_ring)
         patch.position_pverts_graph()
 
+        t0 = time.time()
         for ip1, pvert in enumerate(self.pverts_new):
             ip0 = (ip1 - 1) % len(self.pverts_new)
             ip2 = (ip1 + 1) % len(self.pverts_new)
@@ -932,8 +1008,10 @@ class Ring:
             pv2 = self.pverts_new[ip2]
             new_edge_count = len(new_edges.get(pvert_index[pvert], []))
             pvert.update_pvtype(pv0, pv2, new_edge_count)
+        t1 = time.time()
+        print(f'time to update pvert types: {t1 - t0:0.3f}s')
 
-        if depth < 20 and len(self.pverts_new) >= 3:
+        if depth < 12 and len(self.pverts_new) >= 3:
             self.ring_next = Ring(patch, self, depth=depth+1)
 
 
@@ -1113,6 +1191,13 @@ class Patch:
         #     build_map.append((b, str(i)))
         #     t = str(pvert.pvtype.name).lower()[:4]
         #     print(f'  {i:02d} {t} {b}')
+
+    def update_topo(self, outer_ring : Ring):
+        self.pverts = list(outer_ring.pverts())
+        self._edges = list(outer_ring.edges())
+        self._bridge_edges = list(outer_ring.bridge_edges())
+        self._ring_edges = list(outer_ring.ring_edges())
+        self._faces = list(outer_ring.faces())
 
     def reset(self):
         self._rings = []
