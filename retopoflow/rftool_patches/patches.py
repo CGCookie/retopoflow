@@ -62,10 +62,10 @@ from ..rfpanels.help_panel import draw_help_panel
 from .patches_logic import Patches_Logic
 
 
-class RFOperator_Patches_Toggle_Corner(RFOperator_Invoke):
-    bl_idname : str = 'retopoflow.patches_toggle_corner'
-    bl_label : str = 'Insert corner'
-    bl_description : str = 'Insert a new corner for patch'
+class RFOperator_Patches_Type_Toggle(RFOperator_Invoke):
+    bl_idname : str = 'retopoflow.patches_type_toggle'
+    bl_label : str = 'Toggle vertex type'
+    bl_description : str = 'Toggle type of hovered vertex'
     bl_options : BL_OPTIONS = { 'INTERNAL', 'UNDO', 'DEPENDS_ON_CURSOR' }
 
     rf_keymaps : RFKeyMaps = [
@@ -77,7 +77,73 @@ class RFOperator_Patches_Toggle_Corner(RFOperator_Invoke):
     ]
 
     def invoke(self, context : Context, event : Event) -> set[str]:
-        result = Patches_Logic.toggle_corner(context, event)
+        result = Patches_Logic.pvert_type_toggle(context, event)
+        context.area.tag_redraw()
+        return { 'FINISHED' } if result else { 'CANCELLED' }
+
+
+class RFOperator_Patches_Type_Set(RFOperator_Invoke):
+    bl_idname : str = 'retopoflow.patches_type_set'
+    bl_label : str = 'Set vertex type'
+    bl_description : str = 'Set type of hovered vertex'
+    bl_options : BL_OPTIONS = { 'INTERNAL', 'UNDO', 'DEPENDS_ON_CURSOR' }
+
+    rf_keymaps : RFKeyMaps = [
+        (
+            bl_idname,
+            { 'type': 'O', 'value': 'PRESS', 'ctrl': 0, 'shift': 0 },
+            None
+        ),
+        (
+            bl_idname,
+            { 'type': 'ZERO', 'value': 'PRESS', 'ctrl': 0, 'shift': 0 },
+            None
+        ),
+        (
+            bl_idname,
+            { 'type': 'ONE', 'value': 'PRESS', 'ctrl': 0, 'shift': 0 },
+            None
+        ),
+        (
+            bl_idname,
+            { 'type': 'TWO', 'value': 'PRESS', 'ctrl': 0, 'shift': 0 },
+            None
+        ),
+        (
+            bl_idname,
+            { 'type': 'THREE', 'value': 'PRESS', 'ctrl': 0, 'shift': 0 },
+            None
+        ),
+        (
+            bl_idname,
+            { 'type': 'FOUR', 'value': 'PRESS', 'ctrl': 0, 'shift': 0 },
+            None
+        ),
+    ]
+
+    def invoke(self, context : Context, event : Event) -> set[str]:
+        result = Patches_Logic.pvert_type_set(context, event)
+        context.area.tag_redraw()
+        return { 'FINISHED' } if result else { 'CANCELLED' }
+
+class RFOperator_Patches_Loop_Insert(RFOperator_Invoke):
+    bl_idname : str = 'retopoflow.patches_loop_insert'
+    bl_label : str = 'Insert loop'
+    bl_description : str = 'Inserts a loop at ring of hovered ring'
+    bl_options : BL_OPTIONS = { 'INTERNAL', 'UNDO', 'DEPENDS_ON_CURSOR' }
+
+    rf_keymaps : RFKeyMaps = [
+        (
+            bl_idname,
+            { 'type': 'I', 'value': 'PRESS', 'ctrl': 0, 'shift': 0 },
+            None
+        ),
+    ]
+
+    def invoke(self, context : Context, event : Event) -> set[str]:
+        print('trying to insert loop')
+        result = Patches_Logic.insert_loop(context, event)
+        print(f'  {result=}')
         context.area.tag_redraw()
         return { 'FINISHED' } if result else { 'CANCELLED' }
 
@@ -222,7 +288,6 @@ class RFOperator_Patches(RFOperator):
 
     def finish(self, context : Context):
         print('RFOperator_Patches.finish')
-        pass
 
     def update(self, context : Context, event : Event) -> set[str]:
         print('RFOperator_Patches.update')
@@ -276,7 +341,9 @@ class RFTool_Patches(RFTool_Base):
         RFOperator_Patches_Unset_Loops,
         RFOperator_Patches_Increase_Loops,
         RFOperator_Patches_Decrease_Loops,
-        RFOperator_Patches_Toggle_Corner,
+        RFOperator_Patches_Type_Toggle,
+        RFOperator_Patches_Type_Set,
+        RFOperator_Patches_Loop_Insert,
         RFOperator_Patches_Create_Patch,
 
         # RFOperator_Patches_Insert_Template,
