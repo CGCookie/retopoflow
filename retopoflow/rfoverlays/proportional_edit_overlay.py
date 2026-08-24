@@ -30,6 +30,33 @@ from ..common.drawing import Drawing
 from ...addon_common.common import gpustate
 
 
+def draw_proportional_edit_circle(context: Context, center_world: Vector) -> bool:
+    ''' Draw Blender's proportional-editing falloff circle at the
+    world-space point `center_world`. Returns whether it drew. '''
+    rgn, r3d = context.region, context.region_data
+    center_2d = location_3d_to_region_2d(rgn, r3d, center_world, default=None)
+    if center_2d is None:
+        return False
+
+    right = Vector(r3d.view_matrix[0][:3]).normalized()
+    edge_world = center_world + right * context.tool_settings.proportional_distance
+    edge_2d = location_3d_to_region_2d(rgn, r3d, edge_world, default=None)
+    if edge_2d is None:
+        return False
+
+    # Blender's proportional editing circle is based on the 3D view grid color.
+    grid  = context.preferences.themes[0].view_3d.grid
+    color = Color((grid[0] - 20/255, grid[1] - 20/255, grid[2] - 20/255, 1.0))
+
+    gpustate.blend('ALPHA')
+    Drawing.draw2D_smooth_circle(
+        context, center_2d, (edge_2d - center_2d).length, color,
+        width=Drawing.scale(1), apply_ui_scale=False,
+    )
+    gpustate.blend('NONE')
+    return True
+
+
 class ProportionalEditOverlay(RFOverlay_Base):
     center_2d: Vector | None = None
     center_3d: Vector | None = None
@@ -82,27 +109,6 @@ class ProportionalEditOverlay(RFOverlay_Base):
     def draw_2d(self, context):
         if not context.tool_settings.use_proportional_edit:
             return
-        if self.center_2d is None or self.center_3d is None:
+        if self.center_3d is None:
             return
-
-        prop_dist_world = context.tool_settings.proportional_distance
-
-        # Use view's right vector to ensure consistent screen-space projection regardless of view angle to calculate the final radius.
-        # This way we virtually have a 3D circle (`center_3d` as center, `radius_3d_point` as radius) that we can project to 2D.
-        view_matrix = context.region_data.view_matrix
-        right_vector = Vector(view_matrix[0][:3]).normalized()
-        radius_3d_point = self.center_3d + right_vector * prop_dist_world / 2
-        radius_2d_point = location_3d_to_region_2d(context.region, context.region_data, radius_3d_point, default=None)
-
-        if radius_2d_point is None:
-            return
-
-        # Calculate 2D radius as the distance between projected center and radius point
-        radius = (radius_2d_point - self.center_2d).length
-
-        grid  = context.preferences.themes[0].view_3d.grid
-        color = Color((grid[0] - 20/255, grid[1] - 20/255, grid[2] - 20/255, 1.0))
-
-        gpustate.blend('ALPHA')
-        Drawing.draw2D_smooth_circle(context, self.center_2d, radius, color, width=1)
-        gpustate.blend('NONE')
+        draw_proportional_edit_circle(context, self.center_3d)

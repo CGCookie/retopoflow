@@ -24,7 +24,7 @@ from __future__ import annotations
 import bmesh
 import heapq
 import math
-from mathutils import Vector, Quaternion
+from mathutils import Vector, Quaternion, kdtree
 from bpy.types import Context, Event
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_location_3d
 
@@ -36,15 +36,15 @@ from ..common.bmesh_maths import orient_bmf_normals
 from ..common.curves import ordered_rungs
 from ..common.topology_corners import insert_corner, remove_corner
 from ..common.drawing import Drawing
-from ..common.maths import view_right_direction, xform_direction, proportional_edit
+from ..common.maths import proportional_edit
 from ..common.raycast import raycast_point_valid_sources, nearest_point_valid_sources, iter_all_valid_sources, mouse_from_event
 from ..common.snapping import source_snap_settings, source_snap_radius
 from ..common.operator import RFOperator, RFKeyMaps, execute_operator, Operator_Execute_Function
 from ..rfoverlay_base import RFOverlay_Base
+from ..rfoverlays.proportional_edit_overlay import draw_proportional_edit_circle
 from ..rfglobals import RFGlobals
-from ...addon_common.common import gpustate
 from ...addon_common.common import bmesh_ops as bmops
-from ...addon_common.common.maths import Color, sign_threshold
+from ...addon_common.common.maths import sign_threshold
 from ..rfoverlays.curve_overlay import (
     shrink_segment, KNOT_RADIUS, TANGENT_RADIUS,
     CURVE_LINE_COLOR, CONTROL_POLYGON_COLOR, TANGENT_FILL_COLOR, TANGENT_BORDER_COLOR,
@@ -117,6 +117,9 @@ def _relax_interior_verts(bm, interior, iterations):
                 weight_sum += w
             displacement[idx] = total / weight_sum
             bm.verts[idx].co = orig_co[idx] + displacement[idx]
+
+def _distance_fn(a, b):
+    return (a - b).length
 
 
 def _segment_arc_length(cb, fn_dist):
@@ -256,8 +259,11 @@ def create_curve_edit_operator(
                 (obj, obj.matrix_world, (mi := obj.matrix_world.inverted_safe()), mi.to_3x3())
                 for obj in iter_all_valid_sources(context)
             ]
-            self.right = xform_direction(Mi, view_right_direction(context))
             self.spline.tessellate_uniform()
+            # Every vert below is parametrized by a nearest-point search over this tessellation.
+            # With proportional editing on, "every vert" means every vert in the mesh,
+            # so index it once instead.
+            self.spline.tessellate_kdtree()
 
             self.source_accel = SourceCache.get(context)
             if self.source_accel:
@@ -270,7 +276,7 @@ def create_curve_edit_operator(
             else:
                 self.feature_radius = 0.0
 
-            fn_dist = lambda a, b: (a - b).length
+            fn_dist = _distance_fn
 
             # segment(s) whose shape will change as this handle is dragged -- verts
             # on these need their *arc-length fraction* preserved instead of their
@@ -352,21 +358,17 @@ def create_curve_edit_operator(
                             bmv_ = bme.other_vert(bmv)
                             heapq.heappush(queue, (d + (M @ bmv.co - M @ bmv_.co).length, bmv_.index, bmv_))
                 else:
-                    cos_sel = [M @ bmv.co for bmv in bmvs]
-                    all_bmvs = {}
-                    for bmv in self.bm.verts:
-                        co = M @ bmv.co
-                        d = min((co - co_sel).length for co_sel in cos_sel)
-                        all_bmvs[bmv] = d
+                    # Nearest chain vert for every vert in the mesh.
+                    kd = kdtree.KDTree(len(bmvs))
+                    for i, bmv in enumerate(bmvs):
+                        kd.insert(M @ bmv.co, i)
+                    kd.balance()
+                    all_bmvs = { bmv: kd.find(M @ bmv.co)[2] for bmv in self.bm.verts }
             else:
                 all_bmvs = { bmv: 0.0 for bmv in bmvs }
 
             # all data is local to edit!
             data = {}
-            bmv_selected_count = 0
-            bmv_merged_2d_coords = Vector((0.0, 0.0))
-            bmv_merged_3d_coords = Vector((0.0, 0.0, 0.0))
-            rgn, r3d = context.region, context.region_data
             combined_cum = _cumulative_lengths(self.spline.cbs, self.combined_segs, fn_dist) if self.combined_segs else None
             # for a face strip: {vert index -> (its rung's midpoint, distance in
             # rungs from the nearest open end)} -- see ChainSpec.deform_bmv_rungs.
@@ -393,7 +395,7 @@ def create_curve_edit_operator(
                 # data's own keys) never touches bmv.co for it.
                 if rung is None or rung[1] != 0.0 or rung[2]:
                     rung_pt = rung[0] if rung else bmv.co
-                    t = self.spline.approximate_t_at_point_tessellation(rung_pt, fn_dist)
+                    t = self.spline.approximate_t_at_point_kdtree(rung_pt)
                     # a strip's boundary CAP rung (end-distance 0) sits past the
                     # centerline's own endpoint -- the centerline runs face-center
                     # to face-center (_interleaved_centerline never includes the
@@ -459,20 +461,6 @@ def create_curve_edit_operator(
                         end_t,
                         overhang,
                     )
-                if use_proportional_edit and bmv.select:
-                    bmv_selected_count += 1
-                    co_world = M @ bmv.co
-                    bmv_merged_3d_coords += co_world
-                    screen_co = location_3d_to_region_2d(rgn, r3d, co_world)
-                    if screen_co:
-                        bmv_merged_2d_coords += screen_co
-
-            if use_proportional_edit and bmv_selected_count:
-                self.selection_origin_3d = bmv_merged_3d_coords / bmv_selected_count
-                self.selection_origin_2d = bmv_merged_2d_coords / bmv_selected_count
-            else:
-                self.selection_origin_3d = None
-                self.selection_origin_2d = None
 
             # a closed loop tracing a selected patch's perimeter carries the
             # patch's own INTERIOR verts too (see LoopStripChainProvider) --
@@ -1230,10 +1218,13 @@ def create_curve_edit_operator(
             self.apply_handle(context, delta, rgn, r3d, M, Mi, event.alt, event.shift)
 
             if self.grab['only'] is None:
+                # arc_frac/combined_frac (indices 4/5) are both None when a vert's t falls in a
+                # segment whose control points this drag never touches.
                 self.grab['only'] = [
                     bmv_idx
                     for bmv_idx in data
                     if data[bmv_idx][3] <= prop_dist_world
+                    and (data[bmv_idx][4] is not None or data[bmv_idx][5] is not None)
                 ]
 
             self._deform_verts(context, self.spline)
@@ -1289,7 +1280,7 @@ def create_curve_edit_operator(
             # reshapes its handles instead (see _scale_handles)
             taper_active = self.taper_scale is not None
             nseg = len(spline.cbs)
-            fn_dist = lambda a, b: (a - b).length
+            fn_dist = _distance_fn
             combined_cum = _cumulative_lengths(spline.cbs, self.combined_segs, fn_dist) if self.combined_segs else None
 
             # Pass 1: compute each vert's (anchor, offset) exactly as before,
@@ -1307,7 +1298,9 @@ def create_curve_edit_operator(
                     # this vert's segment is neither touched nor part of a
                     # combined free-knot run -- its t maps into a segment whose
                     # control points this drag never moves, so eval(t) can only
-                    # ever reproduce the exact same point it's already at
+                    # ever reproduce the exact same point it's already at.
+                    # grab['only'] already filters these out (see update());
+                    # kept as a guard in case it's ever built elsewhere
                     continue
                 if distance > prop_dist_world: continue
                 if prop_use:
@@ -1548,29 +1541,13 @@ def create_curve_edit_operator(
             ''' Draw the live curve, plus the proportional edit circle in 2D space. '''
             self.draw_curve(context)
             if not context.tool_settings.use_proportional_edit: return
-            if self.selection_origin_3d is None or self.selection_origin_2d is None: return
-            gpustate.blend('ALPHA')
-            rgn, r3d = context.region, context.region_data
-
-            pt = self.selection_origin_3d + context.tool_settings.proportional_distance * self.right
-            pt2d = location_3d_to_region_2d(rgn, r3d, pt)
-            if pt2d is None: return
-            radius = pt2d[0] - self.selection_origin_2d[0]
-            if self.handle['kind'] == 'knot':
-                center = self.selection_origin_2d
-            else:
-                seg, attr = self.handle['pos']
-                center = location_3d_to_region_2d(rgn, r3d, self.M @ Vector(getattr(self.spline.cbs[seg], attr)))
-                if center is None: return
-
-            col_off = 20/255
-            color_in = Color((0.33+col_off, 0.33+col_off, 0.33+col_off, 1.0))
-            color_out = Color((0.33-col_off, 0.33-col_off, 0.33-col_off, 1.0))
-
-            gpustate.blend('ALPHA')
-            Drawing.draw2D_smooth_circle(context, center, radius, color_out, width=3)
-            Drawing.draw2D_smooth_circle(context, center, radius-1, color_in, width=1)
-            gpustate.blend('NONE')
+            h = self.handle
+            knot_h = h if h['kind'] == 'knot' else self._knot_for_tangent(h)
+            if knot_h is None: return
+            seg, attr = knot_h['pos']
+            # world space: the radius offset is a world-space view direction,
+            # so a local-space center would scale/rotate with the object
+            draw_proportional_edit_circle(context, self.M @ Vector(getattr(self.spline.cbs[seg], attr)))
 
     return type(opname, (RFOperator_Curve_Edit, RFOperator), {})
 
