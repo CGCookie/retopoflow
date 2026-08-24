@@ -108,6 +108,10 @@ class FeatureRunsMixin:
         Tweak/Translate use a stroke-fixed radius; Relax uses a per-vert edge-length basis. '''
         raise NotImplementedError
 
+    def bmv_avg_edge_len(self, bmv) -> float:
+        ''' Average link-edge length for bmv. Relax overrides this with a per-step cache. '''
+        return get_bmv_avg_edge_len(bmv)
+
     def feature_run_extra_margin(self) -> float:
         ''' Extra arc length for the run window. Covering at least the brush diameter means
         promoted verts anywhere under the brush find their own run's geometry beneath them,
@@ -171,7 +175,7 @@ class FeatureRunsMixin:
         self.run_of_seg = {}
         if not self.source_edge_accel or not self.vert_seed_seg:
             return
-        avg_lens = [get_bmv_avg_edge_len(v) for v in self.vert_seed_seg if v.link_edges]
+        avg_lens = [self.bmv_avg_edge_len(v) for v in self.vert_seed_seg if v.link_edges]
         if not avg_lens:
             return
         margin_world = max(

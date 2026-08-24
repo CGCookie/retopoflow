@@ -28,6 +28,7 @@ from bmesh.types import BMesh, BMVert, BMEdge
 
 import math
 import time
+import numpy as np
 from math import isnan, inf, acos, tan
 from typing import Callable
 from collections.abc import Iterator, Sequence
@@ -60,6 +61,7 @@ from ..common.raycast import (
     iter_all_valid_sources,
     make_hidden_tester,
     source_ray_cast,
+    source_closest_point_on_mesh,
 )
 from ..common.drawing import (
     Drawing,
@@ -148,10 +150,11 @@ class Relax_Logic(FeatureRunsMixin):
     pressure : float
 
     prev_position : dict[BMVert, Vector]    # remember where verts were in case of cancel
-    prev_displace : dict[BMVert, Vector]    # attempt at preventing verts bouncing unstably
+    prev_displace : 'tuple[dict[BMVert, int], object]'  # (bmv -> row into array, (T,3) array)
     bounce_mult : dict[BMVert, float]       # ...
 
     verts_accel : Accel
+    avg_edge_len_cache : dict[BMVert, float]
     laplacian_cache : dict[BMVert, tuple[tuple[BMVert, ...], bool, float] | None]
     straighten_cache : dict[BMVert, tuple[bool, tuple[BMVert, ...], tuple[BMVert, ...], int] | None]
     straighten_loops_cache : dict[BMVert, tuple[tuple[BMVert, BMVert], ...] | None]
@@ -321,7 +324,7 @@ class Relax_Logic(FeatureRunsMixin):
         self.warned_limiting = False
 
         self.prev_position = {}
-        self.prev_displace = {}
+        self.prev_displace = ({}, None)
         self.bounce_mult = {}
 
         self.draw_vectors_positive = []
@@ -396,6 +399,7 @@ class Relax_Logic(FeatureRunsMixin):
         self.source_use_fixed, self.source_fixed_distance, self.source_sharp_proximity = source_snap_settings(context)
         self.stickiness = getattr(snapping, 'source_edge_stickiness', 0.5) if self.source_edge_accel else 0.0
 
+        self.avg_edge_len_cache = {}
         self.laplacian_cache = {}
         self.straighten_cache = {}
         self.straighten_loops_cache = {}
@@ -473,12 +477,21 @@ class Relax_Logic(FeatureRunsMixin):
 
         return set(filtered)
 
+    def bmv_avg_edge_len(self, bmv) -> float:
+        # Cached per integration step and cleared in relax_verts
+        cache = self.avg_edge_len_cache
+        val = cache.get(bmv)
+        if val is None:
+            val = get_bmv_avg_edge_len(bmv)
+            cache[bmv] = val
+        return val
+
     def snap_proximity_world(self, bmv):
-        return get_bmv_avg_edge_len(bmv) * self.scale_avg * self.source_sharp_proximity
+        return self.bmv_avg_edge_len(bmv) * self.scale_avg * self.source_sharp_proximity
 
     def corner_snap_threshold_world(self, bmv, factor):
         # Corner tests scale the raw avg edge length (no proximity factor), unlike Tweak.
-        return get_bmv_avg_edge_len(bmv) * self.scale_avg * factor
+        return self.bmv_avg_edge_len(bmv) * self.scale_avg * factor
 
     def feature_run_extra_margin(self):
         return self.loop_run_margin
@@ -622,6 +635,7 @@ class Relax_Logic(FeatureRunsMixin):
 
         # Boundary vert references must be cleared because `verts` changes as the brush moves, invalidating prior boundary traces.
         self.loop_interp_cache.clear()
+        loop_interp_built = False
 
         # Non-brush callers fall back to the vert set's own bounds
         # so the distance caps and snap falloff still have meaningful values.
@@ -664,17 +678,51 @@ class Relax_Logic(FeatureRunsMixin):
             self.draw_vectors_negative.clear()
             self.draw_vectors_net.clear()
 
-        displace = {}
+        # Forces accumulate into an array over verts_list so the batched algorithms below can scatter with numpy
+        verts_list = list(verts)
+        vert_row = { bmv: i for i, bmv in enumerate(verts_list) }
+        displace_arr = np.zeros((len(verts_list), 3), dtype=np.float64)
+        touched = np.zeros(len(verts_list), dtype=bool)  # rows with force applied or marked for snapping
+        scalar_forces : dict[BMVert, Vector] = {}
+
+        # Row space shared by every batched algorithm
+        ext_verts = list(verts_list)
+        ext_row = dict(vert_row)
+        def ext_index(bmv):
+            ''' Assigns rows for neighbors and face corners outside of `verts`. '''
+            row = ext_row.get(bmv)
+            if row is None:
+                row = len(ext_verts)
+                ext_row[bmv] = row
+                ext_verts.append(bmv)
+            return row
+
+        last_coords = None  # ext coords from the latest relax_3d gather. None when stale (RK4) or never gathered
+
+        def gather_ext_coords():
+            flat : list[float] = []
+            for bmv in ext_verts: flat.extend(bmv.co)
+            return np.array(flat, dtype=np.float64).reshape(len(ext_verts), 3)
+
+        def scatter_forces(rows, contrib):
+            ''' Scatter-add pre-masked force rows into displace_arr. '''
+            if not len(rows): return
+            count = len(verts_list)
+            # Bincount handles duplicate rows
+            displace_arr[:, 0] += np.bincount(rows, weights=contrib[:, 0], minlength=count)
+            displace_arr[:, 1] += np.bincount(rows, weights=contrib[:, 1], minlength=count)
+            displace_arr[:, 2] += np.bincount(rows, weights=contrib[:, 2], minlength=count)
+            touched[rows] = True
 
         def reset_forces():
-            nonlocal displace
-            displace.clear()
+            displace_arr[:] = 0.0
+            touched[:] = False
+            scalar_forces.clear()
 
         def add_force(bmv, f, wrt=None, sign=0, mult=0):
-            nonlocal displace
             if bmv not in vert_strength: return  # vert_strength has exactly the keys of `verts`
-            if bmv not in displace: displace[bmv] = Vector((0,0,0))
-            displace[bmv] += f * (vert_strength[bmv] * weight_mult)
+            if bmv not in scalar_forces: scalar_forces[bmv] = Vector((0,0,0))
+            scalar_forces[bmv] += f * (vert_strength[bmv] * weight_mult)
             if opt_draw_all and wrt:
                 if sign > 0:
                     self.draw_vectors_positive.append((wrt, f.xyz * mult * vert_strength[bmv]))
@@ -717,33 +765,37 @@ class Relax_Logic(FeatureRunsMixin):
 
         #MARK: Sim algos
 
-        def laplacian_smooth(bmv, laplacian_cache, shape_preservation=0):
-            ''' Push verts towards the average of their neighbors '''
+        def get_laplacian_data(bmv, laplacian_cache):
+            ''' (neighbors, is_boundary, 1/count) for verts laplacian applies to, else None. '''
             if bmv in laplacian_cache:
-                laplacian_data = laplacian_cache[bmv]
-                if laplacian_data is None: return
+                return laplacian_cache[bmv]
+            link_edges = bmv.link_edges
+            edge_count = len(link_edges)
+            if (
+                edge_count == 2 or
+                edge_count == 4 and len(bmv.link_faces) == 3
+            ):
+                laplacian_cache[bmv] = None
+                return None
+            is_boundary = bmv.is_boundary
+            if is_boundary:
+                if edge_count > 4:
+                    laplacian_cache[bmv] = None
+                    return None
+                neighbors = tuple(bme.other_vert(bmv) for bme in link_edges if bme.is_boundary)
             else:
-                link_edges = bmv.link_edges
-                edge_count = len(link_edges)
-                if (
-                    edge_count == 2 or
-                    edge_count == 4 and len(bmv.link_faces) == 3
-                ):
-                    laplacian_cache[bmv] = None
-                    return
-                is_boundary = bmv.is_boundary
-                if is_boundary:
-                    if edge_count > 4:
-                        laplacian_cache[bmv] = None
-                        return
-                    neighbors = tuple(bme.other_vert(bmv) for bme in link_edges if bme.is_boundary)
-                else:
-                    neighbors = tuple(bme.other_vert(bmv) for bme in link_edges)
-                if not neighbors:
-                    laplacian_cache[bmv] = None
-                    return
-                laplacian_data = (neighbors, is_boundary, 1.0 / len(neighbors))
-                laplacian_cache[bmv] = laplacian_data
+                neighbors = tuple(bme.other_vert(bmv) for bme in link_edges)
+            if not neighbors:
+                laplacian_cache[bmv] = None
+                return None
+            laplacian_data = (neighbors, is_boundary, 1.0 / len(neighbors))
+            laplacian_cache[bmv] = laplacian_data
+            return laplacian_data
+
+        def laplacian_smooth(bmv, laplacian_cache, shape_preservation=0):
+            ''' Push verts towards the average of their neighbors. '''
+            laplacian_data = get_laplacian_data(bmv, laplacian_cache)
+            if laplacian_data is None: return
             neighbors, is_boundary, nb_reciprocal = laplacian_data
 
             edge_proj_dir = None # slide snapped vertices along source edges
@@ -812,6 +864,50 @@ class Relax_Logic(FeatureRunsMixin):
 
             add_force(bmv, displacement * 0.1, mult=40)
 
+        def make_laplacian_forces():
+            ''' Flatten each vert's neighbor topology into index arrays once, then return the
+            per-step force function that evaluates them all with numpy. None if no vert qualifies. '''
+            bmvs : list[BMVert] = []
+            nbr_rows : list[int] = []
+            counts_list : list[int] = []
+            boundary_list : list[bool] = []
+            for bmv in verts_list:
+                laplacian_data = get_laplacian_data(bmv, self.laplacian_cache)
+                if laplacian_data is None: continue
+                neighbors, is_boundary, _ = laplacian_data
+                bmvs.append(bmv)
+                nbr_rows.extend(ext_index(nb) for nb in neighbors)
+                counts_list.append(len(neighbors))
+                boundary_list.append(is_boundary)
+            if not bmvs: return None
+
+            counts = np.array(counts_list, dtype=np.intp)
+            rows = np.array([vert_row[bmv] for bmv in bmvs], dtype=np.intp)
+            nbrs = np.array(nbr_rows, dtype=np.intp)
+            offsets = np.concatenate(([0], np.cumsum(counts[:-1])))  # reduceat group starts
+            inv_counts = 1.0 / counts
+            is_boundary = np.array(boundary_list, dtype=bool)
+            scale = np.array([vert_strength[bmv] * weight_mult for bmv in bmvs], dtype=np.float64)
+
+            def apply(coords):
+                avg = np.add.reduceat(coords[nbrs], offsets, axis=0) * inv_counts[:, None]
+                disp = (avg - coords[rows]) * 0.1
+                disp[is_boundary] *= 0.5
+                contrib = disp * scale[:, None]
+                near = self.verts_near_source_edge
+                if near:
+                    keep_list = [bmv not in near for bmv in bmvs]
+                    keep = np.array(keep_list, dtype=bool)
+                    displace_arr[rows[keep]] += contrib[keep]
+                    touched[rows[keep]] = True
+                    # Constrained / sliding verts need the run-aware scalar path
+                    for bmv, kept in zip(bmvs, keep_list):
+                        if not kept: laplacian_smooth(bmv, self.laplacian_cache)
+                else:
+                    displace_arr[rows] += contrib
+                    touched[rows] = True
+            return apply
+
         def straighten_edges(bmv, straighten_cache):
             ''' push verts to straighten edges (still WiP!) '''
             if self.verts_near_source_edge and bmv in self.verts_near_source_edge:
@@ -873,21 +969,25 @@ class Relax_Logic(FeatureRunsMixin):
             vec = (center - bmv.co) * force_mult
             add_force(bmv, vec, bmv.co, 1, 40)
 
+        def get_straighten_loops(bmv, straighten_loops_cache):
+            ''' Opposing-neighbor pairs for interior 4-valence quad verts, else None. '''
+            if bmv in straighten_loops_cache:
+                return straighten_loops_cache[bmv]
+            link_edges = list(bmv.link_edges)
+            if len(link_edges) != 4 or len(bmv.link_faces) != 4:
+                loops = None
+            else:
+                loops = get_bmv_loop_pairs(bmv)
+            straighten_loops_cache[bmv] = loops
+            return loops
+
         def straighten_loops(bmv, straighten_loops_cache):
-            ''' push quad verts towards the line between opposing neighbords '''
+            ''' push quad verts towards the line between opposing neighbords. '''
             if self.verts_near_source_edge and bmv in self.verts_near_source_edge:
                 # Skip to preserve verts constrained to source edges
                 return
 
-            if bmv in straighten_loops_cache:
-                loops = straighten_loops_cache[bmv]
-            else:
-                link_edges = list(bmv.link_edges)
-                if len(link_edges) != 4 or len(bmv.link_faces) != 4:
-                    loops = None
-                else:
-                    loops = get_bmv_loop_pairs(bmv)
-                straighten_loops_cache[bmv] = loops
+            loops = get_straighten_loops(bmv, straighten_loops_cache)
             if not loops: return
 
             if straighten_loops_cache.get(bmv) is None:
@@ -908,31 +1008,52 @@ class Relax_Logic(FeatureRunsMixin):
                 force -= normal * force.dot(normal)
                 add_force(bmv, force, co, 1, 40)
 
-        def walk_loop_to_selection_boundary(bmv, first_step, max_depth=200):
-            ''' Walk the loop from origin through first_step to the first
-            unselected vert in that direction. Returns (depth, first_unselected_vert):
-              depth=1, first_step  — first_step is already outside verts
-              depth=k, vert        — vert is k hops away and unselected
-            Returns None for poles, mesh boundaries, or closed loops that never exit the selection. '''
-            if first_step not in verts:
-                # first_step is unselected, it is the immediate anchor
-                return 1, first_step
-            prev, cur = bmv, first_step
-            depth = 1
-            seen = {bmv}
-            while True:
-                seen.add(cur)
-                nxt = get_bmv_next_loop_vert(prev, cur)
-                if nxt is None:
-                    return None              # mesh boundary or pole
-                if nxt in seen:
-                    return None              # closed loop entirely inside selection
-                if nxt not in verts:
-                    return depth + 1, nxt   # nxt is the first unselected vert
-                if depth >= max_depth:
-                    return None              # depth guard
-                prev, cur = cur, nxt
-                depth += 1
+        def make_straighten_loops_forces():
+            ''' Flatten the opposing-neighbor pairs of every interior quad vert once, then return
+            the per-step force function. None if no vert qualifies. '''
+            bmvs : list[BMVert] = []
+            pair_rows : list[tuple[int, int, int, int]] = []
+            for bmv in verts_list:
+                loops = get_straighten_loops(bmv, self.straighten_loops_cache)
+                if not loops: continue
+                (nb_a0, nb_b0), (nb_a1, nb_b1) = loops
+                bmvs.append(bmv)
+                pair_rows.append((ext_index(nb_a0), ext_index(nb_b0), ext_index(nb_a1), ext_index(nb_b1)))
+            if not bmvs: return None
+
+            rows = np.array([vert_row[bmv] for bmv in bmvs], dtype=np.intp)
+            pairs = np.array(pair_rows, dtype=np.intp)
+            # Normals are frozen here. Nothing recomputes them inside the step loop.
+            nrm_flat : list[float] = []
+            for bmv in bmvs: nrm_flat.extend(bmv.normal)
+            normals = np.array(nrm_flat, dtype=np.float64).reshape(len(bmvs), 3)
+            scale = np.array([vert_strength[bmv] * weight_mult for bmv in bmvs], dtype=np.float64)
+
+            def apply(coords):
+                co = coords[rows]
+                total = np.zeros_like(co)
+                for col_a, col_b in ((0, 1), (2, 3)):
+                    start = coords[pairs[:, col_a]]
+                    direction = coords[pairs[:, col_b]] - start
+                    len_sq = np.einsum('ij,ij->i', direction, direction)
+                    valid = len_sq >= 1e-12
+                    t = np.einsum('ij,ij->i', co - start, direction) / np.where(valid, len_sq, 1.0)
+                    force = (start + direction * t[:, None] - co) * 0.5
+                    # Cancel out force in the vert's normal direction to avoid shrinking curved loops
+                    force -= normals * np.einsum('ij,ij->i', force, normals)[:, None]
+                    force[~valid] = 0.0
+                    total += force
+                contrib = total * scale[:, None]
+                near = self.verts_near_source_edge
+                if near:
+                    # Constrained verts skip straightening entirely to preserve their snap
+                    keep = np.fromiter((bmv not in near for bmv in bmvs), dtype=bool, count=len(bmvs))
+                    displace_arr[rows[keep]] += contrib[keep]
+                    touched[rows[keep]] = True
+                else:
+                    displace_arr[rows] += contrib
+                    touched[rows] = True
+            return apply
 
         def average_edge_length(bme, avg_edge_len):
             ''' Expand and contract edges closer to average edge length '''
@@ -950,6 +1071,70 @@ class Relax_Logic(FeatureRunsMixin):
             if edge_proj_dir := get_edge_proj_dir(bmv1):
                 f1 = edge_proj_dir * f1.dot(edge_proj_dir)
             add_force(bmv1, f1, edge_midpoint, diff, 40)
+
+        def make_average_edge_lengths_forces():
+            ''' Flatten every edge's endpoint rows and island id once, then return the per-step
+            force function. Both endpoints of an edge get equal and opposite pushes. '''
+            edges_list = list(edges)
+            island_index : dict = {}
+            isl_list : list[int] = []
+            v0_list : list[int] = []
+            v1_list : list[int] = []
+            rows_sides : tuple[list[int], list[int]] = ([], [])
+            scale_sides : tuple[list[float], list[float]] = ([], [])
+            valid_sides : tuple[list[bool], list[bool]] = ([], [])
+            slots_by_vert : dict[BMVert, list[tuple[int, int]]] = {}
+            for ei, bme in enumerate(edges_list):
+                bmv0, bmv1 = bme.verts
+                isl = vert_island[bmv0]
+                isl_list.append(island_index.setdefault(isl, len(island_index)))
+                v0_list.append(ext_index(bmv0))
+                v1_list.append(ext_index(bmv1))
+                for side, bmv in enumerate((bmv0, bmv1)):
+                    row = vert_row.get(bmv)
+                    rows_sides[side].append(row if row is not None else 0)
+                    scale_sides[side].append(vert_strength[bmv] * weight_mult if row is not None else 0.0)
+                    valid_sides[side].append(row is not None)
+                    if row is not None:
+                        slots_by_vert.setdefault(bmv, []).append((side, ei))
+
+            v0_rows = np.array(v0_list, dtype=np.intp)
+            v1_rows = np.array(v1_list, dtype=np.intp)
+            isl = np.array(isl_list, dtype=np.intp)
+            isl_counts = np.bincount(isl, minlength=len(island_index)).astype(np.float64)
+            rows_arr = tuple(np.array(rows, dtype=np.intp) for rows in rows_sides)
+            scale_arr = tuple(np.array(scales, dtype=np.float64) for scales in scale_sides)
+            valid_arr = tuple(np.array(valids, dtype=bool) for valids in valid_sides)
+
+            def apply(coords):
+                vecs = coords[v1_rows] - coords[v0_rows]
+                lens = np.linalg.norm(vecs, axis=1)
+                # Average edge length per island so disconnected areas of differing scale don't distort each other.
+                island_avg = np.bincount(isl, weights=lens, minlength=len(isl_counts)) / isl_counts
+                diff = island_avg[isl] - lens
+                active = np.abs(diff) >= 1e-12
+                f = vecs * (diff / 25.0 / np.maximum(lens, 1e-30))[:, None]
+                near = self.verts_near_source_edge
+                constrained : list[tuple[BMVert, int, int]] = []
+                constrained_masks = None
+                if near:
+                    constrained_masks = (np.zeros(len(lens), dtype=bool), np.zeros(len(lens), dtype=bool))
+                    for bmv in near:
+                        for side, ei in slots_by_vert.get(bmv, ()):
+                            constrained_masks[side][ei] = True
+                            constrained.append((bmv, side, ei))
+                for side, sign in ((0, -1.0), (1, 1.0)):
+                    mask = active & valid_arr[side]
+                    if constrained_masks is not None: mask &= ~constrained_masks[side]
+                    scatter_forces(rows_arr[side][mask], f[mask] * (sign * scale_arr[side][mask])[:, None])
+                # Constrained endpoints slide along their source edge (scalar projection path)
+                for bmv, side, ei in constrained:
+                    if not active[ei]: continue
+                    f_vec = Vector(f[ei] if side else -f[ei])
+                    if edge_proj_dir := get_edge_proj_dir(bmv):
+                        f_vec = edge_proj_dir * f_vec.dot(edge_proj_dir)
+                    add_force(bmv, f_vec)
+            return apply
 
         def average_edge_length_springs(bmv, avg_edge_len):
             # Intended to help edges not collapse around holes but
@@ -1094,6 +1279,150 @@ class Relax_Logic(FeatureRunsMixin):
                 add_force(bmv, f, center, 1, 40)
                 current *= step
 
+        def make_equalize_faces_forces():
+            ''' Flatten every face's corner rows once, grouped by vert count so each group is a
+            fixed-width (faces, k, 3) array, then return the per-step force function. The returned
+            function applies both the area-matching and the regular-polygon shape forces.
+            None when there are no faces. '''
+            if not faces: return None
+            faces_list = list(faces)
+            island_index : dict = {}
+            isl = np.array(
+                [island_index.setdefault(face_island[bmf], len(island_index)) for bmf in faces_list],
+                dtype=np.intp,
+            )
+            isl_counts = np.bincount(isl, minlength=len(island_index)).astype(np.float64)
+            vert_counts = np.array([len(get_face_topology(bmf)[0]) for bmf in faces_list], dtype=np.float64)
+            slots_by_vert : dict[BMVert, list[tuple[int, int, int]]] = {}   # bmv -> [(vert_count, face_local, slot)]
+            group_build : dict[int, dict] = {}
+            for fi, bmf in enumerate(faces_list):
+                face_verts, face_edges = get_face_topology(bmf)
+                k = len(face_verts)
+                grp = group_build.setdefault(k, {
+                    'face_idx': [], 'vrows': [], 'srows': [], 'scale': [], 'valid': [],
+                    'normals': [], 'special': [], 'special_other': [],
+                })
+                face_local = len(grp['face_idx'])
+                grp['face_idx'].append(fi)
+                grp['normals'].extend(bmf.normal)   # frozen; normals are stable for the whole call
+                face_edge_set = set(face_edges)
+                for slot, bmv in enumerate(face_verts):
+                    grp['vrows'].append(ext_index(bmv))
+                    row = vert_row.get(bmv)
+                    grp['srows'].append(row if row is not None else 0)
+                    grp['scale'].append(vert_strength[bmv] * weight_mult if row is not None else 0.0)
+                    grp['valid'].append(row is not None)
+                    # 3-valence boundary verts pull toward the boundary-edge midpoint, not the face center
+                    special_other = None
+                    if bmv.is_boundary and len(bmv.link_edges) == 3:
+                        others = [bme.other_vert(bmv) for bme in bmv.link_edges if bme.is_boundary and bme in face_edge_set]
+                        if others: special_other = others[0]
+                    grp['special'].append(special_other is not None)
+                    grp['special_other'].append(ext_index(special_other) if special_other is not None else 0)
+                    if row is not None:
+                        slots_by_vert.setdefault(bmv, []).append((k, face_local, slot))
+            groups = {}
+            for k, grp in group_build.items():
+                face_count = len(grp['face_idx'])
+                groups[k] = (
+                    np.array(grp['face_idx'], dtype=np.intp),
+                    np.array(grp['vrows'], dtype=np.intp).reshape(face_count, k),
+                    np.array(grp['srows'], dtype=np.intp).reshape(face_count, k),
+                    np.array(grp['scale'], dtype=np.float64).reshape(face_count, k),
+                    np.array(grp['valid'], dtype=bool).reshape(face_count, k),
+                    np.array(grp['normals'], dtype=np.float64).reshape(face_count, 3),
+                    np.array(grp['special'], dtype=bool).reshape(face_count, k),
+                    np.array(grp['special_other'], dtype=np.intp).reshape(face_count, k),
+                    2.0 * math.pi / k,   # corner angle spacing
+                )
+
+            def apply(coords):
+                areas = np.fromiter((bmf.calc_area() for bmf in faces_list), dtype=np.float64, count=len(faces_list))
+                per_vert_area = areas / vert_counts
+                # Average face area per island for the same reason as edges above.
+                island_avg = np.bincount(isl, weights=per_vert_area, minlength=len(isl_counts)) / isl_counts
+                avg_area_all = island_avg[isl]
+                avg_sqrt_all = np.sqrt(avg_area_all)
+                near = self.verts_near_source_edge
+
+                for k, (face_idx, vrows, srows, scale, valid, normals, special, special_other, spacing) in groups.items():
+                    co = coords[vrows]                        # (F,k,3)
+                    center = co.mean(axis=1)                  # face midpoint = vert average
+                    rel = co - center[:, None, :]
+                    avg_area = avg_area_all[face_idx]
+                    avg_sqrt = avg_sqrt_all[face_idx]
+
+                    # average_face_areas: scale faces towards the average
+                    area_ok = avg_area >= 1e-20
+                    diff = np.where(area_ok, per_vert_area[face_idx] - avg_area, 0.0) / np.where(area_ok, avg_area, 1.0)
+                    centers_slot = np.where(
+                        special[:, :, None],
+                        (co + coords[special_other]) * 0.5,
+                        center[:, None, :],
+                    )
+                    forces_area = (centers_slot - co) * (diff * 0.25)[:, None, None]
+
+                    # average_face_shape: push verts toward their targets on a regular polygon
+                    z_axis = normals / np.maximum(np.linalg.norm(normals, axis=1), 1e-30)[:, None]
+                    ref = np.where((np.abs(z_axis[:, 2]) < 0.9)[:, None], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
+                    x_axis = np.cross(ref, z_axis)
+                    x_axis = x_axis / np.maximum(np.linalg.norm(x_axis, axis=1), 1e-30)[:, None]
+                    y_axis = np.cross(z_axis, x_axis)
+                    radii = np.linalg.norm(rel, axis=2)       # (F,k)
+                    avg_radius = radii.mean(axis=1)
+                    x2d = np.einsum('fkj,fj->fk', rel, x_axis)
+                    y2d = np.einsum('fkj,fj->fk', rel, y_axis)
+                    r2d = np.sqrt(x2d * x2d + y2d * y2d)
+                    ok2d = r2d > 1e-8
+                    r2d_safe = np.where(ok2d, r2d, 1.0)
+                    slot_idx = np.arange(k)
+                    conj_k = np.exp(-1j * spacing * slot_idx)
+                    unit2d = np.where(ok2d, x2d / r2d_safe, 0.0) + 1j * np.where(ok2d, y2d / r2d_safe, 0.0)
+                    sum_z = (unit2d * conj_k[None, :]).sum(axis=1)
+                    phase = np.arctan2(sum_z.imag, sum_z.real)
+                    radius_ok = avg_radius >= 1e-8
+                    scale_shape = np.where(radius_ok, avg_sqrt, 0.0) / np.where(radius_ok, avg_radius, 1.0)
+                    ang = phase[:, None] + spacing * slot_idx[None, :]
+                    forces_shape = (
+                        np.cos(ang)[:, :, None] * (x_axis * avg_sqrt[:, None])[:, None, :]
+                        + np.sin(ang)[:, :, None] * (y_axis * avg_sqrt[:, None])[:, None, :]
+                        - rel * scale_shape[:, None, None]
+                    )
+                    forces_shape[~radius_ok] = 0.0
+
+                    # Constrained slots leave the vectorized scatter and go through the scalar projection path
+                    constrained : list[tuple[BMVert, int, int]] = []
+                    cmask = None
+                    if near:
+                        cmask = np.zeros((len(face_idx), k), dtype=bool)
+                        for bmv in near:
+                            for slot_k, face_local, slot in slots_by_vert.get(bmv, ()):
+                                if slot_k != k: continue
+                                cmask[face_local, slot] = True
+                                constrained.append((bmv, face_local, slot))
+                    mask_area = valid & area_ok[:, None]
+                    mask_shape = valid & radius_ok[:, None]
+                    if cmask is not None:
+                        mask_area &= ~cmask
+                        mask_shape &= ~cmask
+                    flat_rows = srows.reshape(-1)
+                    flat_scale = scale.reshape(-1, 1)
+                    flat_mask_area = mask_area.reshape(-1)
+                    flat_mask_shape = mask_shape.reshape(-1)
+                    scatter_forces(flat_rows[flat_mask_area], (forces_area.reshape(-1, 3) * flat_scale)[flat_mask_area])
+                    scatter_forces(flat_rows[flat_mask_shape], (forces_shape.reshape(-1, 3) * flat_scale)[flat_mask_shape])
+                    for bmv, face_local, slot in constrained:
+                        edge_proj_dir = get_edge_proj_dir(bmv)
+                        if area_ok[face_local]:
+                            f_vec = Vector(forces_area[face_local, slot])
+                            if edge_proj_dir: f_vec = edge_proj_dir * f_vec.dot(edge_proj_dir)
+                            add_force(bmv, f_vec)
+                        if radius_ok[face_local]:
+                            f_vec = Vector(forces_shape[face_local, slot])
+                            if edge_proj_dir: f_vec = edge_proj_dir * f_vec.dot(edge_proj_dir)
+                            add_force(bmv, f_vec)
+            return apply
+
         def correct_flipped_faces():
             ''' push verts if neighboring faces seem flipped (still WiP!) '''
             bmf_flipped = { bmf for bmf in chk_faces if bmf_is_flipped(bmf) }
@@ -1143,7 +1472,7 @@ class Relax_Logic(FeatureRunsMixin):
 
                 elif bmv in self.demoted_verts:
                     # Only push demoted verts when they are close enough to actually intrude on the source edge.
-                    dist_threshold = get_bmv_avg_edge_len(bmv) * self.source_sharp_proximity * 1.5
+                    dist_threshold = self.bmv_avg_edge_len(bmv) * self.source_sharp_proximity * 1.5
                     runs = self.demoted_by_runs.get(bmv)
                     if runs:
                         # Push away from every demoting run.
@@ -1192,83 +1521,109 @@ class Relax_Logic(FeatureRunsMixin):
 
             self.apply_corner_owner_demotion()
 
-        def build_loop_interpolation_cache(bmv, loop_cache):
-            ''' The cache stores (P_a, n_a, t, P_b, n_b) tuples with positions
-            and normals frozen at build time so the post-loop SLERP always uses
-            the original anchor geometry, not positions that may have been
-            displaced by subsequent Laplacian steps. '''
-            if bmv not in loop_cache:
-                lps = get_bmv_loop_pairs(bmv)
-                if not lps:
-                    loop_cache[bmv] = None
-                else:
-                    axes = []
-                    for nb_a, nb_b in lps:
-                        result_a = walk_loop_to_selection_boundary(bmv, nb_a)
-                        if result_a is None:
-                            continue
-                        result_b = walk_loop_to_selection_boundary(bmv, nb_b)
-                        if result_b is None:
-                            continue
-                        depth_a, anchor_a = result_a
-                        depth_b, anchor_b = result_b
-                        # t = 0 at anchor_a, t = 1 at anchor_b
-                        # span = depth_a + depth_b (hops across the full selection width)
-                        t = depth_a / (depth_a + depth_b)
-                        # Capture position and normal so compute_loop_arc_target
-                        # always reconstructs from the correct geometry.
-                        axes.append((Vector(anchor_a.co), bmv_compute_normal(anchor_a),
-                                     t,
-                                     Vector(anchor_b.co), bmv_compute_normal(anchor_b)))
-                    loop_cache[bmv] = axes if axes else None
+        def build_loop_interpolation_runs():
+            ''' Fill loop_interp_cache for every vert, storing (P_a, n_a, t, P_b, n_b) tuples whose positions and normals
+            are frozen at build time so the post-loop SLERP always uses the original anchor geometry,
+            not positions that may have been displaced by subsequent Laplacian steps. '''
+            MAX_DEPTH = 200          # per-member depth cap: how far a member may sit from an anchor
+            MAX_RUN = 2 * MAX_DEPTH  # longer runs cannot contain a member within the cap from both ends
+            loop_cache = self.loop_interp_cache
+            straighten_loops_cache = self.straighten_loops_cache
+            covered : dict[BMVert, int] = {}  # bitmask of pair indices already walked
+
+            def walk_direction(seed, first, chain_set):
+                ''' Walk from seed through first until leaving the selection. Returns
+                (members, anchor): members are the selected verts beyond seed in order;
+                anchor is the first unselected vert, or None for pole/boundary/cycle/overflow. '''
+                if first not in verts:
+                    return [], first
+                members = []
+                prev, cur = seed, first
+                while True:
+                    if cur in chain_set:
+                        return members, None   # loop closes inside the selection
+                    chain_set.add(cur)
+                    members.append(cur)
+                    if len(chain_set) > MAX_RUN:
+                        return members, None   # depth cap unreachable for every member
+                    nxt = get_bmv_next_loop_vert(prev, cur)
+                    if nxt is None:
+                        return members, None   # mesh boundary or pole
+                    if nxt not in verts:
+                        return members, nxt
+                    prev, cur = cur, nxt
+
+            for seed in verts:
+                seed_pairs = get_straighten_loops(seed, straighten_loops_cache)
+                if not seed_pairs: continue
+                for pair_idx, (nb_a, nb_b) in enumerate(seed_pairs):
+                    if covered.get(seed, 0) & (1 << pair_idx): continue
+                    chain_set = {seed}
+                    members_a, anchor_a = walk_direction(seed, nb_a, chain_set)
+                    members_b, anchor_b = walk_direction(seed, nb_b, chain_set)
+                    chain = members_a[::-1] + [seed] + members_b  # ordered from the anchor_a side
+                    valid = anchor_a is not None and anchor_b is not None
+                    if valid:
+                        span = len(chain) + 1
+                        co_a, nrm_a = Vector(anchor_a.co), bmv_compute_normal(anchor_a)
+                        co_b, nrm_b = Vector(anchor_b.co), bmv_compute_normal(anchor_b)
+                    # Every member's own walks would reach the same ends, so each one's
+                    # matching pair is marked walked whatever the verdict.
+                    for j, member in enumerate(chain):
+                        member_pairs = seed_pairs if member is seed else get_straighten_loops(member, straighten_loops_cache)
+                        if not member_pairs: continue
+                        a_side = chain[j - 1] if j > 0 else anchor_a
+                        nb_ref = a_side if a_side is not None else (chain[j + 1] if j + 1 < len(chain) else nb_a)
+                        (p0a, p0b), (p1a, p1b) = member_pairs
+                        if   nb_ref is p0a or nb_ref is p0b: p_idx, p_first = 0, p0a
+                        elif nb_ref is p1a or nb_ref is p1b: p_idx, p_first = 1, p1a
+                        else: continue
+                        covered[member] = covered.get(member, 0) | (1 << p_idx)
+                        if not valid: continue
+                        depth_a = j + 1
+                        depth_b = span - depth_a
+                        if depth_a > MAX_DEPTH or depth_b > MAX_DEPTH: continue
+                        axes = loop_cache.get(member)
+                        if axes is None:
+                            axes = []
+                            loop_cache[member] = axes
+                        # Match the member's own pair orientation: the arc reconstruction
+                        # is not symmetric in its endpoints, so which anchor plays A matters.
+                        if a_side is p_first:
+                            axes.append((co_a, nrm_a, depth_a / span, co_b, nrm_b))
+                        else:
+                            axes.append((co_b, nrm_b, depth_b / span, co_a, nrm_a))
 
         def relax_3d():
             #MARK: Add forces
+            nonlocal loop_interp_built, last_coords
             reset_forces()
-            if relax.algorithm_straighten_edges or relax.algorithm_laplacian:
-                for bmv in verts:
-                    if relax.algorithm_laplacian:
-                        laplacian_smooth(bmv, self.laplacian_cache)
-                    if relax.algorithm_straighten_edges:
-                        straighten_loops(bmv, self.straighten_loops_cache)
-            if getattr(relax, 'algorithm_interpolate_loops', False):
-                for bmv in verts:
-                    build_loop_interpolation_cache(bmv, self.loop_interp_cache)
-            if relax.algorithm_average_edge_lengths:
-                # Average edge length per island so disconnected areas of differing scale don't distort each other.
-                len_sums, len_counts = {}, {}
-                for bme in edges:
-                    isl = vert_island[bme.verts[0]]
-                    len_sums[isl]   = len_sums.get(isl, 0.0) + bme_length(bme)
-                    len_counts[isl] = len_counts.get(isl, 0) + 1
-                island_avg_len = { isl: len_sums[isl] / len_counts[isl] for isl in len_sums }
-                for bme in edges:
-                    average_edge_length(bme, island_avg_len[vert_island[bme.verts[0]]])
-            if relax.algorithm_equalize_faces:
-                # Average face area per island for the same reason as edges above.
-                area_sums, area_counts = {}, {}
-                for bmf in faces:
-                    isl = face_island[bmf]
-                    area_sums[isl]   = area_sums.get(isl, 0.0) + bmf.calc_area() / len(bmf.verts)
-                    area_counts[isl] = area_counts.get(isl, 0) + 1
-                island_avg_area = { isl: area_sums[isl] / area_counts[isl] for isl in area_sums }
-                for bmf in faces:
-                    avg_vert_area = island_avg_area[face_island[bmf]]
-                    avg_vert_area_sqrt = math.sqrt(avg_vert_area)
-                    face_center = bmf_midpoint(bmf)
-                    average_face_areas(bmf, avg_vert_area, face_center)
-                    average_face_shape(bmf, avg_vert_area_sqrt, face_center)
+            if batch_forces:
+                coords = gather_ext_coords()
+                last_coords = coords
+                for batch_fn in batch_forces:
+                    batch_fn(coords)
+            if getattr(relax, 'algorithm_interpolate_loops', False) and not loop_interp_built:
+                build_loop_interpolation_runs()
+                loop_interp_built = True
             if relax.algorithm_correct_flipped_faces:
                 correct_flipped_faces()
             if self.source_edge_accel and self.promoted_loop_verts:
                 pull_promoted_push_demoted()
 
+            # Merge scalar forces
+            for bmv, f in scalar_forces.items():
+                row = vert_row[bmv]
+                displace_arr[row] += f
+                touched[row] = True
+
             # Constrained verts may have no forces
-            # so assign a 0 vector so they still get updated for snapping
+            # so mark them touched so they still get updated for snapping
             if self.verts_near_source_edge:
-                for bmv in verts:
-                    if bmv in self.verts_near_source_edge and bmv not in displace:
-                        displace[bmv] = Vector((0.0, 0.0, 0.0))
+                for bmv in self.verts_near_source_edge:
+                    row = vert_row.get(bmv)
+                    if row is not None:
+                        touched[row] = True
 
         def compute_loop_arc_target(bmv, axes):
             ''' Return the averaged arc target on the curved surface
@@ -1350,6 +1705,72 @@ class Relax_Logic(FeatureRunsMixin):
                 return None
             return sum(ideals, Vector((0.0, 0.0, 0.0))) / len(ideals)
 
+        #MARK: Precompute
+        # So the snap loop below doesn't have to do these computations per vert.
+        M_3x3 = M.to_3x3()
+        M3_np = np.array(M_3x3, dtype=np.float64)
+        Mt_np = np.array(M.translation, dtype=np.float64)
+        center_np = np.array(brush_center_world[:3], dtype=np.float64)
+        slide_edges_opt = bool(getattr(relax, 'algorithm_slide_edges', False))
+        slide_accels = [
+            (mark_verts, accel)
+            for name, mark_verts, accel in (
+                ('boundary', self.boundary_verts, self.boundary_accel),
+                ('seams',    self.seam_verts,     self.seam_accel),
+                ('creases',  self.crease_verts,   self.crease_accel),
+                ('sharps',   self.sharp_verts,    self.sharp_accel),
+                ('angle',    self.angle_verts,    self.angle_accel),
+            )
+            if self.mask_opt(name) == 'SLIDE' and accel
+        ]
+        source_edge_accel = self.source_edge_accel
+        stickiness_active = bool(source_edge_accel) and self.stickiness > 0.0
+        has_sources = bool(self.sources)
+        rv3d_clip = context.region_data
+        clip_active = bool(rv3d_clip and rv3d_clip.use_clip_planes)
+        clip_planes = [tuple(p) for p in rv3d_clip.clip_planes] if clip_active else None
+        # Each tuple is (source-local <- world, world <- source-local)
+        # single_source below combines both with M/Mi so the snap loop never needs to build them per vert.
+        source_xforms = [(obj_s, Mi_s @ M, M_s) for (obj_s, M_s, Mi_s, _) in self.sources]
+        single_source = None
+        if len(self.sources) == 1 and not clip_active and not stickiness_active and snap_bvh is None:
+            obj_s, M_s, Mi_s, _ = self.sources[0]
+            single_source = (obj_s, Mi_s @ M, Mi @ M_s)
+
+        #MARK: Batched forces
+        # Each algorithm flattens its own topology into the shared row space and returns the
+        # function that evaluates it every step, or None when it has nothing to do.
+        # All of these must run before the first gather_ext_coords(), since they are what
+        # assign the extra rows that the gathered coords array has to cover.
+        lap_forces = make_laplacian_forces()             if relax.algorithm_laplacian            else None
+        st_forces  = make_straighten_loops_forces()      if relax.algorithm_straighten_edges     else None
+        ael_forces = make_average_edge_lengths_forces()  if relax.algorithm_average_edge_lengths else None
+        eq_forces  = make_equalize_faces_forces()        if relax.algorithm_equalize_faces       else None
+        batch_forces = [fn for fn in (lap_forces, st_forces, ael_forces, eq_forces) if fn]
+
+        # Full neighbor topology for the snap pass: per-vert average edge length becomes one
+        # reduceat per step instead of a per-vert edge scan.
+        cap_batch = None
+        cap_rows_list : list[int] = []
+        cap_nbrs_list : list[int] = []
+        cap_counts_list : list[int] = []
+        for row, bmv in enumerate(verts_list):
+            link_edges = bmv.link_edges
+            if not link_edges: continue
+            cap_rows_list.append(row)
+            cap_counts_list.append(len(link_edges))
+            cap_nbrs_list.extend(ext_index(bme.other_vert(bmv)) for bme in link_edges)
+        if cap_rows_list:
+            cap_counts = np.array(cap_counts_list, dtype=np.intp)
+            cap_rows_arr = np.array(cap_rows_list, dtype=np.intp)
+            cap_batch = (
+                cap_rows_arr,
+                np.array(cap_nbrs_list, dtype=np.intp),
+                np.repeat(cap_rows_arr, cap_counts),  # self row per neighbor slot
+                np.concatenate(([0], np.cumsum(cap_counts[:-1]))),
+                1.0 / cap_counts,
+            )
+
         #MARK: Smoothing
         strength_base = 20.0 * self.scale_avg * global_strength / time_delta
         if relax.algorithm_method == 'AUTO':
@@ -1371,66 +1792,106 @@ class Relax_Logic(FeatureRunsMixin):
             steps = iterations
 
         for i in range(steps):
+            self.avg_edge_len_cache.clear()
             update_source_context()
             if relax.algorithm_method == 'RK4':
-                original = { bmv: Vector(bmv.co) for bmv in verts }
+                orig_flat : list[float] = []
+                for bmv in verts_list: orig_flat.extend(bmv.co)
+                original = np.array(orig_flat, dtype=np.float64).reshape(len(verts_list), 3)
+
+                def set_all_cos(cos):
+                    for row, bmv in zip(cos, verts_list):
+                        bmv.co = Vector(row)
 
                 strength = strength_base
                 relax_3d()
-                k1 = displace.copy()
+                k1 = displace_arr.copy()
 
-                for bmv in original:
-                    f1 = k1[bmv] if bmv in k1 else Vector((0,0,0))
-                    bmv.co = original[bmv] + f1 / 2
+                set_all_cos(original + k1 * 0.5)
                 strength = strength_base / 2
                 relax_3d()
-                k2 = displace.copy()
+                k2 = displace_arr.copy()
 
-                for bmv in original:
-                    f2 = k2[bmv] if bmv in k2 else Vector((0,0,0))
-                    bmv.co = original[bmv] + f2 / 2
+                set_all_cos(original + k2 * 0.5)
                 strength = strength_base / 2
                 relax_3d()
-                k3 = displace.copy()
+                k3 = displace_arr.copy()
 
-                for bmv in original:
-                    f3 = k3[bmv] if bmv in k3 else Vector((0,0,0))
-                    bmv.co = original[bmv] + f3
+                set_all_cos(original + k3)
                 strength = strength_base
                 relax_3d()
-                k4 = displace.copy()
+                k4 = displace_arr.copy()
 
                 strength = strength_base / 6
-                displace.clear()
-                for bmv in original:
-                    f1 = k1[bmv] if bmv in k1 else Vector((0,0,0))
-                    f2 = k2[bmv] if bmv in k2 else Vector((0,0,0))
-                    f3 = k3[bmv] if bmv in k3 else Vector((0,0,0))
-                    f4 = k4[bmv] if bmv in k4 else Vector((0,0,0))
-                    displace[bmv] = (f1 + 2 * f2 + 2 * f3 + f4) * strength
-                    bmv.co = original[bmv]
-                    #bmv.co = original[bmv] + (f1 + 2 * f2 + 2 * f3 + f4) * strength
+                displace_arr[:] = (k1 + 2.0 * k2 + 2.0 * k3 + k4) * strength
+                touched[:] = True
+                set_all_cos(original)
+                #set_all_cos(original + displace_arr)
+                last_coords = None  # k4's gather was at perturbed positions so the snap pass must re-gather
 
             else:
                 relax_3d()
 
             if relax.algorithm_prevent_bounce:
-                for (bmv, v1) in displace.items():
-                    if bmv not in self.prev_displace: continue
-                    v0 = self.prev_displace[bmv]
-                    if v0.length_squared < 1e-8 or v1.length_squared < 1e-8 or v0.dot(v1) >= 0: continue
-                    self.bounce_mult[bmv] = self.bounce_mult.get(bmv, 1.0) * 0.5
-                self.prev_displace = displace
+                touched_idx = np.nonzero(touched)[0]
+                touched_list = touched_idx.tolist()  # python ints, iterating np scalars is slow
+                prev_map, prev_arr = self.prev_displace
+                if prev_map:
+                    prev_rows = np.fromiter(
+                        (prev_map.get(verts_list[row], -1) for row in touched_list),
+                        dtype=np.intp, count=len(touched_list),
+                    )
+                    have = prev_rows >= 0
+                    if have.any():
+                        v0 = prev_arr[prev_rows[have]]
+                        v1 = displace_arr[touched_idx[have]]
+                        bouncing = (
+                            (np.einsum('ij,ij->i', v0, v0) >= 1e-8)
+                            & (np.einsum('ij,ij->i', v1, v1) >= 1e-8)
+                            & (np.einsum('ij,ij->i', v0, v1) < 0)
+                        )
+                        if bouncing.any():
+                            bounce_mult = self.bounce_mult
+                            for row in touched_idx[have][bouncing].tolist():
+                                bmv = verts_list[row]
+                                bounce_mult[bmv] = bounce_mult.get(bmv, 1.0) * 0.5
+                self.prev_displace = (
+                    { verts_list[row]: k for k, row in enumerate(touched_list) },
+                    displace_arr[touched_idx].copy(),
+                )
 
-            if len(displace) <= 1: continue
+            if int(touched.sum()) <= 1: continue
+
+            #MARK: Snapping
+            # Verts that received no force still enter the snap pass so they are still projected
+            if snap_unforced_verts:
+                touched[:] = True
+
+            # Snap-vert positions come from the coords relax_3d already gathered this step
+            # Average edge lengths for the distance cap come from one reduceat over the full-neighbor topology
+            snap_rows = np.nonzero(touched)[0]
+            snap_bmvs = [verts_list[row] for row in snap_rows.tolist()]
+            snap_count = len(snap_bmvs)
+            prev_position = self.prev_position
+            for bmv in snap_bmvs:
+                if bmv not in prev_position: prev_position[bmv] = Vector(bmv.co)
+            cap_edges = relax.algorithm_max_distance_edges
+            coords_now = last_coords if last_coords is not None else gather_ext_coords()
+            cos_arr = coords_now[snap_rows]
+            avg_full = np.full(len(verts_list), inf, dtype=np.float64)
+            if cap_batch is not None:
+                cap_rows, cap_nbrs, cap_self, cap_offsets, cap_invc = cap_batch
+                cap_lens = np.linalg.norm(coords_now[cap_nbrs] - coords_now[cap_self], axis=1)
+                avg_full[cap_rows] = np.add.reduceat(cap_lens, cap_offsets) * cap_invc
+            avg_len_snap = avg_full[snap_rows]  # inf where the vert has no edges
+            edge_caps = np.where(np.isfinite(avg_len_snap), avg_len_snap * cap_edges, inf)
+            disp_arr = displace_arr[snap_rows]
 
             mult = 1.0
 
             # limit the maximum displacement based on brush radius
-            displace_max = max(
-                (M @ Vector((*displace[bmv], 0.0))).length
-                for bmv in displace
-            )
+            world_norms = np.linalg.norm(disp_arr @ M3_np.T, axis=1)
+            displace_max = float(world_norms.max())
             if displace_max > 1e-8:
                 mult *= min(1.0, radius3D * relax.algorithm_max_distance_radius / displace_max)
             # print(time_delta, radius3D, relax.algorithm_max_distance_radius, displace_max, mult)
@@ -1449,30 +1910,37 @@ class Relax_Logic(FeatureRunsMixin):
                     if cr := source_corner_of_vert(corner_bmv, 0.05): # Tight fixed margin, 5% of local edge length
                         vert_to_corner_idx[corner_bmv] = cr[1]
 
-            #MARK: Snapping
-            # Ensure verts that received no algorithmic force still enter the snap pass
-            # so they are projected onto the source surface from their current position.
-            if snap_unforced_verts:
-                for bmv in verts:
-                    if bmv not in displace:
-                        displace[bmv] = Vector((0.0, 0.0, 0.0))
+            local_norms = np.linalg.norm(disp_arr, axis=1)
+            dists = local_norms * mult
+            dists = np.where(dists > 1e-8, np.minimum(dists, edge_caps), dists)
+            # dists *= vert_strengths
+            dists *= pressure  # tablet pressure applied here so it isn't normalised out by the caps above
+            if relax.algorithm_prevent_bounce and self.bounce_mult:
+                bounce_mult = self.bounce_mult
+                dists *= np.fromiter((bounce_mult.get(bmv, 1.0) for bmv in snap_bmvs), dtype=np.float64, count=snap_count)
+            vec_arrs = disp_arr * (dists / np.maximum(local_norms, 1e-30))[:, None]
+            newco_arrs = cos_arr + vec_arrs
+            dists_list = dists.tolist()
+            if stickiness_active:
+                avg_len_list = avg_len_snap.tolist()
+                # brush falloff for the source-feature thresholds, for all snap verts at once
+                bv_world = cos_arr @ M3_np.T + Mt_np
+                falloff_list = np.clip(
+                    1.0 - np.linalg.norm(bv_world - center_np, axis=1) / radius3D, 0.0, 1.0,
+                ).tolist()
+
             update_to = {}
-            for bmv in displace:
-                if bmv not in self.prev_position: self.prev_position[bmv] = Vector(bmv.co)
+            near_source = self.verts_near_source_edge
+            promoted_verts = self.promoted_loop_verts
+            demoted_verts = self.demoted_verts
+            stickiness_val = self.stickiness
+            for snap_i, bmv in enumerate(snap_bmvs):
+                co : Vector = Vector(newco_arrs[snap_i])
+                displace_vec : 'Vector | None' = None  # materialized only by the paths that need it
+                disp_len : float = dists_list[snap_i]
 
-                displace_dist = displace[bmv].length * mult
-                if bmv.link_edges and displace_dist > 1e-8:
-                    avg_edge_len = get_bmv_avg_edge_len(bmv)
-                    displace_dist *= min(1.0, avg_edge_len * relax.algorithm_max_distance_edges / displace_dist)
-                # displace_dist *= vert_strength[bmv]
-                displace_dist *= pressure  # tablet pressure applied here so it isn't normalised out by the caps above
-                if relax.algorithm_prevent_bounce:
-                    displace_dist *= self.bounce_mult.get(bmv, 1.0)
-                displace_vec : Vector = displace[bmv].normalized() * displace_dist
-
-                co : Vector = bmv.co + displace_vec
-
-                if getattr(relax, 'algorithm_slide_edges', False) and bmv.link_edges:
+                if slide_edges_opt and bmv.link_edges:
+                    displace_vec = Vector(vec_arrs[snap_i])
                     best_dir = None
                     best_abs_dot = 0.0
                     for bme in bmv.link_edges:
@@ -1488,46 +1956,35 @@ class Relax_Logic(FeatureRunsMixin):
                     if best_dir is not None:
                         displace_vec = best_dir * displace_vec.dot(best_dir)
                         co = bmv.co + displace_vec
+                        disp_len = displace_vec.length
 
                 if opt_draw_net:
+                    if displace_vec is None: displace_vec = Vector(vec_arrs[snap_i])
                     self.draw_vectors_net.append((bmv.co, displace_vec * 100))
 
-                if self.mask_opt('boundary') == 'SLIDE' and bmv in self.boundary_verts and self.boundary_accel:
-                    if p := self.boundary_accel.closest_point(co):
-                        co = p
-                if self.mask_opt('seams') == 'SLIDE' and bmv in self.seam_verts and self.seam_accel:
-                    if p := self.seam_accel.closest_point(co):
-                        co = p
-                if self.mask_opt('creases') == 'SLIDE' and bmv in self.crease_verts and self.crease_accel:
-                    if p := self.crease_accel.closest_point(co):
-                        co = p
-                if self.mask_opt('sharps') == 'SLIDE' and bmv in self.sharp_verts and self.sharp_accel:
-                    if p := self.sharp_accel.closest_point(co):
-                        co = p
-                if self.mask_opt('angle') == 'SLIDE' and bmv in self.angle_verts and self.angle_accel:
-                    if p := self.angle_accel.closest_point(co):
-                        co = p
-
-                co_world = M @ Vector((*co.xyz, 1.0))
+                for slide_verts, slide_accel in slide_accels:
+                    if bmv in slide_verts:
+                        if p := slide_accel.closest_point(co):
+                            co = p
 
                 apply_edge_snap = False
                 snap_avg_edge_len = 0.0
-                is_promoted_bmv = bool(self.promoted_loop_verts) and bmv in self.promoted_loop_verts
-                if self.source_edge_accel and bmv.link_edges and self.stickiness > 0.0:
-                    snap_avg_edge_len = get_bmv_avg_edge_len(bmv)
-                    if bmv in self.demoted_verts:
+                is_promoted_bmv = bool(promoted_verts) and bmv in promoted_verts
+                if stickiness_active and bmv.link_edges:
+                    snap_avg_edge_len = avg_len_list[snap_i]
+                    if bmv in demoted_verts:
                         apply_edge_snap = False  # Demoted verts lose all stickiness
-                    elif bmv in self.verts_near_source_edge or is_promoted_bmv:
+                    elif bmv in near_source or is_promoted_bmv:
                         # Promoted verts evaluate stickiness even outside the near set.
                         # The near set's normal-facing gate fails on a shallow crease for a vert sitting slightly off the feature,
                         # and without apply_edge_snap such a vert takes the on-edge branch below but
                         # can never actually edge-snap there.
-                        if self.stickiness >= 1.0:
+                        if stickiness_val >= 1.0:
                             apply_edge_snap = True
                         else:
-                            escape_threshold = snap_avg_edge_len * 0.005 * self.stickiness / (1.0 - self.stickiness)
+                            escape_threshold = snap_avg_edge_len * 0.005 * stickiness_val / (1.0 - stickiness_val)
                             # Only the perpendicular component of the force is compared against the threshold
-                            perp = displace[bmv]
+                            perp = Vector(disp_arr[snap_i])
                             edge_nbrs = edge_constrained_neighbors(bmv)
                             if len(edge_nbrs) >= 2:
                                 ev = edge_nbrs[-1].co - edge_nbrs[0].co
@@ -1542,70 +1999,83 @@ class Relax_Logic(FeatureRunsMixin):
                             apply_edge_snap = perp.length <= escape_threshold
 
                 co_world_snapped = None
-                if self.source_edge_accel and displace_vec.length > 1e-6:
-                    co_pt = point_to_bvec3(co_world.xyz)
-                    if apply_edge_snap:
-                        # Sticky verts project straight to their own feature run
-                        result = self.closest_on_own_run(bmv, co_pt)
-                        if result is not None:
-                            co_world_snapped = Vector(result[0])
-                        elif bmv_is_interior(bmv):
-                            # Fallback (no feature data for this vert): project along normals,
-                            # better than nearest-surface for interior verts that can shrink
-                            # inward during smoothing. Not used for boundary or wire verts since
-                            # the normals can graze a 90 degree angle.
-                            normal_world = (Mi.transposed().to_3x3() @ bmv.normal).normalized()
-                            best_dist = inf
-                            for obj, M_obj, Mi_obj, Mi_obj_3x3 in self.sources:
-                                ray_o  = (Mi_obj @ Vector((*co_pt, 1.0))).xyz
-                                ray_d  = (Mi_obj_3x3 @ normal_world).normalized()
-                                for d in (ray_d, -ray_d):
-                                    result, co_hit, _, _ = source_ray_cast(obj, ray_o, d)
-                                    if not result:
-                                        continue
-                                    hit_world = point_to_bvec3((M_obj @ Vector((*co_hit, 1.0))).xyz)
-                                    dist = (Vector(hit_world) - Vector(co_pt)).length
-                                    if dist < best_dist:
-                                        best_dist = dist
-                                        co_world_snapped = hit_world
+                co_local_snapped : 'Vector | None' = None
+                if source_edge_accel and apply_edge_snap and disp_len > 1e-6:
+                    co_pt = M @ co
+                    # Sticky verts project straight to their own feature run
+                    result = self.closest_on_own_run(bmv, co_pt)
+                    if result is not None:
+                        co_world_snapped = Vector(result[0])
+                    elif bmv_is_interior(bmv):
+                        # Fallback (no feature data for this vert): project along normals,
+                        # better than nearest-surface for interior verts that can shrink
+                        # inward during smoothing. Not used for boundary or wire verts since
+                        # the normals can graze a 90 degree angle.
+                        normal_world = (Mi.transposed().to_3x3() @ bmv.normal).normalized()
+                        best_dist = inf
+                        for obj, M_obj, Mi_obj, Mi_obj_3x3 in self.sources:
+                            ray_o  = (Mi_obj @ Vector((*co_pt, 1.0))).xyz
+                            ray_d  = (Mi_obj_3x3 @ normal_world).normalized()
+                            for d in (ray_d, -ray_d):
+                                result, co_hit, _, _ = source_ray_cast(obj, ray_o, d)
+                                if not result:
+                                    continue
+                                hit_world = point_to_bvec3((M_obj @ Vector((*co_hit, 1.0))).xyz)
+                                dist = (Vector(hit_world) - Vector(co_pt)).length
+                                if dist < best_dist:
+                                    best_dist = dist
+                                    co_world_snapped = hit_world
+
+                if co_world_snapped is None:
+                    if single_source is not None:
+                        # Fast path. One source, no clipping, no feature snapping.
+                        # One combined transform in, the guarded C query, one combined transform out.
+                        src_obj, to_src, to_edit = single_source
+                        ok, hit_co, _n, _i = source_closest_point_on_mesh(src_obj, to_src @ co)
+                        if not ok: continue  # keep the vert in place rather than fling it off the surface
+                        co_local_snapped = to_edit @ hit_co
                     else:
-                        co_world_snapped = nearest_point_valid_sources(
-                            context, co_pt, world=True, sources=self.sources, respect_clip_planes=True
-                        )
-                if not co_world_snapped:
-                    # Feature snapping off, or closest_point / both rays returned nothing
-                    co_world_snapped = nearest_point_valid_sources(
-                        context, point_to_bvec3(co_world.xyz), world=True, sources=self.sources, respect_clip_planes=True
-                    )
+                        co_world_q = M @ co
+                        best_hit = None
+                        best_dist = inf
+                        for src_obj, to_src, src_to_world in source_xforms:
+                            ok, hit_co, _n, _i = source_closest_point_on_mesh(src_obj, to_src @ co)
+                            if not ok: continue
+                            hit_world = src_to_world @ hit_co
+                            if clip_active:
+                                hx, hy, hz = hit_world
+                                if any(p0*hx + p1*hy + p2*hz + p3 < 0 for (p0, p1, p2, p3) in clip_planes):
+                                    continue
+                            dist = (hit_world - co_world_q).length
+                            if dist < best_dist:
+                                best_hit, best_dist = hit_world, dist
+                        co_world_snapped = best_hit
 
-                # Reproject-shape fallback: when no external source exists but the caller
-                # supplied a BVH built from the original mesh island, project onto that.
-                if not co_world_snapped and snap_bvh:
-                    hit_loc, _hit_norm, _hit_idx, _hit_dist = snap_bvh.find_nearest(point_to_bvec3(co_world.xyz))
-                    if hit_loc:
-                        co_world_snapped = point_to_bvec3(hit_loc)
+                        # Reproject-shape fallback: when no external source exists but the caller
+                        # supplied a BVH built from the original mesh island, project onto that.
+                        if not co_world_snapped and snap_bvh:
+                            hit_loc, _hit_norm, _hit_idx, _hit_dist = snap_bvh.find_nearest(co_world_q)
+                            if hit_loc:
+                                co_world_snapped = point_to_bvec3(hit_loc)
 
-                if not co_world_snapped:
-                    # No source surface to snap to so keep the relaxed position.
-                    # When sources are present, skip instead so a vert that
-                    # failed to project isn't flung off the surface.
-                    if self.sources: continue
-                    co_local_snapped : Vector = co
-                else:
-                    co_local_snapped : Vector = Mi @ co_world_snapped
+                if co_local_snapped is None:
+                    if not co_world_snapped:
+                        # No source surface to snap to so keep the relaxed position.
+                        # When sources are present, skip instead so a vert that
+                        # failed to project isn't flung off the surface.
+                        if has_sources: continue
+                        co_local_snapped = co
+                    else:
+                        co_local_snapped = Mi @ co_world_snapped
 
-                _bv_world = (M @ Vector((*bmv.co, 1.0))).xyz
-                _dist_to_brush = (Vector(_bv_world) - brush_center_world).length
-                brush_snap_falloff = clamp(1.0 - _dist_to_brush / radius3D, 0.0, 1.0)
-
-                if (bmv in self.verts_near_source_edge or is_promoted_bmv) and snap_avg_edge_len > 0:
+                if (bmv in near_source or is_promoted_bmv) and snap_avg_edge_len > 0:
                     # Vert is directly on the source edge. Promoted verts always take this path.
                     # The near-set's normal-facing gate fails for a vert sitting fractionally off
                     # a fold as its normal is the fold bisector, ~ perpendicular to the direction back
                     # to the feature, and falling to the approach-gated branch would leave it
                     # unsnapped on frames where it isn't moving toward the feature.
-                    co_world_pt = point_to_bvec3(co_world.xyz)
-                    if self.demoted_verts and bmv in self.demoted_verts:
+                    co_world_pt = M @ co
+                    if demoted_verts and bmv in demoted_verts:
                         # Demoted vert entered the snap zone so push it back out
                         max_push_dist = snap_avg_edge_len * self.scale_avg * self.source_sharp_proximity
                         push = self.demoted_net_push_world(bmv, Vector(co_world_pt), max_push_dist)
@@ -1621,7 +2091,7 @@ class Relax_Logic(FeatureRunsMixin):
                         snap_threshold = source_snap_radius(
                             snap_avg_edge_len * self.scale_avg,
                             use_fixed=self.source_use_fixed, fixed_distance=self.source_fixed_distance, avg_edge_factor=self.source_sharp_proximity,
-                        ) * brush_snap_falloff
+                        ) * falloff_list[snap_i]
                         corner_threshold = snap_threshold * getattr(relax, 'algorithm_source_corner_proximity', 2.0)
                         snapped_to_corner = False
                         if corner_result := self.source_edge_accel.find_corner(co_world_pt):
@@ -1644,20 +2114,20 @@ class Relax_Logic(FeatureRunsMixin):
                                 if (closest_p - Vector(co_world_pt)).length <= snap_threshold:
                                     co_local_snapped = Mi @ closest_p
                                     self.snapped_verts.add(bmv)
-                elif self.source_edge_accel and bmv.link_edges and snap_avg_edge_len > 0:
+                elif source_edge_accel and bmv.link_edges and snap_avg_edge_len > 0:
                     # Vert is approaching the source edge.
                     # Distance is measured from the vert's world position not its projected position.
-                    is_demoted  = bool(self.demoted_verts)  and bmv in self.demoted_verts
-                    is_promoted = bool(self.promoted_loop_verts) and bmv in self.promoted_loop_verts
+                    is_demoted  = bool(demoted_verts)  and bmv in demoted_verts
+                    is_promoted = is_promoted_bmv
                     snap_threshold = source_snap_radius(
                         snap_avg_edge_len * self.scale_avg,
                         use_fixed=self.source_use_fixed, fixed_distance=self.source_fixed_distance, avg_edge_factor=self.source_sharp_proximity,
-                    ) * brush_snap_falloff
+                    ) * falloff_list[snap_i]
                     if is_promoted:
                         snap_threshold *= 1.5   # wider window pulls promoted loop in sooner
                     elif is_demoted:
                         snap_threshold *= 0.5   # narrower window keeps demoted verts farther out
-                    co_world_pt = point_to_bvec3(co_world.xyz)
+                    co_world_pt = M @ co
                     if is_demoted:
                         # Demoted: push away regardless of direction, from every demoting run.
                         push = self.demoted_net_push_world(bmv, Vector(co_world_snapped), snap_threshold)
@@ -1674,7 +2144,8 @@ class Relax_Logic(FeatureRunsMixin):
                         to_edge_w = p_vec - co_world_pt
                         if to_edge_w.length <= snap_threshold:
                             # Promoted or neutral: snap only when approaching
-                            disp_world = M.to_3x3() @ displace_vec
+                            if displace_vec is None: displace_vec = Vector(vec_arrs[snap_i])
+                            disp_world = M_3x3 @ displace_vec
                             if to_edge_w.length < 1e-8 or disp_world.dot(to_edge_w) > 0:
                                 co_local_snapped = Mi @ p_vec
 
