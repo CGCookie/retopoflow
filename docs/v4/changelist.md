@@ -4,7 +4,7 @@ This document contains details about what has changed in Retopoflow in version 4
 
 ### 4.2.0
 
-- Added low poly hard surface / CAD snapping to all tools
+- Added experimental low poly hard surface / CAD snapping to all tools
     - Enabled via the new Snapping menu
     - Inludes a new caching system for the source objects
 
@@ -13,26 +13,42 @@ This document contains details about what has changed in Retopoflow in version 4
     - Includes unique options for retaining / reconstructing the desired shape
     - Works great with proportional editing
 
-- Added standalone operator for twisting loops that also works outside of Retopoflow
+- Added operator for evening selection that also works outside of Retopoflow
+    - Similar to Relax but faster to use when adjusting spacing and improved for edge loops
+    - Works for any number of selected edge loops, non-loop edges, and faces
+    - Optionally preserves sharp angles
+
+- Added operator for inserting diamond junctions that also works outside of Retopoflow
+
+- Added operator for twisting loops that also works outside of Retopoflow
     - It automatically finds cross-sectional loops in the selection and twists each one independantly
     - All vertices that are not on complete loops are properly interpolated
     - Works great with proportional editing
 
 - Added new source processing method, SDF, to Contours
-    - It is faster than Walk but slower than Fast
+    - It is much faster than Walk but slower than Fast
     - It is slightly less accurate than Walk but much more accurate than Fast
     - It can handle flipped normals, split edges, and overhangs just fine
 - Added Alt R hotkey to twist in Contours
 - Added Ctrl Scroll after extruding in Contours to adjust segment count
+- Added Curvature and Space Evenly controls to Contours that determine where new points are placed
+- Added Refinement option to Contours Fast method that improves quality without much overhead
+- Exposed the Contours Walk method source object cache so it can be managed manually if needed
 - Increased max span count in Contours
 
 - Added Ctrl and Shift scroll operators to adjust segments and width at any time in PolyStrips
+    - This is also a standalone operator that can be used outside of Retopoflow
 - PolyStrips now has insert size methods similar to Strokes
     - The default, Snapped, properly interpolates when drawing between any two quads
 - Improved edge placement when creating strips
-- Improved PolyStrips curve handles
-- Expanded the curve handle system to work with edge loops and selection patches
+- PolyStrips now snaps to adjacent geometry, so you can draw alongside existing edges
+- PolyStrips face sizing now matches the faces you snap to or from by default
+- Significantly improved PolyStrips curve handles
+
 - The curve handles are now available when working in Strokes and PolyPen as well
+    - Expanded the curve handle system to work with edge loops and patches of faces
+    - Hovering over a control point and pressing `v` toggles the handle type
+    - Toggling the handle type to or from Vector automatically inserts or removes corners
 
 - Stokes now snaps its span sides to nearby connected vertices
     - This makes it so Strokes can fill holes without creating overlapping verts

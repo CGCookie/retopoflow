@@ -33,6 +33,7 @@ class RF_MT_ContextMenu(Menu):
         layout.operator("retopoflow.relax_selected", text="Relax")
         layout.operator_context = 'INVOKE_REGION_WIN'
         layout.operator("retopoflow.twist_loop", text="Twist Loops")
+        layout.operator("retopoflow.insert_diamond_junction", text="Insert Diamond Junction")
         # INVOKE (from the line above) is required here -- this operator's
         # invoke() seeds its `count` from the selected strip's actual current
         # count, which EXEC would skip, leaving `count` at a stale/default value

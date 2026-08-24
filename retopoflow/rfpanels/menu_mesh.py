@@ -33,5 +33,6 @@ def draw_vertex_menu_items(self, context):
 
 def draw_edge_menu_items(self, context):
     self.layout.separator()
+    self.layout.operator("retopoflow.insert_diamond_junction")
     self.layout.operator_context = 'INVOKE_REGION_WIN'
     self.layout.operator("retopoflow.twist_loop")
