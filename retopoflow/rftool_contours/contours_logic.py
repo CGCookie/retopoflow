@@ -312,6 +312,8 @@ class Contours_Logic:
     last_skip_step_size : float | None
     sample_width : float
     last_sample_width : float | None
+    sdf_grid_size : float
+    last_sdf_grid_size : float | None
     sdf_subdivisions : int
     last_sdf_subdivisions : int | None
     sdf_extent_scale : float
@@ -345,7 +347,8 @@ class Contours_Logic:
     def __init__(self, context:Context, hit:dict[str,...], plane:Plane, circle_points:list[Vector], span_count:int,
                  process_source_method:str, hits:list[dict[str, ...]], cut_orientation:str='stroke', fast_depth:int=1,
                  sample_points:int=50, fast_refine_steps:int=5, sdf_refine_steps:int=3, skip_step_size:float=0.5, sample_width:float=0.25,
-                 sdf_subdivisions:int=0, sdf_extent_scale:float=1.5, curvature_bias:float=0.7, space_evenly:float=1.0,
+                 sdf_grid_size:float=0.25, sdf_subdivisions:int=0, sdf_extent_scale:float=1.5,
+                 curvature_bias:float=0.7, space_evenly:float=1.0,
                  sdf_stroke_world_len:float=0.0):
         self.hit = hit
         self.hits = hits
@@ -373,6 +376,8 @@ class Contours_Logic:
         self.last_skip_step_size = None
         self.sample_width = sample_width
         self.last_sample_width = None
+        self.sdf_grid_size = sdf_grid_size
+        self.last_sdf_grid_size = None
         self.sdf_subdivisions = sdf_subdivisions
         self.last_sdf_subdivisions = None
         self.sdf_extent_scale = sdf_extent_scale
@@ -443,6 +448,7 @@ class Contours_Logic:
             self.last_sdf_refine_steps == self.sdf_refine_steps and
             self.last_skip_step_size == self.skip_step_size and
             self.last_sample_width == self.sample_width and
+            self.last_sdf_grid_size == self.sdf_grid_size and
             self.last_sdf_subdivisions == self.sdf_subdivisions and
             self.last_sdf_extent_scale == self.sdf_extent_scale and
             self.last_cut_orientation == self.cut_orientation
@@ -456,6 +462,7 @@ class Contours_Logic:
         self.last_sdf_refine_steps = self.sdf_refine_steps
         self.last_skip_step_size = self.skip_step_size
         self.last_sample_width = self.sample_width
+        self.last_sdf_grid_size = self.sdf_grid_size
         self.last_sdf_subdivisions = self.sdf_subdivisions
         self.last_sdf_extent_scale = self.sdf_extent_scale
         self.last_cut_orientation = self.cut_orientation
@@ -1344,11 +1351,11 @@ class Contours_Logic:
         hit_local = plane_cut.w2l_point(Vector(self.hit['co_world']))
         sx, sy = hit_local.x, hit_local.y  # seed = center of coarse cell (0, 0)
 
-        SAMPLE_WIDTH_FACTOR = 1.0
+        GRID_SIZE_FACTOR = 1.0
         stroke_world_len = self.sdf_stroke_world_len
         if stroke_world_len < 1e-6:
             stroke_world_len = 2.0 * self.circle_hit[2]  # fallback: fitted diameter
-        cell_size = self.sample_width * stroke_world_len * SAMPLE_WIDTH_FACTOR
+        cell_size = self.sdf_grid_size * stroke_world_len * GRID_SIZE_FACTOR
         if not math.isfinite(cell_size) or cell_size < 1e-6:
             print('CONTOURS SDF: degenerate cell size, falling back to Fast')
             return self.process_source_fast(context)

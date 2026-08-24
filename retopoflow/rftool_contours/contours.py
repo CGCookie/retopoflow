@@ -179,9 +179,8 @@ class RFOperator_Contours_Insert_Properties:
     )
     sample_width: bpy.props.FloatProperty(               # pyright: ignore [reportUninitializedInstanceVariable]
         name='Sample Width',
-        description='Fast: The width of extra 2 sample points along the stroke that help triangulate the volume center. ' \
-            'Both points should be over the surface you want to wrap around. \n\n' \
-            'SDF: The initial size of the sampling grid. Smaller is more accurate but slower to compute.',
+        description='The width of extra 2 sample points along the stroke that help triangulate the volume center. ' \
+            'Both points should be over the surface you want to wrap around.',
         default=0.25,
         min=0.10,
         max=1.00,
@@ -194,6 +193,15 @@ class RFOperator_Contours_Insert_Properties:
         default=0.5,
         min=0.1,
         max=1.0,
+    )
+    sdf_grid_size: bpy.props.FloatProperty(              # pyright: ignore [reportUninitializedInstanceVariable]
+        name='Grid Size',
+        description='The initial size of the sampling grid, as a fraction of the stroke. '
+            'Smaller is more accurate but slower to compute.',
+        default=0.25,
+        min=0.10,
+        max=1.00,
+        subtype='FACTOR',
     )
     sdf_subdivisions: bpy.props.IntProperty(       # pyright: ignore [reportUninitializedInstanceVariable]
         name='Pixel Refine',
@@ -251,7 +259,7 @@ def draw_contours_method_options(context, layout, props, redo=None):
         draw_source_cache_controls(context, layout)
 
     elif props.process_source_method == 'sdf':
-        layout.prop(props, 'sample_width',  text='Grid Size')
+        layout.prop(props, 'sdf_grid_size', text='Grid Size')
         layout.prop(props, 'sdf_subdivisions', text='Subdivisions')
         layout.prop(props, 'sdf_refine_steps', text='Refinement')
 
@@ -326,7 +334,7 @@ class RFOperator_Contours_Insert(
     @staticmethod
     def insert(context, hit, plane, circle_points, span_count, process_source_method, hits, cut_orientation,
                fast_depth=1, sample_points=50, fast_refine_steps=5, sdf_refine_steps=3, skip_step_size=1.0,
-               sample_width=0.25, sdf_subdivisions=0, sdf_extent_scale=1.5,
+               sample_width=0.25, sdf_grid_size=0.25, sdf_subdivisions=0, sdf_extent_scale=1.5,
                curvature_bias=0.7, space_evenly=1.0, sdf_stroke_world_len=0.0):
         RFOperator_Contours_Insert.logic = Contours_Logic(
             context,
@@ -343,6 +351,7 @@ class RFOperator_Contours_Insert(
             sdf_refine_steps,
             skip_step_size,
             sample_width,
+            sdf_grid_size,
             sdf_subdivisions,
             sdf_extent_scale,
             curvature_bias,
@@ -364,6 +373,7 @@ class RFOperator_Contours_Insert(
             sdf_refine_steps=logic.sdf_refine_steps,
             skip_step_size=logic.skip_step_size,
             sample_width=logic.sample_width,
+            sdf_grid_size=logic.sdf_grid_size,
             sdf_subdivisions=logic.sdf_subdivisions,
             sdf_extent_scale=logic.sdf_extent_scale,
             twist=logic.twist,
@@ -390,6 +400,7 @@ class RFOperator_Contours_Insert(
         logic.sdf_refine_steps      = self.sdf_refine_steps
         logic.skip_step_size        = self.skip_step_size
         logic.sample_width          = self.sample_width
+        logic.sdf_grid_size         = self.sdf_grid_size
         logic.sdf_subdivisions = self.sdf_subdivisions
         logic.sdf_extent_scale      = self.sdf_extent_scale
         logic.twist                 = self.twist
@@ -421,6 +432,7 @@ class RFOperator_Contours_Insert(
         self.sdf_refine_steps      = logic.sdf_refine_steps
         self.skip_step_size        = logic.skip_step_size
         self.sample_width          = logic.sample_width
+        self.sdf_grid_size         = logic.sdf_grid_size
         self.sdf_subdivisions = logic.sdf_subdivisions
         self.sdf_extent_scale      = logic.sdf_extent_scale
         self.twist                 = logic.twist
@@ -578,11 +590,11 @@ class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
         # Storing the scalar avoids re-projecting screen coords through a rotated view on redo.
         _sdf_stroke_world_len = 0.0
         if hit:
-            _sw = self.sample_width
+            _gs = self.sdf_grid_size
             _hit_world = Vector(hit['co_world'])
             _rgn, _rv3d = context.region, context.region_data
             for _v in (-1.0, 1.0):
-                _vn = (4 * _sw) * (_v / 2) ** 3 + 0.5
+                _vn = (4 * _gs) * (_v / 2) ** 3 + 0.5
                 _p2d = mouse0 + (mouse1 - mouse0) * _vn
                 _p3d = region_2d_to_location_3d(_rgn, _rv3d, _p2d, _hit_world)
                 if _p3d is None:
@@ -593,7 +605,8 @@ class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
         RFOperator_Contours_Insert.insert(context, hit, plane, circle_points, self.span_count, self.process_source_method, hits,
                                           self.cut_orientation, self.fast_depth, self.sample_points, self.fast_refine_steps,
                                           self.sdf_refine_steps, self.skip_step_size, self.sample_width,
-                                          self.sdf_subdivisions, self.sdf_extent_scale, self.curvature_bias, self.space_evenly,
+                                          self.sdf_grid_size, self.sdf_subdivisions, self.sdf_extent_scale,
+                                          self.curvature_bias, self.space_evenly,
                                           sdf_stroke_world_len=_sdf_stroke_world_len)
 
     def update(self, context, event):
