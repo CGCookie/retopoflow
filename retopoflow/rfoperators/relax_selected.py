@@ -39,7 +39,7 @@ from ..rftool_relax.relax_logic import Relax_Logic, RelaxOptions
 
 class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
     bl_idname = "retopoflow.relax_selected"
-    bl_label = "Relax Vertices (Retopoflow)"
+    bl_label = "Relax (Retopoflow)"
     bl_description = "Relax the selected vertices using the Retopoflow relax algorithm"
     bl_space_type = "VIEW_3D"
     bl_region_type = "TOOLS"

@@ -27,6 +27,7 @@ def draw_paint_vertex_menu_items(self, context):
 
 def draw_vertex_menu_items(self, context):
     self.layout.separator()
+    self.layout.operator("retopoflow.space_evenly")
     self.layout.operator("retopoflow.relax_selected")
 
 

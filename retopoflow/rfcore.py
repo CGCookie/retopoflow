@@ -76,7 +76,7 @@ from . import preferences
 from .rfprops import rfprops_scene, rfprops_object
 
 # Operator files need to be imported here in order to be registered, even if they are not used in this file
-from .rfoperators import mesh_cleanup, mirror, pinning, reset_tool_settings, launch_browser, relax_selected, twist, rebuild_sources, separate_feature_regions
+from .rfoperators import mesh_cleanup, mirror, pinning, reset_tool_settings, launch_browser, relax_selected, space_evenly, twist, rebuild_sources, separate_feature_regions
 from .rfoperators.apply_retopo_settings import RFOperator_ApplyRetopoSettings, RFOperator_RestoreRetopoSettings
 from .rfoperators.newtarget import RFCore_NewTarget_Cursor, RFCore_NewTarget_Active
 

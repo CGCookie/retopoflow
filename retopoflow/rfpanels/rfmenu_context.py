@@ -29,7 +29,8 @@ class RF_MT_ContextMenu(Menu):
 
     def draw(self, context):
         layout = self.layout
-        layout.operator("retopoflow.relax_selected", text="Relax Vertices")
+        layout.operator("retopoflow.space_evenly", text="Even")
+        layout.operator("retopoflow.relax_selected", text="Relax")
         layout.operator_context = 'INVOKE_REGION_WIN'
         layout.operator("retopoflow.twist_loop", text="Twist Loops")
         # INVOKE (from the line above) is required here -- this operator's

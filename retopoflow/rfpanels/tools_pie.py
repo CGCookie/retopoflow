@@ -35,9 +35,13 @@ class RFMenu_MT_ToolPie(Menu):
         row.emboss = pie_emboss
         row.label(text='Clean Up')
         section = back.box().column()
-        row = section.row(align=True)
+        row = section.split(align=True)
         row.operator('retopoflow.meshcleanup', text='Selected').affect_all=False
         row.operator('retopoflow.meshcleanup', text='All').affect_all=True
+        section.separator(type='LINE', factor=0.5)
+        row = section.row(align=False)
+        row.operator('retopoflow.space_evenly', text='Even')
+        row.operator('retopoflow.relax_selected', text='Relax')
 
         if tool.idname == 'retopoflow.polypen':
             props = tool.operator_properties(tool.idname)
