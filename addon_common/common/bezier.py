@@ -21,10 +21,12 @@ Created by Jonathan Denning, Jonathan Williamson
 
 from __future__ import annotations
 import math
+from bisect import bisect_left
 from collections.abc import Sequence, Iterator, Callable
+from itertools import accumulate
 
 import numpy as np
-from mathutils import Vector, Matrix
+from mathutils import Vector, Matrix, kdtree
 
 from .maths import Point, Vec
 from .utils import iter_running_sum, iter_pairs
@@ -298,6 +300,12 @@ class CubicBezier:
         self.p0, self.p1, self.p2, self.p3 = p0, p1, p2, p3
         self.tessellation = []
         self.fn_dist = None
+        # single-entry memo for get_tessellate_uniform / _get_arc_table -- see
+        # _tess_memo_key. One entry, not a dict: within a frame every caller
+        # asks about the same (unchanged) control points, and between frames
+        # the old entry is dead weight, so a dict would just grow unbounded
+        # over a drag.
+        self._tess_memo = None
 
     def __iter__(self) -> Iterator[Vector]:
         yield self.p0
@@ -415,6 +423,36 @@ class CubicBezier:
             p = q
         return 1
 
+    def _tess_memo_key(self, split : int, fn_dist : Callable[[Vector, Vector], float]):
+        ''' Identity of a tessellation result: the control points it was
+        sampled from, the sample count, and the metric the segment lengths
+        were measured with. Keying on the control point VALUES (rather than
+        an explicit dirty flag) is what makes the memo self-invalidating --
+        p0..p3 are mutated in place all over the place (every frame of a
+        handle drag), and no caller announces it. '''
+        return (self.p0[:], self.p1[:], self.p2[:], self.p3[:], split, fn_dist)
+
+    def _get_arc_table(
+        self,
+        fn_dist : Callable[[Vector, Vector], float],
+        split : int | None = None,
+    ) -> tuple[list[tuple[float, Vector, float]], list[float], list[float]]:
+        ''' Memoized (samples, sample ts, cumulative arc length at each
+        sample). Building this costs `split` bezier evals, so it must not be
+        rebuilt per vert: a handle drag asks the same segment for an
+        arc-length conversion once for every vert riding on it, every frame,
+        which is exactly one table's worth of work shared by all of them. '''
+        split = split or self.split_default
+        key = self._tess_memo_key(split, fn_dist)
+        memo = self._tess_memo
+        if memo is None or memo[0] != key:
+            ts = [i / (split - 1) for i in range(split)]
+            ps = [self.eval(t) for t in ts]
+            ds = [0] + [fn_dist(p, q) for p, q in iter_pairs(ps, False)]
+            memo = (key, list(zip(ts, ps, ds)), ts, list(accumulate(ds)))
+            self._tess_memo = memo
+        return memo[1], memo[2], memo[3]
+
     def approximate_arc_length_fraction_at_t(
         self,
         t : float,
@@ -423,19 +461,21 @@ class CubicBezier:
     ) -> float:
         ''' Fraction (0..1) of total arc length between p0 and eval(t).
         Inverse of approximate_t_at_arc_length_fraction. '''
-        samples = self.get_tessellate_uniform(fn_dist, split=split)
-        total = sum(d for _, _, d in samples)
+        _, ts, cums = self._get_arc_table(fn_dist, split=split)
+        total = cums[-1]
         if total < 1e-9:
             return 0.0
-        cum = 0.0
-        prev_t = 0.0
-        for s, _, d in samples:
-            if s >= t:
-                local = 0.0 if s == prev_t else (t - prev_t) / (s - prev_t)
-                return (cum + d * local) / total
-            cum += d
-            prev_t = s
-        return 1.0
+        # first sample at or past t -- ts is ascending, so bisect instead of
+        # scanning all `split` of them
+        i = bisect_left(ts, t)
+        if i >= len(ts):
+            return 1.0
+        if i == 0:
+            return 0.0
+        prev_t, s = ts[i-1], ts[i]
+        cum = cums[i-1]
+        local = 0.0 if s == prev_t else (t - prev_t) / (s - prev_t)
+        return (cum + (cums[i] - cum) * local) / total
 
     def approximate_t_at_arc_length_fraction(
         self,
@@ -445,22 +485,23 @@ class CubicBezier:
     ) -> float:
         ''' The t whose arc length from p0 is `fraction` of the total.
         Inverse of approximate_arc_length_fraction_at_t. '''
-        samples = self.get_tessellate_uniform(fn_dist, split=split)
-        total = sum(d for _, _, d in samples)
+        _, ts, cums = self._get_arc_table(fn_dist, split=split)
+        total = cums[-1]
         if total < 1e-9:
             return 0.0
         target = fraction * total
-        cum = 0.0
-        prev_t = 0.0
+        # cums is nondecreasing, so the first sample whose running total
+        # reaches `target` is a bisect away
+        i = bisect_left(cums, target)
+        if i >= len(cums):
+            return 1.0
+        prev_t = ts[i-1] if i else 0.0
+        cum = cums[i-1] if i else 0.0
+        d = cums[i] - cum
         # interpolate within the bracketing samples rather than snapping to one of
         # `split` discrete ts -- called per-frame during edits, snapping visibly pops
-        for s, _, d in samples:
-            if cum + d >= target:
-                local = 0.0 if d < 1e-9 else (target - cum) / d
-                return prev_t + (s - prev_t) * local
-            cum += d
-            prev_t = s
-        return 1.0
+        local = 0.0 if d < 1e-9 else (target - cum) / d
+        return prev_t + (ts[i] - prev_t) * local
 
     def approximate_ts_at_intervals_uniform(
         self,
@@ -478,11 +519,11 @@ class CubicBezier:
         fn_dist : Callable[[Vector, Vector], float],
         split : int | None = None,
     ) -> list[tuple[float, Vector, float]]:
-        split = split or self.split_default
-        ts = [i / (split - 1) for i in range(split)]
-        ps = [self.eval(t) for t in ts]
-        ds = [0] + [fn_dist(p, q) for p, q in iter_pairs(ps, False)]
-        return [(t, p, d) for (t, p, d) in zip(ts, ps, ds)]
+        ''' (t, eval(t), distance from the previous sample) for `split`
+        uniformly spaced ts. Memoized -- see _get_arc_table. The returned list
+        is the cached one, so callers must treat it as read-only. '''
+        samples, _, _ = self._get_arc_table(fn_dist, split=split)
+        return samples
 
     def tessellate_uniform_points(
         self,
@@ -1198,6 +1239,10 @@ class CubicBezierSpline:
         self.cbs = cbs
         self.inds = inds
         self.tessellation = []
+        # optional KD-tree over the tessellation, built on request -- see
+        # tessellate_kdtree / approximate_t_at_point_kdtree
+        self._kd = None
+        self._kd_ts = []
 
     def copy(self):
         return CubicBezierSpline(
@@ -1308,9 +1353,40 @@ class CubicBezierSpline:
     def tessellate_uniform(self, *, fn_dist=None, split=None):
         if not fn_dist: fn_dist = lambda a, b: (a - b).length
         self.tessellation.clear()
+        self._kd, self._kd_ts = None, []
         for i, cb in enumerate(self.cbs):
             cb_tess = cb.get_tessellate_uniform(fn_dist, split=split)
             self.tessellation.append(cb_tess)
+
+    def tessellate_kdtree(self):
+        ''' Build a KD-tree over the cached tessellation so nearest-point
+        queries can be answered by approximate_t_at_point_kdtree instead of a
+        linear scan over every sample of every segment. Worth it as soon as
+        more than a handful of points are queried against one fixed
+        tessellation: building the tree costs about the same as three linear
+        scans, and each query afterwards is ~200x cheaper.
+
+        Requires tessellate_uniform() first (which drops any existing tree,
+        since the samples it indexes are gone). '''
+        pts = [
+            (i + t, p)
+            for i, cb_tess in enumerate(self.tessellation)
+            for (t, p, _) in cb_tess
+        ]
+        kd = kdtree.KDTree(len(pts))
+        for n, (_, p) in enumerate(pts):
+            kd.insert(p, n)
+        kd.balance()
+        self._kd = kd
+        self._kd_ts = [t for (t, _) in pts]
+
+    def approximate_t_at_point_kdtree(self, point):
+        ''' approximate_t_at_point_tessellation via the KD-tree from
+        tessellate_kdtree (which must have been called first). Euclidean
+        only -- there's no fn_dist hook, because a KD-tree can't answer
+        nearest under an arbitrary metric. '''
+        assert self._kd is not None, 'tessellate_kdtree must be called first!'
+        return self._kd_ts[self._kd.find(point)[1]]
 
     def approximate_totlength_tessellation(self):
         return sum(self.approximate_lengths_tessellation())

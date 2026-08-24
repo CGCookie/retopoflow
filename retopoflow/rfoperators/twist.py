@@ -1293,25 +1293,8 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
     def draw_highlights(self, context):
         if context.tool_settings.use_proportional_edit:
             try:
-                from bpy_extras.view3d_utils import location_3d_to_region_2d
-                from ..common.drawing import Drawing
-                from ...addon_common.common.maths import Color
-                from ...addon_common.common import gpustate
-                center_2d = location_3d_to_region_2d(context.region, context.region_data, self._sel_center_world)
-                if center_2d is not None:
-                    view_matrix  = context.region_data.view_matrix
-                    right_vector = Vector(view_matrix[0][:3]).normalized()
-                    prop_dist = context.tool_settings.proportional_distance
-                    radius_2d = location_3d_to_region_2d(
-                        context.region, context.region_data,
-                        self._sel_center_world + right_vector * prop_dist / 2)
-                    if radius_2d is not None:
-                        radius = (radius_2d - center_2d).length
-                        grid  = context.preferences.themes[0].view_3d.grid
-                        color = Color((grid[0] - 20/255, grid[1] - 20/255, grid[2] - 20/255, 1.0))
-                        gpustate.blend('ALPHA')
-                        Drawing.draw2D_smooth_circle(context, center_2d, radius, color, width=1)
-                        gpustate.blend('NONE')
+                from ..rfoverlays.proportional_edit_overlay import draw_proportional_edit_circle
+                draw_proportional_edit_circle(context, self._sel_center_world)
             except Exception as e:
                 print(f"twist: proportional circle draw failed: {e}")
 
