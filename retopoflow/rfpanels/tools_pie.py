@@ -4,6 +4,7 @@ from bpy.utils import previews
 
 from ..rftool_polypen.polypen import PolyPen_Insert_Modes
 # from ..rftool_patches.patches import Patches_Orientations
+from ..common.operator import execute_operator
 
 
 
@@ -231,6 +232,16 @@ class RFMenu_MT_ToolPie(Menu):
             depress=tool.idname=='retopoflow.relax'
         )
 
+
+
+@execute_operator(
+    'switch_to_patches',
+    'Switch to Patches',
+    description='Patches is not ready yet and cannot be selected',
+    fn_poll=lambda _context: False,
+)
+def switch_to_patches_disabled(_context):
+    return {'CANCELLED'}
 
 
 keymaps = []
