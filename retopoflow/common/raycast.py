@@ -148,28 +148,33 @@ def size2D_to_size(
     *,
     pt : Vector | Sequence[float] | None = None,
 ) -> float | None:
-    w : float = context.region.width * 0.5
-    h : float = context.region.height * 0.5
-    scale = min(w, h)
-
-    # note: scaling then unscaling helps with numerical instability when clip_start is small
-    # find center of screen
-    xy = Vector((pt[0], pt[1])) if pt else Vector((w, h))
-    xy0, xy1 = xy + Vector((-scale, 0)), xy + Vector((scale, 0))
-    xy2, xy3 = xy + Vector((0, -scale)), xy + Vector((0, scale))
-    p3d = point2D_to_point(context, xy, depth3D)
-    p3d0, p3d1 = point2D_to_point(context, xy0, depth3D), point2D_to_point(context, xy1, depth3D)
-    p3d2, p3d3 = point2D_to_point(context, xy2, depth3D), point2D_to_point(context, xy3, depth3D)
-
-    if not p3d or not p3d0 or not p3d1 or not p3d2 or not p3d3:
+    '''
+    World-space size of one screen pixel at `depth3D`, where `depth3D` is a distance measured along
+    the view ray through `pt` or screen center when `pt` is None, i.e. what raycast hits report as `distance`.
+    '''
+    rgn, r3d = context.region, context.region_data
+    if not rgn or not r3d:
         return None
 
-    # if not p3d0 or not p3d1: return None
-    d0, d1 = (p3d0 - p3d).length, (p3d1 - p3d).length
-    d2, d3 = (p3d2 - p3d).length, (p3d3 - p3d).length
-    d = (d0 + d1 + d2 + d3) / 4
-    # print(f'{d0} {d1} {d2} {d3}')
-    return d / scale
+    # window_matrix maps the frame half-width onto NDC 1.0, so 1/m00 is that half-width in world units.
+    # absolute in ortho, per unit of axial depth in perspective.
+    m00 : float = r3d.window_matrix[0][0]
+    if not m00:
+        return None
+    per_pixel = abs(1.0 / m00) / (rgn.width * 0.5)
+
+    if not r3d.is_perspective:
+        return per_pixel  # parallel projection, pixel size does not vary with depth
+
+    # `depth3D` runs along a ray that is generally off-axis, while the frame widens with depth
+    # measured along the view direction, so project the ray distance onto the view axis first.
+    xy = Vector((pt[0], pt[1])) if pt is not None else Vector((rgn.width * 0.5, rgn.height * 0.5))
+    ray_dir = region_2d_to_vector_3d(rgn, r3d, xy)
+    if not ray_dir:
+        return None
+    vm = r3d.view_matrix
+    view_forward = Vector((-vm[2][0], -vm[2][1], -vm[2][2]))  # unit, world space
+    return depth3D * ray_dir.normalized().dot(view_forward) * per_pixel
 
 def ray_from_mouse(context : Context, event : Event) -> tuple[Vector, Vector] | tuple[None, None]:
     mouse = (event.mouse_region_x, event.mouse_region_y)
