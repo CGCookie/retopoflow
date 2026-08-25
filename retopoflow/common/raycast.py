@@ -32,7 +32,6 @@ from mathutils import Vector, Matrix
 from bpy_extras.view3d_utils import (
     region_2d_to_origin_3d,
     region_2d_to_vector_3d,
-    region_2d_to_location_3d,
     location_3d_to_region_2d,
 )
 
@@ -65,6 +64,41 @@ def point2D_to_point(context, xy, depth:float):
     r = ray_from_point(context, xy)
     return (r[0] + r[1] * depth) if r[0] and r[1] else None
 
+def region_2d_to_location_3d_stable(region, rv3d, coord, depth_location) -> Vector | None:
+    '''
+    Safer replacement for bpy_extras.view3d_utils.region_2d_to_location_3d.
+
+    In orthographic views, Blender's version builds the ray from an origin at the far clip plane
+    and re-derives the ray direction by float32 subtraction of two such points. At large clip ranges
+    the floating point error results in huge jumps.
+
+    This version is the same math, computed in python doubles from a mid-clip-volume origin instead.
+    '''
+    persinv = rv3d.perspective_matrix.inverted()
+    dx = (2.0 * coord[0] / region.width) - 1.0
+    dy = (2.0 * coord[1] / region.height) - 1.0
+    # unproject NDC (dx, dy, 0): a scene-scale point on the pixel ray
+    qx = persinv[0][0]*dx + persinv[0][1]*dy + persinv[0][3]
+    qy = persinv[1][0]*dx + persinv[1][1]*dy + persinv[1][3]
+    qz = persinv[2][0]*dx + persinv[2][1]*dy + persinv[2][3]
+    qw = persinv[3][0]*dx + persinv[3][1]*dy + persinv[3][3]
+    if abs(qw) < 1e-12: return None
+    qx, qy, qz = qx/qw, qy/qw, qz/qw
+    vm = rv3d.view_matrix
+    fx, fy, fz = -vm[2][0], -vm[2][1], -vm[2][2]   # world-space view forward
+    if rv3d.is_perspective:
+        viewinv = vm.inverted()
+        ox, oy, oz = viewinv[0][3], viewinv[1][3], viewinv[2][3]   # eye
+        dxr, dyr, dzr = qx-ox, qy-oy, qz-oz
+    else:
+        ox, oy, oz = qx, qy, qz
+        dxr, dyr, dzr = fx, fy, fz
+    px, py, pz = depth_location[0], depth_location[1], depth_location[2]
+    denom = dxr*fx + dyr*fy + dzr*fz
+    if abs(denom) < 1e-12: return None
+    t = ((px-ox)*fx + (py-oy)*fy + (pz-oz)*fz) / denom
+    return Vector((ox + dxr*t, oy + dyr*t, oz + dzr*t))
+
 def size2D_to_size_point(context, point_screen, depth_location):
     # this function is not working correctly...
     w, h = context.region.width * 0.5, context.region.height * 0.5
@@ -72,8 +106,8 @@ def size2D_to_size_point(context, point_screen, depth_location):
     scale = min(w, h)
     # find center of screen
     xy0, xy1 = Vector(point_screen), Vector((point_screen[0] + scale, point_screen[1]))
-    p3d0 = region_2d_to_location_3d(context.region, context.region_data, xy0, depth_location)
-    p3d1 = region_2d_to_location_3d(context.region, context.region_data, xy1, depth_location)
+    p3d0 = region_2d_to_location_3d_stable(context.region, context.region_data, xy0, depth_location)
+    p3d1 = region_2d_to_location_3d_stable(context.region, context.region_data, xy1, depth_location)
     if not p3d0 or not p3d1: return None
     return (p3d0 - p3d1).length / scale
 
@@ -198,8 +232,8 @@ def plane_normal_from_points(context, p0, p1):
         if not p1: return (None, None)
     w, h = context.area.width, context.area.height
     q0 = region_2d_to_origin_3d(context.region, context.region_data, Vector((w/2, h/2)))
-    q1 = region_2d_to_location_3d(context.region, context.region_data, p0, context.edit_object.location)
-    q2 = region_2d_to_location_3d(context.region, context.region_data, p1, context.edit_object.location)
+    q1 = region_2d_to_location_3d_stable(context.region, context.region_data, p0, context.edit_object.location)
+    q2 = region_2d_to_location_3d_stable(context.region, context.region_data, p1, context.edit_object.location)
     d0 = (q1 - q0).normalized()
     d1 = (q2 - q0).normalized()
     # the following does _not_ work with orthographic projection, because directions are parallel
@@ -630,7 +664,7 @@ def raycast_point_capped_valid_sources(
     hit_co = (Vector(hit['co_world']) if world else Vector(hit['co_local'])) if hit else None
     if hit and (cap <= 0 or (Vector(hit['co_world']) - co_world_ref).length <= cap):
         return hit_co
-    co_plane = region_2d_to_location_3d(context.region, context.region_data, point_screen, co_world_ref)
+    co_plane = region_2d_to_location_3d_stable(context.region, context.region_data, point_screen, co_world_ref)
     if co_plane:
         snapped = nearest_point_valid_sources(
             context, point_to_bvec3(co_plane), world=world, sources=sources, respect_clip_planes=respect_clip_planes

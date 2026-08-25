@@ -22,7 +22,7 @@ Created by Jonathan Denning, Jonathan Lampel
 import bmesh
 import bpy
 from bpy.types import Context
-from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_location_3d
+from bpy_extras.view3d_utils import location_3d_to_region_2d
 from mathutils import Vector
 
 import heapq
@@ -39,6 +39,7 @@ from ..common.operator import execute_operator, RFOperator, RFKeyMaps
 from ..common.raycast import (
     raycast_valid_sources,
     raycast_point_capped_valid_sources,
+    region_2d_to_location_3d_stable,
     mouse_from_event,
     nearest_point_valid_sources,
     nearest_normal_valid_sources,
@@ -522,7 +523,7 @@ class RFOperator_Translate(SourceSnapMixin, RFOperator):
                 if not co:
                     co = self.last_success[bmv]
             elif self.snap_method == 'NEAREST':
-                co_world = region_2d_to_location_3d(context.region, context.region_data, co2d_orig + delta * factor, self.matrix_world @ co_orig)
+                co_world = region_2d_to_location_3d_stable(context.region, context.region_data, co2d_orig + delta * factor, self.matrix_world @ co_orig)
                 co_snapped = nearest_point_valid_sources(context, co_world, world=True, respect_clip_planes=True) if co_world else None
                 co = self.matrix_world_inv @ co_snapped if co_snapped else self.last_success[bmv]
 

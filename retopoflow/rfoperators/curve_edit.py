@@ -26,7 +26,7 @@ import heapq
 import math
 from mathutils import Vector, Quaternion, kdtree
 from bpy.types import Context, Event
-from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_location_3d
+from bpy_extras.view3d_utils import location_3d_to_region_2d
 
 from collections.abc import Callable
 
@@ -37,7 +37,7 @@ from ..common.curves import ordered_rungs
 from ..common.topology_corners import insert_corner, remove_corner
 from ..common.drawing import Drawing
 from ..common.maths import proportional_edit
-from ..common.raycast import raycast_point_valid_sources, nearest_point_valid_sources, iter_all_valid_sources, mouse_from_event
+from ..common.raycast import raycast_point_valid_sources, nearest_point_valid_sources, iter_all_valid_sources, mouse_from_event, region_2d_to_location_3d_stable
 from ..common.snapping import source_snap_settings, source_snap_radius
 from ..common.operator import RFOperator, RFKeyMaps, execute_operator, Operator_Execute_Function
 from ..rfoverlay_base import RFOverlay_Base
@@ -628,7 +628,7 @@ def create_curve_edit_operator(
                 self._recompute_typed_handles(h, cbs)
             else:
                 # tangent arms move freely in the view plane
-                new_world = region_2d_to_location_3d(rgn, r3d, new_screen, M @ pt_orig)
+                new_world = region_2d_to_location_3d_stable(rgn, r3d, new_screen, M @ pt_orig)
                 new_edit = Mi @ new_world
                 setattr(cbs[seg0], attr0, new_edit)
                 # G1: at smooth junctions, mirror the peer tangent arm to stay collinear
@@ -1097,7 +1097,7 @@ def create_curve_edit_operator(
                     pt_screen.x + d.x * cos_a - d.y * sin_a,
                     pt_screen.y + d.x * sin_a + d.y * cos_a,
                 ))
-                new_world = region_2d_to_location_3d(rgn, r3d, rotated_screen, M @ orig_h)
+                new_world = region_2d_to_location_3d_stable(rgn, r3d, rotated_screen, M @ orig_h)
                 setattr(cbs[seg], attr, Mi @ new_world)
 
         def _taper_weight(self, t, nseg):

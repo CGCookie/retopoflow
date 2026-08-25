@@ -23,7 +23,7 @@ import bpy
 import bmesh
 import math
 from mathutils import Vector, Matrix
-from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_location_3d
+from bpy_extras.view3d_utils import location_3d_to_region_2d
 from bpy.types import Context
 
 from ..rfglobals import RFGlobals
@@ -46,6 +46,7 @@ from ..common.raycast import (
     raycast_ray_valid_sources,
     mouse_from_event,
     ray_from_point,
+    region_2d_to_location_3d_stable,
 )
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.blender import event_modifier_check
@@ -596,7 +597,7 @@ class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
             for _v in (-1.0, 1.0):
                 _vn = (4 * _gs) * (_v / 2) ** 3 + 0.5
                 _p2d = mouse0 + (mouse1 - mouse0) * _vn
-                _p3d = region_2d_to_location_3d(_rgn, _rv3d, _p2d, _hit_world)
+                _p3d = region_2d_to_location_3d_stable(_rgn, _rv3d, _p2d, _hit_world)
                 if _p3d is None:
                     _sdf_stroke_world_len = 0.0
                     break
