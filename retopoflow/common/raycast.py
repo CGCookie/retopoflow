@@ -60,10 +60,6 @@ def distance_between_locations(a:Vector, b:Vector) -> float:
     a, b = point_to_bvec3(a), point_to_bvec3(b)
     return (a - b).length
 
-def point2D_to_point(context, xy, depth:float):
-    r = ray_from_point(context, xy)
-    return (r[0] + r[1] * depth) if r[0] and r[1] else None
-
 def region_2d_to_location_3d_stable(region, rv3d, coord, depth_location) -> Vector | None:
     '''
     Safer replacement for bpy_extras.view3d_utils.region_2d_to_location_3d.

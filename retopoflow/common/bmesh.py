@@ -777,9 +777,6 @@ class NearestBMVert(NearestElem):
         bmvs = []
         if bmv_idx is not None: bmvs += [self.loose_bmvs[bmv_idx]]
         if bmf_idx is not None: bmvs += self.bm.faces[bmf_idx].verts
-        # gate each candidate by its true 3D distance to co
-        bmvs = [bmv for bmv in bmvs if (bmv.co - co).length <= distance]
-        # cheap distance gate first: filter_fn can be costly (occlusion tests raycast per vert)
         if filter_fn:
             bmvs = [bmv for bmv in bmvs if filter_fn(bmv)]
         elif filter_selected:
