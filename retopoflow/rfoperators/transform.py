@@ -461,15 +461,39 @@ class RFOperator_Translate(SourceSnapMixin, RFOperator):
         if getattr(self, 'proportional_edit_overlay', None):
             self.proportional_edit_overlay.draw_2d(context)
 
+    def automerge_nearest(self, context, bmv, co, pixels, view_dir, to_world_normal):
+        ''' nearest_bmv.update() for automerge, with candidates that are selected or hidden behind
+        other geometry excluded, and the pixel budget reduced when bmv's surface is close to
+        glancing angles to the camera. '''
+
+        # Automerge keeps its whole pixel budget until the dragged vert's surface tilts past this
+        AUTOMERGE_FACING_FULL = 0.35
+
+        normal = to_world_normal @ bmv.normal
+        if normal.length_squared < 1e-12:
+            # A wire vert has no faces to average, so its normal is exactly zero.
+            # Keep the whole budget rather than refuse to merge.
+            scale = 1.0
+        else:
+            facing = abs(normal.normalized().dot(view_dir)) # Normalize to account for obj scale!
+            scale = min(1.0, facing / AUTOMERGE_FACING_FULL)
+        self.nearest_bmv.update(
+            context, co,
+            distance2d=pixels * scale,
+            filter_fn=lambda cand: not cand.select and not is_bmvert_hidden(context, cand),
+        )
+
     def automerge(self, context, event):
         ts = context.tool_settings
         prop_use = ts.use_proportional_edit
         if not ts.use_mesh_automerge or prop_use: return
 
-        distance2d = context.scene.retopoflow.automerge_distance
+        pixels = context.scene.retopoflow.automerge_distance
+        view_dir = context.region_data.view_rotation @ Vector((0, 0, -1))
+        to_world_normal = context.active_object.matrix_world.to_3x3()
         merging = {}
         for bmv in self.bmvs:
-            self.nearest_bmv.update(context, bmv.co, distance2d=distance2d)
+            self.automerge_nearest(context, bmv, bmv.co, pixels, view_dir, to_world_normal)
             if not self.nearest_bmv.bmv: continue
             bmv_into = self.nearest_bmv.bmv
             merging[bmv_into] = bmv
@@ -503,7 +527,10 @@ class RFOperator_Translate(SourceSnapMixin, RFOperator):
         prop_dist_world = context.tool_settings.proportional_distance
         prop_falloff = context.tool_settings.proportional_edit_falloff
         automerge_use = context.tool_settings.use_mesh_automerge and not prop_use
-        automerge_2d = context.scene.retopoflow.automerge_distance if automerge_use else 0
+        if automerge_use:
+            automerge_pixels = context.scene.retopoflow.automerge_distance
+            automerge_view_dir = context.region_data.view_rotation @ Vector((0, 0, -1))
+            automerge_to_world_normal = context.active_object.matrix_world.to_3x3()
 
         if self.moving is None:
             self.moving = [
@@ -568,7 +595,7 @@ class RFOperator_Translate(SourceSnapMixin, RFOperator):
             self.last_success[bmv] = co
             if distance > prop_dist_world: continue
             if automerge_use:
-                self.nearest_bmv.update(context, co, distance2d=automerge_2d)
+                self.automerge_nearest(context, bmv, co, automerge_pixels, automerge_view_dir, automerge_to_world_normal)
                 if self.nearest_bmv.bmv:
                     co = self.nearest_bmv.bmv.co
                     self.highlight.add(self.nearest_bmv.bmv)
@@ -599,7 +626,10 @@ class RFOperator_Translate(SourceSnapMixin, RFOperator):
             if is_bmvert_hidden(context, v):
                 return False
             normal = context.active_object.matrix_world.to_3x3() @ v.normal
+            if normal.length_squared < 1e-12:
+                continue  # wire vert, no surface to judge
             # Toward or away from the camera is fine, sideways is not
-            if abs(normal.dot(view_dir)) < 0.5:
+            # Normalize! to_3x3() has obj scale
+            if abs(normal.normalized().dot(view_dir)) < 0.5:
                 return False
         return True
