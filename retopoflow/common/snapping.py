@@ -30,6 +30,7 @@ from .raycast import raycast_valid_sources
 
 
 FEATURE_RUN_MARGIN_FACTOR = 2.0 # How far beyond the brush in avg edge lengths to classify feature edges
+SLIDE_MAX_GAIN = 5.0 # Caps how fast a snapped vert slides along a feature as that feature turns to point at the camera.
 
 
 def source_snap_settings(context):
@@ -568,9 +569,10 @@ class SourceSnapMixin(FeatureRunsMixin):
             if approach_2d_len > 1e-8:
                 # Step past the corner in the kick direction by the release distance, in pixels
                 kick_2d_norm = approach_2d / approach_2d_len
-                # Estimate pixels per world unit from the corner's projection
-                p_ref = location_3d_to_region_2d(context.region, context.region_data, corner_w + Vector((occ_release_r, 0, 0)))
-                pix_per_unit = ((p_ref - corner_2d).length / occ_release_r) if p_ref else 50.0
+                # Pixels per world unit at the corner, measured perpendicular to the view direction.
+                view_right = context.region_data.view_rotation @ Vector((1, 0, 0))
+                p_ref = location_3d_to_region_2d(context.region, context.region_data, corner_w + view_right)
+                pix_per_unit = (p_ref - corner_2d).length if p_ref is not None else 50.0
                 sample_2d = corner_2d + kick_2d_norm * occ_release_r * pix_per_unit
                 hit = raycast_valid_sources(context, sample_2d, respect_clip_planes=True)
                 if hit:
@@ -736,7 +738,14 @@ class SourceSnapMixin(FeatureRunsMixin):
                         if tangent_2d_len > 1e-8:
                             tangent_2d_norm = tangent_2d / tangent_2d_len
                             parallel_2d = disp_2d.dot(tangent_2d_norm)
-                            parallel_3d = parallel_2d / tangent_2d_len
+                            # A feature running at the viewer projects to almost nothing, so dividing by that blows up the distance.
+                            # Floor the divisor at the screen length of a unit world vector perpendicular to the view,
+                            # so the slide tracks the cursor exactly while the feature reads on
+                            # screen and tops out at SLIDE_MAX_GAIN once it does not.
+                            view_right = context.region_data.view_rotation @ Vector((1, 0, 0))
+                            p_ref = location_3d_to_region_2d(context.region, context.region_data, bmv_world + view_right)
+                            px_per_unit = (p_ref - p0).length if p_ref is not None else 0.0
+                            parallel_3d = parallel_2d / max(tangent_2d_len, px_per_unit / SLIDE_MAX_GAIN)
                             candidate = point_to_bvec3(bmv_world + tangent * parallel_3d)
                             constrained = self.closest_on_own_run(bmv, candidate)
                             if constrained is not None:
