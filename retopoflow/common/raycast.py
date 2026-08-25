@@ -99,18 +99,6 @@ def region_2d_to_location_3d_stable(region, rv3d, coord, depth_location) -> Vect
     t = ((px-ox)*fx + (py-oy)*fy + (pz-oz)*fz) / denom
     return Vector((ox + dxr*t, oy + dyr*t, oz + dzr*t))
 
-def size2D_to_size_point(context, point_screen, depth_location):
-    # this function is not working correctly...
-    w, h = context.region.width * 0.5, context.region.height * 0.5
-    # note: scaling then unscaling helps with numerical instability when clip_start is small
-    scale = min(w, h)
-    # find center of screen
-    xy0, xy1 = Vector(point_screen), Vector((point_screen[0] + scale, point_screen[1]))
-    p3d0 = region_2d_to_location_3d_stable(context.region, context.region_data, xy0, depth_location)
-    p3d1 = region_2d_to_location_3d_stable(context.region, context.region_data, xy1, depth_location)
-    if not p3d0 or not p3d1: return None
-    return (p3d0 - p3d1).length / scale
-
 def prettyprint_matrices(*args, format='% 7.3f'):
     # assuming all matrices and labels are same size!!
     # assuming all values are -100 < v < 100
@@ -245,6 +233,34 @@ def plane_normal_from_points(context, p0, p1):
     #d0 = region_2d_to_vector_3d(context.region, context.region_data, p0).normalized()
     #d1 = region_2d_to_vector_3d(context.region, context.region_data, p1).normalized()
     return d0.cross(d1).normalized()
+
+def is_point_occluded(context : Context, point_world : Vector, *, offset : float | None = None) -> bool:
+    ''' Whether a world-space point sits behind a source surface.
+    `offset` is how far the point may poke through the source before it counts as occluded,
+    defaulting to the retopology overlay offset. '''
+    if not context.region_data:
+        return False
+    direction = direction_from_point(context, point_world)
+    if not direction:
+        return False
+    if offset is None:
+        offset = context.space_data.overlay.retopology_offset
+
+    p = point_to_bvec3(point_world)
+    d = direction.xyz
+
+    # Step off the surface toward the viewer so the point's own face is not the occluder.
+    # Floored because the user can zero the retopology offset.
+    # Scaled by the coordinates because that is what governs the float32 noise in the hit position.
+    nudge = max(offset, 1e-6 * max(1.0, p.length))
+
+    # Cast from the point back toward the viewer rather than forward from the view origin,
+    # otherwise ortho view with a distant clip plane gives huge rounding errors.
+    ray = (
+        Vector((*(p - d * nudge), 1.0)),
+        Vector((*(-d), 0.0)),
+    )
+    return raycast_ray_valid_sources(context, ray, world=True, respect_clip_planes=True) is not None
 
 def is_point_hidden(context : Context, co_edit : Vector, *,
                     factor : float = 1.0, use_offset : bool = True, sources : Sequence[tuple] | None = None) -> bool:

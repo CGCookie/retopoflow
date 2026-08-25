@@ -33,7 +33,7 @@ from .bmesh import (
     bme_length,
     wind_bmfs_to_match_neighbors,
 )
-from .raycast import raycast_valid_sources, MatrixInfo, FindNearest
+from .raycast import is_point_occluded, MatrixInfo, FindNearest
 from .maths import point_to_bvec4, view_forward_direction
 from ...addon_common.common.maths import closest_point_segment, Point, Direction, Plane
 from ...addon_common.ext.circle_fit import hyperLSQ
@@ -383,14 +383,11 @@ def generate_point_inside_bmf(bmf):
         return (crossings % 2) == 1
     return point_inside_bmf
 
-def is_bmvert_hidden(context:Context, bmv:BMVert, *, factor:float=0.99) -> bool:
+def is_bmvert_hidden(context:Context, bmv:BMVert) -> bool:
+    ''' Whether bmv sits behind a source surface. '''
     if bmv.hide: return True
     point = context.edit_object.matrix_world @ point_to_bvec4(bmv.co)
-    hit = raycast_valid_sources(context, point, respect_clip_planes=True)
-    if not hit: return False
-    ray_e, hit_dist = hit['ray_world'][0], hit['distance']
-    offset = context.space_data.overlay.retopology_offset
-    return hit_dist < ((ray_e.xyz - point.xyz).length - offset) * factor
+    return is_point_occluded(context, point.xyz)
 
 
 class BMMarking(IntEnum):

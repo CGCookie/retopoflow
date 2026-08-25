@@ -223,7 +223,6 @@ def create_falloff_brush(
             # print(f'  {hit=}')
             if not hit:
                 return
-            #scale = size2D_to_size_point(context, self.mouse, hit['co_world'])
             distance : float = hit['distance']
             space : SpaceView3D = context.space_data
             overlay : View3DOverlay = space.overlay
