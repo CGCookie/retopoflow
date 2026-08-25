@@ -24,7 +24,6 @@ import bpy
 import bmesh
 from bpy.props import IntProperty, BoolProperty, EnumProperty, FloatProperty
 from mathutils import Vector
-from mathutils.bvhtree import BVHTree
 
 from ..rfglobals import RFGlobals
 from ..common.operator import RFRegisterClass
@@ -33,6 +32,9 @@ from ..common.accel import SourceAccel
 from ..common.bmesh import get_falloff_verts
 from ..common.maths import point_to_bvec3
 from ..common.raycast import nearest_point_valid_sources
+from ..common.snapping import (
+    build_island_bvh, build_snap_sources, draw_snap_to_props, seed_source_snap_props,
+)
 from ..rfpanels.rfpanel_snapping import draw_hard_surface_snapping
 from ..rftool_relax.relax_logic import Relax_Logic, RelaxOptions
 
@@ -301,6 +303,11 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
         self.use_proportional_edit  = ts.use_proportional_edit
         self.proportional_distance  = ts.proportional_size
         self.proportional_falloff   = ts.proportional_edit_falloff
+        RFCore = RFGlobals.RFCore_None
+        if RFCore and RFCore.is_running:
+            # Start from the tool's own snapping settings rather than this operator's defaults.
+            # Redo keeps any tweaks and the next fresh run re-seeds.
+            seed_source_snap_props(context, self)
         return self.execute(context)
 
     def draw_warning(self, layout):
@@ -311,23 +318,7 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
 
     def draw_snapping_props(self, context, layout, show_snap_to=True):
         if show_snap_to:
-            layout.prop(self, 'snap_to', text='Snap To')
-            if self.snap_to == 'OBJECT':
-                layout.prop_search(self, 'snap_object', context.blend_data, 'objects', text='Object')
-                obj = context.blend_data.objects.get(self.snap_object)
-                if obj and not self._is_snap_candidate(context, obj):
-                    self.draw_warning(layout)
-            elif self.snap_to == 'COLLECTION':
-                layout.prop_search(self, 'snap_collection', context.blend_data, 'collections', text='Collection')
-                collection = context.blend_data.collections.get(self.snap_collection)
-                if collection and not self._build_sources_collection(context, collection):
-                    self.draw_warning(layout)
-            elif self.snap_to == 'ALL_VISIBLE':
-                if not self._build_sources_visible(context):
-                    self.draw_warning(layout)
-            elif self.snap_to == 'ALL_SELECTABLE':
-                if not self._build_sources_selectable(context):
-                    self.draw_warning(layout)
+            draw_snap_to_props(self, context, layout, self.draw_warning)
         if not show_snap_to or self.snap_to not in ('NONE', 'ORIGINAL_MESH'):
             draw_hard_surface_snapping(layout, context, self, guide_loops=True)
             # layout.prop(self, 'debug_select', text='Select') # highlight for debugging promoted / demoted
@@ -384,16 +375,10 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
 
         sources = []
         if not rf_is_running:
-            if self.snap_to == 'ALL_VISIBLE':
-                sources = self._build_sources_visible(context)
-            elif self.snap_to == 'ALL_SELECTABLE':
-                sources = self._build_sources_selectable(context)
-            elif self.snap_to == 'OBJECT':
-                obj = context.blend_data.objects.get(self.snap_object)
-                sources = self._build_sources_object(context, obj)
-            elif self.snap_to == 'COLLECTION':
-                collection = context.blend_data.collections.get(self.snap_collection)
-                sources = self._build_sources_collection(context, collection)
+            sources = build_snap_sources(
+                context, self.snap_to,
+                snap_object=self.snap_object, snap_collection=self.snap_collection,
+            )
 
         options = RelaxOptions(
             algorithm_method='STEPS',
@@ -449,7 +434,7 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
         # Build island BVH now that logic and verts are available
         snap_bvh = None
         if not rf_is_running and self.snap_to == 'ORIGINAL_MESH':
-            snap_bvh = self._build_island_bvh(logic, verts)
+            snap_bvh = build_island_bvh(logic.matrix_world, verts)
 
         # Capture volume before relaxation, cube root of volume ratio algorithm
         preserve_volume = self.shaping == 'PRESERVE_VOLUME'
@@ -494,92 +479,3 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
             bmesh.update_edit_mesh(logic.em)
 
         return {'FINISHED'}
-
-    # ------------------------------------------------------------------
-    # Source-building helpers
-    # ------------------------------------------------------------------
-
-    @staticmethod
-    def _source_tuple(obj):
-        M  = obj.matrix_world
-        Mi = M.inverted_safe()
-        return (obj, M, Mi, Mi.to_3x3())
-
-    @staticmethod
-    def _is_snap_candidate(context, obj) -> bool:
-        return (
-            obj != context.edit_object
-            and obj.mode == 'OBJECT'
-            and obj.visible_get()
-            and obj.type == 'MESH'
-            and bool(obj.data.polygons)
-        )
-
-    @classmethod
-    def _build_sources_visible(cls, context) -> list:
-        return [
-            cls._source_tuple(obj)
-            for obj in context.view_layer.objects
-            if cls._is_snap_candidate(context, obj)
-        ]
-
-    @classmethod
-    def _build_sources_selectable(cls, context) -> list:
-        return [
-            cls._source_tuple(obj)
-            for obj in context.view_layer.objects
-            if cls._is_snap_candidate(context, obj) and not obj.hide_select
-        ]
-
-    @classmethod
-    def _build_sources_object(cls, context, obj) -> list:
-        if obj and cls._is_snap_candidate(context, obj):
-            return [cls._source_tuple(obj)]
-        return []
-
-    @classmethod
-    def _build_sources_collection(cls, context, collection) -> list:
-        if not collection:
-            return []
-        return [
-            cls._source_tuple(obj)
-            for obj in collection.objects
-            if cls._is_snap_candidate(context, obj)
-        ]
-
-    @staticmethod
-    def _build_island_bvh(logic, seed_verts, rings: int = 3) -> 'BVHTree | None':
-        ''' Builds a world-space BVH from the original face geometry surrounding the selected verts.
-        Three face steps outwards gives enough buffer that no selected vert can project onto geometry
-        outside the patch while keeping the BVH fast. '''
-        face_set = {
-            bmf for bmv in seed_verts
-            for bmf in bmv.link_faces
-            if not bmf.hide
-        }
-        frontier = set(face_set)
-
-        for i in range(rings):
-            next_frontier = set()
-            for bmf in frontier:
-                for bme in bmf.edges:
-                    for adj in bme.link_faces:
-                        if not adj.hide and adj not in face_set:
-                            next_frontier.add(adj)
-            face_set |= next_frontier
-            frontier = next_frontier
-            if not frontier:
-                break  # mesh boundary reached, nothing left to expand into
-
-        if not face_set:
-            return None
-
-        M = logic.matrix_world # World space matches relax_verts' projections
-        poly_verts   = []
-        poly_indices = []
-        for bmf in face_set:
-            start = len(poly_verts)
-            poly_verts.extend(M @ fv.co for fv in bmf.verts)
-            poly_indices.append(list(range(start, start + len(bmf.verts))))
-
-        return BVHTree.FromPolygons(poly_verts, poly_indices)

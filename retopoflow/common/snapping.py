@@ -22,6 +22,7 @@ Created by Jonathan Denning, Jonathan Lampel
 import math
 
 from mathutils import Vector
+from mathutils.bvhtree import BVHTree
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 
 from .bmesh import get_bmv_avg_edge_len, get_bmv_next_loop_vert, is_bmvert_corner
@@ -42,6 +43,135 @@ def source_snap_settings(context):
         getattr(snapping, 'source_edge_fixed_distance', 0.05),
         getattr(snapping, 'source_edge_proximity', 0.25),
     )
+
+
+SOURCE_EDGE_PROP_NAMES = (
+    'source_edge_angle_enabled',
+    'source_edge_angle',
+    'source_edge_creases',
+    'source_edge_seams',
+    'source_edge_sharps',
+    'source_edge_proximity',
+    'source_edge_use_fixed_distance',
+    'source_edge_fixed_distance',
+    'source_edge_stickiness',
+    'source_edge_guide_loops',
+)
+
+
+SNAP_TO_ITEMS = [
+    ('NONE',           'None',           'Do not snap vertices to any surface'),
+    ('ORIGINAL_MESH',  'Original Mesh',  'Project each vertex back onto the original mesh shape before the operation'),
+    ('ALL_VISIBLE',    'All Visible',    'Snap to all visible mesh objects in the scene'),
+    ('ALL_SELECTABLE', 'All Selectable', 'Snap to all selectable visible mesh objects in the scene'),
+    ('OBJECT',         'Object',         'Snap to a specific object'),
+    ('COLLECTION',     'Collection',     'Snap to all mesh objects in a specific collection'),
+]
+
+
+def source_tuple(obj):
+    M  = obj.matrix_world
+    Mi = M.inverted_safe()
+    return (obj, M, Mi, Mi.to_3x3())
+
+
+def is_snap_candidate(context, obj) -> bool:
+    return (
+        obj != context.edit_object
+        and obj.mode == 'OBJECT'
+        and obj.visible_get()
+        and obj.type == 'MESH'
+        and bool(obj.data.polygons)
+    )
+
+
+def build_snap_sources(context, snap_to, *, snap_object='', snap_collection='') -> list:
+    ''' [(obj, M, Mi, Mi_3x3), ...] for a `snap_to` choice, for operators that pick their
+    own sources while Retopoflow is not running. Empty for NONE and ORIGINAL_MESH, which
+    need no external source. Also used by draw() to warn when a choice finds nothing. '''
+    match snap_to:
+        case 'ALL_VISIBLE':
+            objs = [obj for obj in context.view_layer.objects if is_snap_candidate(context, obj)]
+        case 'ALL_SELECTABLE':
+            objs = [
+                obj for obj in context.view_layer.objects
+                if is_snap_candidate(context, obj) and not obj.hide_select
+            ]
+        case 'OBJECT':
+            obj = context.blend_data.objects.get(snap_object)
+            objs = [obj] if obj and is_snap_candidate(context, obj) else []
+        case 'COLLECTION':
+            collection = context.blend_data.collections.get(snap_collection)
+            objs = [
+                obj for obj in collection.objects
+                if is_snap_candidate(context, obj)
+            ] if collection else []
+        case _:
+            objs = []
+    return [source_tuple(obj) for obj in objs]
+
+
+def draw_snap_to_props(props, context, layout, draw_warning):
+    ''' The Snap To source picker, for operators that choose their own sources while
+    Retopoflow is not running. `draw_warning(layout)` is called when the current choice
+    resolves to no usable source. '''
+    layout.prop(props, 'snap_to', text='Snap To')
+    if props.snap_to == 'OBJECT':
+        layout.prop_search(props, 'snap_object', context.blend_data, 'objects', text='Object')
+        if props.snap_object and not build_snap_sources(context, 'OBJECT', snap_object=props.snap_object):
+            draw_warning(layout)
+    elif props.snap_to == 'COLLECTION':
+        layout.prop_search(props, 'snap_collection', context.blend_data, 'collections', text='Collection')
+        if props.snap_collection and not build_snap_sources(context, 'COLLECTION', snap_collection=props.snap_collection):
+            draw_warning(layout)
+    elif props.snap_to in ('ALL_VISIBLE', 'ALL_SELECTABLE'):
+        if not build_snap_sources(context, props.snap_to):
+            draw_warning(layout)
+
+
+def build_island_bvh(matrix_world, seed_verts, rings: int = 3) -> 'BVHTree | None':
+    ''' Builds a world-space BVH from the original face geometry surrounding the selected verts.
+    Three face steps outwards gives enough buffer that no selected vert can project onto geometry
+    outside the patch while keeping the BVH fast. '''
+    face_set = {
+        bmf for bmv in seed_verts
+        for bmf in bmv.link_faces
+        if not bmf.hide
+    }
+    frontier = set(face_set)
+
+    for i in range(rings):
+        next_frontier = set()
+        for bmf in frontier:
+            for bme in bmf.edges:
+                for adj in bme.link_faces:
+                    if not adj.hide and adj not in face_set:
+                        next_frontier.add(adj)
+        face_set |= next_frontier
+        frontier = next_frontier
+        if not frontier:
+            break  # mesh boundary reached, nothing left to expand into
+
+    if not face_set:
+        return None
+
+    M = matrix_world # World space matches relax_verts' projections
+    poly_verts   = []
+    poly_indices = []
+    for bmf in face_set:
+        start = len(poly_verts)
+        poly_verts.extend(M @ fv.co for fv in bmf.verts)
+        poly_indices.append(list(range(start, start + len(bmf.verts))))
+
+    return BVHTree.FromPolygons(poly_verts, poly_indices)
+
+
+def seed_source_snap_props(context, props):
+    ''' Copy the scene's source-feature snapping settings onto an operator's matching props.
+    Call from invoke() while RF is running so each fresh run starts from the tool's settings. '''
+    snapping = context.scene.retopoflow.snapping
+    for name in SOURCE_EDGE_PROP_NAMES:
+        setattr(props, name, getattr(snapping, name))
 
 
 def source_snap_radius(ref_len_world, *, use_fixed, fixed_distance, avg_edge_factor):

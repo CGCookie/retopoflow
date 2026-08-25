@@ -976,8 +976,11 @@ class SourceAccel:
     @classmethod
     def build_from_tool(cls, context: Context, tool, sources: list) -> 'SourceAccel | None':
         ''' Build from a tool's `source_edge_*` operator properties.
-        Returns None when feature snapping is disabled or no feature type is selected.
+        Returns None when there are no sources, feature snapping is disabled, or no feature type is selected.
         `sources` is the precomputed [(obj, M, Mi, Mi_3x3), ...] list built in the tool's __init__. '''
+        if not sources:
+            # An accel over no objects can never find a feature
+            return None
         source_angle   = getattr(tool, 'source_edge_angle', math.pi)
         if not getattr(tool, 'source_edge_angle_enabled', True):
             source_angle = math.pi

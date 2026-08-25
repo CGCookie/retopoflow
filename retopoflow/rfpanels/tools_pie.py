@@ -40,6 +40,7 @@ class RFMenu_MT_ToolPie(Menu):
         row.operator('retopoflow.meshcleanup', text='All').affect_all=True
         section.separator(type='LINE', factor=0.5)
         row = section.row(align=False)
+        row.operator_context = 'INVOKE_REGION_WIN' # So ops below can seed their defaults from the RF scene settings
         row.operator('retopoflow.space_evenly', text='Even')
         row.operator('retopoflow.relax_selected', text='Relax')
 
