@@ -21,10 +21,17 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy
 import bmesh
-from bpy.props import BoolProperty, FloatProperty
+from bpy.props import BoolProperty, EnumProperty, FloatProperty
 from mathutils import Vector
 
 from ..common.operator import RFRegisterClass
+from ..common.raycast import iter_all_valid_sources, nearest_point_valid_sources
+from ..rfglobals import RFGlobals
+
+
+def rf_is_running() -> bool:
+    RFCore = RFGlobals.RFCore_None
+    return bool(RFCore and RFCore.is_running)
 
 
 class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
@@ -52,6 +59,19 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
                     "and leaves an n-gon on each side.",
         default=True,
     )
+    flatten: EnumProperty(
+        name='Flatten',
+        description='On sharp surfaces, move middle loop verts along their normals to keep '
+                    'the new faces from bending across the original loop',
+        items=[
+            ('LOOPS', 'Loops', 'Level the middle loop with the two outer loops so the face '
+                               'runs between the caps are as flat as possible'),
+            ('CAPS', 'Caps', 'Flatten each diamond cap, then interpolate the rest of the '
+                             'middle loop between the cap heights'),
+            ('NONE', 'None', 'Leave the middle loop verts where they are'),
+        ],
+        default='LOOPS',
+    )
 
     @classmethod
     def poll(cls, context):
@@ -62,11 +82,17 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
         layout.use_property_split = True
         layout.use_property_decorate = False
         layout.prop(self, 'factor', slider=True)
+        if not rf_is_running():
+            layout.row().prop(self, 'flatten', expand=True)
         layout.prop(self, 'merge_ends')
 
     def execute(self, context):
         me = context.edit_object.data
         bm = bmesh.from_edit_mesh(me)
+        bm.normal_update()  # the flatten modes offset mid verts along vert normals
+
+        # In RF mode the new verts are snapped to the source not flattened
+        self.use_source_snap = rf_is_running()
 
         runs, dropped_branching = self.collect_runs(bm)
         if not runs:
@@ -88,10 +114,13 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
             self.report({'WARNING'}, f'Diamond Junction: {errors[0]}')
             return {'CANCELLED'}
 
-        old_faces, new_sel_faces = [], []
+        old_faces, new_sel_faces, touched_verts = [], [], []
         for plan in plans:
-            self.apply_run(bm, plan, old_faces, new_sel_faces)
+            touched_verts.extend(self.apply_run(bm, plan, old_faces, new_sel_faces))
         bmesh.ops.delete(bm, geom=old_faces, context='FACES')
+
+        if self.use_source_snap:
+            self.snap_to_sources(context, touched_verts)
 
         for bmv in bm.verts:
             bmv.select = False
@@ -111,6 +140,23 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
         if errors:
             self.report({'WARNING'}, f'Diamond Junction: skipped some runs ({errors[0]})')
         return {'FINISHED'}
+
+    def snap_to_sources(self, context, verts):
+        ''' Pull the verts this operator created or moved onto the nearest source surface. '''
+        sources = [
+            (obj, obj.matrix_world, obj.matrix_world.inverted_safe())
+            for obj in iter_all_valid_sources(context)
+        ]
+        if not sources:
+            return
+        M = context.edit_object.matrix_world
+        Mi = M.inverted_safe()
+        for bmv in verts:
+            snapped = nearest_point_valid_sources(
+                context, M @ bmv.co, world=True, sources=sources, respect_clip_planes=True,
+            )
+            if snapped:
+                bmv.co = Mi @ Vector(snapped)
 
     # ------------------------------------------------------------------
     # Selection: ordered runs of selected edges
@@ -207,7 +253,9 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
             for i in (0, n - 1):
                 if chain[i].is_boundary:
                     split_idxs.append(i)
-        if not split_idxs:
+        if len(split_idxs) < 2:
+            # nothing left to bevel (one edge, both ends caps) or a two-edge run
+            # whose only split vert is shared by both caps, leaving no strip
             return 'run is too short to bevel'
 
         # Every face touching a split vert gets rebuilt; two runs must not claim
@@ -269,13 +317,24 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
         # Each diamond's inner vert slides along the run away from the tip by the
         # same factor, keeping the diamond compact. A two-edge run shares one
         # inner vert between both diamonds, so the two slides (mostly) cancel.
-        mid_slides = {}
+        mid_slides, inner_aways, inner_slide_t = {}, {}, {}
         if not is_cycle:
-            for tip_i, inner_i, away_i in ((0, 1, 2), (n - 1, n - 2, n - 3)):
-                if tip_i in split_idxs or inner_i not in split_idxs or not (0 <= away_i < n):
-                    continue
-                slide = (chain[away_i].co - chain[inner_i].co) * self.factor
-                mid_slides[inner_i] = mid_slides.get(inner_i, Vector()) + slide
+            slides = [
+                (inner_i, away_i)
+                for tip_i, inner_i, away_i in ((0, 1, 2), (n - 1, n - 2, n - 3))
+                if tip_i not in split_idxs and inner_i in split_idxs and 0 <= away_i < n
+            ]
+            # On a three-edge run the two inner verts slide toward each other along
+            # the one shared segment, so a full factor would carry them past each
+            # other. Halving both makes factor 1 exactly where the caps meet.
+            inners = {inner_i: away_i for inner_i, away_i in slides}
+            for inner_i, away_i in slides:
+                t = self.factor
+                if inners.get(away_i) == inner_i:
+                    t *= 0.5
+                mid_slides[inner_i] = mid_slides.get(inner_i, Vector()) + (chain[away_i].co - chain[inner_i].co) * t
+                inner_aways.setdefault(inner_i, []).append(away_i)
+                inner_slide_t[inner_i] = t
 
         # With Merge Ends off, the diamond's outside vert becomes its own vert
         # sitting `factor` of the way from the inner vert toward the run's end,
@@ -287,11 +346,77 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
                     continue
                 tip_caps[tip_i] = chain[inner_i].co.lerp(chain[tip_i].co, self.factor)
 
+        # On a sharp surface the middle loop sits on the crease while the rails sit on the slopes.
+        # The flatten modes offset mid verts along their vert normals.
+        def vert_normal(i):
+            nrm = chain[i].normal
+            return nrm.normalized() if nrm.length > 1e-9 else None
+
+        def slid_co(i):
+            return chain[i].co + mid_slides.get(i, Vector())
+
+        mid_flatten = {}
+        flatten = 'NONE' if getattr(self, 'use_source_snap', False) else self.flatten
+        if flatten == 'LOOPS':
+            # Level each mid vert with the midpoint of its rails. A slid cap inner
+            # vert no longer sits between its own rails, so it levels with the rail
+            # plane: both rails lerped by the same factor toward the next station.
+            for i in split_idxs:
+                nrm = vert_normal(i)
+                if nrm is None:
+                    continue
+                aways = inner_aways.get(i, [])
+                if len(aways) == 1 and aways[0] in positions:
+                    j = aways[0]
+                    t = inner_slide_t[i]
+                    co_a = positions[i][0].lerp(positions[j][0], t)
+                    co_b = positions[i][1].lerp(positions[j][1], t)
+                else:
+                    co_a, co_b = positions[i]
+                t = ((co_a + co_b) * 0.5 - slid_co(i)).dot(nrm)
+                mid_flatten[i] = nrm * t
+        elif flatten == 'CAPS' and not is_cycle:
+            # Drop each diamond's inner vert onto the plane of its tip and rails,
+            # then interpolate the rest of the middle loop between the cap offsets
+            # by arc length (a capless boundary end anchors at zero offset)
+            cap_ts = {}
+            for tip_i, inner_i in ((0, 1), (n - 1, n - 2)):
+                if tip_i in split_idxs or inner_i not in split_idxs:
+                    continue
+                nrm = vert_normal(inner_i)
+                if nrm is None:
+                    continue
+                tip_co = tip_caps[tip_i] if tip_i in tip_caps else chain[tip_i].co
+                co_a, co_b = positions[inner_i]
+                plane_nrm = (co_a - tip_co).cross(co_b - tip_co)
+                if plane_nrm.length < 1e-12:
+                    continue
+                denom = nrm.dot(plane_nrm)
+                if abs(denom) < 1e-6 * plane_nrm.length:
+                    continue  # normal (nearly) parallel to the cap plane
+                t = (tip_co - slid_co(inner_i)).dot(plane_nrm) / denom
+                cap_ts.setdefault(inner_i, []).append(t)
+            # a two-edge run's shared inner vert averages its two cap planes
+            t_at = {i: sum(ts) / len(ts) for i, ts in cap_ts.items()}
+            if t_at:
+                lo, hi = min(split_idxs), max(split_idxs)
+                cum = [0.0]
+                for i in range(lo, hi):
+                    cum.append(cum[-1] + (chain[i + 1].co - chain[i].co).length)
+                total = cum[-1] or 1.0
+                t_lo, t_hi = t_at.get(lo, 0.0), t_at.get(hi, 0.0)
+                for k, i in enumerate(range(lo, hi + 1)):
+                    nrm = vert_normal(i)
+                    if nrm is None:
+                        continue
+                    t = t_lo + (t_hi - t_lo) * (cum[k] / total)
+                    mid_flatten[i] = nrm * t
+
         return {
             'chain': chain, 'edges': edges, 'is_cycle': is_cycle,
             'side_a': side_a, 'side_b': side_b, 'face_side': face_side,
             'split_idxs': set(split_idxs), 'positions': positions,
-            'mid_slides': mid_slides, 'tip_caps': tip_caps,
+            'mid_slides': mid_slides, 'tip_caps': tip_caps, 'mid_flatten': mid_flatten,
         }
 
     # ------------------------------------------------------------------
@@ -306,8 +431,13 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
 
         # The rail positions were computed from the inner vert's original spot,
         # so slide it only after analysis has finished with every run
+        touched = []
         for i, slide in plan['mid_slides'].items():
             chain[i].co += slide
+            touched.append(chain[i])
+        for i, offset in plan['mid_flatten'].items():
+            chain[i].co += offset
+            touched.append(chain[i])
 
         verts_a, verts_b = {}, {}
         for i in split_idxs:
@@ -317,12 +447,14 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
                 # the new vert's python reference
                 bmv = bm.verts.new(co, chain[i])
                 lookup[chain[i]] = bmv
+                touched.append(bmv)
 
         # Unmerged diamond tips get their own vert, and the two end faces absorb
         # both it and the rail vert where the inner vert used to be (an n-gon)
         new_tips, tip_subs = {}, {}
         for tip_i, co in plan['tip_caps'].items():
             new_tips[tip_i] = bm.verts.new(co, chain[tip_i])
+            touched.append(new_tips[tip_i])
             s = 0 if tip_i == 0 else m - 1
             inner = chain[1] if tip_i == 0 else chain[n - 2]
             for bmf in (side_a[s], side_b[s]):
@@ -387,7 +519,10 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
                 make_face([a0, a1, vb, va], side_a[i])
                 make_face([b1, b0, va, vb], side_b[i])
 
-        # Diamond caps at open ends that were not split
+        # Diamond caps at open ends that were not split. Every cap starts its
+        # loop on a rail vert, putting the rails at slots 0 and 2 so the quad's
+        # triangulation splits rail-to-rail instead of tip-to-inner (rotating
+        # the start keeps the cyclic order, so the winding is unchanged).
         if not is_cycle:
             inner = chain[1]
             if chain[0] not in verts_a and inner in verts_a:
@@ -395,11 +530,13 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
                 if forward(0):
                     make_face([verts_a[inner], tip, verts_b[inner], inner], side_a[0])
                 else:
-                    make_face([tip, verts_a[inner], inner, verts_b[inner]], side_a[0])
+                    make_face([verts_a[inner], inner, verts_b[inner], tip], side_a[0])
             inner = chain[n - 2]
             if chain[n - 1] not in verts_a and inner in verts_a:
                 tip = new_tips.get(n - 1, chain[n - 1])
                 if forward(m - 1):
-                    make_face([tip, verts_a[inner], inner, verts_b[inner]], side_a[m - 1])
+                    make_face([verts_a[inner], inner, verts_b[inner], tip], side_a[m - 1])
                 else:
                     make_face([verts_a[inner], tip, verts_b[inner], inner], side_a[m - 1])
+
+        return touched
