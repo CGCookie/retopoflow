@@ -592,11 +592,14 @@ class RFOperator_Translate(SourceSnapMixin, RFOperator):
         return set(self.bmvs)
 
     def use_screen_space(self, context, bmvs):
-        if len(bmvs) > 10:
+        if len(bmvs) > 25:
             return False
         view_dir = context.region_data.view_rotation @ Vector((0, 0, -1))
         for v in bmvs:
+            if is_bmvert_hidden(context, v):
+                return False
             normal = context.active_object.matrix_world.to_3x3() @ v.normal
-            if normal.dot(view_dir) > -0.5:
+            # Toward or away from the camera is fine, sideways is not
+            if abs(normal.dot(view_dir)) < 0.5:
                 return False
         return True

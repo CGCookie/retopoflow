@@ -137,12 +137,12 @@ def draw_snapping_options(context, layout, *, guide_loops: bool = False):
     col.prop(context.tool_settings, 'use_snap_selectable', text='Selectable')
     layout.separator(factor=0.5)
 
-    layout.column().prop(snapping, 'projection', text='Projection', expand=False)
-    show_steps = snapping.projection == 'WORLD_SPACE' or snapping.projection == 'FOLLOW_BLENDER'
-    if show_steps:
-        row = layout.row()
-        row.enabled = snapping.projection == 'WORLD_SPACE' or 'FACE_NEAREST' in context.scene.tool_settings.snap_elements_individual
-        row.prop(context.scene.tool_settings, 'snap_face_nearest_steps', text='Steps')
+    layout.column().prop(snapping, 'projection', text='Projection', expand=True)
+    # show_steps = snapping.projection != 'SCREEN_SPACE'
+    # if show_steps:
+    row = layout.row()
+    row.enabled = snapping.projection != 'SCREEN_SPACE' or 'FACE_NEAREST' in context.scene.tool_settings.snap_elements_individual
+    row.prop(context.scene.tool_settings, 'snap_face_nearest_steps', text='Steps')
 
     layout.row(heading='Normals').prop(snapping, 'correct_face_normals', text='Correct')
 
