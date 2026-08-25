@@ -220,6 +220,8 @@ def create_curve_edit_operator(
             self.spline = self.curves[chain_idx]
             self.handle = self.chain['handles'][handle_idx]
             self.snapshot = snapshot
+            # freeze the overlay's knot-occlusion result for the whole drag
+            self.knot_visible = dict(overlay.knot_visibility(context, chain_idx, self.chain))
             # set by apply_handle when Alt+dragging a knot -- see _scale_handles
             self.taper_scale = None
             self.taper_t = None
@@ -1498,6 +1500,11 @@ def create_curve_edit_operator(
             hidden_tangents |= {
                 h['pos'] for h in self.chain['handles'] if h['kind'] == 'tangent' and h.get('inert')
             }
+            # and any arm whose knot was behind the source when the drag started
+            hidden_tangents |= {
+                h['pos'] for h in self.chain['handles']
+                if h['kind'] == 'tangent' and not self.knot_visible.get(h['owner_vert_index'], True)
+            }
             for i, cb in enumerate(cbs):
                 curve_pts = [location_3d_to_region_2d(rgn, r3d, M @ Vector(cb.eval(v / 20))) for v in range(21)]
                 curve_pts = [p for p in curve_pts if p]
@@ -1516,6 +1523,7 @@ def create_curve_edit_operator(
             knot_pts2d, free_knot_pts2d, auto_knot_pts2d, tan_pts2d = [], [], [], []
             for h in self.chain['handles']:
                 if h['kind'] == 'knot' and h.get('inert'): continue
+                if h['kind'] == 'knot' and not self.knot_visible.get(h['vert_index'], True): continue
                 seg, attr = h['pos']
                 p = location_3d_to_region_2d(rgn, r3d, M @ Vector(getattr(cbs[seg], attr)))
                 if not p: continue

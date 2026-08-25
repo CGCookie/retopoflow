@@ -246,13 +246,14 @@ def plane_normal_from_points(context, p0, p1):
     #d1 = region_2d_to_vector_3d(context.region, context.region_data, p1).normalized()
     return d0.cross(d1).normalized()
 
-def is_point_hidden(context : Context, co_edit : Vector, *, factor : float = 1.0, use_offset : bool = True) -> bool:
+def is_point_hidden(context : Context, co_edit : Vector, *,
+                    factor : float = 1.0, use_offset : bool = True, sources : Sequence[tuple] | None = None) -> bool:
     if not context.edit_object:
         return True
 
     M = context.edit_object.matrix_world
     co_world : Vector = M @ point_to_bvec4(co_edit)
-    hit = raycast_valid_sources(context, co_world, respect_clip_planes=True)
+    hit = raycast_valid_sources(context, co_world, respect_clip_planes=True, sources=sources)
     if not hit:
         return False
     ray_e : Vector = hit['ray_world'][0]
@@ -496,7 +497,8 @@ class Raycast:
 def raycast_valid_sources(
     context : Context,
     point : Vector|Sequence[float]|None,
-    respect_clip_planes : bool = False
+    respect_clip_planes : bool = False,
+    sources : Sequence[tuple] | None = None,
 ) -> dict[str,tuple[Vector,Vector]|float|int|BObject|Vector|Sequence[float]]|None:
     if not point:
         return None
@@ -517,7 +519,12 @@ def raycast_valid_sources(
     Me = editobj.matrix_world
     Mei = Me.inverted_safe()
     Met = Me.transposed()
-    for hitobj in iter_all_valid_sources(context):
+    # Callers in a tight loop can pass a precomputed `sources` iterable to avoid
+    # re-filtering the whole view layer on every call. Same tuple convention as
+    # nearest_point_valid_sources (only src[0], the object, is read here) so one
+    # precomputed list can be shared between them.
+    hitobjs = (src[0] for src in sources) if sources is not None else iter_all_valid_sources(context)
+    for hitobj in hitobjs:
         M   = hitobj.matrix_world
         Mi  = M.inverted_safe()
         Mit = Mi.transposed()
