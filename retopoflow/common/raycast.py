@@ -32,7 +32,6 @@ from mathutils import Vector, Matrix
 from bpy_extras.view3d_utils import (
     region_2d_to_origin_3d,
     region_2d_to_vector_3d,
-    region_2d_to_location_3d,
     location_3d_to_region_2d,
 )
 
@@ -61,21 +60,40 @@ def distance_between_locations(a:Vector, b:Vector) -> float:
     a, b = point_to_bvec3(a), point_to_bvec3(b)
     return (a - b).length
 
-def point2D_to_point(context, xy, depth:float):
-    r = ray_from_point(context, xy)
-    return (r[0] + r[1] * depth) if r[0] and r[1] else None
+def region_2d_to_location_3d_stable(region, rv3d, coord, depth_location) -> Vector | None:
+    '''
+    Safer replacement for bpy_extras.view3d_utils.region_2d_to_location_3d.
 
-def size2D_to_size_point(context, point_screen, depth_location):
-    # this function is not working correctly...
-    w, h = context.region.width * 0.5, context.region.height * 0.5
-    # note: scaling then unscaling helps with numerical instability when clip_start is small
-    scale = min(w, h)
-    # find center of screen
-    xy0, xy1 = Vector(point_screen), Vector((point_screen[0] + scale, point_screen[1]))
-    p3d0 = region_2d_to_location_3d(context.region, context.region_data, xy0, depth_location)
-    p3d1 = region_2d_to_location_3d(context.region, context.region_data, xy1, depth_location)
-    if not p3d0 or not p3d1: return None
-    return (p3d0 - p3d1).length / scale
+    In orthographic views, Blender's version builds the ray from an origin at the far clip plane
+    and re-derives the ray direction by float32 subtraction of two such points. At large clip ranges
+    the floating point error results in huge jumps.
+
+    This version is the same math, computed in python doubles from a mid-clip-volume origin instead.
+    '''
+    persinv = rv3d.perspective_matrix.inverted()
+    dx = (2.0 * coord[0] / region.width) - 1.0
+    dy = (2.0 * coord[1] / region.height) - 1.0
+    # unproject NDC (dx, dy, 0): a scene-scale point on the pixel ray
+    qx = persinv[0][0]*dx + persinv[0][1]*dy + persinv[0][3]
+    qy = persinv[1][0]*dx + persinv[1][1]*dy + persinv[1][3]
+    qz = persinv[2][0]*dx + persinv[2][1]*dy + persinv[2][3]
+    qw = persinv[3][0]*dx + persinv[3][1]*dy + persinv[3][3]
+    if abs(qw) < 1e-12: return None
+    qx, qy, qz = qx/qw, qy/qw, qz/qw
+    vm = rv3d.view_matrix
+    fx, fy, fz = -vm[2][0], -vm[2][1], -vm[2][2]   # world-space view forward
+    if rv3d.is_perspective:
+        viewinv = vm.inverted()
+        ox, oy, oz = viewinv[0][3], viewinv[1][3], viewinv[2][3]   # eye
+        dxr, dyr, dzr = qx-ox, qy-oy, qz-oz
+    else:
+        ox, oy, oz = qx, qy, qz
+        dxr, dyr, dzr = fx, fy, fz
+    px, py, pz = depth_location[0], depth_location[1], depth_location[2]
+    denom = dxr*fx + dyr*fy + dzr*fz
+    if abs(denom) < 1e-12: return None
+    t = ((px-ox)*fx + (py-oy)*fy + (pz-oz)*fz) / denom
+    return Vector((ox + dxr*t, oy + dyr*t, oz + dzr*t))
 
 def prettyprint_matrices(*args, format='% 7.3f'):
     # assuming all matrices and labels are same size!!
@@ -114,28 +132,33 @@ def size2D_to_size(
     *,
     pt : Vector | Sequence[float] | None = None,
 ) -> float | None:
-    w : float = context.region.width * 0.5
-    h : float = context.region.height * 0.5
-    scale = min(w, h)
-
-    # note: scaling then unscaling helps with numerical instability when clip_start is small
-    # find center of screen
-    xy = Vector((pt[0], pt[1])) if pt else Vector((w, h))
-    xy0, xy1 = xy + Vector((-scale, 0)), xy + Vector((scale, 0))
-    xy2, xy3 = xy + Vector((0, -scale)), xy + Vector((0, scale))
-    p3d = point2D_to_point(context, xy, depth3D)
-    p3d0, p3d1 = point2D_to_point(context, xy0, depth3D), point2D_to_point(context, xy1, depth3D)
-    p3d2, p3d3 = point2D_to_point(context, xy2, depth3D), point2D_to_point(context, xy3, depth3D)
-
-    if not p3d or not p3d0 or not p3d1 or not p3d2 or not p3d3:
+    '''
+    World-space size of one screen pixel at `depth3D`, where `depth3D` is a distance measured along
+    the view ray through `pt` or screen center when `pt` is None, i.e. what raycast hits report as `distance`.
+    '''
+    rgn, r3d = context.region, context.region_data
+    if not rgn or not r3d:
         return None
 
-    # if not p3d0 or not p3d1: return None
-    d0, d1 = (p3d0 - p3d).length, (p3d1 - p3d).length
-    d2, d3 = (p3d2 - p3d).length, (p3d3 - p3d).length
-    d = (d0 + d1 + d2 + d3) / 4
-    # print(f'{d0} {d1} {d2} {d3}')
-    return d / scale
+    # window_matrix maps the frame half-width onto NDC 1.0, so 1/m00 is that half-width in world units.
+    # absolute in ortho, per unit of axial depth in perspective.
+    m00 : float = r3d.window_matrix[0][0]
+    if not m00:
+        return None
+    per_pixel = abs(1.0 / m00) / (rgn.width * 0.5)
+
+    if not r3d.is_perspective:
+        return per_pixel  # parallel projection, pixel size does not vary with depth
+
+    # `depth3D` runs along a ray that is generally off-axis, while the frame widens with depth
+    # measured along the view direction, so project the ray distance onto the view axis first.
+    xy = Vector((pt[0], pt[1])) if pt is not None else Vector((rgn.width * 0.5, rgn.height * 0.5))
+    ray_dir = region_2d_to_vector_3d(rgn, r3d, xy)
+    if not ray_dir:
+        return None
+    vm = r3d.view_matrix
+    view_forward = Vector((-vm[2][0], -vm[2][1], -vm[2][2]))  # unit, world space
+    return depth3D * ray_dir.normalized().dot(view_forward) * per_pixel
 
 def ray_from_mouse(context : Context, event : Event) -> tuple[Vector, Vector] | tuple[None, None]:
     mouse = (event.mouse_region_x, event.mouse_region_y)
@@ -198,8 +221,8 @@ def plane_normal_from_points(context, p0, p1):
         if not p1: return (None, None)
     w, h = context.area.width, context.area.height
     q0 = region_2d_to_origin_3d(context.region, context.region_data, Vector((w/2, h/2)))
-    q1 = region_2d_to_location_3d(context.region, context.region_data, p0, context.edit_object.location)
-    q2 = region_2d_to_location_3d(context.region, context.region_data, p1, context.edit_object.location)
+    q1 = region_2d_to_location_3d_stable(context.region, context.region_data, p0, context.edit_object.location)
+    q2 = region_2d_to_location_3d_stable(context.region, context.region_data, p1, context.edit_object.location)
     d0 = (q1 - q0).normalized()
     d1 = (q2 - q0).normalized()
     # the following does _not_ work with orthographic projection, because directions are parallel
@@ -207,19 +230,59 @@ def plane_normal_from_points(context, p0, p1):
     #d1 = region_2d_to_vector_3d(context.region, context.region_data, p1).normalized()
     return d0.cross(d1).normalized()
 
-def is_point_hidden(context : Context, co_edit : Vector, *, factor : float = 1.0, use_offset : bool = True) -> bool:
+def is_xray_enabled(context : Context) -> bool:
+    ''' Whether the viewport is drawing the scene see-through. '''
+    shading = getattr(context.space_data, 'shading', None)
+    if not shading:
+        return False
+    if shading.type == 'WIREFRAME':
+        return shading.show_xray_wireframe
+    if shading.type in {'SOLID', 'MATERIAL'}:
+        return shading.show_xray
+    return False
+
+def is_point_occluded(context : Context, point_world : Vector, *, offset : float | None = None, sources : Sequence[tuple] | None = None, use_xray : bool = False) -> bool:
+    ''' Whether a world-space point sits behind a source surface.
+    `offset` is how far the point may poke through the source before it counts as occluded,
+    defaulting to the retopology overlay offset.
+    `use_xray` makes xray view skip occlusion. '''
+    if use_xray and is_xray_enabled(context):
+        return False  # the source is drawn see-through, so it hides nothing
+    if not context.region_data:
+        return False
+    direction = direction_from_point(context, point_world)
+    if not direction:
+        return False
+    if offset is None:
+        offset = context.space_data.overlay.retopology_offset
+
+    p = point_to_bvec3(point_world)
+    d = direction.xyz
+
+    # Step off the surface toward the viewer so the point's own face is not the occluder.
+    # Floored because the user can zero the retopology offset.
+    # Scaled by the coordinates because that is what governs the float32 noise in the hit position.
+    nudge = max(offset, 1e-6 * max(1.0, p.length))
+
+    # Cast from the point back toward the viewer rather than forward from the view origin,
+    # otherwise ortho view with a distant clip plane gives huge rounding errors.
+    ray = (
+        Vector((*(p - d * nudge), 1.0)),
+        Vector((*(-d), 0.0)),
+    )
+    return raycast_ray_valid_sources(context, ray, world=True, respect_clip_planes=True, sources=sources) is not None
+
+def is_point_hidden(context : Context, co_edit : Vector, *,
+                    use_offset : bool = True, sources : Sequence[tuple] | None = None,
+                    use_xray : bool = False) -> bool:
+    ''' is_point_occluded for a point in edit-object space. '''
     if not context.edit_object:
         return True
 
     M = context.edit_object.matrix_world
     co_world : Vector = M @ point_to_bvec4(co_edit)
-    hit = raycast_valid_sources(context, co_world, respect_clip_planes=True)
-    if not hit:
-        return False
-    ray_e : Vector = hit['ray_world'][0]
     offset : float = context.space_data.overlay.retopology_offset if use_offset else 0.0
-    dist : float = hit['distance']
-    return dist + offset < (ray_e.xyz - co_world.xyz).length * factor
+    return is_point_occluded(context, co_world.xyz, offset=offset, sources=sources, use_xray=use_xray)
 
 # Testing whether a CURVE/SURFACE/META/FONT object has faces requires tessellation,
 # so we don't want to do this every single raycast.
@@ -457,7 +520,8 @@ class Raycast:
 def raycast_valid_sources(
     context : Context,
     point : Vector|Sequence[float]|None,
-    respect_clip_planes : bool = False
+    respect_clip_planes : bool = False,
+    sources : Sequence[tuple] | None = None,
 ) -> dict[str,tuple[Vector,Vector]|float|int|BObject|Vector|Sequence[float]]|None:
     if not point:
         return None
@@ -478,7 +542,12 @@ def raycast_valid_sources(
     Me = editobj.matrix_world
     Mei = Me.inverted_safe()
     Met = Me.transposed()
-    for hitobj in iter_all_valid_sources(context):
+    # Callers in a tight loop can pass a precomputed `sources` iterable to avoid
+    # re-filtering the whole view layer on every call. Same tuple convention as
+    # nearest_point_valid_sources (only src[0], the object, is read here) so one
+    # precomputed list can be shared between them.
+    hitobjs = (src[0] for src in sources) if sources is not None else iter_all_valid_sources(context)
+    for hitobj in hitobjs:
         M   = hitobj.matrix_world
         Mi  = M.inverted_safe()
         Mit = Mi.transposed()
@@ -549,7 +618,7 @@ def raycast_point_valid_sources(context:Context, point_screen_or_world:Vector, *
     if not ray_e_world or not ray_d_world: return None
     return raycast_ray_valid_sources(context, (ray_e_world, ray_d_world), **kwargs)
 
-def raycast_ray_valid_sources(context:Context, ray_world:tuple[Vector,Vector], *, world:bool=True, respect_clip_planes:bool=False) -> Vector|None:
+def raycast_ray_valid_sources(context:Context, ray_world:tuple[Vector,Vector], *, world:bool=True, respect_clip_planes:bool=False, sources : Sequence[tuple] | None = None) -> Vector|None:
     if ray_world[0] is None: return None
 
     best_hit = None
@@ -557,8 +626,11 @@ def raycast_ray_valid_sources(context:Context, ray_world:tuple[Vector,Vector], *
 
     ray_origin, ray_dir = ray_world  # 4D: w=1 (point) and w=0 (direction, already normalised)
 
+    # Same precomputed `sources` convention as raycast_valid_sources.
+    # Only src[0] is read here, so one precomputed list can be shared between them.
+    hitobjs = (src[0] for src in sources) if sources is not None else iter_all_valid_sources(context)
     # print(f'RAY {ray_world}')
-    for obj in iter_all_valid_sources(context):
+    for obj in hitobjs:
         M = obj.matrix_world
         Mi = M.inverted_safe()
 
@@ -630,7 +702,7 @@ def raycast_point_capped_valid_sources(
     hit_co = (Vector(hit['co_world']) if world else Vector(hit['co_local'])) if hit else None
     if hit and (cap <= 0 or (Vector(hit['co_world']) - co_world_ref).length <= cap):
         return hit_co
-    co_plane = region_2d_to_location_3d(context.region, context.region_data, point_screen, co_world_ref)
+    co_plane = region_2d_to_location_3d_stable(context.region, context.region_data, point_screen, co_world_ref)
     if co_plane:
         snapped = nearest_point_valid_sources(
             context, point_to_bvec3(co_plane), world=world, sources=sources, respect_clip_planes=respect_clip_planes

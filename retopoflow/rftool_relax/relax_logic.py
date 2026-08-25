@@ -2129,16 +2129,18 @@ class Relax_Logic(FeatureRunsMixin):
                         snap_threshold *= 0.5   # narrower window keeps demoted verts farther out
                     co_world_pt = M @ co
                     if is_demoted:
+                        # co_world_snapped can be None at this point if snapping in local space instead
+                        co_world_base = Vector(co_world_snapped) if co_world_snapped is not None else M @ co_local_snapped
                         # Demoted: push away regardless of direction, from every demoting run.
-                        push = self.demoted_net_push_world(bmv, Vector(co_world_snapped), snap_threshold)
+                        push = self.demoted_net_push_world(bmv, co_world_base, snap_threshold)
                         if push is not None:
                             if push.length > 1e-8:
-                                co_local_snapped = Mi @ (Vector(co_world_snapped) + push * 0.5)
+                                co_local_snapped = Mi @ (co_world_base + push * 0.5)
                         elif closest_result := self.closest_on_own_run(bmv, co_world_pt):
                             p_vec = Vector(closest_result[0])
                             if (p_vec - co_world_pt).length <= snap_threshold:
-                                to_edge_from_snapped = p_vec - Vector(co_world_snapped)
-                                co_local_snapped = Mi @ (Vector(co_world_snapped) - to_edge_from_snapped * 0.5)
+                                to_edge_from_snapped = p_vec - co_world_base
+                                co_local_snapped = Mi @ (co_world_base - to_edge_from_snapped * 0.5)
                     elif closest_result := self.closest_on_own_run(bmv, co_world_pt):
                         p_vec = Vector(closest_result[0])
                         to_edge_w = p_vec - co_world_pt

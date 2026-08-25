@@ -52,6 +52,11 @@ KMI_OVERRIDES : TypeAlias = list[KMI_OVERRIDE]
 
 KMI_KEY : TypeAlias = tuple[...]
 
+# Marks a property that had no value before RF's override.
+# Sub-keys of a nested operator prop (e.g. mesh.loopcut_slide's TRANSFORM_OT_edge_slide)
+# cannot use delete_keys, because unsetting the group would also discard sub-keys RF never touched.
+KMI_PROP_UNSET = object()
+
 # Blender can invalidate a km reference or reuse its memory for a different item
 # when it rebuilds the user keyconfig, so use the data to identify it instead.
 # (keymap name, space_type, region_type, kmi id, operator idname, delete_keys, reset_vals)
@@ -129,7 +134,10 @@ def _reset_kmi_properties(
 
         elif (prop := getattr(kmi_props, key, None)):
             for (k, v) in val.items(): # pyright: ignore[reportUnknownVariableType]
-                setattr(prop, k, v)
+                if v is KMI_PROP_UNSET:
+                    prop.property_unset(k)
+                else:
+                    setattr(prop, k, v)
 
 def _override_kmi_properties(
     keymap : KeyMap,
@@ -157,10 +165,10 @@ def _override_kmi_properties(
                 reset_vals[key] = kmi_prop_val
 
             else:
-                keys : list[str] = list(kmi_prop_val.keys()) # pyright: ignore[reportAny]
+                # Sub-keys with no value yet are marked so restore unsets them properly.
                 reset_vals[key] = {
-                    k: getattr(kmi_prop_val, k) # pyright: ignore[reportAny]
-                    for k in keys
+                    k: (getattr(kmi_prop_val, k) if k in kmi_prop_val else KMI_PROP_UNSET) # pyright: ignore[reportAny]
+                    for k in val
                 }
 
         if not isinstance(val, dict):

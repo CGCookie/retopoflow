@@ -21,11 +21,13 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import re
 import inspect
+from collections import ChainMap
 from bpy.types import bpy_prop_array
 from mathutils import Color
 
 Key = str | tuple[object, str]
-Scopes = list[dict[str, object]]
+PathPart = str | int                             # attribute name or subscript index
+Stored = tuple[object, object, list[PathPart]]   # previous value, root object, path from root
 
 def simple_representation(v : object) -> object:
     match v:
@@ -36,29 +38,30 @@ def simple_representation(v : object) -> object:
         case _:
             return v
 
-def object_to_key(o : object) -> str:
-    s = str(o)
+# matches one path segment: an attribute name (with optional leading dot) or an integer subscript
+re_path_part = re.compile(r'\.?(\w+)|\[(\d+)\]')
 
-    # sanitize string by replacing any double quotes, newlines, or CRs with underscores
-    s = re.sub(r'["\n\r]', '', s)
+def parse_path(path : str) -> list[PathPart]:
+    # 'context.preferences.themes[0].view_3d' -> ['context', 'preferences', 'themes', 0, 'view_3d']
+    parts : list[PathPart] = []
+    pos = 0
+    assert not path.startswith('.'), f'Cannot parse path "{path}"'
+    for m in re_path_part.finditer(path):
+        assert m.start() == pos, f'Cannot parse path "{path}" at position {pos}'
+        parts.append(m[1] if m[1] is not None else int(m[2]))
+        pos = m.end()
+    assert pos == len(path) and parts, f'Cannot parse path "{path}"'
+    return parts
 
-    # remove anything that looks like a memory address
-    s = re.sub(r'0x[0-9a-fA-F]+', '', s)
-
-    # print(f'object_to_key({o}) = "{s}"')
-    return s
-
-def create_variable(o : object, f_locals : dict[str, object]) -> str:
-    if '__o' not in f_locals:
-        f_locals['__o'] = {}
-    k = object_to_key(o)
-    f_locals['__o'][k] = o
-    return k
+def resolve_path(o : object, parts : list[PathPart]) -> object:
+    for part in parts:
+        o = o[part] if type(part) is int else getattr(o, part) # pyright: ignore[reportIndexIssue, reportArgumentType]
+    return o
 
 class Resetter:
-    _label : str | None
-    _previous : dict[Key, tuple[object, Scopes]]
-    _backup   : dict[Key, tuple[object, Scopes]]
+    _label    : str | None
+    _previous : dict[Key, Stored]
+    _backup   : dict[Key, Stored]
 
     def __init__(self, label : str | None = None):
         self._label = label
@@ -73,47 +76,43 @@ class Resetter:
         if key in self._previous:
             return
 
-        frame = inspect.currentframe()
-        for _ in range(depth):
-            assert frame
-            frame = frame.f_back
-        assert frame
-        f_globals, f_locals = dict(frame.f_globals), dict(frame.f_locals)
-        scopes = [f_globals, f_locals]
-
         match key:
             case str():
-                cmd = f'{key}'
-            case (o, a):
-                var = create_variable(o, f_locals)
-                cmd = f'__o["{var}"].{a}'
+                # root name (ex: context, space) is looked up in the caller's scope
+                root_name, *parts = parse_path(key)
+                assert type(root_name) is str, f'Path "{key}" must start with a name'
+                frame = inspect.currentframe()
+                for _ in range(depth):
+                    assert frame
+                    frame = frame.f_back
+                assert frame
+                root = ChainMap(frame.f_locals, frame.f_globals)[root_name]
+            case (root, attr_path):
+                parts = parse_path(attr_path)
             case _: # pyright: ignore[reportUnnecessaryComparison]
                 assert False, f'Unhandled type {type(key)} ({key})' # pyright: ignore[reportUnreachable]
 
-        pvalue : object = eval(cmd, *scopes) # pyright: ignore[reportAny]
+        assert parts and type(parts[-1]) is str, f'Path in "{key}" must end with an attribute'
+        pvalue = resolve_path(root, parts)
 
-        # print(f'Resetter {self._label}: set {key} = {pvalue} ({type(pvalue)}) -> {value} ({type(value)})')
-        self._previous[key] = (
-            simple_representation(pvalue),
-            [f_globals, f_locals],
-        )
+        # print(f'Resetter {self._label}: store {key} = {pvalue} ({type(pvalue)})')
+        self._previous[key] = (simple_representation(pvalue), root, parts)
 
     def _setter(self, key : Key, value : object):
-        _, scopes = self._previous[key]
-        if type(value) is str:
-            value = f'"{value}"'
-
-        match key:
-            case str():
-                cmd = f'{key} = {value}'
-            case (o, a):
-                var = object_to_key(o)
-                cmd = f'__o["{var}"].{a} = {value}'
-            case _: # pyright: ignore[reportUnnecessaryComparison]
-                assert False, f'Unhandled type {type(key)} ({key})' # pyright: ignore[reportUnreachable]
+        _, root, parts = self._previous[key]
 
         try:
-            exec(cmd, *scopes)
+            owner = resolve_path(root, parts[:-1])
+        except (AttributeError, ReferenceError):
+            # a None partway along the path (ex: context.scene is None while Blender is shutting down),
+            # or a reference to a since-freed StructRNA (ex: a closed Space)
+            return
+        if owner is None:
+            # the property's owner is gone, so there is nothing left to restore
+            return
+
+        try:
+            setattr(owner, parts[-1], value) # pyright: ignore[reportArgumentType]
         except Exception as _exception:
             print(f'Resetter: Exception caught and ignored while trying to set {key} = {value}')
             print(f'  Exception: {_exception}')
@@ -128,7 +127,7 @@ class Resetter:
             raise e
 
     def __delitem__(self, key : Key):
-        value, _ = self._previous[key]
+        value, _, _ = self._previous[key]
         # print(f'Resetter {self._label}: reset {key} <- {value} ({type(value)})')
         self._setter(key, value)
         del self._previous[key]

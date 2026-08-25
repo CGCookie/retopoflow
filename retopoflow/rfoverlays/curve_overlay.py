@@ -24,7 +24,7 @@ from __future__ import annotations
 import time
 
 import bpy
-from mathutils import Vector, Matrix
+from mathutils import Vector, Matrix, kdtree
 from bpy.types import Context, Event
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 
@@ -41,7 +41,7 @@ from ..rftool_statusbar import SharedStatusbarKeymap
 from ..common.bmesh import get_bmesh_emesh
 from ..common.curves import ChainProvider, ChainSpec, derive_centerline_knots
 from ..common.drawing import Drawing
-from ..common.raycast import is_point_hidden, mouse_from_event
+from ..common.raycast import is_point_hidden, is_xray_enabled, iter_all_valid_sources, mouse_from_event
 from ...addon_common.common.bezier import CubicBezier, CubicBezierSpline
 from ...addon_common.common.blender_cursors import Cursors
 
@@ -150,6 +150,10 @@ def create_curve_overlay(
         paused_overlay : ClassVar[bool] = False
 
         hovering : tuple[int, int, list] | None = None  # (chain_index, handle_index, control-point snapshot)
+
+        # knot occlusion results and the (mesh, view, retopology offset) they were computed for
+        occlusion_key : tuple | None = None
+        occlusion_cache : dict[int, dict[int, bool]] | None = None
 
         curves : list[CubicBezierSpline]
         chains : list[dict]
@@ -281,6 +285,7 @@ def create_curve_overlay(
             self.curves = []
             self.chains = []
             self.label_data = []
+            self.occlusion_key = None
 
             if context.edit_object.data.total_vert_sel > MAX_HANDLE_VERTS:
                 return True
@@ -297,7 +302,8 @@ def create_curve_overlay(
 
             active_keys = set()
             for spec in specs:
-                self._add_chain(spec, bend_tolerance_factor=bend_tolerance_factor, sharp_angle=sharp_angle, active_keys=active_keys)
+                self._add_chain(spec, bm=bm, bend_tolerance_factor=bend_tolerance_factor,
+                                sharp_angle=sharp_angle, active_keys=active_keys)
 
             # Hide handles when there are too many segments to be usable
             if sum(len(spline.cbs) for spline in self.curves) > MAX_HANDLE_SEGMENTS:
@@ -316,7 +322,7 @@ def create_curve_overlay(
 
             return True
 
-        def _add_chain(self, spec : ChainSpec, *, bend_tolerance_factor, sharp_angle, active_keys):
+        def _add_chain(self, spec : ChainSpec, *, bm, bend_tolerance_factor, sharp_angle, active_keys):
             self.label_data.append((spec.label[0], spec.label[1], spec.points))
 
             if len(spec.points) < spec.min_spline_points:
@@ -334,6 +340,8 @@ def create_curve_overlay(
             if spline is None or not spline.cbs:
                 return
 
+            self._attach_occlusion_probes(bm, spec, spline, handles)
+
             self.curves.append(spline)
             self.chains.append({
                 'deform_bmv_indices': spec.deform_bmv_indices,
@@ -346,6 +354,64 @@ def create_curve_overlay(
                 'deform_bmv_rungs': spec.deform_bmv_rungs,
                 'coupled': spec.coupled, # True when points are on verts, False when derived from faces
             })
+
+        def _attach_occlusion_probes(self, bm, spec : ChainSpec, spline, handles):
+            ''' Give every knot handle an `occlusion_cos`: the local-space positions of the nearest
+            real verts of this chain, used to decide whether the knot is behind the source. '''
+            indices = spec.deform_bmv_indices
+            if not indices:
+                return
+            try:
+                cos = [bm.verts[i].co.copy() for i in indices]
+            except IndexError:
+                return
+            kd = kdtree.KDTree(len(cos))
+            for n, co in enumerate(cos):
+                kd.insert(co, n)
+            kd.balance()
+            nprobes = 1 if spec.coupled else 2
+            for h in handles:
+                if h['kind'] != 'knot':
+                    continue
+                seg, attr = h['pos']
+                knot_co = Vector(getattr(spline.cbs[seg], attr))
+                h['occlusion_cos'] = [cos[n] for (_, n, _) in kd.find_n(knot_co, nprobes)]
+
+        def knot_visibility(self, context, ci : int, chain) -> dict[int, bool]:
+            ''' { knot vert_index -> is the retopo surface under it visible }.
+
+            Cached per (mesh, view, retopology offset), because occlusion cannot
+            change unless one of those does, and we don't want to do this every frame.
+            '''
+            RFCore = RFGlobals.RFCore_None
+            r3d = context.region_data
+            key = (
+                RFCore.depsgraph_version if RFCore else None,
+                r3d.perspective_matrix.copy().freeze() if r3d else None,
+                getattr(getattr(context.space_data, 'overlay', None), 'retopology_offset', 0.0),
+                is_xray_enabled(context),
+            )
+            if key != self.occlusion_key or self.occlusion_cache is None:
+                self.occlusion_key = key
+                self.occlusion_cache = {}
+            vis = self.occlusion_cache.get(ci)
+            if vis is None:
+                # hoisted out of the loop: without it every single test re-filters
+                # the whole view layer, which costs more than the raycast itself
+                sources = [(obj,) for obj in iter_all_valid_sources(context)]
+                vis = self.occlusion_cache[ci] = {
+                    h['vert_index']: any(
+                        not is_point_hidden(context, co, sources=sources, use_xray=True)
+                        for co in h['occlusion_cos']
+                    )
+                    for h in chain['handles']
+                    if h['kind'] == 'knot' and h.get('occlusion_cos')
+                }
+            return vis
+
+        def _handle_visible(self, context, ci : int, chain, h) -> bool:
+            k = h['vert_index'] if h['kind'] == 'knot' else h['owner_vert_index']
+            return self.knot_visibility(context, ci, chain).get(k, True)
 
         def _build_curve(self, cos, *, cyclic, avg_len, bend_tolerance_factor, sharp_angle, cache_key, forced_sharp_indices=(), coupled=True, corner_eligible_knots=frozenset(), corner_removable_knots=frozenset()):
             n = len(cos)
@@ -666,6 +732,8 @@ def create_curve_overlay(
                         if not p:
                             continue
                         if (p - m).length < d:
+                            if not self._handle_visible(context, ci, chain, h):
+                                continue
                             return (ci, hi, self._snapshot(spline))
             return None
 
@@ -703,7 +771,7 @@ def create_curve_overlay(
                 lbl_pos = lbl_pos - Vector((tw / 2, -th / 2))
                 Drawing.text_draw2D(text, lbl_pos.xy, color=(1,1,0,1), dropshadow=(0,0,0,0.75))
 
-            for spline, chain in zip(self.curves, self.chains):
+            for ci, (spline, chain) in enumerate(zip(self.curves, self.chains)):
                 cbs = spline.cbs
                 # hide Automatic knots' tangent handles by default since user's can't edit them.
                 knot_type_by_vert = {
@@ -718,6 +786,11 @@ def create_curve_overlay(
                 # plus any arm with too few verts in its own segment to bend anything
                 hidden_tangents |= {
                     h['pos'] for h in chain['handles'] if h['kind'] == 'tangent' and h.get('inert')
+                }
+                # plus any arm whose knot is behind the source -- see _handle_visible
+                hidden_tangents |= {
+                    h['pos'] for h in chain['handles']
+                    if h['kind'] == 'tangent' and not self._handle_visible(context, ci, chain, h)
                 }
                 for i, cb in enumerate(cbs):
                     if DEBUG_SHOW_CURVE_LINE:
@@ -743,6 +816,8 @@ def create_curve_overlay(
                     if h['kind'] == 'knot':
                         if h.get('inert'):
                             continue  # both of its arms are inert, so the knot isn't needed
+                        if not self._handle_visible(context, ci, chain, h):
+                            continue  # the retopo surface under it is behind the source
                     elif h['pos'] in hidden_tangents:
                         continue  # hidden, so don't bother projecting it
                     seg, attr = h['pos']
