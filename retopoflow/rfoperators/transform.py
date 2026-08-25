@@ -78,6 +78,16 @@ from ..common.drawing import Drawing, CC_2D_POINTS
 from ..rfoverlays.proportional_edit_overlay import ProportionalEditOverlay
 
 
+def translate_uses_native(context):
+    ''' Whether Translate hands off to Blender's transform rather than running RF's own. Shared with
+    the UI so a panel can show whichever Auto Merge setting is actually going to apply. '''
+    snapping = context.scene.retopoflow.snapping
+    return bool(snapping.snap_vertex and (
+        snapping.snap_vertex or snapping.snap_edge or snapping.snap_edge_center
+        or snapping.snap_edge_perpendicular or snapping.snap_face_center
+    ))
+
+
 class RFOperator_Slide(RFOperator):
     # Registered as a separate operator because it needs 'UNDO' on while Translate needs it off
     bl_idname = "retopoflow.slide"
@@ -189,12 +199,7 @@ class RFOperator_Translate(SourceSnapMixin, RFOperator):
         sync_projection_from_blender(context)
         self.tweaking_projection = context.scene.retopoflow.snapping.projection
         if self.use_native == 'AUTO':
-            snapping = context.scene.retopoflow.snapping
-            use_native = snapping.snap_vertex and (
-                snapping.snap_vertex or snapping.snap_edge or snapping.snap_edge_center
-                or snapping.snap_edge_perpendicular or snapping.snap_face_center
-            )
-            self.use_native = 'TRUE' if use_native else 'FALSE'
+            self.use_native = 'TRUE' if translate_uses_native(context) else 'FALSE'
 
         if self.used_keyboard:
             move_hovered = self.move_hovered and prefs.tweaking_move_hovered_keyboard
@@ -457,12 +462,14 @@ class RFOperator_Translate(SourceSnapMixin, RFOperator):
             self.proportional_edit_overlay.draw_2d(context)
 
     def automerge(self, context, event):
-        prop_use = context.tool_settings.use_proportional_edit
-        if not context.tool_settings.use_mesh_automerge or prop_use: return
+        ts = context.tool_settings
+        prop_use = ts.use_proportional_edit
+        if not ts.use_mesh_automerge or prop_use: return
 
+        distance2d = context.scene.retopoflow.automerge_distance
         merging = {}
         for bmv in self.bmvs:
-            self.nearest_bmv.update(context, bmv.co)
+            self.nearest_bmv.update(context, bmv.co, distance2d=distance2d)
             if not self.nearest_bmv.bmv: continue
             bmv_into = self.nearest_bmv.bmv
             merging[bmv_into] = bmv
@@ -495,6 +502,8 @@ class RFOperator_Translate(SourceSnapMixin, RFOperator):
         prop_use = context.tool_settings.use_proportional_edit
         prop_dist_world = context.tool_settings.proportional_distance
         prop_falloff = context.tool_settings.proportional_edit_falloff
+        automerge_use = context.tool_settings.use_mesh_automerge and not prop_use
+        automerge_2d = context.scene.retopoflow.automerge_distance if automerge_use else 0
 
         if self.moving is None:
             self.moving = [
@@ -558,8 +567,8 @@ class RFOperator_Translate(SourceSnapMixin, RFOperator):
 
             self.last_success[bmv] = co
             if distance > prop_dist_world: continue
-            if context.tool_settings.use_mesh_automerge and not prop_use:
-                self.nearest_bmv.update(context, co)
+            if automerge_use:
+                self.nearest_bmv.update(context, co, distance2d=automerge_2d)
                 if self.nearest_bmv.bmv:
                     co = self.nearest_bmv.bmv.co
                     self.highlight.add(self.nearest_bmv.bmv)

@@ -27,6 +27,7 @@ from ..preferences import RF_Prefs
 from ..common.interface import draw_section_header
 from ..common.icons import Icon
 from ..rftool_base import RFTool_Base
+from ..rfoperators.transform import translate_uses_native
 
 
 def _active_rftool(context):
@@ -81,7 +82,10 @@ def draw_tweaking_options(context : Context, layout : UILayout):
             row.separator(factor=0.5)
             row2 = row.row()
             row2.enabled = context.scene.tool_settings.use_mesh_automerge
-            row2.prop(context.scene.tool_settings, 'double_threshold', text='')
+            if translate_uses_native(context):
+                row2.prop(context.scene.tool_settings, 'double_threshold', text='')
+            else:
+                row2.prop(context.scene.retopoflow, 'automerge_distance', text='')
 
     _, tool_props = _active_rftool(context)
     if hasattr(tool_props, 'show_curve_handles'):

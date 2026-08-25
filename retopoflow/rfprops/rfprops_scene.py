@@ -60,6 +60,20 @@ class RFProps_Scene(bpy.types.PropertyGroup):
         default=True
     )
 
+    """ Transform """
+    automerge_distance: bpy.props.IntProperty(
+        name='Auto Merge Distance',
+        description=(
+            "Distance on screen within which Auto Merge welds a moved vertex into another. "
+            "Also caps the merge in 3D, by projecting this same distance to the vertex's own depth, "
+            "so a vertex hidden behind another is not welded just for lining up on screen"
+        ),
+        subtype='PIXEL',
+        default=10,
+        min=1,
+        max=100,
+    )
+
     """ Cleaning """
     #region
     cleaning_use_snap: bpy.props.BoolProperty(
