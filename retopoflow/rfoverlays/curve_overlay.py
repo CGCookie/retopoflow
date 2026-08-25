@@ -41,7 +41,7 @@ from ..rftool_statusbar import SharedStatusbarKeymap
 from ..common.bmesh import get_bmesh_emesh
 from ..common.curves import ChainProvider, ChainSpec, derive_centerline_knots
 from ..common.drawing import Drawing
-from ..common.raycast import is_point_hidden, iter_all_valid_sources, mouse_from_event
+from ..common.raycast import is_point_hidden, is_xray_enabled, iter_all_valid_sources, mouse_from_event
 from ...addon_common.common.bezier import CubicBezier, CubicBezierSpline
 from ...addon_common.common.blender_cursors import Cursors
 
@@ -389,6 +389,7 @@ def create_curve_overlay(
                 RFCore.depsgraph_version if RFCore else None,
                 r3d.perspective_matrix.copy().freeze() if r3d else None,
                 getattr(getattr(context.space_data, 'overlay', None), 'retopology_offset', 0.0),
+                is_xray_enabled(context),
             )
             if key != self.occlusion_key or self.occlusion_cache is None:
                 self.occlusion_key = key
@@ -400,7 +401,7 @@ def create_curve_overlay(
                 sources = [(obj,) for obj in iter_all_valid_sources(context)]
                 vis = self.occlusion_cache[ci] = {
                     h['vert_index']: any(
-                        not is_point_hidden(context, co, sources=sources)
+                        not is_point_hidden(context, co, sources=sources, use_xray=True)
                         for co in h['occlusion_cos']
                     )
                     for h in chain['handles']

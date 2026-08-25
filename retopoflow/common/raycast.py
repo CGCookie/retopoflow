@@ -234,10 +234,24 @@ def plane_normal_from_points(context, p0, p1):
     #d1 = region_2d_to_vector_3d(context.region, context.region_data, p1).normalized()
     return d0.cross(d1).normalized()
 
-def is_point_occluded(context : Context, point_world : Vector, *, offset : float | None = None) -> bool:
+def is_xray_enabled(context : Context) -> bool:
+    ''' Whether the viewport is drawing the scene see-through. '''
+    shading = getattr(context.space_data, 'shading', None)
+    if not shading:
+        return False
+    if shading.type == 'WIREFRAME':
+        return shading.show_xray_wireframe
+    if shading.type in {'SOLID', 'MATERIAL'}:
+        return shading.show_xray
+    return False
+
+def is_point_occluded(context : Context, point_world : Vector, *, offset : float | None = None, sources : Sequence[tuple] | None = None, use_xray : bool = False) -> bool:
     ''' Whether a world-space point sits behind a source surface.
     `offset` is how far the point may poke through the source before it counts as occluded,
-    defaulting to the retopology overlay offset. '''
+    defaulting to the retopology overlay offset.
+    `use_xray` makes xray view skip occlusion. '''
+    if use_xray and is_xray_enabled(context):
+        return False  # the source is drawn see-through, so it hides nothing
     if not context.region_data:
         return False
     direction = direction_from_point(context, point_world)
@@ -260,22 +274,19 @@ def is_point_occluded(context : Context, point_world : Vector, *, offset : float
         Vector((*(p - d * nudge), 1.0)),
         Vector((*(-d), 0.0)),
     )
-    return raycast_ray_valid_sources(context, ray, world=True, respect_clip_planes=True) is not None
+    return raycast_ray_valid_sources(context, ray, world=True, respect_clip_planes=True, sources=sources) is not None
 
 def is_point_hidden(context : Context, co_edit : Vector, *,
-                    factor : float = 1.0, use_offset : bool = True, sources : Sequence[tuple] | None = None) -> bool:
+                    use_offset : bool = True, sources : Sequence[tuple] | None = None,
+                    use_xray : bool = False) -> bool:
+    ''' is_point_occluded for a point in edit-object space. '''
     if not context.edit_object:
         return True
 
     M = context.edit_object.matrix_world
     co_world : Vector = M @ point_to_bvec4(co_edit)
-    hit = raycast_valid_sources(context, co_world, respect_clip_planes=True, sources=sources)
-    if not hit:
-        return False
-    ray_e : Vector = hit['ray_world'][0]
     offset : float = context.space_data.overlay.retopology_offset if use_offset else 0.0
-    dist : float = hit['distance']
-    return dist + offset < (ray_e.xyz - co_world.xyz).length * factor
+    return is_point_occluded(context, co_world.xyz, offset=offset, sources=sources, use_xray=use_xray)
 
 # Testing whether a CURVE/SURFACE/META/FONT object has faces requires tessellation,
 # so we don't want to do this every single raycast.
@@ -611,7 +622,7 @@ def raycast_point_valid_sources(context:Context, point_screen_or_world:Vector, *
     if not ray_e_world or not ray_d_world: return None
     return raycast_ray_valid_sources(context, (ray_e_world, ray_d_world), **kwargs)
 
-def raycast_ray_valid_sources(context:Context, ray_world:tuple[Vector,Vector], *, world:bool=True, respect_clip_planes:bool=False) -> Vector|None:
+def raycast_ray_valid_sources(context:Context, ray_world:tuple[Vector,Vector], *, world:bool=True, respect_clip_planes:bool=False, sources : Sequence[tuple] | None = None) -> Vector|None:
     if ray_world[0] is None: return None
 
     best_hit = None
@@ -619,8 +630,11 @@ def raycast_ray_valid_sources(context:Context, ray_world:tuple[Vector,Vector], *
 
     ray_origin, ray_dir = ray_world  # 4D: w=1 (point) and w=0 (direction, already normalised)
 
+    # Same precomputed `sources` convention as raycast_valid_sources.
+    # Only src[0] is read here, so one precomputed list can be shared between them.
+    hitobjs = (src[0] for src in sources) if sources is not None else iter_all_valid_sources(context)
     # print(f'RAY {ray_world}')
-    for obj in iter_all_valid_sources(context):
+    for obj in hitobjs:
         M = obj.matrix_world
         Mi = M.inverted_safe()
 
