@@ -46,7 +46,7 @@ from ..rfglobals import RFGlobals
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.maths import sign_threshold
 from ..rfoverlays.curve_overlay import (
-    shrink_segment, KNOT_RADIUS, TANGENT_RADIUS,
+    shrink_segment, snap_hidden_vector_arms, KNOT_RADIUS, TANGENT_RADIUS,
     CURVE_LINE_COLOR, CONTROL_POLYGON_COLOR, TANGENT_FILL_COLOR, TANGENT_BORDER_COLOR,
     KNOT_FILL_COLOR, KNOT_BORDER_COLOR, FREE_KNOT_FILL_COLOR, AUTO_KNOT_FILL_COLOR,
     DEBUG_SHOW_AUTO_HANDLES,
@@ -1218,6 +1218,10 @@ def create_curve_edit_operator(
             prop_dist_world = context.tool_settings.proportional_distance
 
             self.apply_handle(context, delta, rgn, r3d, M, Mi, event.alt, event.shift)
+            # hidden vector arms are point-at handles under the hood. Re-aim
+            # them at the knots' CURRENT positions every frame, so a segment
+            # whose arms aren't drawn stays straight.
+            snap_hidden_vector_arms(self.spline.cbs, self.chain['handles'])
 
             if self.grab['only'] is None:
                 # arc_frac/combined_frac (indices 4/5) are both None when a vert's t falls in a
