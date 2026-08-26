@@ -460,6 +460,7 @@ class RFOperator(RFOperator_KeymapContext):
     working_window : Window | None = None
     last_op : Operator | None = None
     _stop : bool = False
+    _foreign_modal_ran : bool = False
     fullscreen_keymaps : list[KeyMapItem] = []
     _draw_postpixel_overlay : object | None = None
 
@@ -584,6 +585,7 @@ class RFOperator(RFOperator_KeymapContext):
             self.working_area = context.area
             self.working_window = context.window
             self._stop = False
+            self._foreign_modal_ran = False
 
             user_keyconfigs = context.window_manager.keyconfigs.user
             if not user_keyconfigs:
@@ -599,8 +601,17 @@ class RFOperator(RFOperator_KeymapContext):
             ]
 
             if self.draw_postpixel_overlay.__func__ != RFOperator.draw_postpixel_overlay:
+                def draw_postpixel_overlay_safe():
+                    # Don't touch tool state during or after outside modals that modify the bmesh
+                    # until this operator's modal reset has rebuilt its state
+                    RFCore = RFGlobals.RFCore_None
+                    if RFCore and RFCore.is_foreign_modal_running(bpy.context):
+                        self._foreign_modal_ran = True
+                        return
+                    if self._foreign_modal_ran: return
+                    self.draw_postpixel_overlay()
                 self._draw_postpixel_overlay = SpaceView3D.draw_handler_add(
-                    self.draw_postpixel_overlay, (), 'WINDOW', 'POST_PIXEL'
+                    draw_postpixel_overlay_safe, (), 'WINDOW', 'POST_PIXEL'
                 )
             else:
                 self._draw_postpixel_overlay = None
@@ -644,16 +655,25 @@ class RFOperator(RFOperator_KeymapContext):
         if not RFCore or not RFCore.is_running or self._stop:
             ret = {'CANCELLED'}
         else:
-            RFCore.is_controlling = True
-
             # if we were tickled by another RF operator (ex: Translate finished when using PolyPen),
             # handle tickle event (which will remove tickle timer / handler)
             RFOperator.handle_tickle()
 
+            if RFCore.is_foreign_modal_running(context):
+                # A foreign modal that can edit the mesh is running on top.
+                # An event that leaks through it must not touch tool state.
+                self._foreign_modal_ran = True
+                return {'PASS_THROUGH'}
+
+            RFCore.is_controlling = True
             RFCore.event_mouse = (event.mouse_x, event.mouse_y)
 
             last_op = ops[-1] if (ops := context.window_manager.operators) else None
-            if self.last_op != last_op:
+            if self._foreign_modal_ran or self.last_op != last_op:
+                # reset when the operator history changes, and also right after a foreign modal ends.
+                # A cancelled one (e.g. RMB out of a bevel) reverts the mesh without pushing history,
+                # so the last_op comparison alone would miss it
+                self._foreign_modal_ran = False
                 self.reset()
                 self.last_op = last_op
                 context.area.tag_redraw()
