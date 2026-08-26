@@ -462,6 +462,11 @@ def create_curve_edit_operator(
                         fit_w,
                         end_t,
                         overhang,
+                        # rung verts (face strips) are the only verts whose d0 is
+                        # a real cross-section offset; everyone else's is fit
+                        # residual or a proportional neighbor's gap -- see the
+                        # curve-normal correction gate in _deform_verts
+                        rung is not None,
                     )
 
             # a closed loop tracing a selected patch's perimeter carries the
@@ -1172,7 +1177,8 @@ def create_curve_edit_operator(
             _relax_interior_verts(bm, interior, iterations)
             for idx in interior['indices']:
                 bmv = bm.verts[idx]
-                co = nearest_point_valid_sources(context, bmv.co, world=False, sources=self.sources, respect_clip_planes=True) or bmv.co
+                # input must be WORLD (world=False only localizes the output)
+                co = nearest_point_valid_sources(context, self.M @ bmv.co, world=False, sources=self.sources, respect_clip_planes=True) or bmv.co
                 bmv.co = self._mirror_clamp(context, co, interior['orig_co'][idx], self.M, self.Mi)
 
         def update(self, context, event):
@@ -1299,7 +1305,7 @@ def create_curve_edit_operator(
             computed = {}
             rung_groups = {}
             for bmv_idx in self.grab['only']:
-                t, d0, pt_edit_orig, distance, arc_frac, combined_frac, z0, fit_w, end_t, overhang = data[bmv_idx]
+                t, d0, pt_edit_orig, distance, arc_frac, combined_frac, z0, fit_w, end_t, overhang, is_rung = data[bmv_idx]
                 if arc_frac is None and combined_frac is None:
                     # this vert's segment is neither touched nor part of a
                     # combined free-knot run -- its t maps into a segment whose
@@ -1338,7 +1344,7 @@ def create_curve_edit_operator(
                 # between its neighbors (see _recompute_typed_handles), but
                 # only for verts on the two segments that line actually spans
                 # -- see the curve-normal correction below.
-                horizon_boost = self.horizon_factor if seg in self.horizon_segs else 0.0
+                horizon_boost = self.horizon_factor if (is_rung and seg in self.horizon_segs) else 0.0
                 # cap verts (end_t is not None) are parametrized by their
                 # END's t, not their own approximate t, and re-extrapolated
                 # against the LIVE spline every frame -- see init()'s
@@ -1433,7 +1439,20 @@ def create_curve_edit_operator(
                 # the goal here is an unconditional guarantee at the straight-
                 # line limit, not a conservative "only touch good fits" nudge.
                 d_len = d.length
-                if d_len > 1e-9:
+                # STRIP RUNG VERTS ONLY: for a coupled chain vert (or a
+                # proportional-edit neighbor) d0 is not a cross-section width --
+                # it's fit residual (or the neighbor's whole gap to the curve).
+                # d_normal rescales the PERPENDICULAR PART of that offset back
+                # up to its full length; when the offset is mostly tangential
+                # sampling/fit noise, the perpendicular part is a noise vector,
+                # so the rescale flings the vert a full residual-length in an
+                # arbitrary direction. fit_w used to gate those verts out, but
+                # horizon_boost deliberately bypasses fit_w (the flat-strip
+                # guarantee) -- so dragging an Automatic knot near the line
+                # between its neighbors zigzagged edge-loop verts and
+                # proportional neighbors. Rigid rotation alone is exactly right
+                # for them: it preserves the residual instead of amplifying it.
+                if d_len > 1e-9 and is_rung:
                     edit_w = min(z0.angle(z1, 0.0) / CURVE_NORMAL_EDIT_ANGLE, 1.0)
                     blend = max(fit_w * edit_w, horizon_boost)
                     if blend > 0.0:
@@ -1476,9 +1495,9 @@ def create_curve_edit_operator(
             # reading back what pass 1/2 computed instead of running inline.
             for bmv_idx, (o, d_final, horizon_boost, factor, pt_edit_orig) in computed.items():
                 bmv = bm.verts[bmv_idx]
-                pt_edit_new = M @ (o + d_final)
-                pt_edit_new = pt_edit_orig + (pt_edit_new - pt_edit_orig) * factor
-                co = nearest_point_valid_sources(context, pt_edit_new, world=False, sources=self.sources, respect_clip_planes=True) or pt_edit_orig
+                # blend in LOCAL space
+                pt_edit_new = pt_edit_orig + ((o + d_final) - pt_edit_orig) * factor
+                co = nearest_point_valid_sources(context, M @ pt_edit_new, world=False, sources=self.sources, respect_clip_planes=True) or pt_edit_orig
                 co = self.snap_co_to_feature(co)
                 bmv.co = self._mirror_clamp(context, co, pt_edit_orig, M, Mi)
 
