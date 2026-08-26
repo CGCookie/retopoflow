@@ -205,7 +205,7 @@ class RFOperator_Contours_Insert_Properties:
         subtype='FACTOR',
     )
     sdf_subdivisions: bpy.props.IntProperty(       # pyright: ignore [reportUninitializedInstanceVariable]
-        name='Pixel Refine',
+        name='SDF Subdivisions',
         description='Adaptive 3x3 subdivision passes over cells near the boundary. \n' \
             'Raise to separate thin surfaces or objects that are close to but not quite touching.',
         default=1,
@@ -215,7 +215,7 @@ class RFOperator_Contours_Insert_Properties:
     sdf_refine_steps: bpy.props.IntProperty(              # pyright: ignore [reportUninitializedInstanceVariable]
         name='Refinement Steps',
         description="Number of adaptive subdivision passes and raycasts to refine the cut along the surface.",
-        default=5,
+        default=3,
         min=0,
         max=10,
     )
