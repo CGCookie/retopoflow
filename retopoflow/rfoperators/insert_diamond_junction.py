@@ -23,6 +23,7 @@ import bpy
 import bmesh
 from bpy.props import BoolProperty, EnumProperty, FloatProperty
 from mathutils import Vector
+from mathutils.geometry import intersect_line_line
 
 from ..common.operator import RFRegisterClass
 from ..common.raycast import iter_all_valid_sources, nearest_point_valid_sources
@@ -36,7 +37,7 @@ def rf_is_running() -> bool:
 
 class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
     bl_idname = "retopoflow.insert_diamond_junction"
-    bl_label = "Insert Diamond Junction (Retopoflow)"
+    bl_label = "Diamond Bevel (Retopoflow)"
     bl_description = (
         "Bevel each selected edge run into three loops. The loops are capped with diamond quads or run straight off the boundary."
     )
@@ -44,7 +45,7 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
     bl_region_type = "TOOLS"
     bl_options = {'REGISTER', 'UNDO'}
 
-    rf_label = "Insert Diamond Junction"
+    rf_label = "Diamond Bevel"
 
     factor: FloatProperty(
         name='Factor',
@@ -75,7 +76,13 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.mode == 'EDIT_MESH'
+        # total_edge_sel lags a beat behind edit-mode changes, which is the same
+        # trade-off Blender's own selection-dependent polls make
+        return (
+            context.mode == 'EDIT_MESH'
+            and context.edit_object is not None
+            and context.edit_object.data.total_edge_sel > 2
+        )
 
     def draw(self, context):
         layout = self.layout
@@ -119,6 +126,9 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
             touched_verts.extend(self.apply_run(bm, plan, old_faces, new_sel_faces))
         bmesh.ops.delete(bm, geom=old_faces, context='FACES')
 
+        if self.factor < 1e-6 or self.factor > 1.0 - 1e-6:
+            self.merge_extreme_factor_doubles(bm, plans, touched_verts)
+
         if self.use_source_snap:
             self.snap_to_sources(context, touched_verts)
 
@@ -129,11 +139,27 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
         for bmf in bm.faces:
             bmf.select = False
         for bmf in new_sel_faces:
+            if not bmf.is_valid:
+                continue  # welded away by the extreme-factor merge pass
             bmf.select = True
             for bmv in bmf.verts:
                 bmv.select = True
             for bme in bmf.edges:
                 bme.select = True
+        if not any(bmf.is_valid for bmf in new_sel_faces):
+            # factor 0 welded the bevel back onto the original loop; reselect it
+            # so the selection survives and poll keeps the redo panel alive
+            for plan in plans:
+                chain = plan['chain']
+                pairs = zip(chain, chain[1:] + (chain[:1] if plan['is_cycle'] else []))
+                for va, vb in pairs:
+                    if not (va.is_valid and vb.is_valid):
+                        continue
+                    bme = next((e for e in va.link_edges if e.other_vert(va) is vb), None)
+                    if bme is not None:
+                        bme.select = True
+                        va.select = True
+                        vb.select = True
         bm.select_flush_mode()
 
         bmesh.update_edit_mesh(me, loop_triangles=True, destructive=True)
@@ -152,11 +178,43 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
         M = context.edit_object.matrix_world
         Mi = M.inverted_safe()
         for bmv in verts:
+            if not bmv.is_valid:
+                continue  # welded away by the extreme-factor merge pass
             snapped = nearest_point_valid_sources(
                 context, M @ bmv.co, world=True, sources=sources, respect_clip_planes=True,
             )
             if snapped:
                 bmv.co = Mi @ Vector(snapped)
+
+    def merge_extreme_factor_doubles(self, bm, plans, touched_verts):
+        ''' At factor 0 or 1 every moved or created vert lands exactly on an
+        existing vert, so weld the touched verts and their one-ring. '''
+        scale = max(
+            (
+                (plan['chain'][i].co - plan['chain'][i + 1].co).length
+                for plan in plans
+                for i in range(len(plan['chain']) - 1)
+            ),
+            default=0.0,
+        )
+        if scale <= 0.0:
+            return
+        dist = scale * 1e-5
+        touched = {bmv for bmv in touched_verts if bmv.is_valid}
+        pool = set(touched)
+        for bmv in list(touched):
+            pool.update(bme.other_vert(bmv) for bme in bmv.link_edges)
+        # weld moved and new verts INTO untouched originals, so at factor 0 the
+        # original loop survives (keeping a selection alive for the redo panel)
+        keepers = pool - touched
+        doubles = bmesh.ops.find_doubles(bm, verts=list(pool), keep_verts=list(keepers), dist=dist)
+        if doubles['targetmap']:
+            bmesh.ops.weld_verts(bm, targetmap=doubles['targetmap'])
+        # touched verts can also coincide with each other, e.g. a three-edge
+        # run's two inner verts meeting at factor 1
+        remaining = [bmv for bmv in touched if bmv.is_valid]
+        if remaining:
+            bmesh.ops.remove_doubles(bm, verts=remaining, dist=dist)
 
     # ------------------------------------------------------------------
     # Selection: ordered runs of selected edges
@@ -220,20 +278,30 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
         # Consistently assign each run edge's two faces to side A and side B by
         # walking along the run: consecutive same-side faces share the rung edge
         # at the vert between them.
-        side_a, side_b = [None] * m, [None] * m
-        side_a[0], side_b[0] = edges[0].link_faces
-        for i in range(1, m):
-            prev_edges = set(side_a[i - 1].edges)
-            f0, f1 = edges[i].link_faces
+        def next_sides(prev_a, prev_b, bme):
+            ''' Continue the A/B assignment onto bme's two faces. At a corner one
+            of bme's faces IS the previous side face (the inside of the turn) and
+            keeps its side; on straight runs same-side faces share the rung edge
+            at the vert between the run edges. '''
+            f0, f1 = bme.link_faces
+            if f0 is prev_a or f1 is prev_b:
+                return f0, f1
+            if f1 is prev_a or f0 is prev_b:
+                return f1, f0
+            prev_edges = set(prev_a.edges)
             s0, s1 = bool(prev_edges & set(f0.edges)), bool(prev_edges & set(f1.edges))
             if s0 == s1:
                 # Ambiguous adjacency (triangles, tight turns): fall back to
                 # whichever face center is nearer the previous side-A center
-                center = side_a[i - 1].calc_center_median()
+                center = prev_a.calc_center_median()
                 s0 = (f0.calc_center_median() - center).length <= (f1.calc_center_median() - center).length
-                s1 = not s0
-            side_a[i], side_b[i] = (f0, f1) if s0 else (f1, f0)
-        if is_cycle and not (set(side_a[0].edges) & set(side_a[-1].edges)):
+            return (f0, f1) if s0 else (f1, f0)
+
+        side_a, side_b = [None] * m, [None] * m
+        side_a[0], side_b[0] = edges[0].link_faces
+        for i in range(1, m):
+            side_a[i], side_b[i] = next_sides(side_a[i - 1], side_b[i - 1], edges[i])
+        if is_cycle and next_sides(side_a[-1], side_b[-1], edges[0])[0] is not side_a[0]:
             return 'cycle has inconsistent face flow'
 
         face_side = {}
@@ -301,6 +369,16 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
                     seen.add(bme)
                     cos.append(bme.other_vert(chain[i]).co)
             if not cos:
+                run_neighbors = {
+                    bme.other_vert(chain[i])
+                    for bme in chain[i].link_edges if bme in run_edges
+                }
+                for bmf in set(faces):
+                    cos.extend(
+                        bmv.co for bmv in bmf.verts
+                        if bmv is not chain[i] and bmv not in run_neighbors
+                    )
+            if not cos:
                 return None
             return sum(cos, Vector()) / len(cos)
 
@@ -313,6 +391,30 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
                 return 'no rung edge to slide along'
             co = chain[i].co
             positions[i] = (co.lerp(target_a, self.factor), co.lerp(target_b, self.factor))
+
+        # Corner verts pinch the strip when their rails just slide toward the corner's own rung targets.
+        # Match bevel instead: put each corner rail at the miter, the intersection of the two neighboring
+        # segments' rail lines, so the strip runs straight nd even width through the turn.
+        miters = {}
+        for i in split_idxs:
+            adjacent = edges_at_vert(i)
+            if len(adjacent) != 2:
+                continue
+            e0, e1 = adjacent
+            if side_a[e0] is not side_a[e1] and side_b[e0] is not side_b[e1]:
+                continue  # run goes straight through this vert
+            prev_i, next_i = (i - 1) % n, (i + 1) % n
+            if prev_i not in positions or next_i not in positions:
+                continue  # neighbor is a cap tip: keep the first-pass rail
+            d_prev = chain[i].co - chain[prev_i].co
+            d_next = chain[next_i].co - chain[i].co
+            pair = []
+            for side in (0, 1):
+                p_prev, p_next = positions[prev_i][side], positions[next_i][side]
+                hit = intersect_line_line(p_prev, p_prev + d_prev, p_next, p_next + d_next)
+                pair.append((hit[0] + hit[1]) * 0.5 if hit else positions[i][side])
+            miters[i] = tuple(pair)
+        positions.update(miters)
 
         # Each diamond's inner vert slides along the run away from the tip by the
         # same factor, keeping the diamond compact. A two-edge run shares one
@@ -432,12 +534,12 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
         # The rail positions were computed from the inner vert's original spot,
         # so slide it only after analysis has finished with every run
         touched = []
-        for i, slide in plan['mid_slides'].items():
-            chain[i].co += slide
-            touched.append(chain[i])
-        for i, offset in plan['mid_flatten'].items():
-            chain[i].co += offset
-            touched.append(chain[i])
+        for lookup in (plan['mid_slides'], plan['mid_flatten']):
+            for i, offset in lookup.items():
+                if offset.length_squared == 0.0:
+                    continue  # factor 0: an unmoved vert must stay a weld keeper
+                chain[i].co += offset
+                touched.append(chain[i])
 
         verts_a, verts_b = {}, {}
         for i in split_idxs:

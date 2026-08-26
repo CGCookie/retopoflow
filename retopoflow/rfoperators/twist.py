@@ -40,7 +40,7 @@ from ..common.bmesh_maths import (
     loop_arc_params,
 )
 from ..common.maths import closest_point_linesegment, get_co_on_arc
-from ..common.operator import RFRegisterClass, RFKeyMaps
+from ..common.operator import RFOperator_Invoke, RFKeyMaps
 
 
 TWIST_SENSITIVITY = 0.05   # degrees per pixel of horizontal mouse movement
@@ -81,7 +81,7 @@ def get_core_rings(component_verts):
     comp_set = set(component_verts)
     axis, _  = fit_plane_of_verts(component_verts)
     if axis is None or axis.length < 1e-9:
-        return [], list(component_verts), []
+        return [], [], list(component_verts)
     axis = axis.normalized()
 
     def perp_to_axis(v_from, v_to):
@@ -241,7 +241,7 @@ def get_fallback_rings(component_verts):
 
     if not sel_faces:
         # Plain edge-loop selection with no enclosed quads, so treat as one loop.
-        return [component_verts], [], [0]
+        return [component_verts], [0], []
 
     boundary_verts = set()
     for v in component_verts:
@@ -257,7 +257,7 @@ def get_fallback_rings(component_verts):
 
     if not boundary_verts:
         # Closed selection such as a fully selected sphere or cylinder
-        return [component_verts], [], [0]
+        return [component_verts], [0], []
 
     # Multi-source BFS from all boundary verts, advancing one edge per step.
     # Edge propogation is much better than face propogation when n-gons are present.
@@ -294,7 +294,7 @@ def get_fallback_rings(component_verts):
         by_level.setdefault(lv, []).append(v)
 
     # Within each level, split into edge-connected sub-loops.
-    rings, ring_indices = []
+    rings, ring_indices = [], []
     for lv in sorted(by_level.keys()):
         group = by_level[lv]
         group_set = set(group)
@@ -807,7 +807,7 @@ def twist_apply(bm, em, mw, mwi, initial_coords, sym_verts, sym_axes, normal, ce
         bmesh.update_edit_mesh(em, loop_triangles=False)
 
 
-class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
+class RFOperator_TwistLoop(RFOperator_Invoke):
     bl_idname      = 'retopoflow.twist_loop'
     bl_label       = 'Twist Loops (Retopoflow)'
     bl_description = 'Rotate selected loop about its plane normal'
@@ -857,10 +857,6 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
         ],
         default='SMOOTH',
     )
-
-    @classmethod
-    def poll(cls, context):
-        return context.mode == 'EDIT_MESH'
 
     def draw(self, context):
         layout = self.layout
