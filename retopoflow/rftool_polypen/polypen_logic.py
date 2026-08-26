@@ -2282,6 +2282,7 @@ class PP_Logic:
                 bmv0, bmv1 = self.bme.verts
                 bmv2, bmv3 = self.bme_hovered_bmvs
                 # wind from the selected edge as the hovered edge can belong to a separately wound island
+                bmf = self.bm.faces.new(order_bmvs_for_new_bmf(self.bme, (bmv0, bmv1, bmv2, bmv3)))
                 orient_bmfs.append(bmf)
                 select_now = [bmv2, bmv3]
                 select_later = [bmf]
