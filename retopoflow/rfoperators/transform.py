@@ -180,7 +180,12 @@ class RFOperator_Translate(SourceSnapMixin, RFOperator):
     )
 
     @staticmethod
-    @execute_operator(f'{bl_idname}_grab', f'{bl_label} Grab')
+    @execute_operator(
+        f'{bl_idname}_grab', f'{bl_label} Grab',
+        # grab_selected should have the same poll as retopoflow.translate,
+        # otherwise translate could think it's available then fail on grab
+        fn_poll=lambda context: RFOperator_Translate.poll(context),
+    )
     def grab_selected(_context : Context):
         idname = RFOperator_Translate.bl_idname.split('.')[1]
         op = getattr(bpy.ops.retopoflow, f'{idname}')

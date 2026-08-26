@@ -29,7 +29,7 @@ from mathutils.bvhtree import BVHTree
 from mathutils import Vector, Matrix
 from enum import IntEnum
 from math import inf, isnan, cos, radians
-from typing import cast, override, TypeVar, TypeAlias, Generic
+from typing import cast, TypeVar, TypeAlias, Generic
 from collections.abc import Sequence, Iterator, Callable
 
 from ...addon_common.common.decorators import add_cache

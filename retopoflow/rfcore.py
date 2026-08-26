@@ -95,6 +95,15 @@ IGNORED_TOP_OPERATORS : set[str] = {
     'Screencast Keys',
 }
 
+# Modal operator families that cannot rebuild the edit-mesh bmesh,
+# so RF may keep drawing and updating while one of them runs
+MESH_SAFE_MODAL_PREFIXES : tuple[str, ...] = (
+    'RETOPOFLOW_OT_',
+    'VIEW3D_OT_',
+    'VIEW2D_OT_',
+    'WM_OT_',
+)
+
 
 '''
 TODO:
@@ -795,6 +804,34 @@ class RFCore:
                 return False
 
     @staticmethod
+    def foreign_modal_blocks(context : Context) -> bool:
+        '''
+        True while RF must not draw because another operator is, or just was, editing the mesh.
+        Stays True after that operator ends because a redraw can run before any event reaches the RF
+        operators, and drawing needs to wait until each one has reset (clearing its _foreign_modal_ran).
+        '''
+        if RFCore.is_foreign_modal_running(context):
+            for op in RFOperator.active_operators:
+                op._foreign_modal_ran = True
+            return True
+        return any(op._foreign_modal_ran for op in RFOperator.active_operators)
+
+    @staticmethod
+    def is_foreign_modal_running(context : Context) -> bool:
+        '''
+        True while a non-RF modal operator that can edit the mesh is running.
+        Outside operators can rebuild the bmesh at any moment, and RF operators cannot
+        react until it ends, so draw callbacks must not touch tool state in the meantime.
+        '''
+        window = context.window
+        if not window: return False
+        return any(
+            not op.bl_idname.startswith(MESH_SAFE_MODAL_PREFIXES)
+            and op.name not in IGNORED_TOP_OPERATORS
+            for op in window.modal_operators
+        )
+
+    @staticmethod
     def handle_draw_cursor(context : Context, area : Area, mouse : tuple[int, int]):
         if len(area.spaces) == 0:
             RFCore.remove_handlers()
@@ -903,6 +940,23 @@ class RFCore:
 
 
 
+    _pending_recovery : bool = False
+
+    @staticmethod
+    def defer_recovery(fn : Callable[[], None]):
+        '''
+        Defer recovery to a timer so it runs on the main loop, outside drawing.
+        Stopping or restarting RF from attempt_handle_callback directly would remove
+        SpaceView3D draw handlers from the very list Blender is iterating, causing a crash.
+        '''
+        if RFCore._pending_recovery: return
+        RFCore._pending_recovery = True
+        def run():
+            RFCore._pending_recovery = False
+            fn()
+            return None
+        bpy.app.timers.register(run, first_interval=0)
+
     @staticmethod
     def attempt_handle_callback(fn : Callable[[Context], None], context : Context):
         try:
@@ -911,20 +965,23 @@ class RFCore:
             print(f'Caught ReferenceError while trying to call {fn}')
             print(f'  {e}')
             _ = debugger.print_exception()
-            RFCore.stop()
+            RFCore.defer_recovery(RFCore.stop)
         except Exception as e:
             print(f'Caught exception while trying to call {fn}')
             print(f'  {e}')
             _ = debugger.print_exception()
             if idname := RFCore.selected_RFTool_idname:
-                RFCore.quick_switch_to_reset(idname)
+                RFCore.defer_recovery(lambda: RFCore.quick_switch_to_reset(idname))
             else:
-                RFCore.restart()
+                RFCore.defer_recovery(RFCore.restart)
 
     @staticmethod
     def handle_preview(context : Context, area : Area):
         if not area or len(area.spaces) == 0 or context.mode != 'EDIT_MESH' or not RFCore.is_running:
             RFCore.remove_handlers()
+            return
+
+        if RFCore.foreign_modal_blocks(context):
             return
 
         op = RFOperator.active_operator()
@@ -954,6 +1011,9 @@ class RFCore:
                 print(f'  Exception: {e}')
                 TEST_XMESH = False # pyright:ignore[reportConstantRedefinition]
 
+        if RFCore.foreign_modal_blocks(context):
+            return
+
         op = RFOperator.active_operator()
         if op and (RFCore.is_controlling or op.draw_always()):
             RFCore.attempt_handle_callback(op.draw_postview, context)
@@ -965,6 +1025,9 @@ class RFCore:
     def handle_postpixel(context : Context, area : Area):
         if not area or len(area.spaces) == 0 or context.mode != 'EDIT_MESH' or not RFCore.is_running:
             RFCore.remove_handlers()
+            return
+
+        if RFCore.foreign_modal_blocks(context):
             return
 
         op = RFOperator.active_operator()
