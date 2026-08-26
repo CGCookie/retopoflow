@@ -12,6 +12,7 @@ This document contains details about what has changed in Retopoflow in version 4
     - Has all the same masking and snapping options as the brush version
     - Includes unique options for retaining / reconstructing the desired shape
     - Works great with proportional editing
+    - Improved Relax performance
 
 - Added operator for evening selection that also works outside of Retopoflow
     - Similar to Relax but faster to use when adjusting spacing and improved for edge loops
@@ -62,18 +63,22 @@ This document contains details about what has changed in Retopoflow in version 4
 
 - Added Nudge, Nudge Loops, and Pinch / Magnify modes to Tweak tool
     - Nudge is now the default instead of Grab
+    - You can hold Alt to quickly toggle loops mode in Nudge
 - Tweak and Relax now default to affecting only one mesh island at a time
+    - Can be changed in the Masking options
 
 - All Retopoflow tools now respect Blender's Alt+B clipping region
     - Useful for isolating areas while working
 - Tools statusbar now shows the result of Blender operations such as Merge by Distance
 - Added new custom icon for Loops tweaking in tool header
 - Cleaned up tool header UI
-- PolyPen now snaps new verts to nearby source feature edges and corners as you insert
-    - The preview and the placed vert both land on the sharp edge, matching Tweak and Strokes
 - Improved extrude vs. knife decision tree in PolyPen
+- Improved automatically switching between screen space and world space snapping
+- Improved normal calculations when transforming or creating new geo
+    - The option to turn off recalculating normals moved to the new Snapping menu
 
 - Fixed performance issues when using some pen tablets or non-official Blender distributions
+- Fixed performance issues when frequently using the Relax and Tweak quick switch hotkeys
 - Fixed proportional editing circle size and location
 - Fixed non-uniform scale issues when drawing in PolyStrips
 - Fixed wire and solid mirror display in Blender 5.2
