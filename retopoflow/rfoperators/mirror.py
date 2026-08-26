@@ -40,6 +40,31 @@ def get_mirror_mod(obj : Object) -> MirrorModifier | None:
     return cast(MirrorModifier, modifiers[0]) if modifiers else None
 
 
+# Blender 5.2 swapped the geometry nodes modifier's socket ID properties (mod['Socket_5'])
+# for a real RNA interface (mod.properties.inputs.Socket_5.value), so both paths are needed
+# as long as 4.2-5.1 are supported. mod.node_group must be set before either one works.
+def get_node_socket(mod : Modifier, identifier : str):
+    return getattr(mod.properties.inputs, identifier) if hasattr(mod, 'properties') else None
+
+
+def set_node_input(mod : Modifier, identifier : str, value):
+    socket = get_node_socket(mod, identifier)
+    if socket is not None:
+        socket.value = value
+    else:
+        mod[identifier] = value
+
+
+def reset_node_input_driver(mod : Modifier, identifier : str):
+    """Clear any driver on a node group input and return a fresh one."""
+    socket = get_node_socket(mod, identifier)
+    if socket is not None:
+        socket.driver_remove('value')
+        return socket.driver_add('value')
+    mod.driver_remove(f'["{identifier}"]')
+    return mod.driver_add(f'["{identifier}"]')
+
+
 def update_nodes_preview(context : Context, preview_mod : Modifier | None = None):
     space = context.space_data
     if not isinstance(space, SpaceView3D):
@@ -63,12 +88,12 @@ def update_nodes_preview(context : Context, preview_mod : Modifier | None = None
     else:
         preview_obj.display_type = 'SOLID'
 
-    mod['Socket_5'] = space.overlay.retopology_offset
-    mod['Socket_6'] = props.mirror_displace
-    mod['Socket_9'] = props.mirror_displace_boundaries
-    mod['Socket_12'] = props.mirror_displace_connected
-    mod['Socket_11'] = props.mirror_display == 'WIRE'
-    mod['Socket_10'] = props.mirror_wire_thickness
+    set_node_input(mod, 'Socket_5', space.overlay.retopology_offset)
+    set_node_input(mod, 'Socket_6', props.mirror_displace)
+    set_node_input(mod, 'Socket_9', props.mirror_displace_boundaries)
+    set_node_input(mod, 'Socket_12', props.mirror_displace_connected)
+    set_node_input(mod, 'Socket_11', props.mirror_display == 'WIRE')
+    set_node_input(mod, 'Socket_10', props.mirror_wire_thickness)
 
     # Hack to get it to update while in other object's edit mode
     mod.show_in_editmode = True
@@ -128,31 +153,17 @@ def setup_nodes_preview(context):
     else:
         mod = preview_obj.modifiers.new(node_name, 'NODES')
     mod.node_group = node_group
-    mod['Socket_8'] = mirror_obj
+    set_node_input(mod, 'Socket_8', mirror_obj)
 
     # Drivers make it possible for the user to use the mirror modifier as usual
     # It sucks to check if drivers exist, so clearing it out and creating fresh is easier
     # Would be good to clean this up at some point though
-    drv_x = mod.driver_remove('["Socket_2"]')
-    drv_x = mod.driver_add('["Socket_2"]')
-    drv_x.driver.type = 'AVERAGE'
-    var_x = drv_x.driver.variables.new()
-    var_x.targets[0].id = mirror_obj
-    var_x.targets[0].data_path = mirror_mod.path_from_id() + ".use_axis[0]"
-
-    drv_y = mod.driver_remove('["Socket_3"]')
-    drv_y = mod.driver_add('["Socket_3"]')
-    drv_y.driver.type = 'AVERAGE'
-    var_y = drv_y.driver.variables.new()
-    var_y.targets[0].id = mirror_obj
-    var_y.targets[0].data_path = mirror_mod.path_from_id() + ".use_axis[1]"
-
-    drv_z = mod.driver_remove('["Socket_4"]')
-    drv_z = mod.driver_add('["Socket_4"]')
-    drv_z.driver.type = 'AVERAGE'
-    var_z = drv_z.driver.variables.new()
-    var_z.targets[0].id = mirror_obj
-    var_z.targets[0].data_path = mirror_mod.path_from_id() + ".use_axis[2]"
+    for axis, identifier in enumerate(['Socket_2', 'Socket_3', 'Socket_4']):
+        drv = reset_node_input_driver(mod, identifier)
+        drv.driver.type = 'AVERAGE'
+        var = drv.driver.variables.new()
+        var.targets[0].id = mirror_obj
+        var.targets[0].data_path = mirror_mod.path_from_id() + f".use_axis[{axis}]"
 
     update_nodes_preview(context, mod)
 

@@ -108,6 +108,26 @@ def slerp_dirs(d0 : Vector, d1 : Vector, f : float) -> Vector:
     return d0.slerp(d1, f)
 
 
+def snap_hidden_vector_arms(cbs, handles):
+    """ A vector arm that isn't drawn is aimed at the segment's other knot. """
+    knot_type = {
+        h['vert_index']: h.get('handle_type')
+        for h in handles if h['kind'] == 'knot'
+    }
+    for h in handles:
+        if h['kind'] != 'tangent' or not h.get('inert'):
+            continue
+        if knot_type.get(h['owner_vert_index']) != 'vector':
+            continue
+        seg, attr = h['pos']
+        cb = cbs[seg]
+        if attr == 'p1':
+            # a third of the way there is Blender's vector-handle rule
+            cb.p1 = Vector(cb.p0) + (Vector(cb.p3) - Vector(cb.p0)) / 3
+        else:
+            cb.p2 = Vector(cb.p3) + (Vector(cb.p0) - Vector(cb.p3)) / 3
+
+
 def get_label_pos(context : Context, lbl : str, cos : Sequence[Vector]) -> Vector | None:
     if not context.edit_object:
         return None
@@ -506,6 +526,7 @@ def create_curve_overlay(
                         smooth_junctions.add(i)
 
             handles = self._build_handles(spline, cyclic, smooth_junctions, knots, resolve_handle_type, display_forced_vector, coupled, corner_eligible_knots, corner_removable_knots)
+            snap_hidden_vector_arms(spline.cbs, handles)
 
             # always cache as we need a baseline for the next call
             self._curve_struct_cache[cache_key] = {
@@ -612,11 +633,15 @@ def create_curve_overlay(
             for h in handles:
                 if h['kind'] == 'tangent':
                     owner, segs = h['owner_vert_index'], [h['pos'][0]]   # one arm, one segment
+                    endpoint = False
                 else:
                     owner, segs = h['vert_index'], [seg for seg, _ in h['set']]  # one per side
+                    # exactly one adjacent segment = an open chain's END knot. Don't hide it.
+                    endpoint = len(h['set']) == 1
                 sides = [seg for seg in segs if seg < len(usable)]
                 h['inert'] = bool(
-                    coupled and sides
+                    not endpoint
+                    and coupled and sides
                     and resolve_handle_type(owner) != 'automatic'
                     and not any(usable[seg] for seg in sides)
                 )

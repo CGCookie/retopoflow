@@ -46,59 +46,30 @@ from ..rfglobals import RFGlobals
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.maths import sign_threshold
 from ..rfoverlays.curve_overlay import (
-    shrink_segment, KNOT_RADIUS, TANGENT_RADIUS,
+    shrink_segment, snap_hidden_vector_arms, KNOT_RADIUS, TANGENT_RADIUS,
     CURVE_LINE_COLOR, CONTROL_POLYGON_COLOR, TANGENT_FILL_COLOR, TANGENT_BORDER_COLOR,
     KNOT_FILL_COLOR, KNOT_BORDER_COLOR, FREE_KNOT_FILL_COLOR, AUTO_KNOT_FILL_COLOR,
     DEBUG_SHOW_AUTO_HANDLES,
 )
 
 
-# dragging a handle on a closed loop only directly moves the loop's own
-# verts -- a selected patch's INTERIOR verts (enclosed by the loop but not
-# part of it) are interpolated instead, via graph-Laplacian relaxation over
-# the real mesh edges (each interior vert -> weighted average of its
-# neighbors, boundary verts pinned at their curve-driven positions). This is
-# warm-started every frame (verts hold last frame's result, not reset), so
-# after an initial settle a handful of iterations is enough to track a
-# boundary that's only moving a little each frame; a full drag is cheap even
-# though no iteration count here is a rigorous convergence guarantee.
+# per-frame iterations for the interior-vert relaxation; it's warm-started, so a
+# few iterations per frame track a slowly-moving boundary
 INTERIOR_RELAX_ITERATIONS = 10
-# extra settling pass on release, since a fast drag-and-release may not have
-# had enough per-frame iterations to fully catch up to the final boundary shape
+# extra settling on release, in case a fast drag-and-release didn't catch up
 INTERIOR_RELAX_FINAL_ITERATIONS = 40
 
-# how far a vert's tangent must swing (from its pre-drag direction) for the
-# curve-normal correction to reach full strength -- see the deform loop in
-# update(). Below this the correction ramps in proportionally; a gentle edit
-# barely engages it (staying purely rigid/reversible), an extreme one snaps a
-# well-fit cross-section flat into the curve's normal plane so skew can't
-# accumulate. Purely a feel knob -- tune freely.
+# tangent swing at which the curve-normal correction reaches full strength
+# (ramps in below that) -- a feel knob, tune freely
 CURVE_NORMAL_EDIT_ANGLE = math.radians(90)
 
 
 def _relax_interior_verts(bm, interior, iterations):
-    '''
-    Gauss-Seidel graph-Laplacian relaxation -- but over each vert's
-    DISPLACEMENT from its own original position, not its absolute position.
-    A real mesh's interior isn't generally already sitting at the flat
-    "average of its neighbors" shape (it may follow curved source-surface
-    detail the boundary loop alone doesn't capture) -- relaxing absolute
-    position would immediately pull it toward that flat shape the instant a
-    drag starts, regardless of how little the boundary has actually moved,
-    which reads as a jump. Relaxing displacement instead means zero boundary
-    movement propagates as zero interior displacement -- nothing moves until
-    the boundary actually does, and only the CHANGE spreads inward, riding on
-    top of whatever detail was already there.
-
-    Weighted by each edge's ORIGINAL (pre-drag) length rather than uniformly,
-    so a neighbor that was already close has proportionally more say than one
-    that was far away -- a plain unweighted average is more prone to visible
-    overlap/folding under a large deformation, since it treats a stretched-
-    out neighbor exactly the same as a close one. This reduces (but -- being
-    a linear method, same as Blender's own Lattice modifier -- cannot fully
-    eliminate) fold-over on sufficiently extreme edits; only a non-linear,
-    locally-rotation-aware scheme (As-Rigid-As-Possible-style) would.
-    '''
+    ''' Laplacian relaxation of a patch's interior verts as its boundary moves. '''
+    # relaxes each vert's DISPLACEMENT from its original position, not its absolute
+    # position, so nothing moves until the boundary does and existing surface detail
+    # is preserved. Weighted by original edge length to reduce (not eliminate --
+    # it's still a linear method) fold-over under large deformations.
     indices = interior['indices']
     neighbors = interior['neighbors']
     orig_co = interior['orig_co']
@@ -135,14 +106,9 @@ def _cumulative_lengths(cbs, segs, fn_dist):
 
 
 def _walk_free_run(start, step, nseg, cyclic, free_at_seg_p0, visited):
-    '''
-    Extends `visited` outward from `start` one segment at a time (`step` = -1
-    backward, +1 forward) for as long as the knot crossed at each step is
-    free -- see combined_segs' construction in init() below. Returns the
-    newly-visited segments in walk order, nearest to `start` first; `visited`
-    itself grows to include them, so a second call in the opposite direction
-    won't cross back into this one.
-    '''
+    ''' Walks `visited` outward from `start` (step = -1/+1), one segment at a time,
+    for as long as the knot crossed at each step is free. Returns the new segments
+    in walk order; `visited` grows so the opposite walk can't cross back in. '''
     result = []
     cur = start
     while True:
@@ -176,14 +142,9 @@ def create_curve_edit_operator(
     see curves.ChainSpec for what makes a chain interchangeable
     here (deform_bmv_indices, cache_key, current_points). '''
 
-    # NOTE: this body class deliberately does NOT inherit from RFOperator --
-    # RFOperator_Base.__init_subclass__ auto-registers every subclass that
-    # has a bl_idname, so inheriting it here AND combining with RFOperator
-    # again below (as create_curve_overlay's own factory does, for the same
-    # reason) would register two distinct classes under the identical
-    # bl_idname, silently breaking which one Blender's keymap ends up
-    # invoking. Only the final type(...) combination below should trigger
-    # that registration, exactly once.
+    # deliberately does NOT inherit RFOperator: __init_subclass__ auto-registers
+    # anything with a bl_idname, so only the final type(...) combination below may
+    # trigger that, exactly once
     class RFOperator_Curve_Edit:
         bl_idname = f'retopoflow.{idname}'
         bl_label = label
@@ -192,14 +153,8 @@ def create_curve_edit_operator(
 
         rf_keymaps : RFKeyMaps = [
             (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS'}, None),
-            # separate entries so Alt+drag-to-scale and Alt+Shift+drag-to-
-            # rotate (see apply_handle) also start when their modifiers are
-            # already held before the click -- Blender's keymap_items.new()
-            # defaults every unlisted modifier to False, so the plain entry
-            # above only ever matches with both up; once the modal operator
-            # is running it keeps getting all events regardless of keymap,
-            # which is why toggling a modifier mid-drag already worked
-            # without this
+            # separate entries so Alt(+Shift) drags also start when the modifiers are
+            # already held before the click -- unlisted modifiers default to False
             (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS', 'alt': True}, None),
             (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS', 'alt': True, 'shift': True}, None),
         ]
@@ -225,12 +180,8 @@ def create_curve_edit_operator(
             # set by apply_handle when Alt+dragging a knot -- see _scale_handles
             self.taper_scale = None
             self.taper_t = None
-            # set by _recompute_typed_handles while dragging an Automatic knot
-            # with two valid neighbors -- see _deform_verts's use of these to
-            # push the curve-normal blend to full strength on the two segments
-            # flanking the dragged knot as it nears the straight line between
-            # its neighbors. No-op defaults for every other drag kind (tangent
-            # drags, Aligned/Vector knot drags, Alt scale/rotate).
+            # set by _recompute_typed_handles while dragging an Automatic knot with
+            # two valid neighbors; no-op defaults for every other drag kind
             self.horizon_factor = 0.0
             self.horizon_segs = frozenset()
 
@@ -280,20 +231,13 @@ def create_curve_edit_operator(
 
             fn_dist = _distance_fn
 
-            # segment(s) whose shape will change as this handle is dragged -- verts
-            # on these need their *arc-length fraction* preserved instead of their
-            # raw parameter t (which isn't proportional to arc length, so it drifts
-            # spacing as a segment stretches/compresses under editing)
+            # segments this drag reshapes -- their verts track arc-length fraction
+            # instead of raw t, which drifts spacing as a segment stretches
             nseg = len(self.spline.cbs)
             if self.handle['kind'] == 'knot':
                 self.touched_segs = { seg for seg, _ in self.handle['set'] }
-                # dragging a knot also live-recomputes its two ADJACENT
-                # Automatic/Vector knots' arms (see _recompute_typed_handles),
-                # which reshapes the segment on the far side of each neighbor
-                # too -- include those so their verts get arc-length tracking
-                # as well. A neighbor segment that doesn't actually change
-                # (e.g. that knot is Aligned) just re-derives the same vert
-                # positions, so over-inclusion is harmless.
+                # a knot drag also live-recomputes adjacent Automatic/Vector knots'
+                # arms, reshaping the segments past them; over-inclusion is harmless
                 for seg in list(self.touched_segs):
                     for nb in (seg - 1, seg + 1):
                         if self.chain['cyclic']:
@@ -303,33 +247,19 @@ def create_curve_edit_operator(
             else:
                 self.touched_segs = { self.handle['pos'][0] }
                 if 'g1_peer' in self.handle:
-                    # a G1-mirrored tangent arm reshapes the peer segment on the
-                    # other side of the junction too (see apply_handle), so its
-                    # verts need the same arc-length tracking as this handle's own
+                    # a G1-mirrored arm reshapes the peer segment too
                     self.touched_segs.add(self.handle['g1_peer'][0])
-                # Alt-dragging a tangent redirects to scaling/rotating the knot
-                # it belongs to (see apply_handle/_knot_for_tangent), which can
-                # reshape the segment on the OTHER side of that knot too -- cover
-                # it here so those verts still track arc-length correctly if Alt
-                # is held (or gets toggled on mid-drag). A no-op for a normal,
-                # non-Alt tangent drag, since that segment's shape doesn't
-                # actually change then
+                # Alt-dragging a tangent scales/rotates its knot instead, which can
+                # reshape the segment on the knot's other side -- cover it in case
+                # Alt is held or toggled mid-drag
                 knot_h = self._knot_for_tangent(self.handle)
                 if knot_h:
                     self.touched_segs |= { seg for seg, _ in knot_h['move'] }
 
-            # a "free" knot isn't a vertex -- nothing should be forced to sit
-            # exactly on it, or bunch up as it moves. Its two flanking segments
-            # aren't independently anchored (unlike a normal touched segment,
-            # where the far end IS a real vert), so the whole run from the
-            # nearest TRUE (vertex-coupled) knot on one side to the nearest true
-            # knot on the other -- crossing over any other free knots along the
-            # way -- is treated as one combined span. Every vert in it keeps its
-            # original *proportional* position within that combined span's arc
-            # length (recomputed fresh each frame in update(), since the span's
-            # segments keep reshaping as the drag continues) rather than its
-            # position within just one segment, so a vert near one true anchor
-            # doesn't get dragged around by an edit happening near the other.
+            # a free knot isn't a vertex, so nothing should bunch up on it as it
+            # moves: treat the whole run between the nearest TRUE knots on either
+            # side as one combined span, and keep each vert's proportional position
+            # within that span's total arc length
             self.combined_segs = None
             if self.handle['kind'] == 'knot' and self.handle.get('free') and len(self.handle['set']) == 2:
                 free_at_seg_p0 = {
@@ -372,55 +302,32 @@ def create_curve_edit_operator(
             # all data is local to edit!
             data = {}
             combined_cum = _cumulative_lengths(self.spline.cbs, self.combined_segs, fn_dist) if self.combined_segs else None
-            # for a face strip: {vert index -> (its rung's midpoint, distance in
-            # rungs from the nearest open end)} -- see ChainSpec.deform_bmv_rungs.
-            # Empty for vertex-coupled chains (verts ARE the curve points).
+            # face strips only: {vert index -> (rung midpoint, rungs from nearest open
+            # end, is_boundary)}; empty for vertex-coupled chains
             rung_map = self.chain.get('deform_bmv_rungs') or {}
             for (bmv, distance) in all_bmvs.items():
-                # parametrize against the curve by the vert's RUNG position (the
-                # perpendicular edge's midpoint, which for interior rungs is
-                # itself a centerline point) rather than the vert's own nearest
-                # point -- so every vert of a rung shares one t and a wide strip
-                # on a tight bend can't drift its verts onto the wrong stretch of
-                # curve. Falls back to the vert itself for coupled chains and
-                # proportional-edit neighbors (neither is in the rung map).
+                # parametrize a strip vert by its rung's midpoint, so every vert of a
+                # rung shares one t and a wide strip on a tight bend can't drift onto
+                # the wrong stretch of curve; everyone else uses the vert itself
                 rung = rung_map.get(bmv.index)
-                # the chain's own first/last rung (end-distance 0) is only
-                # ever TRANSFORMED when it's a genuine mesh boundary edge. If
-                # the strip is connected there instead (the SELECTION ends,
-                # not the mesh -- see _quad_chain_rung_map's is_boundary),
-                # those verts are shared with un-edited faces outside this
-                # chain: moving them would drag that adjacent geometry along
-                # with the edit, so leave them at their pre-drag position by
-                # never giving them a `data` entry at all -- no data entry
-                # means _deform_verts (via self.grab['only'], built from
-                # data's own keys) never touches bmv.co for it.
+                # a strip's first/last rung only transforms when it's a genuine mesh
+                # boundary: a connected end's verts are shared with un-edited faces
+                # outside the chain, so skip their data entry and they never move
                 if rung is None or rung[1] != 0.0 or rung[2]:
                     rung_pt = rung[0] if rung else bmv.co
                     t = self.spline.approximate_t_at_point_kdtree(rung_pt)
-                    # a strip's boundary CAP rung (end-distance 0) sits past the
-                    # centerline's own endpoint -- the centerline runs face-center
-                    # to face-center (_interleaved_centerline never includes the
-                    # boundary edges), so the curve itself never reaches the cap
-                    # and the nearest-point search above just clamps short. Rather
-                    # than taper a correction around that gap, extrapolate a
-                    # straight extension along the endpoint tangent out to the
-                    # cap, so a cap vert's offset lands purely perpendicular to
-                    # the tangent -- exactly like any interior vert -- instead of
-                    # partly ALONG it. end_t/overhang are fixed per vert (cached
-                    # here, like d0/z0) and re-applied against the LIVE spline
-                    # each frame in _deform_verts.
+                    # a cap rung sits past the centerline's endpoint (it runs face
+                    # center to face center), so extrapolate along the endpoint
+                    # tangent out to the cap -- the cap vert's offset then lands
+                    # perpendicular like any interior vert. Re-applied against the
+                    # live spline each frame.
                     end_t = None
                     if rung and rung[1] == 0.0:
                         end_t = 0.0 if t < nseg / 2 else float(nseg)
                     eval_t = t if end_t is None else end_t
-                    # store the vert's offset from the curve plus the curve's tangent
-                    # HERE (on the pre-drag spline). Each frame the offset is rotated
-                    # rigidly by however much this material point's tangent has since
-                    # turned (see update()), so the perpendicular cross-section rolls
-                    # WITH the curve rather than with the view -- no shear, and exactly
-                    # reversible. The original curve is gone once handles move, so z0
-                    # must be captured now rather than recomputed later.
+                    # capture the pre-drag tangent now (the original curve is gone once
+                    # handles move); each frame the offset rotates rigidly by however
+                    # much this point's tangent has turned -- no shear, exactly reversible
                     z0 = Vector(self.spline.eval_derivative(eval_t))
                     if z0.length < 1e-9: z0 = Vector((0, 0, 1))
                     z0.normalize()
@@ -433,12 +340,9 @@ def create_curve_edit_operator(
                         overhang = (rung_pt - o_end).dot(ext_dir)
                         o = o_end + ext_dir * overhang
                     d0 = Vector(bmv.co) - o
-                    # how well this vert's offset already sits in the curve's normal
-                    # plane (perpendicular to the tangent) -- 1 = a clean, well-fit
-                    # cross-section, 0 = the "offset" actually runs ALONG the curve
-                    # (a poor fit). Gates the curve-normal correction in update() so
-                    # a bad fit is left alone while a good one gets straightened out
-                    # under large edits. Constant per vert, so cached here.
+                    # 1 = offset perpendicular to the tangent (clean cross-section),
+                    # 0 = offset runs along the curve (poor fit); gates the curve-normal
+                    # correction so bad fits are left alone
                     d0_len = d0.length
                     fit_w = (1.0 - abs(d0.dot(z0) / d0_len)) if d0_len > 1e-9 else 0.0
                     seg = min(int(t), nseg - 1)
@@ -462,15 +366,14 @@ def create_curve_edit_operator(
                         fit_w,
                         end_t,
                         overhang,
+                        # only rung verts carry a real cross-section offset -- see the
+                        # curve-normal correction gate in _deform_verts
+                        rung is not None,
                     )
 
-            # a closed loop tracing a selected patch's perimeter carries the
-            # patch's own INTERIOR verts too (see LoopStripChainProvider) --
-            # those aren't driven by the curve directly; instead their
-            # DISPLACEMENT from this original position is relaxed each frame
-            # (see _relax_interior_verts), with neighbors outside this
-            # chain's own boundary+interior sets excluded so the patch can't
-            # "leak" into unrelated geometry it's merely adjacent to
+            # a loop around a selected patch carries the patch's interior verts too;
+            # they aren't curve-driven -- their displacement is relaxed each frame,
+            # with outside neighbors excluded so the patch can't leak
             self.interior = None
             interior_bmv_indices = self.chain.get('interior_bmv_indices')
             if interior_bmv_indices:
@@ -480,17 +383,14 @@ def create_curve_edit_operator(
                 for idx in interior_bmv_indices:
                     bmv = self.bm.verts[idx]
                     orig_co[idx] = Vector(bmv.co)
-                    # weighted by (original) edge length -- see
-                    # _relax_interior_verts for why not a plain average
+                    # weighted by original edge length -- see _relax_interior_verts
                     neighbors[idx] = [
                         (other.index, 1.0 / max((other.co - bmv.co).length, 1e-6))
                         for bme in bmv.link_edges
                         if (other := bme.other_vert(bmv)).index in allowed
                     ]
-                # boundary neighbors' ORIGINAL position, needed to turn their
-                # current (curve-driven) position into a displacement each
-                # frame -- every boundary vert of this chain is guaranteed to
-                # already be a key in `data` (built above from deform_bmv_indices)
+                # boundary verts' original positions, to turn their curve-driven
+                # positions into displacements each frame
                 boundary_orig_co = {
                     idx: data[idx][2]
                     for idx in self.chain['deform_bmv_indices']
@@ -519,29 +419,11 @@ def create_curve_edit_operator(
                 on_init(self, context, event)
 
         def finish(self, context):
-            # the spline being dragged IS the overlay's cached spline object
-            # (see init), so its control points already hold this drag's
-            # final state -- committed (including whatever apply_handle /
-            # _recompute_typed_handles did live) or, on cancel, restored from
-            # the snapshot. Sync the cache's 'cos' baseline to the current
-            # points -- for BOTH coupled and uncoupled chains -- so the next
-            # rebuild sees "nothing changed" and reuses this exact spline (see
-            # _build_curve's nothing-changed shortcut) rather than refitting.
-            #
-            # A refit here is NOT a safe no-op: it runs the plain best-fit
-            # search (create_catmull_rom/refine_handles), which knows nothing
-            # about handle types, "point-at" blending, or the deliberate
-            # straight-line/mirror result a drag may have just landed on --
-            # so it can visibly replace a good, intentional result with a
-            # different "best fit" the instant the drag ends. The type system
-            # (and the deform math for a face strip) already do everything a
-            # drag needs live; there's nothing left to correct afterward. A
-            # genuinely bad fit (e.g. from a LATER, unrelated edit) still
-            # gets caught by _build_curve's own max_dev-driven refit/re-derive
-            # the normal way, on whatever future rebuild actually sees it.
-            #
-            # On cancel this is moot either way: update() restored the verts
-            # (and the spline snapshot) to the positions already in the cache.
+            # the dragged spline IS the overlay's cached one, so sync the cache's
+            # 'cos' baseline to the current points and the next rebuild reuses it
+            # verbatim. A refit here is NOT a safe no-op: the plain best-fit search
+            # knows nothing about handle types or a deliberate straight-line result
+            # and can visibly replace it the instant the drag ends.
             try:
                 overlay = get_overlay().instance
                 bm    = getattr(self, 'bm', None)
@@ -567,24 +449,15 @@ def create_curve_edit_operator(
             def orig(seg, attr):
                 return Vector(self.snapshot[seg][idx_of[attr]])
 
-            # reset each frame -- only a knot currently being Alt-dragged
-            # (without Shift) sets these (see _scale_handles), and the
-            # per-vert taper in update() must turn off the instant that
-            # stops being true
+            # reset each frame; only re-set below by the drag kinds that use them
+            # (Alt-scale taper, Automatic-knot horizon), so nothing lingers
             self.taper_scale = None
             self.taper_t = None
-            # reset each frame -- only re-set below if this frame's drag is
-            # an Automatic knot with two valid neighbors (_recompute_typed_
-            # handles); must not linger from a previous frame once that
-            # stops being true (e.g. mid-drag type change isn't possible,
-            # but a stale value must never leak into a DIFFERENT drag)
             self.horizon_factor = 0.0
             self.horizon_segs = frozenset()
 
-            # Alt/Alt+Shift always act on a KNOT -- if the user grabbed one
-            # of its tangent handles instead, redirect to the knot it
-            # belongs to, so users don't have to remember which of the two
-            # to click
+            # Alt/Alt+Shift always act on a KNOT -- redirect a grabbed tangent to
+            # its knot so users don't have to remember which of the two to click
             if alt:
                 knot_h = h if h['kind'] == 'knot' else self._knot_for_tangent(h)
                 if knot_h is not None:
@@ -621,12 +494,9 @@ def create_curve_edit_operator(
                     setattr(cbs[seg], attr, new_edit.copy())
                 for (seg, attr) in h['move']:
                     setattr(cbs[seg], attr, orig(seg, attr) + knot_delta)
-                # the rigid translate above is only the baseline (and all an
-                # Aligned knot ever gets -- its rotation is the user's own):
-                # Automatic/Vector arms are then recomputed from the knots'
-                # CURRENT positions, every frame, for the dragged knot AND its
-                # two neighbors -- Blender's own Auto/Vector handle behavior,
-                # and what keeps the curve smooth as the point moves
+                # the rigid translate is only the baseline (and all an Aligned knot
+                # gets): Automatic/Vector arms recompute from the knots' current
+                # positions every frame, for the dragged knot and its neighbors
                 self._recompute_typed_handles(h, cbs)
             else:
                 # tangent arms move freely in the view plane
@@ -643,24 +513,11 @@ def create_curve_edit_operator(
                     peer_len = (peer_orig_pt - K).length
                     if T_moved.length > 1e-9 and peer_len > 1e-9:
                         setattr(cbs[peer_seg], peer_attr, K - T_moved.normalized() * peer_len)
-                # grabbing a tangent handle directly is a manual, one-off
-                # rotation choice. For an AUTOMATIC owner, pin it to 'aligned'
-                # so a later drag of that same knot doesn't have _recompute_
-                # typed_handles unconditionally overwrite both of its own
-                # arms, discarding the adjustment just made here.
-                #
-                # A VECTOR (or forced corner/endpoint) owner does NOT need
-                # this: its type is left as-is, and _recompute_typed_handles'
-                # offset-preserving rotation (see its own docs) already
-                # takes care of it -- the NEXT drag that touches this arm
-                # (dragging the knot itself, or an adjacent Automatic knot)
-                # re-snapshots from wherever this manual edit left it, so
-                # that edit becomes the new baseline offset and keeps
-                # tracking point-at from then on. Pinning it to 'aligned'
-                # would instead FREEZE it solid, throwing that ability away
-                # for no benefit -- unlike Automatic, a Vector/endpoint knot
-                # is never itself the "dragged_h" that recomputes its own
-                # arms, so there's no self-overwrite risk to guard against.
+                # a direct tangent drag is a manual choice: pin an AUTOMATIC owner
+                # to 'aligned' so a later drag of that knot doesn't overwrite the
+                # adjustment. A VECTOR owner keeps its type -- the next drag
+                # re-snapshots from this edit as the new baseline offset, whereas
+                # pinning would freeze it solid for no benefit.
                 overlay = get_overlay().instance
                 owner = h.get('owner_vert_index')
                 if overlay is not None and owner is not None:
@@ -669,13 +526,8 @@ def create_curve_edit_operator(
                         overlay.set_handle_type(self.chain['cache_key'], owner, 'aligned')
 
         def _knot_for_tangent(self, h):
-            ''' The KNOT handle that owns this tangent handle (has it listed
-            in its own 'move'), so Alt-dragging a tangent scales/rotates
-            exactly as if its own knot had been grabbed instead -- users
-            shouldn't need to remember which of the two to click (see
-            apply_handle). Every tangent belongs to exactly one knot by
-            construction (see _build_handles), so this should always find a
-            match; None is only a defensive fallback. '''
+            ''' The knot handle that owns this tangent handle. Every tangent belongs
+            to exactly one knot by construction; None is a defensive fallback. '''
             pos = h['pos']
             for other in self.chain['handles']:
                 if other['kind'] == 'knot' and pos in other['move']:
@@ -683,75 +535,11 @@ def create_curve_edit_operator(
             return None
 
         def _recompute_typed_handles(self, dragged_h, cbs):
-            '''
-            Live, per-frame handle update while an AUTOMATIC knot is dragged.
-            Blends our own best-FIT handles (preserved from the rest curve)
-            toward Blender's "point-at" handles by how close the dragged knot
-            is to the straight line between its two neighbors -- better than
-            either alone:
-
-              - Blender's pure point-at can't hold a clean U (its handles
-                always aim at neighbors) and, pulled flat, straightens the
-                curve but mangles the geometry the original fit captured.
-              - Our pure fit holds the U and the geometry, but can't flatten
-                to a truly straight line (the fitted handles stay curved).
-
-            ONE continuous formula covers both directions of travel (an
-            earlier version stitched together two separate formulas at the
-            grab distance -- matched exactly only for a perfectly radial
-            drag, popping otherwise for any lateral component):
-
-              1. offset_rot = the fixed rotation from "pure point-at" to
-                 "what the fit actually had", measured ONCE at grab time
-                 (pad0 -> rest_off_raw). This is the fit's own signature --
-                 how far it originally diverged from simply aiming at the
-                 neighbors.
-              2. Every frame, that rotation is SLERPed toward identity by
-                 `factor` (0 at/beyond the grab distance -> full offset
-                 still applies; 1 exactly on the line -> offset fully
-                 dissolved, pure point-at) and applied to the CURRENT
-                 (still-updating) point-at direction, not the grab-time one.
-
-            So: moving TOWARD the line, the offset progressively dissolves
-            away, reaching exactly straight (pure point-at, geometry-
-            agnostic) right on it. Moving AWAY, at or beyond the grab
-            distance, the full original offset applies but keeps riding on
-            top of the CURRENT point-at direction as it changes -- so the
-            arm keeps adapting to an increasingly extreme shape instead of
-            ever freezing solid. Once the knot crosses the line, the fitted
-            offset is REFLECTED (mirroring pad0/rest_off_raw through the
-            line before measuring offset_rot, and reflecting the final
-            result back), so dragging through to the mirrored distance
-            gives a perfect mirror of the original shape. factor = 1 -
-            |signed_dist| / grab_dist, symmetric about the line.
-
-            Exact continuity is guaranteed for the natural case of
-            continuous motion from the grab position (pad1 == pad0 at
-            factor's own natural start); a highly non-radial drag that
-            re-crosses the same |signed_dist| == grab_dist boundary later at
-            a different lateral position could in principle see a small
-            path-dependent difference there -- negligible for ordinary use.
-
-            Only the dragged knot's own two arms and each neighbor's arm that
-            FACES it are touched (a neighbor's far arm, and any Aligned
-            neighbor, keep the user's/fit's own handle). Only knot positions
-            feed the math, so dragging a tangent moves no knot and leaves
-            neighbors alone, exactly like Blender.
-
-            Point-at target per arm's owner knot: an automatic knot -> its
-            own Blender Auto direction unit(b-a)+unit(c-b) (depends on b, so
-            it re-aims as the knot moves; both arms collinear -> G1); a
-            vector/endpoint knot -> straight at the neighbor the arm faces.
-
-            LENGTH is handled separately from direction (see
-            blender_len_ref/recompute_arm below): each arm's fit-derived
-            length is scaled, unconditionally and every frame, by however
-            much Blender's OWN handle length would have changed since grab
-            time. This is what lets dragging a knot close to one neighbor
-            shrink that side's arm (and grow the other) the way Blender does
-            -- without it, a length frozen at grab time can overshoot a
-            now-much-closer neighbor and kink the curve.
-            '''
+            ''' Live handle update while an Automatic knot is dragged: blends the
+            fitted handles toward Blender's point-at handles as the knot nears the
+            straight line between its two neighbors, reaching pure point-at (exactly
+            straight) right on it. Touches only the dragged knot's arms and each
+            neighbor's facing arm. '''
             # the line + blend only make sense for an auto knot flattening
             # toward the run between its two neighbors -- a vector/aligned
             # drag just keeps apply_handle's rigid translate (its own fit)
@@ -783,10 +571,8 @@ def create_curve_edit_operator(
             if prev_h is None or next_h is None or prev_h is next_h:
                 return  # no well-defined line between two distinct neighbors
 
-            # The line runs between the two neighbors. They don't move during
-            # the drag (only the dragged knot does), so it's fixed -- take it
-            # from the snapshot. The dragged knot's perpendicular distance to
-            # it drives the whole blend.
+            # the neighbors don't move during the drag, so the line between them is
+            # fixed; the dragged knot's perpendicular distance to it drives the blend
             a_line = snap(prev_h['pos'])
             c_line = snap(next_h['pos'])
             u = c_line - a_line
@@ -808,13 +594,8 @@ def create_curve_edit_operator(
             factor = max(0.0, min(1.0, 1.0 - abs(signed_now) / grab_dist))
             mirrored = signed_now < 0.0
 
-            # expose this frame's horizon proximity to _deform_verts (reset
-            # to 0.0/empty each frame in apply_handle before this runs),
-            # scoped to just the two segments flanking the dragged knot --
-            # prev_h<->dragged_h and dragged_h<->next_h -- since those are
-            # the ones that actually straighten as the knot approaches the
-            # line between its neighbors; segments further out are unrelated
-            # to this specific line.
+            # expose this frame's horizon proximity to _deform_verts, scoped to the
+            # two segments flanking the dragged knot -- the ones that straighten
             nseg_local = n if cyclic else n - 1
             seg_prev = (idx - 1) % nseg_local if cyclic else idx - 1
             seg_next = idx % nseg_local if cyclic else idx
@@ -822,10 +603,8 @@ def create_curve_edit_operator(
             self.horizon_segs = frozenset((seg_prev, seg_next))
 
             def reflect(v):
-                # mirror across the plane through the line whose normal is the
-                # grab-time offset direction -- flips only the component that
-                # crosses the line, so an in-plane U reflects to a clean
-                # mirror while any out-of-plane part is preserved
+                # mirror across the plane through the line: flips only the component
+                # crossing it, so an in-plane U reflects cleanly
                 return v - 2.0 * v.dot(nrm) * nrm
 
             def point_at_dir(i, attr, pos_fn):
@@ -887,24 +666,14 @@ def create_curve_edit_operator(
                 if arm is None:
                     return
                 knot_now = cur(kh['pos'])
-                # the fitted arm's ORIGINAL (unreflected) offset from its
-                # knot -- the one fixed quantity everything below is built
-                # from. rest_off_raw's own DIRECTION is never used directly
-                # (that would be the old, removed frozen-rigid carry); only
-                # its LENGTH (the fit-derived baseline scaled below -- never
-                # Blender's absolute ~1/3-ish sizing) and, via offset_rot,
-                # how far it originally differed from point-at.
+                # the fitted arm's original offset from its knot: only its LENGTH is
+                # used directly, plus (via offset_rot) how far it differed from point-at
                 rest_off_raw = snap(arm) - snap(kh['pos'])
                 length = rest_off_raw.length
 
-                # scale the fit-derived length by however much Blender's OWN
-                # handle length would have changed between grab and now, so
-                # e.g. dragging the knot toward one neighbor shrinks that
-                # side's arm (and grows the other) exactly as fast as real
-                # Blender does -- without this, a frozen length can overshoot
-                # a now-much-closer neighbor and kink the curve. This is
-                # independent of the point-at DIRECTION blend below -- length
-                # always tracks Blender's relative scale, unconditionally.
+                # scale the fit-derived length by however much Blender's own handle
+                # length would have changed since grab -- a frozen length can
+                # overshoot a now-much-closer neighbor and kink the curve
                 ref0 = blender_len_ref(owner_i, attr, snap)
                 ref1 = blender_len_ref(owner_i, attr, cur)
                 scale = max(0.0, ref1 / ref0) if (ref0 is not None and ref0 > 1e-9 and ref1 is not None) else 1.0
@@ -915,19 +684,12 @@ def create_curve_edit_operator(
                 pad1 = point_at_dir(owner_i, attr, cur)    # point-at direction NOW
                 if length > 1e-9 and pad0 is not None and pad0.length > 1e-9 and pad1 is not None and pad1.length > 1e-9:
                     pad0n, pad1n = pad0.normalized(), pad1.normalized()
-                    # the fixed rotation from "pure point-at" to "what the
-                    # fit actually had", measured once at grab time
+                    # the fixed rotation from pure point-at to what the fit had,
+                    # measured once at grab time
                     offset_rot = pad0n.rotation_difference(rest_off_raw.normalized())
-                    # ONE continuous formula for both directions of travel,
-                    # instead of two formulas stitched together at factor==0
-                    # (which only matched exactly for a perfectly radial
-                    # drag, popping otherwise): slerp the offset itself down
-                    # to identity as the knot nears the line, so at the line
-                    # (factor=1) the offset has fully dissolved into pure
-                    # point-at (exactly straight), and at or beyond the grab
-                    # distance (factor=0) the full original offset applies,
-                    # riding on top of the CURRENT (still-updating) point-at
-                    # direction rather than a value frozen at grab time.
+                    # slerp that offset to identity as the knot nears the line: at the
+                    # line it's pure point-at (exactly straight), at/beyond the grab
+                    # distance the full offset rides the CURRENT point-at direction
                     blended_rot = offset_rot.slerp(Quaternion(), factor)
                     target = reflect(pad1n) if mirrored else pad1n
                     arm_dir = blended_rot @ target
@@ -943,34 +705,23 @@ def create_curve_edit_operator(
             # the dragged knot's own two arms
             recompute_arm(idx, 'p2')
             recompute_arm(idx, 'p1')
-            # each neighbor's arm that faces the dragged knot -- but not an
-            # Aligned neighbor (its direction is the user's own to keep)
+            # each neighbor's arm facing the dragged knot -- but not an Aligned
+            # neighbor's (its direction is the user's own to keep)
             if prev_h.get('handle_type') in ('automatic', 'vector'):
                 recompute_arm(idx - 1, 'p1')   # prev's outgoing arm faces the dragged knot
                 if prev_h.get('handle_type') == 'automatic':
-                    # an Automatic knot's two arms must stay exactly collinear
-                    # (that's what "Automatic" means -- see point_at_dir's
-                    # unit(b-a)+unit(c-b), which is the SAME direction for
-                    # both of a knot's arms, sign-flipped). Only just updated
-                    # its NEAR arm above; a Vector neighbor's two arms are
-                    # legitimately independent (no such requirement) so this
-                    # only applies when the neighbor is ALSO Automatic.
-                    recompute_arm(idx - 1, 'p2')   # prev's FAR arm, kept in line with the one just updated
+                    # an Automatic knot's arms must stay collinear, so its far arm
+                    # follows; a Vector neighbor's arms are independent
+                    recompute_arm(idx - 1, 'p2')
             if next_h.get('handle_type') in ('automatic', 'vector'):
                 recompute_arm(idx + 1, 'p2')   # next's incoming arm faces the dragged knot
                 if next_h.get('handle_type') == 'automatic':
                     recompute_arm(idx + 1, 'p1')   # next's FAR arm, kept in line with the one just updated
 
         def _handle_pivot(self, h, orig):
-            ''' The knot at the FAR end of the segment referenced by this
-            knot handle's first flanking tangent -- v3 PolyStrips' "outerP",
-            i.e. the far corner of the affected strip. A stable,
-            well-separated point to measure an Alt-drag gesture (scale or
-            rotate) against, since the drag itself starts ON the knot being
-            edited, leaving it unusable as its own reference (near-zero
-            distance, undefined angle). Returns None if this handle has no
-            flanking tangent to reference (shouldn't happen for a knot, but
-            matches _scale_handles'/_rotate_handles' existing guard). '''
+            ''' The knot at the far end of this knot's first flanking segment (v3
+            PolyStrips' "outerP") -- a well-separated reference for measuring an
+            Alt-drag gesture, since the drag starts on the edited knot itself. '''
             if not h['move']:
                 return None
             ref_seg, ref_attr = h['move'][0]
@@ -978,28 +729,11 @@ def create_curve_edit_operator(
             return orig(pivot_seg, pivot_attr)
 
         def _scale_handles(self, h, seg0, attr0, pt_orig, delta, rgn, r3d, M, orig, cbs):
-            '''
-            Alt+drag on a knot: pin the knot at its snapshot position, and
-            either scale its flanking tangent handles' LENGTHS (not
-            direction) by a common factor, or -- on a face-derived chain --
-            taper the strip's width instead (see below); never both, so the
-            two effects don't compound into what'd look like one uneven one.
-
-            Ported from v3 PolyStrips' own corner-scale gesture: the scale
-            factor is the ratio of the mouse's CURRENT screen-space distance
-            from a fixed pivot (_handle_pivot) to its distance from that same
-            pivot when the drag started. v3 only ever grabs the tangent
-            handle itself to scale, never the knot, so its pivot and its
-            drag start are already two different (and far apart) points;
-            grabbing the knot here instead means the pivot has to be found
-            one step further out to get that same separation. A prior
-            version measured against the reference handle's own (much
-            shorter) length instead, which made the gesture oversensitive --
-            small mouse moves swung the scale a lot, and since growing is
-            unbounded (unlike shrinking, which self-limits at 0), it was
-            easy to overshoot into extreme, visibly-broken handle lengths
-            well before the drag felt "done".
-            '''
+            ''' Alt+drag on a knot: pin the knot and either scale its arms' lengths
+            by a common factor, or -- on a face-derived chain -- taper the strip's
+            width instead; never both. Ported from v3 PolyStrips' corner-scale. '''
+            # the factor is mouse distance from a fixed, far pivot vs at drag start;
+            # measuring against the arm's own short length was oversensitive
             pivot_orig = self._handle_pivot(h, orig)
             if pivot_orig is None:
                 return
@@ -1019,57 +753,28 @@ def create_curve_edit_operator(
                 setattr(cbs[seg], attr, pt_orig.copy())
 
             if self.chain.get('coupled', True):
-                # a vertex-coupled (edge-loop) chain has no "width" to
-                # taper -- reshape the curve itself instead, by scaling the
-                # knot's own tangent handles, each from its own original
-                # length as its own 100% reference (not a shared absolute
-                # length), which is what "equally" means here
+                # an edge-loop chain has no width to taper -- scale the knot's own
+                # arms instead, each from its own original length
                 for (seg, attr) in h['move']:
                     orig_h = orig(seg, attr)
                     setattr(cbs[seg], attr, pt_orig + (orig_h - pt_orig) * scale)
             else:
-                # a face-derived (uncoupled) chain's knot is a derived
-                # centerline point, and its handles just describe that
-                # centerline's path -- reshaping them here would bend the
-                # strip's spine as a side effect of tapering its width,
-                # compounding into a result that isn't a clean taper. Leave
-                # the curve exactly as it started instead (undoing any
-                # non-Alt move from earlier in the same drag, e.g. if Alt
-                # was pressed partway through) and taper the verts' width
-                # against that fixed curve instead -- see update()'s
-                # per-vert loop, gated on self.taper_scale/self.taper_t
+                # a face strip's handles describe its spine -- scaling them would
+                # bend the spine as a side effect of the taper, so hold the curve at
+                # its snapshot and taper the verts' width against it instead (see
+                # the taper_scale block in _deform_verts)
                 for (seg, attr) in h['move']:
                     setattr(cbs[seg], attr, orig(seg, attr))
                 self.taper_scale = scale
                 self.taper_t = float(seg0 if attr0 == 'p0' else seg0 + 1)
 
         def _rotate_handles(self, h, seg0, attr0, pt_orig, pt_screen, delta, rgn, r3d, M, Mi, orig, cbs):
-            '''
-            Alt+Shift-drag on a knot: pin the knot at its snapshot position
-            and rotate its flanking tangent handles by a common angle around
-            it, instead of moving or scaling them -- reshapes the curve's
-            tangent DIRECTION at that knot while preserving each handle's
-            own length. Unlike _scale_handles, this applies the SAME way
-            regardless of whether the chain is face-derived: there's no
-            separate "taper" concept for a rotation, since reshaping the
-            curve's direction is already exactly what should happen to a
-            strip's spine too, and the existing per-vert curve-following in
-            update() already carries that reshape through to every vert
-            (coupled or not) on its own.
-
-            The rotation angle is measured the same way _scale_handles
-            measures its scale ratio: via the same stable, far pivot
-            (_handle_pivot), tracking how much the mouse's own angular
-            position around THAT pivot has changed since the drag started
-            -- it can't be measured around the dragged knot itself, since
-            the drag starts ON the knot, leaving its own angle undefined at
-            the start. The measured angle is then applied by rotating each
-            handle -- from its own original screen position -- around the
-            KNOT itself (its true anchor), matching v3 PolyStrips' own
-            rotate gesture (a screen-space rotation, then re-settled in 3D;
-            tangent handles here already move freely in the view plane
-            rather than snapping to source, same as a direct drag).
-            '''
+            ''' Alt+Shift-drag on a knot: pin the knot and rotate its arms by a
+            common angle around it, preserving their lengths. Same on both chain
+            kinds -- reshaping the curve's direction IS what a strip's spine wants. '''
+            # angle measured around the same far pivot as _scale_handles (the drag
+            # starts ON the knot, so its own angle is undefined), then applied
+            # around the knot itself in screen space, matching v3 PolyStrips
             pivot_orig = self._handle_pivot(h, orig)
             if pivot_orig is None:
                 return
@@ -1157,14 +862,9 @@ def create_curve_edit_operator(
             return co
 
         def _relax_interior(self, context, iterations):
-            ''' Runs the interior-vert Laplacian relaxation (see
-            _relax_interior_verts) if this chain has one, then snaps each
-            interior vert to source and applies the same mirror clamp the
-            boundary loop's own verts get, for consistency. Called after the
-            boundary verts are updated each frame -- interior verts always
-            follow the boundary's CURRENT shape (including whatever
-            proportional-edit falloff was applied to it), never the raw
-            handle delta directly. '''
+            ''' Relaxes this chain's interior verts (if any) against the boundary's
+            current shape, then snaps them to source with the same mirror clamp the
+            boundary verts get. '''
             interior = self.interior
             if not interior:
                 return
@@ -1172,7 +872,8 @@ def create_curve_edit_operator(
             _relax_interior_verts(bm, interior, iterations)
             for idx in interior['indices']:
                 bmv = bm.verts[idx]
-                co = nearest_point_valid_sources(context, bmv.co, world=False, sources=self.sources, respect_clip_planes=True) or bmv.co
+                # input must be WORLD (world=False only localizes the output)
+                co = nearest_point_valid_sources(context, self.M @ bmv.co, world=False, sources=self.sources, respect_clip_planes=True) or bmv.co
                 bmv.co = self._mirror_clamp(context, co, interior['orig_co'][idx], self.M, self.Mi)
 
         def update(self, context, event):
@@ -1180,9 +881,8 @@ def create_curve_edit_operator(
             bm, em = self.bm, self.em
 
             if event.type == 'LEFTMOUSE' and event.value == 'RELEASE':
-                # a fast drag-and-release may not have accumulated enough
-                # per-frame iterations to fully catch up to the final
-                # boundary shape -- settle harder now that it's the last chance
+                # settle the interior harder -- a fast drag-and-release may not have
+                # caught up to the final boundary shape
                 self._relax_interior(context, INTERIOR_RELAX_FINAL_ITERATIONS)
                 bmesh.update_edit_mesh(em)
                 return {'FINISHED'}
@@ -1218,6 +918,10 @@ def create_curve_edit_operator(
             prop_dist_world = context.tool_settings.proportional_distance
 
             self.apply_handle(context, delta, rgn, r3d, M, Mi, event.alt, event.shift)
+            # hidden vector arms are point-at handles under the hood. Re-aim
+            # them at the knots' CURRENT positions every frame, so a segment
+            # whose arms aren't drawn stays straight.
+            snap_hidden_vector_arms(self.spline.cbs, self.chain['handles'])
 
             if self.grab['only'] is None:
                 # arc_frac/combined_frac (indices 4/5) are both None when a vert's t falls in a
@@ -1237,38 +941,9 @@ def create_curve_edit_operator(
             return {'RUNNING_MODAL'}
 
         def _deform_verts(self, context, spline):
-            ''' Repositions every vert in self.grab['only'] against `spline`,
-            using each one's stored (t, offset, tangent) from init() -- see
-            the per-vert fields unpacked below. POSITION is always computed
-            FRESH from each vert's own pre-drag baseline (pt_edit_orig) via
-            o + R@d, never incrementally from wherever it happened to land
-            last frame, so every frame fully re-derives positions rather than
-            compounding onto an already-moved vert.
-
-            ROTATION (R, the per-vert cross-section rotation) is the one
-            exception -- it's tracked incrementally frame-to-frame in
-            self.grab['rot'], NOT recomputed fresh as a single shortest-arc
-            rotation from init's z0 to the current z1. This is a deliberate,
-            necessary exception: "the rotation taking z0 to z1" is not a
-            well-defined function of just (z0, z1) alone once the tangent has
-            actually turned by more than 180 degrees over the course of the
-            drag (e.g. an adjacent endpoint's Vector handle sweeping around
-            as its neighbor is dragged past it) -- shortest-arc only ever
-            "sees" the two endpoints and always picks the <=180 degree way
-            around, which is a DIFFERENT rotation than the curve's own
-            continuous turning once the true total exceeds 180. Two verts
-            whose true accumulated turn straddle that threshold (one at 179,
-            one at 181) would then rotate around unrelated axes despite
-            having nearly identical tangents -- a visible twist in the
-            connecting geometry even though the curve/handles are perfectly
-            smooth. Composing many small per-frame deltas (each well inside
-            the safe range, since real mouse motion doesn't swing a tangent
-            180 degrees in a single event) tracks the true total instead.
-
-            Split into passes rather than one straight-through loop: the
-            RE-CENTERING pass below needs BOTH of a rung's verts' offsets
-            already computed before either can be finalized, so no vert can
-            be written to bmv.co until its whole rung has been visited. '''
+            ''' Repositions every vert in self.grab['only'] against `spline` from
+            its stored (t, offset, tangent). Positions re-derive fresh from the
+            pre-drag baseline every frame; only the rotation state persists. '''
             data = self.grab['data']
             rot_state = self.grab['rot']
             bm = self.bm
@@ -1276,33 +951,22 @@ def create_curve_edit_operator(
             prop_use = context.tool_settings.use_proportional_edit
             prop_dist_world = context.tool_settings.proportional_distance
             prop_falloff = context.tool_settings.proportional_edit_falloff
-            # _scale_handles only ever sets taper_scale on a face-derived
-            # (uncoupled) chain -- a vertex-coupled chain has no "width" to
-            # taper, since its verts already sit ON the curve, so Alt
-            # reshapes its handles instead (see _scale_handles)
+            # taper_scale is only ever set for a face-derived chain -- see _scale_handles
             taper_active = self.taper_scale is not None
             nseg = len(spline.cbs)
             fn_dist = _distance_fn
             combined_cum = _cumulative_lengths(spline.cbs, self.combined_segs, fn_dist) if self.combined_segs else None
 
-            # Pass 1: compute each vert's (anchor, offset) exactly as before,
-            # but stop short of finalizing bmv.co -- see pass 2 below.
-            # Grouped by `t` (reassigned below, same value as before this
-            # change): every vert of a rung is parametrized from the same
-            # shared rung midpoint (see init()'s rung_map comment), so they
-            # deterministically compute the identical t here -- a reliable,
-            # tolerance-free grouping key.
+            # Pass 1: compute each vert's (anchor, offset) but don't finalize
+            # bmv.co yet -- pass 2 needs a whole rung's results first. A rung's
+            # verts share a parametrization point, so `t` is a reliable group key.
             computed = {}
             rung_groups = {}
             for bmv_idx in self.grab['only']:
-                t, d0, pt_edit_orig, distance, arc_frac, combined_frac, z0, fit_w, end_t, overhang = data[bmv_idx]
+                t, d0, pt_edit_orig, distance, arc_frac, combined_frac, z0, fit_w, end_t, overhang, is_rung = data[bmv_idx]
                 if arc_frac is None and combined_frac is None:
-                    # this vert's segment is neither touched nor part of a
-                    # combined free-knot run -- its t maps into a segment whose
-                    # control points this drag never moves, so eval(t) can only
-                    # ever reproduce the exact same point it's already at.
-                    # grab['only'] already filters these out (see update());
-                    # kept as a guard in case it's ever built elsewhere
+                    # this drag never moves this vert's segment; grab['only'] already
+                    # filters these out, kept as a guard
                     continue
                 if distance > prop_dist_world: continue
                 if prop_use:
@@ -1311,10 +975,8 @@ def create_curve_edit_operator(
                 else:
                     factor = 1
                 if combined_frac is not None:
-                    # this vert is somewhere in the combined run spanning a free
-                    # knot -- keep its proportional position within that run's
-                    # *current* total arc length (recomputed above, since the
-                    # run's segments keep reshaping as the drag continues)
+                    # keep this vert's proportional position within the free-knot
+                    # run's CURRENT total arc length
                     target = combined_frac * combined_cum[-1]
                     idx = 0
                     while idx < len(combined_cum) - 2 and target > combined_cum[idx + 1]:
@@ -1324,112 +986,60 @@ def create_curve_edit_operator(
                     local_frac = (target - combined_cum[idx]) / seg_span
                     t = seg + spline.cbs[seg].approximate_t_at_arc_length_fraction(local_frac, fn_dist)
                 elif arc_frac is not None:
-                    # this vert's segment is being reshaped -- track its original
-                    # proportional position along the arc length instead of its raw
-                    # parameter t, so reshaping the segment doesn't bunch verts up
-                    # or spread them out relative to each other
+                    # track arc-length fraction, not raw t, so the reshaping segment
+                    # doesn't bunch its verts up or spread them out
                     seg = min(int(t), nseg - 1)
                     t = seg + spline.cbs[seg].approximate_t_at_arc_length_fraction(arc_frac, fn_dist)
-                # how close the dragged Automatic knot is to the straight line
-                # between its neighbors (see _recompute_typed_handles), but
-                # only for verts on the two segments that line actually spans
-                # -- see the curve-normal correction below.
-                horizon_boost = self.horizon_factor if seg in self.horizon_segs else 0.0
-                # cap verts (end_t is not None) are parametrized by their
-                # END's t, not their own approximate t, and re-extrapolated
-                # against the LIVE spline every frame -- see init()'s
-                # end_t/overhang comment for why. overhang is fixed (cached
-                # at init like d0); only the endpoint/tangent it extends from
-                # is re-evaluated here as the curve reshapes.
+                # how close the dragged Automatic knot is to the line between its
+                # neighbors, for rung verts on the two segments that line spans
+                horizon_boost = self.horizon_factor if (is_rung and seg in self.horizon_segs) else 0.0
+                # cap verts (end_t set) evaluate at their end's t and re-extrapolate
+                # against the live spline each frame -- see init()
                 eval_t = t if end_t is None else end_t
                 o = spline.eval(eval_t)
                 z1 = Vector(spline.eval_derivative(eval_t))
                 if z1.length < 1e-9: z1 = Vector((0, 0, 1))
                 z1.normalize()
-                # rotate the stored offset by however much this material point's
-                # tangent has turned since init (z0 -> z1). A rotation applied to
-                # the whole cross-section rotates it rigidly: it can't shear the
-                # faces and undoes itself exactly when the curve straightens back
-                # out (z1 -> z0 => identity). Independent of view, so no tangent-
-                # parallel-to-camera degeneracy either.
-                #
-                # Tracked as a small INCREMENT from last frame's accumulated
-                # rotation, not a single shortest-arc jump from init's z0 -- see
-                # this method's docstring for why a fresh-each-frame shortest arc
-                # from z0 directly is NOT equivalent once the true turn exceeds
-                # 180 degrees over the course of the drag.
+                # rotate the stored offset by however much this point's tangent has
+                # turned since init: rigid, so it can't shear and undoes itself when
+                # the curve straightens back out. Tracked as small per-frame deltas
+                # composed into grab['rot'] -- a single shortest-arc from z0 picks
+                # the wrong way around once the true total turn exceeds 180 degrees,
+                # twisting adjacent verts around unrelated axes.
                 R_prev = rot_state[bmv_idx]
                 z_prev = R_prev @ z0
                 if z_prev.dot(z1) < -0.9999:
-                    # this frame's tangent fully reversed relative to last frame
-                    # -- shortest-arc axis is undefined, so rotation_difference
-                    # would pick an arbitrary one and flip the cross-section
-                    # randomly. Only reachable by an extreme single-event jump
-                    # (not continuous mouse motion); hold last frame's rotation
-                    # rather than spin randomly.
+                    # tangent fully reversed in one event: the shortest-arc axis is
+                    # undefined, so hold last frame's rotation rather than spin randomly
                     delta_R = Quaternion()
                 else:
                     delta_R = z_prev.rotation_difference(z1)
                 R = delta_R @ R_prev
                 rot_state[bmv_idx] = R
                 if end_t is not None:
-                    # extend along R@z0 rather than raw z1 -- identical to z1
-                    # normally (R is defined to take z0 to z1 exactly), but when
-                    # the guard above holds R at last frame's value (delta_R
-                    # frozen to identity for one frame), this holds the anchor's
-                    # extrapolation there too, instead of separately reading the
-                    # (momentarily untrustworthy) live z1 and flinging the cap
-                    # anchor to a different side of the endpoint than whatever
-                    # the rotation below settles on that same frame.
+                    # extend along R@z0, not raw z1: identical normally, but when the
+                    # guard above freezes R for a frame this keeps the cap anchor on
+                    # the same side the rotation settles on
                     ext_dir = R @ z0 if end_t > 0.0 else -(R @ z0)
                     o = o + ext_dir * overhang
                 d = d0
                 if taper_active:
                     w = self._taper_weight(t, nseg)
                     if w > 0:
-                        # d0 is this vert's offset FROM the curve, and (nearest-
-                        # point projection) is essentially perpendicular to the
-                        # tangent, so scaling it directly scales the vert's own
-                        # perpendicular distance from the curve -- i.e. the strip's
-                        # width at this point, not its position along the curve
+                        # d0 is essentially perpendicular to the tangent, so scaling
+                        # it scales the strip's width here, not position along it
                         d = d0 * (1 + (self.taper_scale - 1) * w)
                 d_final = R @ d
-                # Rigid rotation alone preserves the original fit exactly -- great
-                # for gentle edits, but any skew the fit already had is carried
-                # (and amplified) through extreme edits, which can kink the faces.
-                # So as the edit gets large, nudge a WELL-FIT cross-section toward
-                # the curve's normal plane (drop the component running along the
-                # tangent, keep the perpendicular part at full width). The nudge is
-                # gated by fit_w * edit_w: a poorly-fit strip (fit_w -> 0) is left
-                # untouched. A gentle edit (edit_w -> 0) stays purely rigid and
-                # reversible. Only a big change to a good fit gets straightened --
-                # so e.g. pulling an extreme S back out lands on much flatter
-                # faces. No end-taper needed: end-cap verts get a genuinely HIGH
-                # fit_w now that their anchor is extrapolated out to the cap (see
-                # init()'s end_t/overhang) instead of clamped short, so their
-                # offset is already close to perpendicular -- "flattening" an
-                # already-flat offset is close to a no-op, not a squash. (A
-                # previous fixed distance-from-end fade zeroed the correction
-                # right at the caps regardless of fit, which left raw rigid
-                # rotation unprotected there -- when the tangent swings hard near
-                # an endpoint, e.g. an Automatic handle sweeping across the
-                # horizon, that unprotected rotation could flip/twist the end
-                # faces. Removed in favor of fit_w alone; the extrapolation fix
-                # here is what makes fit_w alone actually correct for end caps.)
-                #
-                # ADDITIONALLY forced toward full strength (blend -> 1) by
-                # horizon_boost as the dragged Automatic knot approaches the
-                # straight line between its neighbors, on top of (not gated
-                # by) fit_w * edit_w -- this is what guarantees the strip
-                # actually goes perfectly flat right when that line goes
-                # perfectly straight, rather than only however much fit_w *
-                # edit_w happens to have reached by that point. Unlike the
-                # fit_w*edit_w path, this deliberately overrides even a
-                # poorly-fit vert (fit_w -> 0 no longer gates it out), since
-                # the goal here is an unconditional guarantee at the straight-
-                # line limit, not a conservative "only touch good fits" nudge.
+                # Curve-normal correction, RUNG VERTS ONLY: as the edit gets large
+                # (edit_w) nudge a well-fit (fit_w) cross-section into the curve's
+                # normal plane at full width, so carried-along fit skew can't kink
+                # the faces; horizon_boost forces it to full strength -- bypassing
+                # fit_w -- so a perfectly straight line yields a perfectly flat
+                # strip. Everyone else's d0 is fit residual, not a width: rescaling
+                # its perpendicular NOISE back up to full length flings the vert in
+                # an arbitrary direction, so non-rung verts stay purely rigid.
                 d_len = d.length
-                if d_len > 1e-9:
+                if d_len > 1e-9 and is_rung:
                     edit_w = min(z0.angle(z1, 0.0) / CURVE_NORMAL_EDIT_ANGLE, 1.0)
                     blend = max(fit_w * edit_w, horizon_boost)
                     if blend > 0.0:
@@ -1440,22 +1050,11 @@ def create_curve_edit_operator(
                 computed[bmv_idx] = [o, d_final, horizon_boost, factor, pt_edit_orig]
                 rung_groups.setdefault(t, []).append(bmv_idx)
 
-            # Pass 2: a rung's two verts share one anchor `o`, but the curve-
-            # normal correction above rescales EACH vert's offset back up to
-            # its OWN original length independently -- if the two weren't
-            # perfectly symmetric to begin with (an ordinary small fit
-            # residual: `o` is the nearest point ON the curve to the rung's
-            # midpoint, not necessarily exactly equal to it), that
-            # independent rescale can leave the rung's own center off of `o`
-            # even though each vert's TILT is now individually correct --
-            # visible as a slight skew in the rail edge loops even on an
-            # otherwise dead-straight stretch. Pull the rung's average
-            # offset back to zero (recentering it on `o`), scaled by the
-            # SAME horizon_boost as the tilt correction so it ramps in
-            # together and never touches a rung the horizon blend doesn't
-            # reach. A rung with fewer than 2 of its verts actually computed
-            # this frame (e.g. one excluded by proportional-edit falloff)
-            # has nothing to center against, so it's left alone.
+            # Pass 2: the correction rescales each vert's offset independently, so
+            # a slightly asymmetric rung can end up centered off its anchor `o` --
+            # a subtle rail skew even on a straight stretch. Pull the rung's average
+            # offset back to zero, ramped by the same horizon_boost. A rung with
+            # fewer than 2 verts computed this frame has nothing to center against.
             for idxs in rung_groups.values():
                 if len(idxs) < 2:
                     continue
@@ -1468,13 +1067,12 @@ def create_curve_edit_operator(
                 for i in idxs:
                     computed[i][1] = computed[i][1] - center_off * boost
 
-            # Pass 3: finalize -- unchanged from before this split, just
-            # reading back what pass 1/2 computed instead of running inline.
+            # Pass 3: finalize
             for bmv_idx, (o, d_final, horizon_boost, factor, pt_edit_orig) in computed.items():
                 bmv = bm.verts[bmv_idx]
-                pt_edit_new = M @ (o + d_final)
-                pt_edit_new = pt_edit_orig + (pt_edit_new - pt_edit_orig) * factor
-                co = nearest_point_valid_sources(context, pt_edit_new, world=False, sources=self.sources, respect_clip_planes=True) or pt_edit_orig
+                # blend in local space; the surface query below wants world input
+                pt_edit_new = pt_edit_orig + ((o + d_final) - pt_edit_orig) * factor
+                co = nearest_point_valid_sources(context, M @ pt_edit_new, world=False, sources=self.sources, respect_clip_planes=True) or pt_edit_orig
                 co = self.snap_co_to_feature(co)
                 bmv.co = self._mirror_clamp(context, co, pt_edit_orig, M, Mi)
 

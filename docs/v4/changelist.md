@@ -76,6 +76,7 @@ This document contains details about what has changed in Retopoflow in version 4
 - Fixed performance issues when using some pen tablets or non-official Blender distributions
 - Fixed proportional editing circle size and location
 - Fixed non-uniform scale issues when drawing in PolyStrips
+- Fixed wire and solid mirror display in Blender 5.2
 
 ## 4.1.9
 
