@@ -184,6 +184,7 @@ class RFCore:
         bpy.types.VIEW3D_MT_paint_vertex.append(menu_mesh.draw_paint_vertex_menu_items)
         bpy.types.VIEW3D_MT_edit_mesh_vertices.append(menu_mesh.draw_vertex_menu_items)
         bpy.types.VIEW3D_MT_edit_mesh_edges.append(menu_mesh.draw_edge_menu_items)
+        bpy.types.VIEW3D_MT_edit_mesh_faces.append(menu_mesh.draw_face_menu_items)
         rfmenu_context.register()
         bpy.app.handlers.load_post.append(RFCore.handle_load_post)
 
@@ -250,6 +251,7 @@ class RFCore:
         bpy.types.VIEW3D_MT_paint_vertex.remove(menu_mesh.draw_paint_vertex_menu_items)
         bpy.types.VIEW3D_MT_edit_mesh_vertices.remove(menu_mesh.draw_vertex_menu_items)
         bpy.types.VIEW3D_MT_edit_mesh_edges.remove(menu_mesh.draw_edge_menu_items)
+        bpy.types.VIEW3D_MT_edit_mesh_faces.remove(menu_mesh.draw_face_menu_items)
         rfmenu_context.unregister()
         bpy.app.handlers.load_post.remove(RFCore.handle_load_post)
 

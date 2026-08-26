@@ -33,6 +33,7 @@ class RF_MT_ContextMenu(Menu):
         layout.operator("retopoflow.space_evenly", text="Even")
         layout.operator("retopoflow.relax_selected", text="Relax")
         layout.operator("retopoflow.twist_loop", text="Twist Loops")
+        layout.operator("retopoflow.toporotate", text="Rotate Topology")
         layout.operator("retopoflow.insert_diamond_junction", text="Insert Diamond Junction")
         layout.operator("retopoflow.adjust_segment_count", text="Adjust Segment Count")
 

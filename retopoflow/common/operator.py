@@ -58,6 +58,12 @@ def poll_retopoflow(context : Context) -> bool:
     return True
 
 
+def rf_is_running() -> bool:
+    ''' True while an RF tool is active.  Operators that also run outside RF branch on this. '''
+    RFCore = RFGlobals.RFCore_None
+    return bool(RFCore and RFCore.is_running)
+
+
 class RFRegisterClass:
     _subclasses : ClassVar[list[type[RFRegisterClass]]] = []
     _registered_classes : ClassVar[set[type[RFRegisterClass]]] = set()
@@ -334,9 +340,105 @@ class RFOperator_Execute(RFOperator_KeymapContext):
 
 class RFOperator_Invoke(RFOperator_KeymapContext):
     """
-    This class is more decorative and descriptive than anything else.
-    This class is far less built-up than the RFOperator class below.
+    Operators here run via invoke(), inside or outside of RF, with modal specific protections.
     """
+
+    rf_was_controlling : bool | None = None
+    rf_prevented_invalidation : bool = False   # guarantees prevent/resume stay paired
+
+    def __init_subclass__(cls, *args : ..., **kwargs : ...): # pyright: ignore[reportAny]
+        super().__init_subclass__(*args, **kwargs)
+
+        # wrap invoke / modal / cancel so the guards follow the operator's own return values:
+        # engage on RUNNING_MODAL, release when modal ends, cancel runs, or modal raises.
+        # NOTE: bpy.utils.register_class checks the exact parameter count of invoke / modal /
+        # cancel (defaults included), so every wrapper must mirror the original's signature.
+
+        WRAPPED = '_rf_control_wrapped'
+
+        def fresh(name : str):
+            # only functions this subclass defines itself; anything inherited from another
+            # RFOperator_Invoke subclass was wrapped when that subclass was created
+            fn = cls.__dict__.get(name)
+            return None if fn is None or getattr(fn, WRAPPED, False) else fn
+
+        if fn_invoke := fresh('invoke'):
+            def invoke(self, context, event): # pyright: ignore[reportMissingParameterType]
+                ret = fn_invoke(self, context, event)
+                if ret and 'RUNNING_MODAL' in ret:
+                    self.guard_modal()
+                return ret
+            setattr(invoke, WRAPPED, True)
+            cls.invoke = invoke
+
+        if fn_modal := fresh('modal'):
+            def modal(self, context, event): # pyright: ignore[reportMissingParameterType]
+                try:
+                    ret = fn_modal(self, context, event)
+                except Exception:
+                    self.unguard_modal()
+                    raise
+                if ret and (ret & {'FINISHED', 'CANCELLED'}):
+                    self.unguard_modal()
+                return ret
+            setattr(modal, WRAPPED, True)
+            cls.modal = modal
+
+        if fn_cancel := fresh('cancel'):
+            def cancel(self, context): # pyright: ignore[reportMissingParameterType]
+                try:
+                    return fn_cancel(self, context)
+                finally:
+                    self.unguard_modal()
+            setattr(cancel, WRAPPED, True)
+            cls.cancel = cancel
+        elif 'modal' in cls.__dict__ and not getattr(getattr(cls, 'cancel', None), WRAPPED, False):
+            # a modal subclass with no cancel of its own must still not leak the guards when
+            # Blender force-ends it (ex: the window closes)
+            def cancel(self, context): # pyright: ignore[reportMissingParameterType]
+                self.unguard_modal()
+            setattr(cancel, WRAPPED, True)
+            cls.cancel = cancel
+
+    def guard_modal(self):
+        ''' Everything that must hold while this operator sits on top as a modal. '''
+        self.take_rf_control()
+        self.prevent_invalidation()
+
+    def unguard_modal(self):
+        self.return_rf_control()
+        self.resume_invalidation()
+
+    def take_rf_control(self):
+        # is_controlling means "RFCore is the top modal operator", which we now are.
+        # RFCore notices lost control but that check is its own modal, frozen while we are on top.
+        # Left set, RFCore keeps dispatching the underlying tool's draw callbacks with stale state;
+        # if the mesh changed, a ReferenceError there makes RFCore.stop() tear down the whole session.
+        RFCore = RFGlobals.RFCore_None
+        if not RFCore or not RFCore.is_running: return
+        self.rf_was_controlling = RFCore.is_controlling
+        RFCore.is_controlling = False
+
+    def return_rf_control(self):
+        if self.rf_was_controlling is None: return  # never taken, nothing to put back
+        RFCore = RFGlobals.RFCore_None
+        if RFCore and RFCore.is_running:
+            RFCore.is_controlling = self.rf_was_controlling
+        self.rf_was_controlling = None
+
+    def prevent_invalidation(self):
+        # Guards the held bmesh against other add-ons' depsgraph handlers, not against RF
+        InvalidationManager = RFGlobals.InvalidationManager_None
+        if not InvalidationManager or self.rf_prevented_invalidation: return
+        InvalidationManager.prevent_invalidation()
+        self.rf_prevented_invalidation = True
+
+    def resume_invalidation(self):
+        if not self.rf_prevented_invalidation: return  # never prevented, nothing to resume
+        self.rf_prevented_invalidation = False
+        InvalidationManager = RFGlobals.InvalidationManager_None
+        if InvalidationManager:
+            InvalidationManager.resume_invalidation()
 
     @classmethod
     def poll(cls, context : Context) -> bool:
