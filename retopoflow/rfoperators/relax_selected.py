@@ -478,4 +478,7 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
             logic.bm.select_flush_mode()
             bmesh.update_edit_mesh(logic.em)
 
+        logic.bm.normal_update()
+        bmesh.update_edit_mesh(logic.em, loop_triangles=False)
+
         return {'FINISHED'}
