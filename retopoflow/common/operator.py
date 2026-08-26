@@ -572,44 +572,51 @@ class RFOperator(RFOperator_KeymapContext):
         self.had_teardown = False
         type(self)._is_running = True
         RFOperator.active_operators.append(self)
-        _ = context.window_manager.modal_handler_add(self)
-        self.last_op = None
-        self.working_area = context.area
-        self.working_window = context.window
-        self._stop = False
-
-        user_keyconfigs = context.window_manager.keyconfigs.user
-        if not user_keyconfigs:
-            # bailing out after registering above. Otherwise the operator would stay
-            # in active_operators with _is_running set, and poll() refuses to start it again
-            _ = self.teardown(context)
-            return {'CANCELLED'}
-        keymap_items = user_keyconfigs.keymaps['Screen'].keymap_items
-        self.fullscreen_keymaps = [
-            km
-            for km in keymap_items
-            if km.idname == 'screen.screen_full_area'
-        ]
-
-        if self.draw_postpixel_overlay.__func__ != RFOperator.draw_postpixel_overlay:
-            self._draw_postpixel_overlay = SpaceView3D.draw_handler_add(
-                self.draw_postpixel_overlay, (), 'WINDOW', 'POST_PIXEL'
-            )
-        else:
-            self._draw_postpixel_overlay = None
-
-        RFGlobals.InvalidationManager.prevent_invalidation()
-        self.prevented_invalidation = True
-
+        # From here on, _is_running is set, and only teardown clears it.
+        # Try / Except used so that we can still teardown if there is an issue,
+        # otherwise poll() refuses to start it again for the rest of the session.
         try:
+            if not context.window_manager.modal_handler_add(self):
+                # Without a modal handler, modal() never runs, so nothing would clear _is_running
+                _ = self.teardown(context)
+                return {'CANCELLED'}
+            self.last_op = None
+            self.working_area = context.area
+            self.working_window = context.window
+            self._stop = False
+
+            user_keyconfigs = context.window_manager.keyconfigs.user
+            if not user_keyconfigs:
+                # bailing out after registering above. Otherwise the operator would stay
+                # in active_operators with _is_running set, and poll() refuses to start it again
+                _ = self.teardown(context)
+                return {'CANCELLED'}
+            keymap_items = user_keyconfigs.keymaps['Screen'].keymap_items
+            self.fullscreen_keymaps = [
+                km
+                for km in keymap_items
+                if km.idname == 'screen.screen_full_area'
+            ]
+
+            if self.draw_postpixel_overlay.__func__ != RFOperator.draw_postpixel_overlay:
+                self._draw_postpixel_overlay = SpaceView3D.draw_handler_add(
+                    self.draw_postpixel_overlay, (), 'WINDOW', 'POST_PIXEL'
+                )
+            else:
+                self._draw_postpixel_overlay = None
+
+            RFGlobals.InvalidationManager.prevent_invalidation()
+            self.prevented_invalidation = True
+
             self.had_init = True
             self.init(context, event)
         except Exception as e:
-            print(f'Caught Exception in operator init: {e}')
+            print(f'RFOperator.invoke: Unhandled Exception caught while starting operator: {e}')
             _ = Debugger.print_exception()
             _ = self.teardown(context)
             return {'CANCELLED'}
-        context.area.tag_redraw()
+        if context.area:
+            context.area.tag_redraw()
         return {'RUNNING_MODAL'}
 
     def stop(self):
