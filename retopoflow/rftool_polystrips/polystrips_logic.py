@@ -141,19 +141,39 @@ def warp_stroke(context, stroke, end0, end1, fn_snap_point):
     scale = es / ss
     return [ fn_snap_point(context, ec + (pt - sc) * scale) for pt in stroke ]
 
-def stroke_angles(stroke, width, split_angle, fn_snap_normal):
+def smoothed_stroke_normals(stroke, normals, window):
+    ''' Box average of per-point source normals over ±window of stroke arclength (prefix sums, O(n)). '''
+    n = len(stroke)
+    if n <= 2 or window <= 0: return list(normals)
+    cumul = [0.0]
+    for i in range(1, n):
+        cumul.append(cumul[-1] + (stroke[i] - stroke[i - 1]).length)
+    pre = [Vector((0.0, 0.0, 0.0))]
+    for no in normals:
+        pre.append(pre[-1] + no)
+    out, j0, j1 = [], 0, 0
+    for i in range(n):
+        while j0 < i and cumul[j0] < cumul[i] - window: j0 += 1
+        while j1 < n - 1 and cumul[j1 + 1] <= cumul[i] + window: j1 += 1
+        v = pre[j1 + 1] - pre[j0]
+        out.append(Direction(v) if v.length_squared > 0 else normals[i])
+    return out
+
+
+def stroke_angles(stroke, width, split_angle, normals):
     # convert radians to degrees
     split_angle = math.degrees(split_angle)
 
     # determine where stroke angles very strongly
     l = []
     for (i, p) in enumerate(stroke):
-        pp = next((pp for pp in stroke[i::-1] if (p - pp).length >= width), None)
-        pn = next((pn for pn in stroke[i:]    if (p - pn).length >= width), None)
-        if not pp or not pn: continue
+        ip = next((k for k in range(i, -1, -1)      if (p - stroke[k]).length >= width), None)
+        iq = next((k for k in range(i, len(stroke)) if (p - stroke[k]).length >= width), None)
+        if ip is None or iq is None: continue
+        pp, pn = stroke[ip], stroke[iq]
 
-        n = Direction(fn_snap_normal(p))
-        np, nn = Direction(fn_snap_normal(pp)), Direction(fn_snap_normal(pn))
+        n = normals[i]
+        np, nn = normals[ip], normals[iq]
         if math.degrees(np.angle_between(nn)) > split_angle: continue
         dp, dn = Direction(p - pp), Direction(pn - p)
         angle = math.degrees(dp.signed_angle_between(dn, n))
@@ -174,16 +194,13 @@ def stroke_angles(stroke, width, split_angle, fn_snap_normal):
     return indices
 
 
-def stroke_normal_bends(stroke, width, split_angle, fn_snap_normal):
+def stroke_normal_bends(stroke, width, split_angle, normals):
     ''' Indices where the surface normal bends sharply along the stroke.
     Returns interior stroke indices only (never 0 or len(stroke)). '''
     n = len(stroke)
     if n < 3:
         return []
     split_angle = math.degrees(split_angle)
-
-    # one normal per stroke point (reused for both detection and localization)
-    normals = [Direction(fn_snap_normal(p)) for p in stroke]
 
     def idx_at_least(i, step):
         # first index walking in `step` direction whose point is >= width from stroke[i]
@@ -566,15 +583,22 @@ class PolyStrips_Logic:
         else:
             fn_normal = lambda p: nearest_normal_valid_sources(context, M @ p, world=False)
             width_local = self.initial_width / scale
+            # One raycast normal per point, box-averaged at half the strip width so surface
+            # bumps well below the strip scale can't read as folds.
+            normals = smoothed_stroke_normals(
+                self.stroke3D_local,
+                [Direction(fn_normal(p)) for p in self.stroke3D_local],
+                width_local * 0.5,
+            )
             # Two kinds of sharp corner, each with its own geometry.
             # - TANGENT (in-plane turn, flat-surface strip corner):
             #       split the stroke into segments so the strip pivots.
             # - NORMAL (a fold over a source edge, straight in-plane):
             #       do not split (#1601) and instead force a rung onto the fold.
-            strips = stroke_angles(self.stroke3D_local, width_local, self.split_angle, fn_normal)
+            strips = stroke_angles(self.stroke3D_local, width_local, self.split_angle, normals)
             corner_set = set(strips)
             bend_indices = [
-                i for i in stroke_normal_bends(self.stroke3D_local, width_local, self.split_angle, fn_normal)
+                i for i in stroke_normal_bends(self.stroke3D_local, width_local, self.split_angle, normals)
                 if i not in corner_set
             ]
             self._stroke_angles_cache_key = stroke_angles_key
