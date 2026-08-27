@@ -1047,6 +1047,14 @@ class RFOperator_TwistLoop(RFOperator_Invoke):
                         kept.append(rd)
                 ring_groups = kept
 
+                # Number each complete ring by its position along the loft
+                # and map each of its verts to that number.
+                ring_chain = order_rings_by_axis(ring_groups)
+                vert_chain_idx = {}
+                for ci, rd in enumerate(ring_chain):
+                    for cv in rd['initial_coords']:
+                        vert_chain_idx[cv] = ci
+
                 # Build barycentric loft surface and embed all non-ring verts.
                 active_rings_lp = [rd for rd in ring_groups if rd['loop_params'] is not None]
 
@@ -1071,6 +1079,31 @@ class RFOperator_TwistLoop(RFOperator_Invoke):
                         falloff_non_ring_coords[v] = co
                     else:
                         core_non_ring_coords[v] = co
+
+                # Region partition
+                # Boundary set {k, k+1} = topologically between those rings.
+                # Boundary set {k} = topologically past the end of the loft.
+                region_rings = {}   # non-ring vert -> frozenset of boundary chain indices
+                unvisited = set(core_non_ring_coords) | set(falloff_non_ring_coords)
+                while unvisited:
+                    stack   = [unvisited.pop()]
+                    region  = list(stack)
+                    touches = set()
+                    while stack:
+                        rv = stack.pop()
+                        for e in rv.link_edges:
+                            nb = e.other_vert(rv)
+                            ci = vert_chain_idx.get(nb)
+                            if ci is not None:
+                                touches.add(ci)      # ring vert: bounds the region, never crossed
+                            elif nb in unvisited:
+                                unvisited.discard(nb)
+                                region.append(nb)
+                                stack.append(nb)
+                    touches = frozenset(touches)
+                    for rv in region:
+                        region_rings[rv] = touches
+
                 # Build the loft once from every complete ring (core + falloff).
                 # Bands and caps are kept separate since bands twist cleanly while caps shear under arc-slide.
                 if len(active_rings_lp) >= 2:
@@ -1101,27 +1134,45 @@ class RFOperator_TwistLoop(RFOperator_Invoke):
                     else:
                         bary_fallback_coords[v] = co0
 
-                # Ring verts with rest position + falloff weight, for the "beyond the loft" fallback below.
+                # Ring verts with rest position + falloff weight + chain index,
+                # for the "beyond the loft" fallback below.
                 driver_data = []
                 for rd in active_rings_lp:
                     vw = rd.get('vert_weights')
                     for dv, drest in rd['initial_coords'].items():
-                        driver_data.append((dv, drest, vw.get(dv, 1.0) if vw else 1.0))
+                        driver_data.append((dv, drest, vw.get(dv, 1.0) if vw else 1.0,
+                                            vert_chain_idx.get(dv)))
 
-                # Falloff non-ring verts ride falloff band triangles.
+                # Falloff band triangles grouped by the chain indices they span,
+                # so a vert only sees the bands lofted between its own region's boundary rings.
+                falloff_loft_spans = [{vert_chain_idx.get(tv) for tv in t} for t in falloff_loft]
+                tris_by_region = {}
+                def _tris_for_region(bset):
+                    if bset not in tris_by_region:
+                        tris_by_region[bset] = [
+                            t for t, span in zip(falloff_loft, falloff_loft_spans)
+                            if all(ci is not None and ci in bset for ci in span)]
+                    return tris_by_region[bset]
+
+                # Falloff non-ring verts topologically between rings ride those rings' band triangles.
                 # Bary reconstruction reads the rings live positions, so the reduced motion
                 # comes from the surrounding rings rotation and retain-shape is preserved.
-                # A vert past the end of the loft instead copies the nearest ring vert's
-                # displacement, dampened by the ratio of its own falloff to that ring vert's.
+                # A vert topologically past the loft (single boundary ring) never embeds;
+                # it copies the nearest boundary-ring vert's displacement, dampened by the
+                # ratio of its own falloff to that ring vert's.
                 beyond_loft = {}
                 for v, co0 in falloff_non_ring_coords.items():
-                    result = get_bary_triangle(co0, falloff_loft, all_ring_initial_coords,
-                                                  inside_only=True)
-                    if result is not None:
-                        bary_embeddings[v] = result
-                        continue
+                    bset = region_rings.get(v, frozenset())
+                    if len(bset) >= 2:
+                        result = get_bary_triangle(co0, _tris_for_region(bset), all_ring_initial_coords,
+                                                      inside_only=True)
+                        if result is not None:
+                            bary_embeddings[v] = result
+                            continue
                     best, best_d2 = None, float('inf')
-                    for dv, drest, dw in driver_data:
+                    for dv, drest, dw, dci in driver_data:
+                        if dci not in bset:
+                            continue
                         d2 = (co0 - drest).length_squared
                         if d2 < best_d2:
                             best_d2, best = d2, (dv, drest, dw)
