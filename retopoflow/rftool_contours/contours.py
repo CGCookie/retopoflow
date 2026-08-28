@@ -120,6 +120,26 @@ class RFOperator_Contours_Insert_Properties:
         min=1,
         max=20,
     )
+    span_insert_mode: bpy.props.EnumProperty(
+        name='Span Count Method',
+        description='Controls how the number of inserted vertices is determined',
+        items=[
+            ('FIXED',   'Fixed',   'Uses the Spans and Cuts values exactly as set', 0),
+            ('AVERAGE', 'Average', 'Uses Spans for a new cut, then matches the average edge length '
+                                   'of the loop being extruded from so the new quads stay even', 1),
+            ('LENGTH',  'Length',  'Sizes both the cut spans and the extrusion loops to match a '
+                                   'world space distance', 2),
+        ],
+        default='AVERAGE',
+    )
+    span_length: bpy.props.FloatProperty(
+        name='Segment Length',
+        description='World space distance for each span and extrusion loop',
+        default=0.1,
+        min=0.001,
+        soft_max=10.0,
+        subtype='DISTANCE',
+    )
     process_source_method: bpy.props.EnumProperty(      # pyright: ignore [reportUninitializedInstanceVariable]
         name='Process Source Method',
         description="Source processing method",
@@ -286,10 +306,17 @@ def draw_contours_props(context, layout, props, redo):
         row.alignment = 'RIGHT'
         row.label(text=redo.action)
     layout.prop(props, 'cut_orientation', text='Orientation')
-    if not redo or redo.show_span_count:
-        layout.prop(props, 'span_count', text='Spans')
-    if not redo or redo.show_loop_count:
-        layout.prop(props, 'loop_count', text='Cuts')
+    layout.prop(props, 'span_insert_mode', text='Method')
+    if props.span_insert_mode == 'LENGTH':
+        # Length drives both counts, so show it for either kind of insert
+        if not redo or redo.show_span_count or redo.show_loop_count:
+            layout.prop(props, 'span_length', text='Length')
+    else:
+        if not redo or redo.show_span_count:
+            layout.prop(props, 'span_count', text='Spans')
+        # Average derives the cut count, so only offer it once the mode is Fixed
+        if (not redo or redo.show_loop_count) and props.span_insert_mode == 'FIXED':
+            layout.prop(props, 'loop_count', text='Cuts')
     if redo and redo.show_twist: # Only makes sense in redo panel
         layout.prop(props, 'twist', text='Twist')
     layout.prop(props, 'curvature_bias', text='Curvature', slider=True)
@@ -336,7 +363,8 @@ class RFOperator_Contours_Insert(
     def insert(context, hit, plane, circle_points, span_count, process_source_method, hits, cut_orientation,
                fast_depth=1, sample_points=50, fast_refine_steps=5, sdf_refine_steps=3, skip_step_size=1.0,
                sample_width=0.25, sdf_grid_size=0.25, sdf_subdivisions=0, sdf_extent_scale=1.5,
-               curvature_bias=0.7, space_evenly=1.0, sdf_stroke_world_len=0.0):
+               curvature_bias=0.7, space_evenly=1.0, span_insert_mode='FIXED', span_length=0.1,
+               sdf_stroke_world_len=0.0):
         RFOperator_Contours_Insert.logic = Contours_Logic(
             context,
             hit,
@@ -357,6 +385,8 @@ class RFOperator_Contours_Insert(
             sdf_extent_scale,
             curvature_bias,
             space_evenly,
+            span_insert_mode,
+            span_length,
             sdf_stroke_world_len=sdf_stroke_world_len,
         )
         RFOperator_Contours_Insert.reinsert(context)
@@ -384,6 +414,8 @@ class RFOperator_Contours_Insert(
             cut_orientation=logic.cut_orientation,
             curvature_bias=logic.curvature_bias,
             space_evenly=logic.space_evenly,
+            span_insert_mode=logic.span_insert_mode,
+            span_length=logic.span_length,
         )
 
     def draw(self, context):
@@ -411,6 +443,8 @@ class RFOperator_Contours_Insert(
         logic.cut_orientation       = self.cut_orientation
         logic.curvature_bias        = self.curvature_bias
         logic.space_evenly  = self.space_evenly
+        logic.span_insert_mode      = self.span_insert_mode
+        logic.span_length           = self.span_length
 
         try:
             logic.update(context)
@@ -442,6 +476,8 @@ class RFOperator_Contours_Insert(
         self.loop_count            = logic.loop_count
         self.curvature_bias        = logic.curvature_bias
         self.space_evenly  = logic.space_evenly
+        self.span_insert_mode      = logic.span_insert_mode
+        self.span_length           = logic.span_length
 
         return {'FINISHED'}
 
@@ -477,6 +513,8 @@ class RFOperator_Contours_Insert(
             logic.loop_count = max(1, logic.loop_count - 1)
         else:
             logic.span_count -= 1
+        # Scrolling is an explicit count, so stop deriving one over the top of it
+        logic.span_insert_mode = 'FIXED'
 
     @create_redo_operator('contours_insert_spans_increased', 'Reinsert cut with increased spans',
                           {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'ctrl': 1})
@@ -485,6 +523,7 @@ class RFOperator_Contours_Insert(
             logic.loop_count += 1
         else:
             logic.span_count += 1
+        logic.span_insert_mode = 'FIXED'
 
     @create_redo_operator('contours_insert_twist_decreased', 'Reinsert cut with decreased twist',
                           {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'shift': 1},
@@ -608,6 +647,7 @@ class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
                                           self.sdf_refine_steps, self.skip_step_size, self.sample_width,
                                           self.sdf_grid_size, self.sdf_subdivisions, self.sdf_extent_scale,
                                           self.curvature_bias, self.space_evenly,
+                                          self.span_insert_mode, self.span_length,
                                           sdf_stroke_world_len=_sdf_stroke_world_len)
 
     def update(self, context, event):
@@ -705,8 +745,14 @@ class RFTool_Contours(RFTool_Base):
         if context.region.type == 'TOOL_HEADER':
             # layout.label(text='Insert:')
             layout.prop(props_contours, 'cut_orientation', text='')
-            layout.prop(props_contours, 'span_count', text='Spans')
-            # layout.prop(props_contours, 'loop_count', text='Cuts')
+            row = layout.row(align=True)
+            row.prop(props_contours, 'span_insert_mode', text='')
+            if props_contours.span_insert_mode == 'LENGTH':
+                row.prop(props_contours, 'span_length', text='')
+            else:
+                row.prop(props_contours, 'span_count', text='')
+            if props_contours.span_insert_mode == 'FIXED':
+                row.prop(props_contours, 'loop_count', text='')
             layout.prop(props_contours, 'curvature_bias', text='Curvature', slider=True)
             layout.prop(props_contours, 'space_evenly', text='Space Evenly', slider=True)
             method_name = props_contours.bl_rna.properties['process_source_method'].enum_items[props_contours.process_source_method].name
