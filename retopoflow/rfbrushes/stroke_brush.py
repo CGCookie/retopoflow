@@ -311,6 +311,19 @@ def create_stroke_brush(
         def is_stroking(self):
             return self.stroke is not None
 
+        def stroke_end_tangent(self, context):
+            ''' Stroke-end direction in local space, measured over ~3/4 brush radius of arclength
+            (the same baseline accumulate_join_edges uses) so end-of-drag hand jitter cannot flip it. '''
+            stroke = self.stroke3D_original
+            if not stroke or len(stroke) < 2 or not self.stroke_dist: return None
+            baseline = 0.75 * self.stroke_radius * size2D_to_size(context, self.stroke_dist[0]) / (self.edit_scale or 1.0)
+            j, acc = len(stroke) - 1, 0.0
+            while j > 0 and acc < baseline:
+                acc += (stroke[j] - stroke[j - 1]).length
+                j -= 1
+            t = stroke[-1] - stroke[j]
+            return t.normalized() if t.length else None
+
         def update_snap(self, context, mouse):
             if not self.operator or not RFOperator.is_active_static(type(self.operator)): return
 
@@ -351,12 +364,11 @@ def create_stroke_brush(
                     self.snap_bmf1 = None
                 else:
                     bmf = self.nearest_bmf.bmf
-                    # ending on a face after running alongside its boundary is almost always an accident, ignore it
-                    if bmf and self.snap_join and self.stroke3D_original and len(self.stroke3D_original) >= 2:
-                        p_end = self.stroke3D_original[-1]
-                        t = p_end - self.stroke3D_original[max(0, len(self.stroke3D_original) - 6)]
-                        if t.length:
-                            t = t.normalized()
+                    # ending on a face after running alongside its boundary is almost always an accident, ignore it.
+                    # Vet on acquisition only, avoids flashing between edges
+                    if bmf and bmf != self.snap_bmf1 and self.snap_join and self.stroke3D_original and len(self.stroke3D_original) >= 2:
+                        t = self.stroke_end_tangent(context)
+                        if t is not None:
                             for bme in bmf.edges:
                                 if bme not in self.snap_join: continue
                                 ev = bme.verts[1].co - bme.verts[0].co
@@ -680,6 +692,12 @@ def create_stroke_brush(
                 tangents.append(d.normalized() if d.length else Vector((0.0, 0.0, 0.0)))
             cap_radius = max(w_start, w_end) * JOIN_DETECT_SLACK * 1.5
 
+            # Exclude the snapped start/end face's own edges from joining.
+            exclude_bmes = set()
+            for bmf_snap in (self.snap_bmf0, self.snap_bmf1):
+                if bmf_snap and bmf_snap.is_valid:
+                    exclude_bmes.update(bmf_snap.edges)
+
             joined, caps = set(), set()
             for (i, pt) in enumerate(stroke):
                 radius3D = (w_start + (w_end - w_start) * (i / nspan)) * JOIN_DETECT_SLACK
@@ -696,7 +714,11 @@ def create_stroke_brush(
                     self.bme_join_cache[i] = (pt.copy(), radius3D, raw)
                 # under this disc: drop perpendicular non-cap edges (e.g. the face we drew out of)
                 # then collapse each loop run / uncapped corner to its closest edge.
-                cls = {bme: self.classify_join_edge(bme, stroke, tangents, cap_radius) for bme in raw if bme.is_valid}
+                cls = {
+                    bme: self.classify_join_edge(bme, stroke, tangents, cap_radius)
+                    for bme in raw
+                    if bme.is_valid and bme not in exclude_bmes
+                }
                 survivors = [bme for bme, c in cls.items() if c is not None]
                 caps_here = {bme for bme, c in cls.items() if c == 'cap'}
                 for bme in self.limit_loop_runs(survivors, [pt], lambda e: e in caps_here):

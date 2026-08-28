@@ -73,12 +73,13 @@ from ...addon_common.common.maths import (
     closest_points_segments,
     sign_threshold,
 )
-from ...addon_common.common.utils import iter_pairs, enumerate_reversed, enumerate_direction, dedup
+from ...addon_common.common.utils import iter_pairs, dedup
 
 import math
 from itertools import chain
 
 DEBUG_SIDEJOIN = False
+DEBUG_WELD_ENDS = False
 
 
 r'''
@@ -91,32 +92,80 @@ NOT HANDLING CYCLIC STROKES, YET
 
 
 
+def final_face_entry_index(stroke, bmf):
+    ''' Index of the first point of the inside-bmf run the stroke ends in, or None when the stroke
+    never enters the face. '''
+    # Scan backwards not forwards so we don't get an initially grazed edge
+    point_inside_bmf = generate_point_inside_bmf(bmf)
+    inside = [point_inside_bmf(pt) for pt in stroke]
+    j = next((k for k in range(len(stroke) - 1, -1, -1) if inside[k]), None)
+    if j is None: return None
+    i = j
+    while i > 0 and inside[i - 1]: i -= 1
+    tol = 0.5 * sum(bme_length(bme) for bme in bmf.edges) / max(1, len(bmf.edges))
+    k, acc = i - 1, 0.0
+    while k >= 0:
+        acc += (stroke[k + 1] - stroke[k]).length
+        if acc > tol: break
+        if inside[k]: i = k
+        k -= 1
+    return i
+
+def crossed_bme_of_bmf(bmf, bmes, segment):
+    ''' The candidate edge of bmf that `segment` actually crosses, projected into the face's plane.
+    None when nothing is crossed. '''
+    cos3D = [bmv.co for bmv in bmf.verts]
+    o = sum(cos3D, Vector()) / len(cos3D)
+    z, x = Vector(bmf.normal), cos3D[0] - o
+    if z.length_squared == 0 or x.length_squared == 0: return None
+    x = x.normalized()
+    y = z.normalized().cross(x)
+    to2D = lambda p: Vector(((p - o).dot(x), (p - o).dot(y)))
+    a2, b2 = to2D(segment[0]), to2D(segment[1])
+    d2 = b2 - a2
+    if d2.length_squared == 0: return None
+    d2.normalize()
+    best = None
+    for bme in bmes:
+        e0, e1 = (to2D(bmv.co) for bmv in bme.verts)
+        if segment2D_intersection(a2, b2, e0, e1) is None: continue
+        e2 = e1 - e0
+        if e2.length_squared == 0: continue
+        score = abs(e2.normalized().dot(d2))  # 0 = perpendicular to the approach
+        if best is None or score < best[0]: best = (score, bme)
+    return best[1] if best else None
+
 def trim_stroke_to_bmf(stroke, bmf, from_start, limit_bmes=None):
     if not bmf: return None
 
-    # find the first stroke pt outside the snapped bmf
-    point_inside_bmf = generate_point_inside_bmf(bmf)
-    i = next((i for (i,pt) in enumerate_direction(stroke, from_start) if not point_inside_bmf(pt)), None)
-    if i is None: return {'error': 'stroke totally inside the hovered face'}
-
-    # split stroke into inside bmf and outside bmf
-    if from_start: inside,  outside = stroke[:i], stroke[i:]
-    else:          outside, inside  = stroke[:i], stroke[i:]
-
     # Connect to the edge the stroke entered through, not whichever edge the end happens to drift closest to.
-    if from_start: # stroke begins inside the face and exits
-        search = inside[-1:] + outside[:1]
-    else: # stroke enters and ends inside
-        search = inside[:2]
-    search = search or ([stroke[0]] if from_start else [stroke[-1]])
+    if from_start:
+        # stroke begins inside the face and exits: cut at the exit
+        point_inside_bmf = generate_point_inside_bmf(bmf)
+        i = next((i for (i,pt) in enumerate(stroke) if not point_inside_bmf(pt)), None)
+        if i is None: return {'error': 'stroke totally inside the hovered face'}
+        inside, outside = stroke[:i], stroke[i:]
+        search = (inside[-1:] + outside[:1]) or [stroke[0]]
+        inside_pt = inside[-1] if inside else None
+    else:
+        # stroke enters and ends inside: cut where the run the stroke ends in was entered
+        i = final_face_entry_index(stroke, bmf)
+        if i == 0:
+            return {'error': 'stroke totally inside the hovered face'}
+        if i is None:
+            # face was snapped by proximity, but the stroke never actually entered it: keep it all
+            outside, search, inside_pt = stroke, stroke[-2:], None
+        else:
+            outside, search, inside_pt = stroke[:i], stroke[i-1:i+1], stroke[i]
 
-    # find closest bme of bmf to search part of stroke
     if limit_bmes:
         bmes = limit_bmes
     else:
         bmes = bmf.edges
     if not bmes: return None
-    bme = min(bmes, key=lambda bme: min(distance_point_bmedge(pt, bme) for pt in search))
+    bme = crossed_bme_of_bmf(bmf, bmes, search) if (inside_pt is not None and len(search) == 2) else None
+    if bme is None:
+        bme = min(bmes, key=lambda bme: min(distance_point_bmedge(pt, bme) for pt in search))
     return {
         'error': None,
         'stroke': outside,
@@ -243,7 +292,8 @@ def stroke_normal_bends(stroke, width, split_angle, normals):
 class PolyStrips_Logic:
     def __init__(self, context, radius2D, stroke3D_local, point3D_0, point3D_1, is_cycle, length2D,
                     snap_bmf0, snap_bmf1, split_angle, mirror_correct,
-                    size_mode='BRUSH', fixed_count=8, span_length=0.1, radius3D=None, join_vert_idx=None):
+                    size_mode='BRUSH', fixed_count=8, span_length=0.1, radius3D=None, join_vert_idx=None,
+                    cap_bme0=None, cap_bme1=None):
         # store context data to make it more convenient
         # note: this will be redone whenever create() is called
         self.update_context(context)
@@ -271,6 +321,8 @@ class PolyStrips_Logic:
         self.is_cycle = is_cycle
         self.snap_bmf0_index = snap_bmf0.index if snap_bmf0 else None
         self.snap_bmf1_index = snap_bmf1.index if snap_bmf1 else None
+        self.cap_bme0_index = cap_bme0.index if cap_bme0 else None
+        self.cap_bme1_index = cap_bme1.index if cap_bme1 else None
         self.join_vert_indices = list(join_vert_idx) if join_vert_idx else []
         self.split_angle = split_angle  # clamp!?
         self.mirror_correct = mirror_correct
@@ -421,11 +473,40 @@ class PolyStrips_Logic:
         return bme_length(bme) / 2
 
     @staticmethod
+    def face_entry_points(bmf, stroke_pts, from_start):
+        ''' The crossing pair where the stroke exits (from_start) or enters (not from_start) the snapped face.
+        Falls back to the stroke's own end when the stroke never crosses the face boundary. '''
+        if not bmf or not stroke_pts: return None
+        if from_start:
+            point_inside_bmf = generate_point_inside_bmf(bmf)
+            i = next((i for (i, pt) in enumerate(stroke_pts) if not point_inside_bmf(pt)), None)
+            if i is None: return stroke_pts[:2]
+            return stroke_pts[max(0, i - 1):i + 1]
+        i = final_face_entry_index(stroke_pts, bmf)
+        if i is None or i == 0: return stroke_pts[-2:]
+        return stroke_pts[i - 1:i + 1]
+
+    @staticmethod
     def snapped_edges_radius(bmes):
         ''' Average half-length (local space) of a set of existing edges. Returns None when there are no valid edges. '''
         lengths = [bme_length(bme) for bme in (bmes or ()) if getattr(bme, 'is_valid', False)]
         if not lengths: return None
         return (sum(lengths) / len(lengths)) / 2
+
+    @staticmethod
+    def weld_edge_outward(bme, toward_pt):
+        ''' The welded edge's in-plane normal, oriented away from its face toward `toward_pt`.
+        None for a degenerate edge/normal. '''
+        edir = bme_vector(bme)
+        nrm = Vector((0.0, 0.0, 0.0))
+        for bmf in bme.link_faces:
+            nrm += bmf.normal
+        if edir.length == 0 or nrm.length == 0: return None
+        perp = edir.normalized().cross(nrm.normalized())
+        if perp.length == 0: return None
+        perp.normalize()
+        if perp.dot(toward_pt - bme_midpoint(bme)) < 0: perp = -perp
+        return perp
 
     @staticmethod
     def nearest_edge_halfwidth(edges, ref_pt, *, max_dist=None):
@@ -516,60 +597,53 @@ class PolyStrips_Logic:
         if self.snap_bmf1_index is not None:
             snap_bmf_end = self.bm.faces[self.snap_bmf1_index]
 
+        def fetch_cap(idx, bmf):
+            if bmf is not None or idx is None or not (0 <= idx < len(self.bm.edges)): return None
+            bme = self.bm.edges[idx]
+            return bme if bme.is_valid else None
+        cap_bme_start = fetch_cap(self.cap_bme0_index, snap_bmf_start)
+        cap_bme_end   = fetch_cap(self.cap_bme1_index, snap_bmf_end)
+
         join_anchor_bmvs = [
             self.bm.verts[i]
             for i in self.join_vert_indices
             if 0 <= i < len(self.bm.verts) and self.bm.verts[i].is_valid
         ]
+        # A snapped face's own verts never side-join, otherwise they can create pinched triangle looking quads
+        snapped_bmvs = {
+            bmv
+            for elem in (snap_bmf_start, snap_bmf_end, cap_bme_start, cap_bme_end) if elem is not None
+            for bmv in elem.verts
+        }
+        if snapped_bmvs:
+            join_anchor_bmvs = [bmv for bmv in join_anchor_bmvs if bmv not in snapped_bmvs]
         join_anchor_set = set(join_anchor_bmvs)  # to tell an existing (welded) vert from a new free one
         if DEBUG_SIDEJOIN: print(f'[sidejoin] size_mode={self.size_mode} join_vert_indices={len(self.join_vert_indices)} anchors={len(join_anchor_bmvs)}')
 
         w_snap_start = w_snap_end = None
         if self.size_mode == 'SNAPPED':
-            w_snap_start = self.snapped_edge_radius(snap_bmf_start, self.stroke3D_local[:3])
-            w_snap_end   = self.snapped_edge_radius(snap_bmf_end,   self.stroke3D_local[-3:])
-            # Adjust the brush radius to match the snapped geometry. Priority:
-            # Start and end faces, start and end caps, then first parallel rail only
+            # size to the connection edge (where the stroke crosses the face boundary), matching trim_stroke_to_bmf
+            w_snap_start = self.snapped_edge_radius(snap_bmf_start, self.face_entry_points(snap_bmf_start, self.stroke3D_local, True))
+            w_snap_end   = self.snapped_edge_radius(snap_bmf_end,   self.face_entry_points(snap_bmf_end,   self.stroke3D_local, False))
+            if w_snap_start is None and cap_bme_start is not None: w_snap_start = bme_length(cap_bme_start) / 2
+            if w_snap_end   is None and cap_bme_end   is not None: w_snap_end   = bme_length(cap_bme_end) / 2
+            # Width priority: faces and caps then the first parallel side rail
             if (w_snap_start is None or w_snap_end is None) and join_anchor_bmvs:
                 anchor_set = set(join_anchor_bmvs)
                 anchor_edges = {
                     e for bmv in join_anchor_bmvs for e in bmv.link_edges
                     if e.other_vert(bmv) in anchor_set
                 }
-                cap_dist = 1.5 * (self.radius3D or (self.initial_width / self.edit_scale))
-                def cap_halfwidth(end_pt, along):
-                    along = along.normalized() if along.length else None
-                    best = None
-                    for e in anchor_edges:
-                        v0, v1 = e.verts
-                        ev = (v1.co - v0.co)
-                        L2 = ev.length_squared
-                        if L2 == 0: continue
-                        if along and abs(ev.normalized().dot(along)) > 0.6: continue  # parallel rail, not a cap
-                        # the stroke end must terminate into the edge / project onto its interior
-                        t = (end_pt - v0.co).dot(ev) / L2
-                        if not (0.15 <= t <= 0.85): continue
-                        d = ((v0.co + ev * t) - end_pt).length
-                        if d > cap_dist: continue
-                        if best is None or d < best[0]: best = (d, bme_length(e) / 2)
-                    return best[1] if best else None
-                nloc = len(self.stroke3D_local)
-                kloc = min(3, nloc - 1)
                 # the parallel side rail anchor edge nearest the start sets the width for the whole run,
                 # so drawing past rails of varying length doesn't make the strip fluctuate.
-                def first_parallel_halfwidth():
-                    start = self.stroke3D_local[0]
-                    along = (self.stroke3D_local[kloc] - start) if kloc > 0 else Vector((0, 0, 0))
-                    along = along.normalized() if along.length else None
-                    def is_parallel(e):  # skip edges perpendicular to the start tangent (those are caps)
-                        ev = e.verts[1].co - e.verts[0].co
-                        return ev.length != 0 and (not along or abs(ev.normalized().dot(along)) > 0.6)
-                    return self.nearest_edge_halfwidth([e for e in anchor_edges if is_parallel(e)], start)
-                if w_snap_start is None and kloc > 0:
-                    w_snap_start = cap_halfwidth(self.stroke3D_local[0], self.stroke3D_local[kloc] - self.stroke3D_local[0])
-                if w_snap_end is None and kloc > 0:
-                    w_snap_end = cap_halfwidth(self.stroke3D_local[-1], self.stroke3D_local[-1] - self.stroke3D_local[-1 - kloc])
-                w_par = first_parallel_halfwidth()
+                kloc = min(3, len(self.stroke3D_local) - 1)
+                start = self.stroke3D_local[0]
+                along = (self.stroke3D_local[kloc] - start) if kloc > 0 else Vector((0, 0, 0))
+                along = along.normalized() if along.length else None
+                def is_parallel(e):  # skip edges perpendicular to the start tangent
+                    ev = e.verts[1].co - e.verts[0].co
+                    return ev.length != 0 and (not along or abs(ev.normalized().dot(along)) > 0.6)
+                w_par = self.nearest_edge_halfwidth([e for e in anchor_edges if is_parallel(e)], start)
                 if w_snap_start is None: w_snap_start = w_par
                 if w_snap_end is None: w_snap_end = w_par
 
@@ -851,6 +925,9 @@ class PolyStrips_Logic:
             limit_bmes0 = None
             if i0 == 0:
                 snap_bmf0 = snap_bmf_start
+                if snap_bmf_start:
+                    # Boundary edges only. Bridging onto an interior edge would overlap existing faces
+                    limit_bmes0 = [bme for bme in snap_bmf_start.edges if bme.is_boundary]
             else:
                 snap_bmf0 = snap_bmf1
                 limit_bmes0 = [
@@ -878,10 +955,7 @@ class PolyStrips_Logic:
             if i1 == nstroke:
                 snap_bmf1 = snap_bmf_end
                 if snap_bmf_end:
-                    limit_bmes1 = [
-                        bme for bme in snap_bmf_end.edges
-                        if bme.is_boundary and any(len(bmv.link_faces)>1 for bmv in bme.verts)
-                    ]
+                    limit_bmes1 = [bme for bme in snap_bmf_end.edges if bme.is_boundary]
             else:
                 snap_bmf1 = None
                 # extend the stroke to reserve a square corner
@@ -915,6 +989,24 @@ class PolyStrips_Logic:
                     continue
                 stroke3D_local = snap1['stroke']
 
+            def cap_snap(bme):
+                return {
+                    'error': None, 'stroke': stroke3D_local, 'bmf': None, 'bme': bme,
+                    'bme.center': bme_midpoint(bme), 'bme.radius': bme_length(bme) / 2,
+                }
+            if snap0 is None and i0 == 0 and cap_bme_start is not None:
+                snap0 = cap_snap(cap_bme_start)
+            if snap1 is None and i1 == nstroke and cap_bme_end is not None:
+                snap1 = cap_snap(cap_bme_end)
+
+            if DEBUG_WELD_ENDS:
+                def _kind(sn):
+                    if not sn: return 'NONE'
+                    if sn.get('bmf') is not None: return f"FACE(f{sn['bmf'].index} via e{sn['bme'].index})"
+                    return f"CAP(e{sn['bme'].index})"
+                print(f'[weld] seg {i_strip} [{i0}:{i1}] start={_kind(snap0)} end={_kind(snap1)} '
+                      f'anchors={len(seg_anchors)} (of {len(join_anchor_bmvs)} kept / {len(self.join_vert_indices)} given)')
+
             # true only when this end is snapped to pre-existing geometry
             real_snap0 = bool(snap0) and i0 == 0
             real_snap1 = bool(snap1) and i1 == nstroke
@@ -941,7 +1033,7 @@ class PolyStrips_Logic:
             ###########################################################################
             # sample the stroke and compute various properties of sample
 
-            count_min = 3 if (snap_bmf0 and snap_bmf1) else 2
+            count_min = 3 if (snap0 and snap1) else 2
             quad_count = max(count_min, precomputed_quad_counts[i_strip])
 
             ncount_mins += [count_min]
@@ -1133,6 +1225,30 @@ class PolyStrips_Logic:
                 )
                 if crease is not None:
                     samples[k], fold_crease_dirs[k] = crease
+
+            # How hard a welded end pulls the strip square onto its edge
+            WELD_EASE_POS = 0.6       # eases the samples next to the weld onto the edge's outward-normal ray
+            WELD_EASE_DIR = [0.4]     # fans the adjacent rung's direction toward the edge direction
+            WELD_EASE_WINDOW = 4      # samples affected by the position ease
+
+            # Ease the samples next to a welded end onto the edge's outward-normal ray, with
+            # decaying weights, so a diagonal approach squares up into the weld instead of shearing across it.
+            for snap_at, at_start in ((snap0, True), (snap1, False)):
+                if not snap_at: continue
+                idxs = list(range(len(samples))) if at_start else list(range(len(samples) - 1, -1, -1))
+                probe_i = idxs[min(WELD_EASE_WINDOW, len(idxs) - 1)]
+                perp = self.weld_edge_outward(snap_at['bme'], samples[probe_i])
+                if perp is None: continue
+                end_pt = samples[idxs[0]]
+                acc = 0.0
+                for j in range(1, min(WELD_EASE_WINDOW + 1, len(idxs))):
+                    i_prev, i_cur = idxs[j - 1], idxs[j]
+                    acc += (samples[i_cur] - samples[i_prev]).length
+                    if i_cur in fold_crease_dirs: continue  # fold rungs stay on their crease
+                    t = WELD_EASE_POS * (1 - j / (WELD_EASE_WINDOW + 1))
+                    target = end_pt + perp * acc
+                    samples[i_cur] = self.nearest_point(context, samples[i_cur] + (target - samples[i_cur]) * t)
+
             forwards = [ Direction(p1 - p0) for (p0, p1) in iter_pairs(samples, self.is_cycle) ]
             forwards += [ forwards[-1] ]
             # backwards is essentially the same as forwards, but doing it this way is slightly easier to understand
@@ -1149,6 +1265,21 @@ class PolyStrips_Logic:
                 align = cdir.dot(rights[k])
                 if abs(align) < 0.2: continue
                 rights[k] = Direction(cdir if align >= 0 else -cdir)
+
+            # Fan the rung(s) beside a welded end partway toward the welded edge's direction,
+            # so the connection quad reads as a fan wedge rather than a sheared parallelogram.
+            for snap_at, at_start in ((snap0, True), (snap1, False)):
+                if not snap_at: continue
+                edir_f = bme_vector(snap_at['bme'])
+                if edir_f.length == 0: continue
+                edir_f = Direction(edir_f)
+                for k, t in enumerate(WELD_EASE_DIR, start=1):
+                    idx = 2 * k if at_start else (len(samples) - 1 - 2 * k)
+                    if not (0 < idx < len(samples) - 1): continue
+                    if idx in fold_crease_dirs: continue  # fold rungs stay on their crease
+                    e = edir_f if edir_f.dot(rights[idx]) >= 0 else -edir_f
+                    v = rights[idx] * (1 - t) + e * t
+                    if v.length > 0: rights[idx] = Direction(v)
 
             # Side joining: classify each anchored existing vert onto the +r (bmvs[0]) or -r (bmvs[1]) rail
             # using the rung's cross-section direction. A merged pin holds one vert per side.
