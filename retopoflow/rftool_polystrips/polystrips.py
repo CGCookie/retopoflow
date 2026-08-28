@@ -206,7 +206,7 @@ class RFOperator_PolyStrips_Insert(
 
 
     @staticmethod
-    def polystrips_insert(context, radius2D, stroke3D, point3D_0, point3D_1, is_cycle, length2D, snap_bmf0, snap_bmf1, split_angle, mirror_correct, size_mode='BRUSH', fixed_count=8, span_length=0.1, radius3D=None, join_vert_idx=None, cap_bme0=None, cap_bme1=None):
+    def polystrips_insert(context, radius2D, stroke3D, point3D_0, point3D_1, is_cycle, length2D, snap_bmf0, snap_bmf1, split_angle, mirror_correct, size_mode='BRUSH', fixed_count=8, span_length=0.1, radius3D=None, join_bmes=None, cap_bme0=None, cap_bme1=None):
         RFOperator_PolyStrips_Insert.logic = PolyStrips_Logic(
             context,
             radius2D,
@@ -221,7 +221,7 @@ class RFOperator_PolyStrips_Insert(
             fixed_count=fixed_count,
             span_length=span_length,
             radius3D=radius3D,
-            join_vert_idx=join_vert_idx,
+            join_bmes=join_bmes,
             cap_bme0=cap_bme0,
             cap_bme1=cap_bme1,
         )
@@ -281,6 +281,8 @@ class RFOperator_PolyStrips_Insert(
             logic.split_angle = self.split_angle
             logic.mirror_correct = self.mirror_correct
             logic.create(context)
+            if logic.count_warning:
+                self.report({'WARNING'}, logic.count_warning)
             self.count = logic.count
             self.scale_start, self.scale_end = logic.scale_start, logic.scale_end
             self.mirror_correct = logic.mirror_correct
@@ -461,9 +463,8 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
         snap_bmf0, snap_bmf1 = snapped_geo[2]
         p3D_0, p3D_1 = stroke3D[0], stroke3D[-1]
 
-        # Valid boundary edges the brush passed over.
+        # Valid boundary edges the brush passed over
         join_bme_list = [bme for bme in (snapped_geo[1] or []) if hasattr(bme, 'verts') and bme.is_valid]
-        join_vert_idx = list({bmv.index for bme in join_bme_list for bmv in bme.verts})
 
         # A cap is a boundary edge lying across a stroke end.
         cap_radius = (radius3D or 0) * 1.5
@@ -553,7 +554,7 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
             fixed_count=self.fixed_count,
             span_length=self.span_length,
             radius3D=radius3D,
-            join_vert_idx=join_vert_idx,
+            join_bmes=join_bme_list,
             cap_bme0=cap_bme0,
             cap_bme1=cap_bme1,
         )
