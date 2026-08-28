@@ -49,7 +49,7 @@ from ..common.maths import (
     enforce_path_min_gap, sample_even,
 )
 from ..common.accel import SourceMeshCache
-from ..common.raycast import raycast_ray_valid_sources, nearest_point_valid_sources, nearest_normal_valid_sources, raycast_multiple_hits
+from ..common.raycast import raycast_ray_valid_sources, nearest_point_valid_sources, raycast_multiple_hits
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.debug import debugger
 from ...addon_common.terminal import term_printer
@@ -800,6 +800,14 @@ class Contours_Logic:
                 if any(bv in orig_verts for bv in bme.verts)
             })
             if lateral_edges:
+                # Mean extrusion length, measured before subdividing splits these edges.
+                # Used as a distance cap for raycasting.
+                _M = self.matrix_world
+                max_correction = sum(
+                    ((_M @ bme.verts[0].co) - (_M @ bme.verts[1].co)).length
+                    for bme in lateral_edges
+                ) / len(lateral_edges)
+
                 result = bmesh.ops.subdivide_edgering(
                     self.bm,
                     edges=lateral_edges,
@@ -811,25 +819,71 @@ class Contours_Logic:
                     for bv in bmf.verts
                     if bv not in orig_verts and bv not in new_verts_set
                 })
-                # Find final positions before moving any vert so loop normals are accurate
+                self.bm.normal_update() # Important for per-vert raycasting below
+                M_normal = self.matrix_world_inv.transposed()
+
+                # Group intermediate verts by loop and find the loop plane.
+                # Used to refine the loop if nearest surface snap is used.
+                intermediate_set = set(intermediate_verts)
+                loop_depth = {}
+                frontier, seen, depth = list(orig_verts), set(orig_verts), 0
+                while frontier:
+                    depth += 1
+                    next_frontier = []
+                    for bmv in frontier:
+                        for bme in bmv.link_edges:
+                            other = bme.other_vert(bmv)
+                            if other in seen or other not in intermediate_set: continue
+                            seen.add(other)
+                            loop_depth[other] = depth
+                            next_frontier.append(other)
+                    frontier = next_frontier
+
+                verts_by_depth = defaultdict(list)
+                for bmv, d in loop_depth.items():
+                    verts_by_depth[d].append(bmv)
+                loop_planes = {
+                    d: Plane.fit_to_points([Point(bmv.co) for bmv in bmvs])
+                    for d, bmvs in verts_by_depth.items()
+                }
+
+                # Find final positions before moving any vert so loop normals stay accurate
                 new_cos = {}
                 for bmv in intermediate_verts:
                     npt_world = point_to_bvec3(self.matrix_world @ bvec_to_point(bmv.co))
-                    # Find nearest surface point as reference / fallback
-                    nearest = nearest_point_valid_sources(context, npt_world, world=True, respect_clip_planes=True)
-                    npt_snapped = nearest
-                    # Get the outward surface normal at that nearest point.
-                    surface_normal = nearest_normal_valid_sources(context, npt_world, world=True)
-                    if surface_normal is not None and nearest is not None:
-                        # Raycast in both directions and pick whichever hit is closest to the nearest surface
+                    # Nearest surface point
+                    npt_snapped = nearest_point_valid_sources(context, npt_world, world=True, respect_clip_planes=True)
+                    snapped_by_ray = False
+                    # Cast along the vert's normal
+                    vert_normal = (M_normal @ Vector((*bmv.normal, 0.0))).xyz
+                    if vert_normal.length_squared > 1e-12:
+                        vert_normal.normalize()
+                        # Winding is not settled until ensure_correct_normals below, so cast both ways
                         hits = []
                         for sign in (1, -1):
-                            ray_dir = Vector((*(surface_normal * sign), 0.0))
+                            ray_dir = Vector((*(vert_normal * sign), 0.0))
                             hit = raycast_ray_valid_sources(context, (Vector((*npt_world, 1.0)), ray_dir), world=True, respect_clip_planes=True)
                             if hit is not None:
                                 hits.append(hit)
                         if hits:
-                            npt_snapped = min(hits, key=lambda h: (h - nearest).length)
+                            best = min(hits, key=lambda h: (h - npt_world).length)
+                            # Reject a ray that grazed down a crevice and exited somewhere unrelated
+                            if (best - npt_world).length <= max_correction:
+                                npt_snapped = best
+                                snapped_by_ray = True
+                    if not snapped_by_ray and npt_snapped is not None:
+                        # Nearest point drags the vert along the surface, off its loop plane.
+                        # Return it to the loop's plane then snap again.
+                        plane = loop_planes.get(loop_depth.get(bmv))
+                        if plane:
+                            co_local = self.matrix_world_inv @ npt_snapped
+                            lp = plane.w2l_point(co_local)
+                            lp.z = 0
+                            co_plane_world = point_to_bvec3(self.matrix_world @ bvec_to_point(Vector(plane.l2w_point(lp))))
+                            resnapped = nearest_point_valid_sources(context, co_plane_world, world=True, respect_clip_planes=True)
+                            # Only keep the second snap if it is a reasonable distance
+                            if resnapped is not None and (resnapped - co_plane_world).length <= max_correction:
+                                npt_snapped = resnapped
                     if npt_snapped is not None:
                         new_cos[bmv] = self.matrix_world_inv @ npt_snapped
                 # Apply all positions at once.
