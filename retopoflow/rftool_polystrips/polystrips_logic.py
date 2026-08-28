@@ -52,7 +52,7 @@ from ..common.bmesh_maths import (
     get_longest_strip_cycle,
     generate_point_inside_bmf,
 )
-from ..common.raycast import raycast_point_valid_sources, nearest_point_valid_sources, nearest_normal_valid_sources
+from ..common.raycast import raycast_ray_valid_sources, nearest_point_valid_sources, nearest_normal_valid_sources
 from ..common.accel import SourceCache
 from ..common.snapping import source_snap_radius, source_snap_settings, fold_crease
 from ..common.maths import (
@@ -565,10 +565,11 @@ class PolyStrips_Logic:
 
         # Rung direction per vert: perpendicular to the run in the surface plane, toward the stroke
         # The existing edges win the direction, the stroke wins the width
-        perps, sides = [], []
+        perps, sides, nrms = [], [], []
         for i, v in enumerate(verts):
             d = verts[min(n - 1, i + 1)].co - verts[max(0, i - 1)].co
             nrm = Direction(nearest_normal_valid_sources(context, M @ v.co, world=False))
+            nrms.append(nrm)
             p = d.cross(nrm)
             p = p.normalized() if p.length else Vector((0.0, 0.0, 0.0))
             s = p.dot(feet[i][2] - v.co)
@@ -599,7 +600,7 @@ class PolyStrips_Logic:
             if c == 'int' and plans and i < n - 1 and not (i + 1 == n - 1 and run['end_bme'] is not None):
                 B, C, D = verts[i - 1], verts[i], verts[i + 1]
                 sid = len(shared_cos)
-                shared_cos.append(B.co + D.co - C.co)
+                shared_cos.append((B.co + D.co - C.co, i))
                 plans[-1]['outer'] = ('shared', sid)  # B's rung pinches onto the pivot
                 a = len(plans)
                 plans.append({'inner': D, 'outer': ('shared', sid)})
@@ -624,20 +625,21 @@ class PolyStrips_Logic:
             plans.append({'inner': verts[i], 'outer': outer})
             if a > 0: quads.append(('bridge', a - 1, a))
             i += 1
-        run.update(perps=perps, corner=corner, plans=plans, quads=quads, built=len(quads), shared_cos=shared_cos)
+        run.update(perps=perps, nrms=nrms, corner=corner, plans=plans, quads=quads, built=len(quads), shared_cos=shared_cos)
 
     def emit_run(self, context, run, width_at_frac, select_geo):
         ''' Create a planned run's rungs and quads. The existing verts are the welded rail and the new
         outer verts continue the existing grid or offset perpendicular. '''
         M = self.matrix_world
-        verts, perps, fracs = run['verts'], run['perps'], run['fracs']
-
-        def new_vert(co):
-            snapped = nearest_point_valid_sources(context, M @ co, world=False, respect_clip_planes=True)
-            return self.bm.verts.new(snapped if snapped is not None else co)
+        verts, perps, fracs, nrms = run['verts'], run['perps'], run['fracs'], run['nrms']
 
         def fw(i):  # full (rail-to-rail) width at run vert i
             return 2 * width_at_frac(fracs[i])
+
+        def new_vert(co, i):
+            # snap along run vert i's normal, not nearest surface point, so a bumpy surface can't cause tilt
+            snapped = self.snap_to_source(context, co, along_local=nrms[i], max_correction=fw(i))
+            return self.bm.verts.new(snapped if snapped is not None else co)
 
         def outer_co(i):
             v = verts[i]
@@ -652,15 +654,16 @@ class PolyStrips_Logic:
             d = C - toward.co
             return C + (d.normalized() * fw(i) if d.length else Vector((0.0, 0.0, 0.0)))
 
-        shared_verts = [new_vert(co) for co in run['shared_cos']]
+        # a shared pivot belongs to the corner vert between the two arms it joins
+        shared_verts = [new_vert(co, i) for (co, i) in run['shared_cos']]
         made = []
         for p in run['plans']:
             kind, val = p['outer']
             if   kind == 'bmv':    outer_v = val
             elif kind == 'shared': outer_v = shared_verts[val]
-            elif kind == 'extF':   outer_v = new_vert(ext_co(val, verts[val + 1]))
-            elif kind == 'extG':   outer_v = new_vert(ext_co(val, verts[val - 1]))
-            else:                  outer_v = new_vert(outer_co(val))
+            elif kind == 'extF':   outer_v = new_vert(ext_co(val, verts[val + 1]), val)
+            elif kind == 'extG':   outer_v = new_vert(ext_co(val, verts[val - 1]), val)
+            else:                  outer_v = new_vert(outer_co(val), val)
             made.append((p['inner'], outer_v))
 
         new_bmfs, built = [], 0
@@ -676,15 +679,17 @@ class PolyStrips_Logic:
                 new_bmfs.append(bmf)
             select_geo.append(bmf)
             built += 1
-        for q in run['quads']:
-            a, b = made[q[1]], made[q[2]]
-            if q[0] == 'bridge':
+        for (kind, ia, ib, *rest) in run['quads']:
+            a, b = made[ia], made[ib]
+            if kind == 'bridge':
                 make_quad((a[0], b[0], b[1], a[1]))
-            elif q[0] == 'int':
-                make_quad((a[0], q[3], b[0], a[1]))  # (B, C, D, X) where X is the shared pivot
+            elif kind == 'int':
+                corner_C, = rest
+                make_quad((a[0], corner_C, b[0], a[1]))  # (B, C, D, X) where X is the shared pivot
             else:  # 'ext': corner quad (F0, K, G, C) continuing the grid diagonally past C
+                i_corner, = rest
                 C = a[0]
-                K = new_vert(a[1].co + b[1].co - C.co)
+                K = new_vert(a[1].co + b[1].co - C.co, i_corner)
                 make_quad((a[1], K, b[1], C))
         orient_bmf_normals(context, new_bmfs, new_faces=True)
 
@@ -1286,11 +1291,14 @@ class PolyStrips_Logic:
                 find_point_at(stroke3D_local, self.is_cycle, fracs[i])
                 for i in range(nsamples)
             ]
-            samples = [
-                nearest_point_valid_sources(context, M @ pt, world=False, respect_clip_planes=True) or pt
-                for pt in samples
+            normals_raw = [ Direction(nearest_normal_valid_sources(context, M @ pt, world=False)) for pt in samples ]
+            # Averaged normals improves rung direction on bumpy scan surfaces
+            normals = smoothed_stroke_normals(samples, normals_raw, 2 * base_width)
+            resnapped = [
+                self.snap_to_source(context, pt, along_local=n, max_correction=2 * base_width)
+                for (pt, n) in zip(samples, normals)
             ]
-            normals = [ Direction(nearest_normal_valid_sources(context, M @ pt, world=False)) for pt in samples ]
+            samples = [pt if co is None else co for (pt, co) in zip(samples, resnapped)]
             # Pin each fold rung's centerline onto the actual source crease when detection is on,
             # else the intersection of the two adjacent face planes if detection is off.
             # Done before forwards/backwards/rights so the cross-section reflects the move.
@@ -1298,7 +1306,7 @@ class PolyStrips_Logic:
             for k in fold_sample_indices:
                 if not (0 < k < len(samples) - 1): continue
                 crease = self.fold_crease_point(
-                    samples[k], samples[k - 1], normals[k - 1], samples[k + 1], normals[k + 1],
+                    samples[k], samples[k - 1], normals_raw[k - 1], samples[k + 1], normals_raw[k + 1],
                     max_plane_dist=2 * base_width,
                 )
                 if crease is not None:
@@ -1332,15 +1340,26 @@ class PolyStrips_Logic:
                     target = end_pt + perp * acc
                     samples[i_cur] = self.nearest_point(context, samples[i_cur] + (target - samples[i_cur]) * t)
 
-            forwards = [ Direction(p1 - p0) for (p0, p1) in iter_pairs(samples, self.is_cycle) ]
-            forwards += [ forwards[-1] ]
-            # backwards is essentially the same as forwards, but doing it this way is slightly easier to understand
-            backwards = [ Direction(p0 - p1) for (p0, p1) in iter_pairs(samples, self.is_cycle) ]
-            backwards = [ backwards[0] ] + backwards
-            rights = [
-                (f.cross(n).normalize() + n.cross(b).normalize()).normalize()
-                for (b, f, n) in zip(backwards, forwards, normals)
-            ]
+            # A rung runs perpendicular to the centerline tangent.
+            # Averaged over the size of about a quad to account for bumpy surfaces.
+            # Capped to avoid smoothing actual corners in short spans.
+            cumul_samples = [0.0]
+            for (a, b) in iter_pairs(samples, self.is_cycle):
+                cumul_samples.append(cumul_samples[-1] + (b - a).length)
+            baseline = min(2 * base_width, 0.25 * (cumul_samples[-1] or 1.0))
+            def tangent_at(i):
+                j0, j1 = i, i
+                while j0 > 0 and cumul_samples[i] - cumul_samples[j0] < baseline: j0 -= 1
+                while j1 < len(samples) - 1 and cumul_samples[j1] - cumul_samples[i] < baseline: j1 += 1
+                d = samples[j1] - samples[j0]
+                if d.length == 0:  # degenerate window: fall back to the nearest distinct samples
+                    d = samples[min(i + 1, len(samples) - 1)] - samples[max(i - 1, 0)]
+                return Direction(d)
+            rights = []
+            for (i, n) in enumerate(normals):
+                r = tangent_at(i).cross(n)
+                # a zero cross would collapse the rung, so keep the previous rung's direction
+                rights.append(Direction(r) if r.length > 1e-9 else (rights[-1] if rights else Direction((1, 0, 0))))
             # A fold rung must lie along the crease so both its verts land on the edge.
             # Replace the fold rung's direction with the crease direction.
             # Skip if the strip only grazes the crease.
@@ -1376,9 +1395,11 @@ class PolyStrips_Logic:
             w0 = snap0['bme.radius'] if real_snap0 else sample_width(0)
             w1 = snap1['bme.radius'] if real_snap1 else sample_width(1)
             bmvs = [[], []]
+            rail_snaps = []  # (bmv, rung normal or None, max correction) for the surface snap below
 
-            def make_rail_verts(p, r, w, clamp=None):
+            def make_rail_verts(p, r, w, n, clamp=None):
                 ''' Build the two rail verts (bmvs[0]=+r side, bmvs[1]=-r side) for one rung.
+                `n` is the rung's surface normal, the line the verts get snapped along.
                 `clamp` zeroes verts onto an active mirror plane.'''
                 def clamped(co):
                     if clamp:
@@ -1386,7 +1407,9 @@ class PolyStrips_Logic:
                         if clamp[1]: co.y = 0
                         if clamp[2]: co.z = 0
                     return co
-                return self.bm.verts.new(clamped(p + r * w)), self.bm.verts.new(clamped(p - r * w))
+                made = (self.bm.verts.new(clamped(p + r * w)), self.bm.verts.new(clamped(p - r * w)))
+                rail_snaps.extend((bmv, n, 2 * w) for bmv in made)
+                return made
 
             def end_rung_verts(sn, r):
                 ''' The two existing verts of a welded end rung, oriented onto the rails. '''
@@ -1401,8 +1424,9 @@ class PolyStrips_Logic:
                 bmv0, bmv1 = end_rung_verts(snap0, r)
                 bmvs[0] += [bmv0]
                 bmvs[1] += [bmv1]
+                rail_snaps.extend((bmv, None, None) for bmv in (bmv0, bmv1))
             else:
-                v0, v1 = make_rail_verts(p, r, w0, clamp=snap_beginning)
+                v0, v1 = make_rail_verts(p, r, w0, normals[0], clamp=snap_beginning)
                 bmvs[0] += [ v0 ]; bmvs[1] += [ v1 ]
 
             # create bmverts along stroke
@@ -1430,7 +1454,7 @@ class PolyStrips_Logic:
                 else:
                     w = wg
 
-                v0, v1 = make_rail_verts(p, r, w)
+                v0, v1 = make_rail_verts(p, r, w, normals[i])
                 bmvs[0] += [ v0 ]; bmvs[1] += [ v1 ]
 
             # create bmverts at ending of stroke
@@ -1439,8 +1463,9 @@ class PolyStrips_Logic:
                 bmv0, bmv1 = end_rung_verts(snap1, r)
                 bmvs[0] += [bmv0]
                 bmvs[1] += [bmv1]
+                rail_snaps.extend((bmv, None, None) for bmv in (bmv0, bmv1))
             else:
-                v0, v1 = make_rail_verts(p, r, w1, clamp=snap_ending)
+                v0, v1 = make_rail_verts(p, r, w1, normals[-1], clamp=snap_ending)
                 bmvs[0] += [ v0 ]; bmvs[1] += [ v1 ]
 
             # project every rail vert onto the source, then pull onto nearby source features.
@@ -1448,9 +1473,9 @@ class PolyStrips_Logic:
             existing_bmvs = set()
             if snap0: existing_bmvs.update((bmvs[0][0], bmvs[1][0]))
             if snap1: existing_bmvs.update((bmvs[0][-1], bmvs[1][-1]))
-            for bmv in chain(bmvs[0], bmvs[1]):
-                if snapped := nearest_point_valid_sources(context, M @ bmv.co, world=False, respect_clip_planes=True):
-                    bmv.co = snapped
+            for (bmv, along, max_corr) in rail_snaps:
+                if (co := self.snap_to_source(context, bmv.co, along_local=along, max_correction=max_corr)) is not None:
+                    bmv.co = co
 
             # Feature snapping is decided a rung at a time, then compared across rungs.
             #  - a feature parallel to the stroke may take one rail from every rung it reaches, but never both of a rung's rails,
@@ -1660,6 +1685,31 @@ class PolyStrips_Logic:
     def nearest_point(self, context, p):
         snapped = nearest_point_valid_sources(context, self.matrix_world @ p, respect_clip_planes=True)
         return self.matrix_world_inv @ snapped if snapped else p
+
+    def snap_to_source(self, context, co_local, along_local=None, max_correction=None):
+        ''' Project a local-space position onto the source, returning None if nothing is in reach.
+        `along_local` is the surface normal at this vert's rung. Falls back to nearest
+        point when the ray finds nothing, or travels more than `max_correction`. '''
+        M, Mi = self.matrix_world, self.matrix_world_inv
+        co_world = M @ co_local
+        if along_local is not None:
+            d = (Mi.transposed() @ Vector((*along_local, 0.0))).xyz
+            if d.length_squared > 1e-12:
+                d.normalize()
+                hits = [
+                    hit
+                    for sign in (1, -1)
+                    if (hit := raycast_ray_valid_sources(
+                        context, (Vector((*co_world, 1.0)), Vector((*(d * sign), 0.0))),
+                        world=True, respect_clip_planes=True,
+                    )) is not None
+                ]
+                if hits:
+                    hit = min(hits, key=lambda h: (h - co_world).length)
+                    if max_correction is None or (hit - co_world).length <= max_correction:
+                        return Mi @ hit
+        snapped = nearest_point_valid_sources(context, co_world, respect_clip_planes=True)
+        return (Mi @ snapped) if snapped else None
     def feature_snap_candidate(self, co_local):
         ''' Nearest source feature to a local-space coordinate, or None when nothing is within
         feature_radius. Never write this straight onto a vert. The caller has to arbitrate between
