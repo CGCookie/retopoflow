@@ -593,7 +593,7 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
             if w0 is None: w0 = cap_radius_at(stroke3D[0])
             if w1 is None: w1 = cap_radius_at(stroke3D[-1])
             # The side rail nearest the start only, so the preview doesn't fluctuate as the stroke passes rails of varying length
-            w_par = PolyStrips_Logic.nearest_edge_halfwidth(valid_rails, stroke3D[0]) # both ends share the first parallel rail's width
+            w_par = PolyStrips_Logic.nearest_edge_halfwidth(valid_rails, stroke3D[0], rail_sizing=True) # both ends share the first parallel rail's width
             if w0 is None: w0 = w_par
             if w1 is None: w1 = w_par
             if w0 is None and w1 is None:
@@ -615,15 +615,15 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
             return self.span_length / 2 # span_length is world space length per quad
 
         if mode == 'SNAPPED':
-            # face under the cursor: the moving end while stroking, else the (hovered) start
-            bmf = getattr(brush, 'snap_bmf1', None) if brush.is_stroking() else getattr(brush, 'snap_bmf0', None)
-            if not bmf:
-                bmf = getattr(brush, 'snap_bmf0', None) or getattr(brush, 'snap_bmf1', None)
+            if not brush.is_stroking():
+                return None
+            # face under the cursor: the moving end, else the start face the stroke left
+            bmf = getattr(brush, 'snap_bmf1', None) or getattr(brush, 'snap_bmf0', None)
             pt = getattr(brush, 'hit_pl', None)
-            stroke3D = brush.stroke3D_original if brush.is_stroking() else None
+            stroke3D = brush.stroke3D_original
             if bmf and getattr(bmf, 'is_valid', False):
                 if stroke3D and len(stroke3D) >= 2:
-                    # while stroking, size to the connection edge where the stroke crossed the face boundary
+                    # size to the connection edge where the stroke crossed the face boundary
                     from_start = bmf == getattr(brush, 'snap_bmf0', None) and bmf != getattr(brush, 'snap_bmf1', None)
                     ref_pts = PolyStrips_Logic.face_entry_points(bmf, stroke3D, from_start)
                 else:
@@ -632,32 +632,14 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
                 if r_local is not None:
                     # snapped_edge_radius is local space (bme_length); the disc is world
                     return r_local * (brush.edit_scale or 1.0)
-            # No face highlighted -> size the brush to the snapped edge width.
-            # While stroking: a cap the moving end is landing on, else the first parallel rail.
-            # While hovering: there's no stroke direction, so size to the nearest edge only when the cursor sits on it
-            if brush.is_stroking():
-                caps = getattr(brush, 'snap_caps', None) or set()
-                joins = getattr(brush, 'snap_join', None) or ()
-                valid_caps = [b for b in caps if getattr(b, 'is_valid', False)]
-                valid_rails = [b for b in joins if getattr(b, 'is_valid', False) and b not in caps]
-                # a cap the moving end is landing on, else the first parallel rail
-                r_local = PolyStrips_Logic.nearest_edge_halfwidth(valid_caps, pt) if pt is not None else None
-                if r_local is None and brush.stroke3D_original:
-                    r_local = PolyStrips_Logic.nearest_edge_halfwidth(valid_rails, brush.stroke3D_original[0])
-            else:
-                r_local, best = None, None
-                for bme in (getattr(brush, 'snap_join', None) or ()):
-                    if not getattr(bme, 'is_valid', False) or pt is None: continue
-                    v0, v1 = bme.verts
-                    ev = v1.co - v0.co
-                    L2 = ev.length_squared
-                    if L2 == 0: continue
-                    t = (pt - v0.co).dot(ev) / L2
-                    if not (0.15 <= t <= 0.85): continue                 # cursor over the edge's interior
-                    d = ((v0.co + ev * t) - pt).length
-                    if d > 0.35 * ev.length: continue                    # sits on the edge (cap), not beside it (rail)
-                    if best is None or d < best[0]: best = (d, ev.length / 2)
-                if best: r_local = best[1]
+            # No face highlighted -> a cap the moving end is landing on, else the first parallel rail
+            caps = getattr(brush, 'snap_caps', None) or set()
+            joins = getattr(brush, 'snap_join', None) or ()
+            valid_caps = [b for b in caps if getattr(b, 'is_valid', False)]
+            valid_rails = [b for b in joins if getattr(b, 'is_valid', False) and b not in caps]
+            r_local = PolyStrips_Logic.nearest_edge_halfwidth(valid_caps, pt) if pt is not None else None
+            if r_local is None and stroke3D:
+                r_local = PolyStrips_Logic.nearest_edge_halfwidth(valid_rails, stroke3D[0], rail_sizing=True)
             if r_local is not None:
                 return r_local * (brush.edit_scale or 1.0)
             return None

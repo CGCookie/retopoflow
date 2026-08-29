@@ -700,7 +700,8 @@ def create_stroke_brush(
 
             joined, caps = set(), set()
             for (i, pt) in enumerate(stroke):
-                radius3D = (w_start + (w_end - w_start) * (i / nspan)) * JOIN_DETECT_SLACK
+                # Never sweep narrower than the brush itself. Avoids flickering when snapped edge is small.
+                radius3D = max(brush_r, w_start + (w_end - w_start) * (i / nspan)) * JOIN_DETECT_SLACK
                 entry = self.bme_join_cache.get(i)
                 if entry is not None and (entry[0] - pt).length < 1e-6 and entry[1] == radius3D:
                     raw = entry[2]
