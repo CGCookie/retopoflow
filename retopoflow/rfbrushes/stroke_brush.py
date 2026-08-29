@@ -37,7 +37,7 @@ from ..common.bmesh import (
 from ..common.bmesh_maths import is_bmvert_hidden
 from ..common.drawing import Drawing
 from ..preferences import RF_Prefs
-from ..common.raycast import raycast_valid_sources, size2D_to_size, mouse_from_event
+from ..common.raycast import raycast_valid_sources, size2D_to_size, mouse_from_event, iter_all_valid_sources
 from ..common.maths import bvec_point_to_bvec4
 from ..common.operator import RFOperator, RFKeyMaps, execute_operator
 from ..common.easing import CubicEaseOut
@@ -113,6 +113,11 @@ def create_stroke_brush(
         stroke_smooth       : float = smoothing  # [0,1], higher => more smoothing
         stroke_smooth_feature_lo : float = math.radians(5)
         stroke_smooth_feature_hi : float = math.radians(30)
+        stroke_normal_window_small : float = 0.25 # Fraction of the brush over which the normal is averaged
+        stroke_normal_window_large : float = 1.00 # At two scales so we can filter out fine noise
+        footprint_samples : int   = 8
+        footprint_ring    : float = 0.6   # ring radius as a fraction of brush radius
+        footprint_cache = None            # ((mouse, view_matrix), (n_local, n_world))
         cursor_normal = None  # local-space source normal under the cursor (set in update_snap)
 
         # hack to know which areas the mouse is in
@@ -138,6 +143,8 @@ def create_stroke_brush(
         snap_rails_to_edges : bool = False
         mirror_snaps : list | None = None
         mirror_sides : list | None = None
+        ema_normal_small : None | Vector = None  # exponential moving averages along the stroke
+        ema_normal_large : None | Vector = None
 
         @classmethod
         def get_stroke_smooth(cls):
@@ -304,6 +311,19 @@ def create_stroke_brush(
         def is_stroking(self):
             return self.stroke is not None
 
+        def stroke_end_tangent(self, context):
+            ''' Stroke-end direction in local space, measured over ~3/4 brush radius of arclength
+            (the same baseline accumulate_join_edges uses) so end-of-drag hand jitter cannot flip it. '''
+            stroke = self.stroke3D_original
+            if not stroke or len(stroke) < 2 or not self.stroke_dist: return None
+            baseline = 0.75 * self.stroke_radius * size2D_to_size(context, self.stroke_dist[0]) / (self.edit_scale or 1.0)
+            j, acc = len(stroke) - 1, 0.0
+            while j > 0 and acc < baseline:
+                acc += (stroke[j] - stroke[j - 1]).length
+                j -= 1
+            t = stroke[-1] - stroke[j]
+            return t.normalized() if t.length else None
+
         def update_snap(self, context, mouse):
             if not self.operator or not RFOperator.is_active_static(type(self.operator)): return
 
@@ -344,12 +364,11 @@ def create_stroke_brush(
                     self.snap_bmf1 = None
                 else:
                     bmf = self.nearest_bmf.bmf
-                    # ending on a face after running alongside its boundary is almost always an accident, ignore it
-                    if bmf and self.snap_join and self.stroke3D_original and len(self.stroke3D_original) >= 2:
-                        p_end = self.stroke3D_original[-1]
-                        t = p_end - self.stroke3D_original[max(0, len(self.stroke3D_original) - 6)]
-                        if t.length:
-                            t = t.normalized()
+                    # ending on a face after running alongside its boundary is almost always an accident, ignore it.
+                    # Vet on acquisition only, avoids flashing between edges
+                    if bmf and bmf != self.snap_bmf1 and self.snap_join and self.stroke3D_original and len(self.stroke3D_original) >= 2:
+                        t = self.stroke_end_tangent(context)
+                        if t is not None:
                             for bme in bmf.edges:
                                 if bme not in self.snap_join: continue
                                 ev = bme.verts[1].co - bme.verts[0].co
@@ -498,14 +517,19 @@ def create_stroke_brush(
                 delta_t = time() - self.last_time
                 smoothing_mapped = CubicEaseOut(duration=1.5).ease(RFBrush_Stroke.stroke_smooth)
                 smoothing_factor = 1.0 - smoothing_mapped ** (delta_t * 50)
-                # Ease off the smoothing where the source normal turns sharply to preserve the corner
-                n_pre = self.stroke_normal[-1] if self.stroke_normal else None
+                # Ease off the smoothing where the source normal turns sharply to preserve the corner.
+                # A real corner pulls the small window average away from the large window one, while
+                # micro-facet noise on a rough scan mostly cancels inside both averages.
                 n_cur = self.cursor_normal
-                if n_pre and n_cur and n_pre.length_squared > 0 and n_cur.length_squared > 0:
-                    bend = n_pre.angle(n_cur)
-                    lo, hi = self.stroke_smooth_feature_lo, self.stroke_smooth_feature_hi
-                    preserve = clamp((bend - lo) / (hi - lo), 0.0, 1.0)
-                    smoothing_factor += (1.0 - smoothing_factor) * preserve
+                if self.ema_normal_small is not None and self.ema_normal_large is not None \
+                        and n_cur is not None and n_cur.length_squared > 0:
+                    a = 1.0 - math.exp(-(cur - pre).length / max(4.0, self.stroke_radius * self.stroke_normal_window_small))
+                    n_small = self.ema_normal_small.lerp(n_cur, a)
+                    if n_small.length_squared > 0:
+                        bend = n_small.angle(self.ema_normal_large)
+                        lo, hi = self.stroke_smooth_feature_lo, self.stroke_smooth_feature_hi
+                        preserve = clamp((bend - lo) / (hi - lo), 0.0, 1.0)
+                        smoothing_factor += (1.0 - smoothing_factor) * preserve
 
                 pt = pre + (cur - pre) * smoothing_factor
                 self.add_stroke_point(context, pt)
@@ -543,6 +567,8 @@ def create_stroke_brush(
             self.stroke3D_original = None
             self.stroke_normal = None
             self.stroke_dist = None
+            self.ema_normal_small = None
+            self.ema_normal_large = None
 
             self.rail_len = 0
             self.rail_pt2D = None
@@ -652,11 +678,25 @@ def create_stroke_brush(
             if w_start is None: w_start = brush_r
             if w_end is None: w_end = brush_r
             nspan = max(1, n - 1)
-            tangents = []  # local stroke tangent at each point, for parallel/cap classification
+            # local stroke tangent at each point, for parallel/cap classification.
+            # Baseline spans about a brush radius each way so small surface bumps don't interfere.
+            cumul = [0.0]
+            for k in range(1, n):
+                cumul.append(cumul[-1] + (stroke[k] - stroke[k - 1]).length)
+            baseline = brush_r * 0.75
+            tangents, j0, j1 = [], 0, 0
             for k in range(n):
-                d = stroke[min(n - 1, k + 1)] - stroke[max(0, k - 1)]
+                while j0 < k and cumul[j0] < cumul[k] - baseline: j0 += 1
+                while j1 < n - 1 and cumul[j1 + 1] <= cumul[k] + baseline: j1 += 1
+                d = stroke[j1] - stroke[j0]
                 tangents.append(d.normalized() if d.length else Vector((0.0, 0.0, 0.0)))
             cap_radius = max(w_start, w_end) * JOIN_DETECT_SLACK * 1.5
+
+            # Exclude the snapped start/end face's own edges from joining.
+            exclude_bmes = set()
+            for bmf_snap in (self.snap_bmf0, self.snap_bmf1):
+                if bmf_snap and bmf_snap.is_valid:
+                    exclude_bmes.update(bmf_snap.edges)
 
             joined, caps = set(), set()
             for (i, pt) in enumerate(stroke):
@@ -674,7 +714,11 @@ def create_stroke_brush(
                     self.bme_join_cache[i] = (pt.copy(), radius3D, raw)
                 # under this disc: drop perpendicular non-cap edges (e.g. the face we drew out of)
                 # then collapse each loop run / uncapped corner to its closest edge.
-                cls = {bme: self.classify_join_edge(bme, stroke, tangents, cap_radius) for bme in raw if bme.is_valid}
+                cls = {
+                    bme: self.classify_join_edge(bme, stroke, tangents, cap_radius)
+                    for bme in raw
+                    if bme.is_valid and bme not in exclude_bmes
+                }
                 survivors = [bme for bme, c in cls.items() if c is not None]
                 caps_here = {bme for bme, c in cls.items() if c == 'cap'}
                 for bme in self.limit_loop_runs(survivors, [pt], lambda e: e in caps_here):
@@ -682,6 +726,40 @@ def create_stroke_brush(
                     if bme in caps_here: caps.add(bme)
             self.snap_join = joined
             self.snap_caps = caps
+
+        def update_normal_emas(self, n, ds2D):
+            ''' Advance the small and large window running normal averages by one stroke sample. '''
+            if n is None or n.length_squared == 0: return
+            if self.ema_normal_small is None:
+                self.ema_normal_small = Vector(n)
+                self.ema_normal_large = Vector(n)
+                return
+            # Blend weight comes from the 2D arclength step so the averages are sample rate independent.
+            for attr, frac in (('ema_normal_small', self.stroke_normal_window_small),
+                               ('ema_normal_large', self.stroke_normal_window_large)):
+                a = 1.0 - math.exp(-ds2D / max(4.0, self.stroke_radius * frac))
+                v = getattr(self, attr).lerp(n, a)
+                if v.length_squared > 0: setattr(self, attr, v.normalized())
+
+        def smoothed_stroke_normals(self, window_px):
+            ''' Box average of stroke_normal over ±window_px of 2D arclength (prefix sums, O(n)).
+            The rails offset along these to reduce jitter on rough scans. '''
+            normals, pts = self.stroke_normal, self.stroke_original
+            n = len(normals)
+            if n <= 2 or window_px <= 0: return list(normals)
+            cumul = [0.0]
+            for i in range(1, n):
+                cumul.append(cumul[-1] + (pts[i] - pts[i - 1]).length)
+            pre = [Vector((0.0, 0.0, 0.0))]
+            for no in normals:
+                pre.append(pre[-1] + no)
+            out, j0, j1 = [], 0, 0
+            for i in range(n):
+                while j0 < i and cumul[j0] < cumul[i] - window_px: j0 += 1
+                while j1 < n - 1 and cumul[j1 + 1] <= cumul[i] + window_px: j1 += 1
+                v = pre[j1 + 1] - pre[j0]
+                out.append(v.normalized() if v.length_squared > 0 else normals[i])
+            return out
 
         def add_stroke_point(self, context, pt2D, *, force_rail=False):
             hit = raycast_valid_sources(context, pt2D, respect_clip_planes=True)
@@ -716,10 +794,12 @@ def create_stroke_brush(
                     self.stroke_normal.pop()
                     self.stroke_dist.pop()
 
+            ds2D = (pt2D - self.stroke_original[-1]).length if self.stroke_original else 0.0
             self.stroke_original   += [pt2D]
             self.stroke3D_original += [pt3D]
             self.stroke_normal     += [hit['no_local']]
             self.stroke_dist       += [hit['distance']]
+            self.update_normal_emas(hit['no_local'], ds2D)
             self.snap_mirror_all = False
 
             # Only rail rebuild on final / commit point, a new stroke point, or the last point drifting past the sample distance. (#1574)
@@ -746,10 +826,15 @@ def create_stroke_brush(
                 # Note: if stroke is not long, there is not enough info to determine good left and right sides
                 # TODO: left and right sides could be off high poly mesh!  shrink radius until left and right are both on mesh
                 nspan = max(1, len(self.stroke_original) - 1)
+                # normals are box-averaged along the stroke, and tangents are from a baseline wide enough
+                # to cancel out surface bump noise
+                nos = self.smoothed_stroke_normals(self.stroke_radius * 0.5)
+                tangent_px = max(5, self.stroke_radius * 0.25)
                 for i in range(len(self.stroke_original)):
-                    pt2D, pt3D, no = self.stroke_original[i], self.stroke3D_original[i], self.stroke_normal[i]
+                    pt2D, pt3D, no = self.stroke_original[i], self.stroke3D_original[i], nos[i]
                     radius3D = w_start + (w_end - w_start) * (i / nspan)
-                    pt3D_prev, pt3D_next = find_stroke3D_point_from(i, -1), find_stroke3D_point_from(i,  1)
+                    pt3D_prev = find_stroke3D_point_from(i, -1, max_dist_pixels=tangent_px)
+                    pt3D_next = find_stroke3D_point_from(i,  1, max_dist_pixels=tangent_px)
                     d_left = no.cross(pt3D_next - pt3D_prev).normalized()
                     self.stroke3D_left  += [pt3D + d_left * radius3D]
                     self.stroke3D_right += [pt3D - d_left * radius3D]
@@ -757,13 +842,13 @@ def create_stroke_brush(
 
                 # if stroke is sufficiently long enough, determine front and back
                 if len(self.stroke3D_left) > 2:
-                    pt3D_next, pt3D_prev = self.stroke3D_original[0], find_stroke3D_point_from(0, 1)
+                    pt3D_next, pt3D_prev = self.stroke3D_original[0], find_stroke3D_point_from(0, 1, max_dist_pixels=tangent_px)
                     v_forward = (pt3D_next - pt3D_prev).normalized() * w_start
                     self.stroke3D_left_start  = self.stroke3D_left[0]  + v_forward
                     self.stroke3D_right_start = self.stroke3D_right[0] + v_forward
                     self.co_back = (self.stroke3D_left_start + self.stroke3D_right_start) / 2
 
-                    pt3D_next, pt3D_prev = self.stroke3D_original[-1], find_stroke3D_point_from(-1, -1)
+                    pt3D_next, pt3D_prev = self.stroke3D_original[-1], find_stroke3D_point_from(-1, -1, max_dist_pixels=tangent_px)
                     v_forward = (pt3D_next - pt3D_prev).normalized() * w_end
                     self.stroke3D_left_end  = self.stroke3D_left[-1]  + v_forward
                     self.stroke3D_right_end = self.stroke3D_right[-1] + v_forward
@@ -1137,6 +1222,40 @@ def create_stroke_brush(
             self.edit_scale = max(self.matrix_world.to_scale())
             return True
 
+        def footprint_normals(self, context, mouse, hit_center):
+            ''' (local, world) source normal averaged over the brush footprint. A ring of
+            raycasts inside the disc plus the center hit. Ring hits far in front of / behind
+            the center (background past a silhouette) are discarded. Cached per (mouse, view)
+            since draw_postview re-runs _update on every redraw. '''
+            key = ((mouse[0], mouse[1]), context.region_data.view_matrix.copy())
+            if self.footprint_cache and self.footprint_cache[0] == key:
+                return self.footprint_cache[1]
+            d_center = hit_center['distance']
+            radius3D = self.stroke_radius * (size2D_to_size(context, d_center) or 0.0)
+            nl = Vector(hit_center['no_local'])
+            nw = Vector(hit_center['no_world'])
+            if radius3D > 0:
+                r = self.stroke_radius * self.footprint_ring
+                sources = [(obj,) for obj in iter_all_valid_sources(context)]
+                for k in range(self.footprint_samples):
+                    a = math.tau * k / self.footprint_samples
+                    h = raycast_valid_sources(
+                        context,
+                        (mouse[0] + r * math.cos(a), mouse[1] + r * math.sin(a)),
+                        respect_clip_planes=True,
+                        sources=sources,
+                    )
+                    if not h: continue
+                    if abs(h['distance'] - d_center) > radius3D * 3.0: continue
+                    nl += h['no_local']
+                    nw += h['no_world']
+            result = (
+                nl.normalized() if nl.length_squared > 0 else Vector(hit_center['no_local']),
+                nw.normalized() if nw.length_squared > 0 else Vector(hit_center['no_world']),
+            )
+            self.footprint_cache = (key, result)
+            return result
+
         def _update(self, context, mouse=None):
             # mouse=None: normal hover/stroke. Uses self.mouse, requires the area be a mouse_area.
             # mouse given: flash preview, raycast at an explicit point, bypassing mouse_areas.
@@ -1159,7 +1278,7 @@ def create_stroke_brush(
             # print(f'  {scale=}')
             if not scale_below or not scale_above: return
 
-            n = hit['no_local']
+            n, n_world = self.footprint_normals(context, m, hit)
             rmat = Matrix.Rotation(Direction.Z().angle(n), 4, Direction.Z().cross(n))
 
             self.hit = True
@@ -1167,9 +1286,9 @@ def create_stroke_brush(
             self.hit_scale_below = scale_below
             self.hit_scale_above = scale_above
             self.hit_p = hit['co_world']
-            self.hit_n = hit['no_world']
+            self.hit_n = n_world
             self.hit_pl = hit['co_local']
-            self.hit_nl = hit['no_local']
+            self.hit_nl = n
             self.hit_depth = hit['distance']
             self.hit_x = Vec(rmat @ Direction.X())
             self.hit_y = Vec(rmat @ Direction.Y())

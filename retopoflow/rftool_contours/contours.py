@@ -37,7 +37,7 @@ from ..common.drawing import Drawing
 from ..common.icons import get_path_to_blender_icon
 from ..common.operator import (
     execute_operator,
-    RFOperator, RFRegisterClass, RFOperator_Execute, RFKeyMaps, BLKeyMaps,
+    RFOperator, RFOperator_Execute, RFKeyMaps, BLKeyMaps,
     chain_rf_keymaps, poll_retopoflow,
 )
 from ..common.raycast import (
@@ -58,6 +58,9 @@ from ...addon_common.common.resetter import Resetter
 from ..rfoperators.quickswitch import RFOperator_Relax_QuickSwitch, RFOperator_Tweak_QuickSwitch
 from ..rfoperators.transform import RFOperator_Translate, sync_projection_from_blender
 from ..rfoperators.maximize_watcher import RFOperator_MaximizeWatcher
+from ..rfoperators.adjust_segment_count import adjust_selected_strip
+from ..rfoperators.twist import RFOperator_TwistLoop
+from ..rfoverlays.proportional_edit_overlay import flash_proportional_edit_circle
 
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
 from ..rfpanels.tweaking_panel import draw_tweaking_panel, draw_tweaking_popover
@@ -93,6 +96,47 @@ def warmup_cache_on_change(cls):
     bpy.app.timers.register(warmup_if_walk, first_interval= 0.1)
 
 
+def _twist_selected_loop(context, sign):
+    ''' Shift+Scroll fallback once the just-inserted cut's redo state is gone:
+    twist the SELECTED loop instead. '''
+
+    TWIST_STEP = math.radians(5)  # per scroll notch, matching the fresh-cut redo path
+
+    ops = context.window_manager.operators
+    last = ops[-1] if ops else None
+    continuing = last is not None and last.name == RFOperator_TwistLoop.bl_label
+    # consecutive scrolls collapse onto one undo step, mirroring the insert-redo mechanism
+    if continuing:
+        # carry the running twist's own settings forward so an F9 edit sticks
+        angle = last.twist_angle + sign * TWIST_STEP
+        prop  = dict(
+            retain_shape          = last.retain_shape,
+            use_proportional_edit = last.use_proportional_edit,
+            proportional_distance = last.proportional_distance,
+            proportional_falloff  = last.proportional_falloff,
+        )
+        bpy.ops.ed.undo()
+    else:
+        # a fresh twist starts from the tool settings, matching what the operator's
+        # own invoke() reads when it is started modally from a menu
+        ts = context.tool_settings
+        angle = sign * TWIST_STEP
+        prop  = dict(
+            use_proportional_edit = ts.use_proportional_edit,
+            proportional_distance = ts.proportional_distance,
+            proportional_falloff  = ts.proportional_edit_falloff,
+        )
+    if bpy.ops.retopoflow.twist_loop('EXEC_DEFAULT', True, twist_angle=angle, **prop) != {'FINISHED'}:
+        return
+
+    # A scroll has no drag to show the falloff extent, so breifly flash the circle
+    bm, _ = get_bmesh_emesh(context)
+    sel_cos = [v.co for v in bm.verts if v.select]
+    if sel_cos and context.edit_object:
+        center = context.edit_object.matrix_world @ (sum(sel_cos, Vector()) / len(sel_cos))
+        flash_proportional_edit_circle(context, center)
+
+
 class RFOperator_Contours_Insert_Keymaps:
     # used to collect redo shortcuts, which is filled in by redo_ fns below...
     # note: cannot use RFOperator_Contours_Insert.rf_keymaps, because RFOperator_Contours_Insert
@@ -119,6 +163,26 @@ class RFOperator_Contours_Insert_Properties:
         default=1,
         min=1,
         max=20,
+    )
+    span_insert_mode: bpy.props.EnumProperty(
+        name='Span Count Method',
+        description='Controls how the number of inserted vertices is determined',
+        items=[
+            ('FIXED',   'Fixed',   'Uses the Spans and Cuts values exactly as set', 0),
+            ('AVERAGE', 'Average', 'Uses Spans for a new cut, then matches the average edge length '
+                                   'of the loop being extruded from so the new quads stay even', 1),
+            ('LENGTH',  'Length',  'Sizes both the cut spans and the extrusion loops to match a '
+                                   'world space distance', 2),
+        ],
+        default='AVERAGE',
+    )
+    span_length: bpy.props.FloatProperty(
+        name='Segment Length',
+        description='World space distance for each span and extrusion loop',
+        default=0.1,
+        min=0.001,
+        soft_max=10.0,
+        subtype='DISTANCE',
     )
     process_source_method: bpy.props.EnumProperty(      # pyright: ignore [reportUninitializedInstanceVariable]
         name='Process Source Method',
@@ -286,10 +350,17 @@ def draw_contours_props(context, layout, props, redo):
         row.alignment = 'RIGHT'
         row.label(text=redo.action)
     layout.prop(props, 'cut_orientation', text='Orientation')
-    if not redo or redo.show_span_count:
-        layout.prop(props, 'span_count', text='Spans')
-    if not redo or redo.show_loop_count:
-        layout.prop(props, 'loop_count', text='Cuts')
+    layout.prop(props, 'span_insert_mode', text='Method')
+    if props.span_insert_mode == 'LENGTH':
+        # Length drives both counts, so show it for either kind of insert
+        if not redo or redo.show_span_count or redo.show_loop_count:
+            layout.prop(props, 'span_length', text='Length')
+    else:
+        if not redo or redo.show_span_count:
+            layout.prop(props, 'span_count', text='Spans')
+        # Average derives the cut count, so only offer it once the mode is Fixed
+        if (not redo or redo.show_loop_count) and props.span_insert_mode == 'FIXED':
+            layout.prop(props, 'loop_count', text='Cuts')
     if redo and redo.show_twist: # Only makes sense in redo panel
         layout.prop(props, 'twist', text='Twist')
     layout.prop(props, 'curvature_bias', text='Curvature', slider=True)
@@ -336,7 +407,8 @@ class RFOperator_Contours_Insert(
     def insert(context, hit, plane, circle_points, span_count, process_source_method, hits, cut_orientation,
                fast_depth=1, sample_points=50, fast_refine_steps=5, sdf_refine_steps=3, skip_step_size=1.0,
                sample_width=0.25, sdf_grid_size=0.25, sdf_subdivisions=0, sdf_extent_scale=1.5,
-               curvature_bias=0.7, space_evenly=1.0, sdf_stroke_world_len=0.0):
+               curvature_bias=0.7, space_evenly=1.0, span_insert_mode='FIXED', span_length=0.1,
+               sdf_stroke_world_len=0.0):
         RFOperator_Contours_Insert.logic = Contours_Logic(
             context,
             hit,
@@ -357,6 +429,8 @@ class RFOperator_Contours_Insert(
             sdf_extent_scale,
             curvature_bias,
             space_evenly,
+            span_insert_mode,
+            span_length,
             sdf_stroke_world_len=sdf_stroke_world_len,
         )
         RFOperator_Contours_Insert.reinsert(context)
@@ -384,6 +458,8 @@ class RFOperator_Contours_Insert(
             cut_orientation=logic.cut_orientation,
             curvature_bias=logic.curvature_bias,
             space_evenly=logic.space_evenly,
+            span_insert_mode=logic.span_insert_mode,
+            span_length=logic.span_length,
         )
 
     def draw(self, context):
@@ -411,6 +487,8 @@ class RFOperator_Contours_Insert(
         logic.cut_orientation       = self.cut_orientation
         logic.curvature_bias        = self.curvature_bias
         logic.space_evenly  = self.space_evenly
+        logic.span_insert_mode      = self.span_insert_mode
+        logic.span_length           = self.span_length
 
         try:
             logic.update(context)
@@ -442,18 +520,20 @@ class RFOperator_Contours_Insert(
         self.loop_count            = logic.loop_count
         self.curvature_bias        = logic.curvature_bias
         self.space_evenly  = logic.space_evenly
+        self.span_insert_mode      = logic.span_insert_mode
+        self.span_length           = logic.span_length
 
         return {'FINISHED'}
 
     @staticmethod
-    def create_redo_operator(idname: str, description: str, keymap: dict, op_props: dict | None = None):
+    def create_redo_operator(idname: str, description: str, keymap: dict, op_props: dict | None = None, *, fallback=None):
         # add keymap to RFOperator_Contours_Insert.rf_keymaps
         # note: still creating RFOperator_Contours_Insert, so using RFOperator_Contours_Insert_Keymaps.rf_keymaps
         def _poll(context:Context) -> bool:
             last_op = context.window_manager.operators[-1].name if context.window_manager.operators else None
             return last_op == RFOperator_Contours_Insert.bl_label
 
-        if op_props is not None:
+        if op_props is not None and fallback is None:
             op_props['km_poll'] = _poll
 
         RFOperator_Contours_Insert_Keymaps.rf_keymaps.append( (f'retopoflow.{idname}', keymap, op_props) )
@@ -462,7 +542,11 @@ class RFOperator_Contours_Insert(
             @execute_operator(idname, description, options={'INTERNAL'})
             @wraps(fn)
             def wrapped(context):
-                if not _poll(context): return
+                if not _poll(context):
+                    # The just-inserted cut's redo panel is no longer reachable, so
+                    # hand off to the equivalent standalone operator, else no-op
+                    if fallback: fallback(context)
+                    return
                 fn(context, RFOperator_Contours_Insert.logic)
                 bpy.ops.ed.undo()
                 RFOperator_Contours_Insert.reinsert(context)
@@ -471,29 +555,36 @@ class RFOperator_Contours_Insert(
 
     @create_redo_operator('contours_insert_spans_decreased', 'Reinsert cut with decreased spans',
                           {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'ctrl': 1},
-                          {'km_context': ('init', 'ready'), 'km_label': 'Change Spans / Loops'})
+                          {'km_context': ('init', 'ready'), 'km_label': 'Adjust Count'},
+                          fallback=lambda context: adjust_selected_strip(context, -1))
     def decrease_spans(context, logic):
         if logic.show_loop_count:
             logic.loop_count = max(1, logic.loop_count - 1)
         else:
             logic.span_count -= 1
+        # Scrolling is an explicit count, so stop deriving one over the top of it
+        logic.span_insert_mode = 'FIXED'
 
     @create_redo_operator('contours_insert_spans_increased', 'Reinsert cut with increased spans',
-                          {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'ctrl': 1})
+                          {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'ctrl': 1},
+                          fallback=lambda context: adjust_selected_strip(context, +1))
     def increase_spans(context, logic):
         if logic.show_loop_count:
             logic.loop_count += 1
         else:
             logic.span_count += 1
+        logic.span_insert_mode = 'FIXED'
 
     @create_redo_operator('contours_insert_twist_decreased', 'Reinsert cut with decreased twist',
                           {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'shift': 1},
-                          {'km_context': ('init', 'ready'), 'km_label': 'Change Twist'})
+                          {'km_context': ('init', 'ready'), 'km_label': 'Twist'},
+                          fallback=lambda context: _twist_selected_loop(context, -1))
     def decrease_twist(context, logic):
         if logic.show_twist: logic.twist = max(-math.pi / 2, logic.twist - math.radians(5))
 
     @create_redo_operator('contours_insert_twist_increased', 'Reinsert cut with increased twist',
-                          {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'shift': 1})
+                          {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'shift': 1},
+                          fallback=lambda context: _twist_selected_loop(context, +1))
     def increase_twist(context, logic):
         if logic.show_twist: logic.twist = min(math.pi / 2, logic.twist + math.radians(5))
 
@@ -608,6 +699,7 @@ class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
                                           self.sdf_refine_steps, self.skip_step_size, self.sample_width,
                                           self.sdf_grid_size, self.sdf_subdivisions, self.sdf_extent_scale,
                                           self.curvature_bias, self.space_evenly,
+                                          self.span_insert_mode, self.span_length,
                                           sdf_stroke_world_len=_sdf_stroke_world_len)
 
     def update(self, context, event):
@@ -651,29 +743,6 @@ def switch_rftool(context):
     RFTool_Contours.activate_tool(context)
 
 
-class RFOperator_Contours_Twist(RFRegisterClass, bpy.types.Operator):
-    bl_idname     = 'retopoflow.contours_twist'
-    bl_label      = 'Contours: Adjust Twist'
-    bl_description = 'Rotate selected loop about its plane (Alt R)'
-    bl_options    = {'UNDO', 'INTERNAL'}
-
-    rf_keymaps : RFKeyMaps = []
-
-    @classmethod
-    def poll(cls, context):
-        return context.mode == 'EDIT_MESH'
-
-    def invoke(self, context, event):
-        return bpy.ops.retopoflow.twist_loop('INVOKE_DEFAULT')
-
-
-RFOperator_Contours_Twist.rf_keymaps = [
-    ('retopoflow.contours_twist', {'type': 'R', 'value': 'PRESS', 'alt': True},
-        {'km_context': ('init'), 'km_label': 'Twist Loops'}
-    ),
-]
-
-
 class RFTool_Contours(RFTool_Base):
     bl_idname = "retopoflow.contours"
     bl_label = "Contours"
@@ -690,7 +759,6 @@ class RFTool_Contours(RFTool_Base):
     bl_keymap : BLKeyMaps = chain_rf_keymaps(
         RFOperator_Contours,
         RFOperator_Contours_Insert,
-        RFOperator_Contours_Twist,
         RFOperator_MaximizeWatcher,
         RFOperator_Translate,
         RFOperator_Relax_QuickSwitch,
@@ -705,8 +773,14 @@ class RFTool_Contours(RFTool_Base):
         if context.region.type == 'TOOL_HEADER':
             # layout.label(text='Insert:')
             layout.prop(props_contours, 'cut_orientation', text='')
-            layout.prop(props_contours, 'span_count', text='Spans')
-            # layout.prop(props_contours, 'loop_count', text='Cuts')
+            row = layout.row(align=True)
+            row.prop(props_contours, 'span_insert_mode', text='')
+            if props_contours.span_insert_mode == 'LENGTH':
+                row.prop(props_contours, 'span_length', text='')
+            else:
+                row.prop(props_contours, 'span_count', text='')
+            if props_contours.span_insert_mode == 'FIXED':
+                row.prop(props_contours, 'loop_count', text='')
             layout.prop(props_contours, 'curvature_bias', text='Curvature', slider=True)
             layout.prop(props_contours, 'space_evenly', text='Space Evenly', slider=True)
             method_name = props_contours.bl_rna.properties['process_source_method'].enum_items[props_contours.process_source_method].name

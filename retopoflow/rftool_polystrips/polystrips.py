@@ -51,7 +51,7 @@ from ..rfoperators.quickswitch import RFOperator_Relax_QuickSwitch, RFOperator_T
 from ..rfoperators.transform import RFOperator_Translate, sync_projection_from_blender
 from ..rfoperators.maximize_watcher import RFOperator_MaximizeWatcher
 from ..rfoperators.topo_rotate import RFOperator_TopoRotate
-from ..rfoperators.adjust_segment_count import RFOperator_AdjustSegmentCount
+from ..rfoperators.adjust_segment_count import adjust_selected_strip
 from ..rfoperators.adjust_strip_width import RFOperator_AdjustStripWidth
 
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
@@ -67,6 +67,9 @@ from ..preferences import RF_Prefs
 from functools import wraps
 
 
+DEBUG_SNAP_ENDS = False # prints how each stroke end resolved and why
+
+
 RFBrush_Strokes, RFOperator_StrokesBrush_Adjust = create_stroke_brush(
     'polystrips_brush',
     'PolyStrips Brush',
@@ -75,28 +78,6 @@ RFBrush_Strokes, RFOperator_StrokesBrush_Adjust = create_stroke_brush(
     radius=50,
     draw_leftright=True,
 )
-
-def _adjust_selected_strip(context, sign):
-    '''
-    Ctrl+Scroll fallback once the just-inserted strip's redo state is gone:
-    resegment the SELECTED strip via the generic Adjust Segment Count operator.
-    Consecutive scrolls collapse onto one undo step -- if the last operator is
-    already an adjust, undo it and re-run at the new absolute count (reading
-    .count back also respects an F9 edit), mirroring the insert-redo mechanism.
-    '''
-    ops = context.window_manager.operators
-    last = ops[-1] if ops else None
-    if last is not None and last.name == RFOperator_AdjustSegmentCount.bl_label:
-        target = last.count + sign
-        bpy.ops.ed.undo()
-        # explicit `True` (undo) arg, matching polystrips_reinsert above --
-        # required for a REGISTER|UNDO op invoked via a nested bpy.ops call
-        # (from inside this operator's own execute) to properly register
-        # itself as the "last operator" so its F9 redo panel works
-        bpy.ops.retopoflow.adjust_segment_count('INVOKE_DEFAULT', True, count=target)
-    else:
-        bpy.ops.retopoflow.adjust_segment_count('INVOKE_DEFAULT', True, delta=sign)
-
 
 def _adjust_selected_strip_width(context, sign):
     factor = 0.95 if sign < 0 else 1 / 0.95
@@ -203,7 +184,7 @@ class RFOperator_PolyStrips_Insert(
 
 
     @staticmethod
-    def polystrips_insert(context, radius2D, stroke3D, point3D_0, point3D_1, is_cycle, length2D, snap_bmf0, snap_bmf1, split_angle, mirror_correct, size_mode='BRUSH', fixed_count=8, span_length=0.1, radius3D=None, join_vert_idx=None):
+    def polystrips_insert(context, radius2D, stroke3D, point3D_0, point3D_1, is_cycle, length2D, snap_bmf0, snap_bmf1, split_angle, mirror_correct, size_mode='BRUSH', fixed_count=8, span_length=0.1, radius3D=None, join_bmes=None, cap_bme0=None, cap_bme1=None):
         RFOperator_PolyStrips_Insert.logic = PolyStrips_Logic(
             context,
             radius2D,
@@ -218,7 +199,9 @@ class RFOperator_PolyStrips_Insert(
             fixed_count=fixed_count,
             span_length=span_length,
             radius3D=radius3D,
-            join_vert_idx=join_vert_idx,
+            join_bmes=join_bmes,
+            cap_bme0=cap_bme0,
+            cap_bme1=cap_bme1,
         )
         logic = RFOperator_PolyStrips_Insert.logic
         if logic.error: return
@@ -276,6 +259,8 @@ class RFOperator_PolyStrips_Insert(
             logic.split_angle = self.split_angle
             logic.mirror_correct = self.mirror_correct
             logic.create(context)
+            if logic.count_warning:
+                self.report({'WARNING'}, logic.count_warning)
             self.count = logic.count
             self.scale_start, self.scale_end = logic.scale_start, logic.scale_end
             self.mirror_correct = logic.mirror_correct
@@ -293,10 +278,10 @@ class RFOperator_PolyStrips_Insert(
         return {'FINISHED'}
 
     @staticmethod
-    def create_redo_operator(idname : str, description : str, keymap : RFKeyMap, *, fallback=None):
+    def create_redo_operator(idname : str, description : str, keymap : RFKeyMap, op_props : dict | None = None, *, fallback=None):
         # add keymap to RFOperator_PolyStrips_Insert.rf_keymaps
         # note: still creating RFOperator_PolyStrips_Insert, so using RFOperator_PolyStrips_Insert_Keymaps.rf_keymaps
-        RFOperator_PolyStrips_Insert_Keymaps.rf_keymaps.append( (f'retopoflow.{idname}', keymap, None) )
+        RFOperator_PolyStrips_Insert_Keymaps.rf_keymaps.append( (f'retopoflow.{idname}', keymap, op_props) )
         def wrapper(fn):
             @execute_operator(idname, description, options={'INTERNAL'})
             @wraps(fn)
@@ -315,21 +300,32 @@ class RFOperator_PolyStrips_Insert(
             return wrapped
         return wrapper
 
-    @create_redo_operator('polystrips_insert_count0_decreased', 'Decrease quad strip count', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'ctrl': 1}, fallback=lambda context: _adjust_selected_strip(context, -1))
+    # each scroll pair below labels only its down half so that there's only one status bar entry
+    @create_redo_operator('polystrips_insert_count0_decreased', 'Decrease quad strip count',
+                          {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'ctrl': 1},
+                          {'km_context': ('init', 'ready'), 'km_label': 'Adjust Count'},
+                          fallback=lambda context: adjust_selected_strip(context, -1))
     def decrease_count0(context, logic):
         logic.count -= 1
 
-    @create_redo_operator('polystrips_insert_count0_increased', 'Increase quad strip count', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'ctrl': 1}, fallback=lambda context: _adjust_selected_strip(context, +1))
+    @create_redo_operator('polystrips_insert_count0_increased', 'Increase quad strip count',
+                          {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'ctrl': 1},
+                          fallback=lambda context: adjust_selected_strip(context, +1))
     def increase_count0(context, logic):
         logic.count += 1
 
-    @create_redo_operator('polystrips_insert_width0_decreased', 'Decrease quad strip width', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'shift': 1}, fallback=lambda context: _adjust_selected_strip_width(context, -1))
+    @create_redo_operator('polystrips_insert_width0_decreased', 'Decrease quad strip width',
+                          {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'shift': 1},
+                          {'km_context': ('init', 'ready'), 'km_label': 'Adjust Width'},
+                          fallback=lambda context: _adjust_selected_strip_width(context, -1))
     def decrease_width0(context, logic):
         # scales both ends together, preserving the start/end gradient shape
         logic.scale_start *= 0.95
         logic.scale_end *= 0.95
 
-    @create_redo_operator('polystrips_insert_width0_increased', 'Increase quad strip width', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'shift': 1}, fallback=lambda context: _adjust_selected_strip_width(context, +1))
+    @create_redo_operator('polystrips_insert_width0_increased', 'Increase quad strip width',
+                          {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'shift': 1},
+                          fallback=lambda context: _adjust_selected_strip_width(context, +1))
     def increase_width1(context, logic):
         logic.scale_start /= 0.95
         logic.scale_end /= 0.95
@@ -435,7 +431,6 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
         self.km_context = 'ready'
         RFTool_PolyStrips.rf_brush.set_operator(self)
         RFTool_PolyStrips.rf_brush.reset_nearest(context)
-        RFTool_PolyStrips.rf_overlay.pause_overlay()
         self.tickle(context)
 
     def finish(self, context):
@@ -456,30 +451,50 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
         snap_bmf0, snap_bmf1 = snapped_geo[2]
         p3D_0, p3D_1 = stroke3D[0], stroke3D[-1]
 
-        # Valid boundary edges the brush passed over.
+        # Valid boundary edges the brush passed over
         join_bme_list = [bme for bme in (snapped_geo[1] or []) if hasattr(bme, 'verts') and bme.is_valid]
-        join_vert_idx = list({bmv.index for bme in join_bme_list for bmv in bme.verts})
 
-        # A cap is a boundary edge lying across a stroke end
+        # A cap is a boundary edge lying across a stroke end.
         cap_radius = (radius3D or 0) * 1.5
-        def has_cap_edge(end_pt3D, along):
-            if not join_bme_list or not cap_radius or along.length == 0: return False
+        def find_cap_edge(end_pt3D, along, label):
+            if not join_bme_list or not cap_radius or along.length == 0:
+                if DEBUG_SNAP_ENDS: print(f'[cap:{label}] no candidates: joins={len(join_bme_list)} cap_radius={cap_radius:.4f} along_len={along.length:.4f}')
+                return None
             along = along.normalized()
+            best = None
             for bme in join_bme_list:
                 v0, v1 = bme.verts
                 ed = v1.co - v0.co
                 L2 = ed.length_squared
                 if L2 == 0: continue
-                if abs(ed.normalized().dot(along)) > 0.6: continue  # parallel to stroke => side rail, not a cap
+                dot = abs(ed.normalized().dot(along))
                 # the stroke end must terminate into the edge (project onto its interior), not off to a side
                 t = (end_pt3D - v0.co).dot(ed) / L2
-                if not (0.15 <= t <= 0.85): continue
-                if ((v0.co + ed * t) - end_pt3D).length > cap_radius: continue
-                return True
-            return False
-        k = min(3, len(stroke3D) - 1)
-        start_cap = k > 0 and has_cap_edge(p3D_0, stroke3D[k] - stroke3D[0])
-        end_cap   = k > 0 and has_cap_edge(p3D_1, stroke3D[-1] - stroke3D[-1 - k])
+                d = ((v0.co + ed * min(max(t, 0.0), 1.0)) - end_pt3D).length
+                reject = []
+                if dot > 0.9: reject.append(f'parallel dot={dot:.2f}')
+                if not (0.15 <= t <= 0.85): reject.append(f't={t:.2f}')
+                if d > cap_radius: reject.append(f'd={d:.3f}>{cap_radius:.3f}')
+                if DEBUG_SNAP_ENDS:
+                    ec = f'({v0.co.x:.2f},{v0.co.y:.2f},{v0.co.z:.2f})-({v1.co.x:.2f},{v1.co.y:.2f},{v1.co.z:.2f})'
+                    print(f'[cap:{label}] bme{bme.index} {ec} ' + (('REJECT: ' + ', '.join(reject)) if reject else f'OK d={d:.3f} dot={dot:.2f} t={t:.2f}'))
+                if reject: continue
+                if best is None or d < best[0]: best = (d, bme)
+            return best[1] if best else None
+        def end_tangent(at_end):
+            # Stroke direction at an end, measured over about one brush radius of arclength,
+            # NOT the last few samples, whose direction is end-of-drag hand jitter.
+            pts = stroke3D[::-1] if at_end else stroke3D
+            acc, j = 0.0, 0
+            while j < len(pts) - 1 and (acc < (radius3D or 0.0) or j < 3):
+                acc += (pts[j + 1] - pts[j]).length
+                j += 1
+            return pts[0] - pts[j]
+        cap_bme0 = find_cap_edge(p3D_0, end_tangent(False), 'start') if (len(stroke3D) > 1 and not snap_bmf0) else None
+        cap_bme1 = find_cap_edge(p3D_1, end_tangent(True), 'end') if (len(stroke3D) > 1 and not snap_bmf1) else None
+        if DEBUG_SNAP_ENDS:
+            print(f'[snap-ends] snap_bmf0={snap_bmf0.index if snap_bmf0 else None} snap_bmf1={snap_bmf1.index if snap_bmf1 else None} '
+                  f'cap0={cap_bme0.index if cap_bme0 else None} cap1={cap_bme1.index if cap_bme1 else None} joins={len(join_bme_list)}')
 
         def extend_cap(pts2D, from_start):
             # Extend the stroke past its unsnapped end by one brush radius in 3D
@@ -507,9 +522,9 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
             if not extension: return pts2D
             return (list(reversed(extension)) + pts2D) if from_start else (pts2D + extension)
 
-        if not snap_bmf0 and not start_cap:
+        if not snap_bmf0 and not cap_bme0:
             stroke2D = extend_cap(stroke2D, True)
-        if not snap_bmf1 and not end_cap:
+        if not snap_bmf1 and not cap_bme1:
             stroke2D = extend_cap(stroke2D, False)
         length2D = sum((p1-p0).length for (p0,p1) in iter_pairs(stroke2D, is_cycle))
         stroke3D = [raycast_point_valid_sources(context, pt, world=False, respect_clip_planes=True) for pt in stroke2D]
@@ -527,7 +542,9 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
             fixed_count=self.fixed_count,
             span_length=self.span_length,
             radius3D=radius3D,
-            join_vert_idx=join_vert_idx,
+            join_bmes=join_bme_list,
+            cap_bme0=cap_bme0,
+            cap_bme1=cap_bme1,
         )
 
     def get_preview_widths(self, context, brush):
@@ -559,8 +576,10 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
             return (w, w)
 
         if mode == 'SNAPPED':
-            def snapped_radius(bmf, pts):
+            def snapped_radius(bmf, from_start):
+                # size to the connection edge (where the stroke crosses the face boundary), matching the insert
                 if not bmf or not getattr(bmf, 'is_valid', False): return None
+                pts = PolyStrips_Logic.face_entry_points(bmf, stroke3D, from_start)
                 return PolyStrips_Logic.snapped_edge_radius(bmf, pts)
             caps = getattr(brush, 'snap_caps', None) or set()
             joins = getattr(brush, 'snap_join', None) or ()
@@ -569,8 +588,8 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
             def cap_radius_at(end_pt):
                 # nearest cap (within 1.5x its length) to this stroke end sets that end's width
                 return PolyStrips_Logic.nearest_edge_halfwidth(valid_caps, end_pt, max_dist=1.5)
-            w0 = snapped_radius(getattr(brush, 'snap_bmf0', None), stroke3D[:3])
-            w1 = snapped_radius(getattr(brush, 'snap_bmf1', None), stroke3D[-3:])
+            w0 = snapped_radius(getattr(brush, 'snap_bmf0', None), True)
+            w1 = snapped_radius(getattr(brush, 'snap_bmf1', None), False)
             if w0 is None: w0 = cap_radius_at(stroke3D[0])
             if w1 is None: w1 = cap_radius_at(stroke3D[-1])
             # The side rail nearest the start only, so the preview doesn't fluctuate as the stroke passes rails of varying length
@@ -601,8 +620,15 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
             if not bmf:
                 bmf = getattr(brush, 'snap_bmf0', None) or getattr(brush, 'snap_bmf1', None)
             pt = getattr(brush, 'hit_pl', None)
-            if bmf and getattr(bmf, 'is_valid', False) and pt is not None:
-                r_local = PolyStrips_Logic.snapped_edge_radius(bmf, [pt])
+            stroke3D = brush.stroke3D_original if brush.is_stroking() else None
+            if bmf and getattr(bmf, 'is_valid', False):
+                if stroke3D and len(stroke3D) >= 2:
+                    # while stroking, size to the connection edge where the stroke crossed the face boundary
+                    from_start = bmf == getattr(brush, 'snap_bmf0', None) and bmf != getattr(brush, 'snap_bmf1', None)
+                    ref_pts = PolyStrips_Logic.face_entry_points(bmf, stroke3D, from_start)
+                else:
+                    ref_pts = [pt] if pt is not None else None
+                r_local = PolyStrips_Logic.snapped_edge_radius(bmf, ref_pts)
                 if r_local is not None:
                     # snapped_edge_radius is local space (bme_length); the disc is world
                     return r_local * (brush.edit_scale or 1.0)
@@ -647,11 +673,13 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
             return {'RUNNING_MODAL'}
 
         if RFTool_PolyStrips.rf_brush.is_stroking():
+            RFTool_PolyStrips.rf_overlay.pause_overlay()
             self.set_statusbar_override(self.rf_status['insert'])
             if event.type in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE', 'LEFTMOUSE'}:
                 RFCore.handle_update(context, event)
                 return {'RUNNING_MODAL'}
         else:
+            RFTool_PolyStrips.rf_overlay.unpause_overlay()
             self.set_statusbar_override(None)
             if not event.ctrl:
                 Cursors.restore()

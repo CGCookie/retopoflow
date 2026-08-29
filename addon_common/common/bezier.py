@@ -242,6 +242,11 @@ def fit_cubicbezier_spline(
     return bezier0 + bezier1
 
 
+def cached_dist(a : Vector, b : Vector) -> float:
+    ''' The one distance metric these curves are measured with. '''
+    return (a - b).length
+
+
 class CubicBezier:
     split_default : int = 100
     segments_default : int = 100
@@ -250,7 +255,6 @@ class CubicBezier:
     p2 : Vector
     p3 : Vector
     tessellation : list[Vector]
-    fn_dist : Callable[[Vector, Vector], float] | None
 
     @staticmethod
     def create_from_points(pts_list : Sequence[Vector]) -> CubicBezier:
@@ -299,7 +303,6 @@ class CubicBezier:
     def __init__(self, p0 : Vector, p1 : Vector, p2 : Vector, p3 : Vector):
         self.p0, self.p1, self.p2, self.p3 = p0, p1, p2, p3
         self.tessellation = []
-        self.fn_dist = None
         # single-entry memo for get_tessellate_uniform / _get_arc_table -- see
         # _tess_memo_key. One entry, not a dict: within a frame every caller
         # asks about the same (unchanged) control points, and between frames
@@ -346,7 +349,7 @@ class CubicBezier:
             return [cb0, cb1]
         return cb0.subdivide(iters=iters-1) + cb1.subdivide(iters=iters-1)
 
-    def compute_linearity(self, fn_dist : Callable[[Vector, Vector], float]) -> float:
+    def compute_linearity(self) -> float:
         ''' Linearity measure: distance from the curve midpoint to the p0-p3 midpoint,
         over half the p0-p3 distance. 0 = straight. '''
         p0 = Vector(self.p0)
@@ -357,16 +360,15 @@ class CubicBezier:
         r0, r1 = (q0+q1)/2, (q1+q2)/2
         s = (r0+r1)/2
         m = (p0+p3)/2
-        d03 = fn_dist(p0, p3)
-        dsm = fn_dist(s, m)
+        d03 = cached_dist(p0, p3)
+        dsm = cached_dist(s, m)
         return 2 * dsm / d03
 
     def subdivide_linesegments(
         self,
-        fn_dist : Callable[[Vector, Vector], float],
         max_linearity : float | None = None,
     ) -> list[CubicBezier]:
-        if self.compute_linearity(fn_dist) < (max_linearity or 0.1):
+        if self.compute_linearity() < (max_linearity or 0.1):
             return [self]
         # de casteljau subdivide:
         p0 = Vector(self.p0)
@@ -378,22 +380,20 @@ class CubicBezier:
         s = (r0+r1)/2
         cbs = CubicBezier(p0, q0, r0, s), CubicBezier(s, r1, q2, p3)
         segs0, segs1 = [
-            cb.subdivide_linesegments(fn_dist, max_linearity=max_linearity)
+            cb.subdivide_linesegments(max_linearity=max_linearity)
             for cb in cbs
         ]
         return segs0 + segs1
 
     def length(
         self,
-        fn_dist : Callable[[Vector, Vector], float],
         max_linearity : float | None = None,
     ) -> float:
-        cbs = self.subdivide_linesegments(fn_dist, max_linearity=max_linearity)
-        return sum(fn_dist(cb.p0, cb.p3) for cb in cbs)
+        cbs = self.subdivide_linesegments(max_linearity=max_linearity)
+        return sum(cached_dist(cb.p0, cb.p3) for cb in cbs)
 
     def approximate_length_uniform(
         self,
-        fn_dist : Callable[[Vector, Vector], float],
         split : int | None = None,
     ) -> float:
         split = split or self.split_default
@@ -401,14 +401,13 @@ class CubicBezier:
         d = 0
         for i in range(split):
             q = self.eval((i+1) / split)
-            d += fn_dist(p, q)
+            d += cached_dist(p, q)
             p = q
         return d
 
     def approximate_t_at_interval_uniform(
         self,
         interval : float,  # should be int?
-        fn_dist : Callable[[Vector, Vector], float],
         split : int | None = None,
     ) -> float:
         split = split or self.split_default
@@ -417,24 +416,21 @@ class CubicBezier:
         for i in range(split):
             percent = (i+1) / split
             q = self.eval(percent)
-            d += fn_dist(p, q)
+            d += cached_dist(p, q)
             if interval <= d:
                 return percent
             p = q
         return 1
 
-    def _tess_memo_key(self, split : int, fn_dist : Callable[[Vector, Vector], float]):
-        ''' Identity of a tessellation result: the control points it was
-        sampled from, the sample count, and the metric the segment lengths
-        were measured with. Keying on the control point VALUES (rather than
-        an explicit dirty flag) is what makes the memo self-invalidating --
-        p0..p3 are mutated in place all over the place (every frame of a
-        handle drag), and no caller announces it. '''
-        return (self.p0[:], self.p1[:], self.p2[:], self.p3[:], split, fn_dist)
+    def _tess_memo_key(self, split : int):
+        ''' Identity of a tessellation result: the control points it was sampled
+        from, and the sample count. '''
+        # the point VALUES rather than a dirty flag: p0..p3 are mutated in place every
+        # frame of a handle drag and no caller announces it, so this self-invalidates
+        return (self.p0[:], self.p1[:], self.p2[:], self.p3[:], split)
 
     def _get_arc_table(
         self,
-        fn_dist : Callable[[Vector, Vector], float],
         split : int | None = None,
     ) -> tuple[list[tuple[float, Vector, float]], list[float], list[float]]:
         ''' Memoized (samples, sample ts, cumulative arc length at each
@@ -443,12 +439,12 @@ class CubicBezier:
         arc-length conversion once for every vert riding on it, every frame,
         which is exactly one table's worth of work shared by all of them. '''
         split = split or self.split_default
-        key = self._tess_memo_key(split, fn_dist)
+        key = self._tess_memo_key(split)
         memo = self._tess_memo
         if memo is None or memo[0] != key:
             ts = [i / (split - 1) for i in range(split)]
             ps = [self.eval(t) for t in ts]
-            ds = [0] + [fn_dist(p, q) for p, q in iter_pairs(ps, False)]
+            ds = [0] + [cached_dist(p, q) for p, q in iter_pairs(ps, False)]
             memo = (key, list(zip(ts, ps, ds)), ts, list(accumulate(ds)))
             self._tess_memo = memo
         return memo[1], memo[2], memo[3]
@@ -456,12 +452,11 @@ class CubicBezier:
     def approximate_arc_length_fraction_at_t(
         self,
         t : float,
-        fn_dist : Callable[[Vector, Vector], float],
         split : int | None = None,
     ) -> float:
         ''' Fraction (0..1) of total arc length between p0 and eval(t).
         Inverse of approximate_t_at_arc_length_fraction. '''
-        _, ts, cums = self._get_arc_table(fn_dist, split=split)
+        _, ts, cums = self._get_arc_table(split=split)
         total = cums[-1]
         if total < 1e-9:
             return 0.0
@@ -480,12 +475,11 @@ class CubicBezier:
     def approximate_t_at_arc_length_fraction(
         self,
         fraction : float,
-        fn_dist : Callable[[Vector, Vector], float],
         split : int | None = None,
     ) -> float:
         ''' The t whose arc length from p0 is `fraction` of the total.
         Inverse of approximate_arc_length_fraction_at_t. '''
-        _, ts, cums = self._get_arc_table(fn_dist, split=split)
+        _, ts, cums = self._get_arc_table(split=split)
         total = cums[-1]
         if total < 1e-9:
             return 0.0
@@ -506,23 +500,21 @@ class CubicBezier:
     def approximate_ts_at_intervals_uniform(
         self,
         intervals : list[float],  # should be int?
-        fn_dist : Callable[[Vector, Vector], float],
         split : int | None = None,
     ) -> list[float]:
         self_approx = self.approximate_t_at_interval_uniform
         def approx(i : float) -> float:
-            return self_approx(i, fn_dist, split=None)
+            return self_approx(i, split=None)
         return [ approx(interval) for interval in intervals ]
 
     def get_tessellate_uniform(
         self,
-        fn_dist : Callable[[Vector, Vector], float],
         split : int | None = None,
     ) -> list[tuple[float, Vector, float]]:
         ''' (t, eval(t), distance from the previous sample) for `split`
         uniformly spaced ts. Memoized -- see _get_arc_table. The returned list
         is the cached one, so callers must treat it as read-only. '''
-        samples, _, _ = self._get_arc_table(fn_dist, split=split)
+        samples, _, _ = self._get_arc_table(split=split)
         return samples
 
     def tessellate_uniform_points(
@@ -539,21 +531,16 @@ class CubicBezier:
     def tessellate_uniform(
         self,
         *,
-        fn_dist : Callable[[Vector, Vector], float] | None = None,
         split : int | None = None,
     ):
-        if not fn_dist:
-            fn_dist = lambda a, b: (a - b).length
-        self.fn_dist = fn_dist
-        self.tessellation = self.get_tessellate_uniform(fn_dist, split=split)
+        self.tessellation = self.get_tessellate_uniform(split=split)
 
     def _closest_point_tessellation(self, point : Vector) -> tuple[float, float]:
-        assert self.fn_dist, 'tessellate_uniform must be called first!'
-        fn_dist = self.fn_dist
+        assert self.tessellation, 'tessellate_uniform must be called first!'
         bt : float | None = None
         bd : float | None = None
         for (t, q, _) in self.tessellation:
-            d = fn_dist(point, q)
+            d = cached_dist(point, q)
             if bd is None or d < bd:
                 bd, bt = d, t
         assert bt is not None
@@ -1307,19 +1294,19 @@ class CubicBezierSpline:
             t = t - idx
         return self.cbs[idx].eval_derivative(t)
 
-    def approximate_totlength_uniform(self, fn_dist, split=None):
-        return sum(self.approximate_lengths_uniform(fn_dist, split=split))
+    def approximate_totlength_uniform(self, split=None):
+        return sum(self.approximate_lengths_uniform(split=split))
 
-    def approximate_lengths_uniform(self, fn_dist, split=None):
+    def approximate_lengths_uniform(self, split=None):
         return [
-            cb.approximate_length_uniform(fn_dist, split=split)
+            cb.approximate_length_uniform(split=split)
             for cb in self.cbs
         ]
 
     def approximate_ts_at_intervals_uniform(
-        self, intervals, fn_dist, split=None
+        self, intervals, split=None
     ):
-        lengths = self.approximate_lengths_uniform(fn_dist, split=split)
+        lengths = self.approximate_lengths_uniform(split=split)
         totlength = sum(lengths)
         ts = []
         for interval in intervals:
@@ -1332,7 +1319,7 @@ class CubicBezierSpline:
             for i, length in enumerate(lengths):
                 if interval <= length:
                     t = self.cbs[i].approximate_t_at_interval_uniform(
-                        interval, fn_dist, split=split)
+                        interval, split=split)
                     ts.append(i + t)
                     break
                 interval -= length
@@ -1340,22 +1327,20 @@ class CubicBezierSpline:
                 assert False
         return ts
 
-    def subdivide_linesegments(self, fn_dist, max_linearity=None):
+    def subdivide_linesegments(self, max_linearity=None):
         return CubicBezierSpline(cbi
                                  for cb in self.cbs
                                  for cbi in cb.subdivide_linesegments(
-                                     fn_dist,
                                      max_linearity=max_linearity
                                  ))
 
     # NOTE: everything below requires tessellate_uniform() to have been called first
 
-    def tessellate_uniform(self, *, fn_dist=None, split=None):
-        if not fn_dist: fn_dist = lambda a, b: (a - b).length
+    def tessellate_uniform(self, *, split=None):
         self.tessellation.clear()
         self._kd, self._kd_ts = None, []
         for i, cb in enumerate(self.cbs):
-            cb_tess = cb.get_tessellate_uniform(fn_dist, split=split)
+            cb_tess = cb.get_tessellate_uniform(split=split)
             self.tessellation.append(cb_tess)
 
     def tessellate_kdtree(self):
@@ -1382,9 +1367,7 @@ class CubicBezierSpline:
 
     def approximate_t_at_point_kdtree(self, point):
         ''' approximate_t_at_point_tessellation via the KD-tree from
-        tessellate_kdtree (which must have been called first). Euclidean
-        only -- there's no fn_dist hook, because a KD-tree can't answer
-        nearest under an arbitrary metric. '''
+        tessellate_kdtree (which must have been called first). '''
         assert self._kd is not None, 'tessellate_kdtree must be called first!'
         return self._kd_ts[self._kd.find(point)[1]]
 
@@ -1423,23 +1406,23 @@ class CubicBezierSpline:
                 assert False
         return ts
 
-    def approximate_ts_at_points_tessellation(self, points, fn_dist):
+    def approximate_ts_at_points_tessellation(self, points):
         ts = []
         for p in points:
             bd, bt = None, None
             for i, cb_tess in enumerate(self.tessellation):
                 for t, q, _ in cb_tess:
-                    d = fn_dist(p, q)
+                    d = cached_dist(p, q)
                     if bd is None or d < bd:
                         bd, bt = d, i+t
             ts.append(bt)
         return ts
 
-    def approximate_t_at_point_tessellation(self, point, fn_dist):
+    def approximate_t_at_point_tessellation(self, point):
         bd, bt = None, None
         for i, cb_tess in enumerate(self.tessellation):
             for t, q, _ in cb_tess:
-                d = fn_dist(point, q)
+                d = cached_dist(point, q)
                 if bd is None or d < bd:
                     bd, bt = d, i+t
         return bt

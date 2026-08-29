@@ -89,20 +89,16 @@ def _relax_interior_verts(bm, interior, iterations):
             displacement[idx] = total / weight_sum
             bm.verts[idx].co = orig_co[idx] + displacement[idx]
 
-def _distance_fn(a, b):
-    return (a - b).length
+def _segment_arc_length(cb):
+    return sum(d for _, _, d in cb.get_tessellate_uniform())
 
 
-def _segment_arc_length(cb, fn_dist):
-    return sum(d for _, _, d in cb.get_tessellate_uniform(fn_dist))
-
-
-def _cumulative_lengths(cbs, segs, fn_dist):
+def _cumulative_lengths(cbs, segs):
     ''' Running total arc length at each boundary of `segs` (len(segs)+1 entries, starting at 0). '''
-    cum = [0.0]
+    cumul = [0.0]
     for seg in segs:
-        cum.append(cum[-1] + _segment_arc_length(cbs[seg], fn_dist))
-    return cum
+        cumul.append(cumul[-1] + _segment_arc_length(cbs[seg]))
+    return cumul
 
 
 def _walk_free_run(start, step, nseg, cyclic, free_at_seg_p0, visited):
@@ -229,7 +225,6 @@ def create_curve_edit_operator(
             else:
                 self.feature_radius = 0.0
 
-            fn_dist = _distance_fn
 
             # segments this drag reshapes -- their verts track arc-length fraction
             # instead of raw t, which drifts spacing as a segment stretches
@@ -301,7 +296,7 @@ def create_curve_edit_operator(
 
             # all data is local to edit!
             data = {}
-            combined_cum = _cumulative_lengths(self.spline.cbs, self.combined_segs, fn_dist) if self.combined_segs else None
+            combined_cumul = _cumulative_lengths(self.spline.cbs, self.combined_segs) if self.combined_segs else None
             # face strips only: {vert index -> (rung midpoint, rungs from nearest open
             # end, is_boundary)}; empty for vertex-coupled chains
             rung_map = self.chain.get('deform_bmv_rungs') or {}
@@ -350,11 +345,11 @@ def create_curve_edit_operator(
                     combined_frac = None
                     if self.combined_segs and seg in self.combined_segs:
                         idx = self.combined_segs.index(seg)
-                        local_frac = self.spline.cbs[seg].approximate_arc_length_fraction_at_t(t - seg, fn_dist)
-                        dist_into_combined = combined_cum[idx] + local_frac * (combined_cum[idx + 1] - combined_cum[idx])
-                        combined_frac = dist_into_combined / max(combined_cum[-1], 1e-9)
+                        local_frac = self.spline.cbs[seg].approximate_arc_length_fraction_at_t(t - seg)
+                        dist_into_combined = combined_cumul[idx] + local_frac * (combined_cumul[idx + 1] - combined_cumul[idx])
+                        combined_frac = dist_into_combined / max(combined_cumul[-1], 1e-9)
                     elif seg in self.touched_segs:
-                        arc_frac = self.spline.cbs[seg].approximate_arc_length_fraction_at_t(t - seg, fn_dist)
+                        arc_frac = self.spline.cbs[seg].approximate_arc_length_fraction_at_t(t - seg)
                     data[bmv.index] = (
                         t,
                         d0,
@@ -954,8 +949,7 @@ def create_curve_edit_operator(
             # taper_scale is only ever set for a face-derived chain -- see _scale_handles
             taper_active = self.taper_scale is not None
             nseg = len(spline.cbs)
-            fn_dist = _distance_fn
-            combined_cum = _cumulative_lengths(spline.cbs, self.combined_segs, fn_dist) if self.combined_segs else None
+            combined_cumul = _cumulative_lengths(spline.cbs, self.combined_segs) if self.combined_segs else None
 
             # Pass 1: compute each vert's (anchor, offset) but don't finalize
             # bmv.co yet -- pass 2 needs a whole rung's results first. A rung's
@@ -977,19 +971,19 @@ def create_curve_edit_operator(
                 if combined_frac is not None:
                     # keep this vert's proportional position within the free-knot
                     # run's CURRENT total arc length
-                    target = combined_frac * combined_cum[-1]
+                    target = combined_frac * combined_cumul[-1]
                     idx = 0
-                    while idx < len(combined_cum) - 2 and target > combined_cum[idx + 1]:
+                    while idx < len(combined_cumul) - 2 and target > combined_cumul[idx + 1]:
                         idx += 1
                     seg = self.combined_segs[idx]
-                    seg_span = max(combined_cum[idx + 1] - combined_cum[idx], 1e-9)
-                    local_frac = (target - combined_cum[idx]) / seg_span
-                    t = seg + spline.cbs[seg].approximate_t_at_arc_length_fraction(local_frac, fn_dist)
+                    seg_span = max(combined_cumul[idx + 1] - combined_cumul[idx], 1e-9)
+                    local_frac = (target - combined_cumul[idx]) / seg_span
+                    t = seg + spline.cbs[seg].approximate_t_at_arc_length_fraction(local_frac)
                 elif arc_frac is not None:
                     # track arc-length fraction, not raw t, so the reshaping segment
                     # doesn't bunch its verts up or spread them out
                     seg = min(int(t), nseg - 1)
-                    t = seg + spline.cbs[seg].approximate_t_at_arc_length_fraction(arc_frac, fn_dist)
+                    t = seg + spline.cbs[seg].approximate_t_at_arc_length_fraction(arc_frac)
                 # how close the dragged Automatic knot is to the line between its
                 # neighbors, for rung verts on the two segments that line spans
                 horizon_boost = self.horizon_factor if (is_rung and seg in self.horizon_segs) else 0.0

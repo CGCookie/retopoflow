@@ -49,7 +49,7 @@ from ..common.maths import (
     enforce_path_min_gap, sample_even,
 )
 from ..common.accel import SourceMeshCache
-from ..common.raycast import raycast_ray_valid_sources, nearest_point_valid_sources, nearest_normal_valid_sources, raycast_multiple_hits
+from ..common.raycast import raycast_ray_valid_sources, nearest_point_valid_sources, raycast_multiple_hits
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.debug import debugger
 from ...addon_common.terminal import term_printer
@@ -283,6 +283,25 @@ def sample_curvature(points: list, cyclic: bool, vertex_count: int, path_length:
     return path_facs_to_positions(points, final_path_factors, cyclic)
 
 
+SPAN_COUNT_RANGE = (3, 500)  # Mirrors the min/max on the matching bpy props in contours.py
+LOOP_COUNT_RANGE = (1, 20)
+
+def clamp_span_count(count: float) -> int:
+    lo, hi = SPAN_COUNT_RANGE
+    return max(lo, min(hi, round(count)))
+
+def clamp_loop_count(count: float) -> int:
+    lo, hi = LOOP_COUNT_RANGE
+    return max(lo, min(hi, round(count)))
+
+def mean_world_edge_length(bmes, matrix_world) -> float:
+    ''' Mean world-space length of the given edges; 0 when there are none. '''
+    if not bmes: return 0.0
+    return sum(
+        ((matrix_world @ bme.verts[0].co) - (matrix_world @ bme.verts[1].co)).length
+        for bme in bmes
+    ) / len(bmes)
+
 class Contours_Logic:
     matrix_world : Matrix | None
     matrix_world_inv : Matrix | None
@@ -349,6 +368,7 @@ class Contours_Logic:
                  sample_points:int=50, fast_refine_steps:int=5, sdf_refine_steps:int=3, skip_step_size:float=0.5, sample_width:float=0.25,
                  sdf_grid_size:float=0.25, sdf_subdivisions:int=0, sdf_extent_scale:float=1.5,
                  curvature_bias:float=0.7, space_evenly:float=1.0,
+                 span_insert_mode:str='FIXED', span_length:float=0.1,
                  sdf_stroke_world_len:float=0.0):
         self.hit = hit
         self.hits = hits
@@ -390,6 +410,9 @@ class Contours_Logic:
 
         self.show_span_count = False
         self.span_count = span_count
+
+        self.span_insert_mode = span_insert_mode
+        self.span_length = span_length
 
         self.show_twist = False
         self.twist = 0
@@ -619,6 +642,10 @@ class Contours_Logic:
             self.insert_bridge(context)
         else:
             self.insert_new_cut(context)
+        # The counts are settled, so hand AVERAGE back as FIXED and let the artist adjust the number.
+        # LENGTH stays put so its distance remains live in the redo panel.
+        if self.span_insert_mode == 'AVERAGE':
+            self.span_insert_mode = 'FIXED'
         bmops.flush_selection(self.bm, self.em)
 
     def order_ring_verts(self, nbmvs_set: set) -> list:
@@ -781,6 +808,9 @@ class Contours_Logic:
 
     def insert_bridge(self, context:Context):
         orig_verts = {bv for bme in self.sel_path for bv in bme.verts}
+        _M = self.matrix_world
+
+        avg_ring_length = mean_world_edge_length(self.sel_path, _M)
 
         new_bm_elems = bmesh.ops.extrude_edge_only(self.bm, edges=self.sel_path)['geom']
         new_bmvs = [bmelem for bmelem in new_bm_elems if type(bmelem) is BMVert]
@@ -790,52 +820,108 @@ class Contours_Logic:
         self.redistribute_ring(context, new_bmvs)
         all_new_bmfs = [bmelem for bmelem in new_bm_elems if type(bmelem) is BMFace]
 
-        if self.loop_count > 1:
+        new_verts_set = set(new_bmvs)
+        lateral_edges = list({
+            bme
+            for bmv in new_bmvs
+            for bme in bmv.link_edges
+            if any(bv in orig_verts for bv in bme.verts)
+        })
+        # Mean extrusion length, measured before subdividing splits these edges
+        max_correction = mean_world_edge_length(lateral_edges, _M)
+
+        # Derive how many loops to cut so the new quads come out as even as possible.
+        # Clamped to the loop_count property's range so the mesh and the redo panel can't diverge.
+        match self.span_insert_mode:
+            case 'AVERAGE' if avg_ring_length > 0:
+                self.loop_count = clamp_loop_count(max_correction / avg_ring_length)
+            case 'LENGTH' if self.span_length > 0:
+                self.loop_count = clamp_loop_count(max_correction / self.span_length)
+
+        if self.loop_count > 1 and lateral_edges:
             # Add more loop cuts to the bridge
-            new_verts_set = set(new_bmvs)
-            lateral_edges = list({
-                bme
-                for bmv in new_bmvs
-                for bme in bmv.link_edges
-                if any(bv in orig_verts for bv in bme.verts)
+            result = bmesh.ops.subdivide_edgering(
+                self.bm,
+                edges=lateral_edges,
+                cuts=self.loop_count - 1,
+            )
+            intermediate_verts = list({
+                bv
+                for bmf in result['faces']
+                for bv in bmf.verts
+                if bv not in orig_verts and bv not in new_verts_set
             })
-            if lateral_edges:
-                result = bmesh.ops.subdivide_edgering(
-                    self.bm,
-                    edges=lateral_edges,
-                    cuts=self.loop_count - 1,
-                )
-                intermediate_verts = list({
-                    bv
-                    for bmf in result['faces']
-                    for bv in bmf.verts
-                    if bv not in orig_verts and bv not in new_verts_set
-                })
-                # Find final positions before moving any vert so loop normals are accurate
-                new_cos = {}
-                for bmv in intermediate_verts:
-                    npt_world = point_to_bvec3(self.matrix_world @ bvec_to_point(bmv.co))
-                    # Find nearest surface point as reference / fallback
-                    nearest = nearest_point_valid_sources(context, npt_world, world=True, respect_clip_planes=True)
-                    npt_snapped = nearest
-                    # Get the outward surface normal at that nearest point.
-                    surface_normal = nearest_normal_valid_sources(context, npt_world, world=True)
-                    if surface_normal is not None and nearest is not None:
-                        # Raycast in both directions and pick whichever hit is closest to the nearest surface
-                        hits = []
-                        for sign in (1, -1):
-                            ray_dir = Vector((*(surface_normal * sign), 0.0))
-                            hit = raycast_ray_valid_sources(context, (Vector((*npt_world, 1.0)), ray_dir), world=True, respect_clip_planes=True)
-                            if hit is not None:
-                                hits.append(hit)
-                        if hits:
-                            npt_snapped = min(hits, key=lambda h: (h - nearest).length)
-                    if npt_snapped is not None:
-                        new_cos[bmv] = self.matrix_world_inv @ npt_snapped
-                # Apply all positions at once.
-                for bmv, co in new_cos.items():
-                    bmv.co = co
-                all_new_bmfs = result['faces']
+            self.bm.normal_update() # Important for per-vert raycasting below
+            M_normal = self.matrix_world_inv.transposed()
+
+            # Group intermediate verts by loop and find the loop plane.
+            # Used to refine the loop if nearest surface snap is used.
+            intermediate_set = set(intermediate_verts)
+            loop_depth = {}
+            frontier, seen, depth = list(orig_verts), set(orig_verts), 0
+            while frontier:
+                depth += 1
+                next_frontier = []
+                for bmv in frontier:
+                    for bme in bmv.link_edges:
+                        other = bme.other_vert(bmv)
+                        if other in seen or other not in intermediate_set: continue
+                        seen.add(other)
+                        loop_depth[other] = depth
+                        next_frontier.append(other)
+                frontier = next_frontier
+
+            verts_by_depth = defaultdict(list)
+            for bmv, d in loop_depth.items():
+                verts_by_depth[d].append(bmv)
+            loop_planes = {
+                d: Plane.fit_to_points([Point(bmv.co) for bmv in bmvs])
+                for d, bmvs in verts_by_depth.items()
+            }
+
+            # Find final positions before moving any vert so loop normals stay accurate
+            new_cos = {}
+            for bmv in intermediate_verts:
+                npt_world = point_to_bvec3(self.matrix_world @ bvec_to_point(bmv.co))
+                # Nearest surface point
+                npt_snapped = nearest_point_valid_sources(context, npt_world, world=True, respect_clip_planes=True)
+                snapped_by_ray = False
+                # Cast along the vert's normal
+                vert_normal = (M_normal @ Vector((*bmv.normal, 0.0))).xyz
+                if vert_normal.length_squared > 1e-12:
+                    vert_normal.normalize()
+                    # Winding is not settled until ensure_correct_normals below, so cast both ways
+                    hits = []
+                    for sign in (1, -1):
+                        ray_dir = Vector((*(vert_normal * sign), 0.0))
+                        hit = raycast_ray_valid_sources(context, (Vector((*npt_world, 1.0)), ray_dir), world=True, respect_clip_planes=True)
+                        if hit is not None:
+                            hits.append(hit)
+                    if hits:
+                        best = min(hits, key=lambda h: (h - npt_world).length)
+                        # Reject a ray that grazed down a crevice and exited somewhere unrelated
+                        if (best - npt_world).length <= max_correction:
+                            npt_snapped = best
+                            snapped_by_ray = True
+                if not snapped_by_ray and npt_snapped is not None:
+                    # Nearest point drags the vert along the surface, off its loop plane.
+                    # Return it to the loop's plane then snap again.
+                    plane = loop_planes.get(loop_depth.get(bmv))
+                    if plane:
+                        co_local = self.matrix_world_inv @ npt_snapped
+                        lp = plane.w2l_point(co_local)
+                        lp.z = 0
+                        co_plane_world = point_to_bvec3(self.matrix_world @ bvec_to_point(Vector(plane.l2w_point(lp))))
+                        resnapped = nearest_point_valid_sources(context, co_plane_world, world=True, respect_clip_planes=True)
+                        # Only keep the second snap if it is a reasonable distance
+                        if resnapped is not None and (resnapped - co_plane_world).length <= max_correction:
+                            npt_snapped = resnapped
+                if npt_snapped is not None:
+                    new_cos[bmv] = self.matrix_world_inv @ npt_snapped
+            # Apply all positions at once.
+            for bmv, co in new_cos.items():
+                bmv.co = co
+            all_new_bmfs = result['faces']
 
         ensure_correct_normals(self.bm, all_new_bmfs, use_centroid=True, flip=self.flip_normals)
         self.action = 'Extrude Loop' if self.cyclic else 'Extrude Strip'
@@ -1090,6 +1176,16 @@ class Contours_Logic:
                     points = [new_start] + points[i + 1:] + points[:i + 1]
                     break
                 acc += seg
+
+        if self.span_insert_mode == 'LENGTH' and self.span_length > 0:
+            # Size the ring to a world space distance
+            world_length = sum(
+                ((M @ pt0) - (M @ pt1)).length
+                for (pt0, pt1) in iter_pairs(points, self.cyclic)
+            )
+            # Written back so the redo panel and Ctrl+Scroll get a concrete count to work from,
+            # clamped to the span_count property's range so they don't diverge.
+            self.span_count = clamp_span_count(world_length / self.span_length)
 
         vertex_count = self.span_count if self.cyclic else self.span_count + 1
         if self.mirror_clipped_loop:

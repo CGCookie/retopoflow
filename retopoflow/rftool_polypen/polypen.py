@@ -48,6 +48,7 @@ from ..rfoperators.transform import RFOperator_Translate, sync_projection_from_b
 from ..rfoperators.maximize_watcher import RFOperator_MaximizeWatcher
 from ..rfoperators.topo_rotate import RFOperator_TopoRotate
 from ..rfoperators.zipper import RFOperator_Zipper
+from ..rfoperators.adjust_segment_count import adjust_selected_strip
 
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
 from ..rfpanels.tweaking_panel import draw_tweaking_panel, draw_tweaking_popover
@@ -319,6 +320,33 @@ def switch_rftool(context):
     RFTool_PolyPen.activate_tool(context)
 
 
+# PolyPen inserts one element at a time, so there is no insert count to redo.
+# Ctrl+Scroll goes straight to the generic adjuster on the selected strip or edge run.
+# Only the down half carries op_props, so the pair draws a single status bar hint.
+@execute_operator(
+    'polypen_adjust_count_decreased', 'Decrease segment count', options={'INTERNAL'},
+    keymaps=[(
+        'retopoflow.polypen_adjust_count_decreased',
+        {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'ctrl': 1},
+        {'km_context': 'init', 'km_label': 'Adjust Count'},
+    )],
+)
+def polypen_decrease_count(context):
+    adjust_selected_strip(context, -1)
+
+
+@execute_operator(
+    'polypen_adjust_count_increased', 'Increase segment count', options={'INTERNAL'},
+    keymaps=[(
+        'retopoflow.polypen_adjust_count_increased',
+        {'type': 'WHEELUPMOUSE', 'value': 'PRESS', 'ctrl': 1},
+        None,
+    )],
+)
+def polypen_increase_count(context):
+    adjust_selected_strip(context, +1)
+
+
 RFOperator_PolyPen_Overlay = create_curve_overlay(
     'RFOperator_PolyPen_Selection_Overlay',
     'retopoflow.polypen',  # must match RFTool_base.bl_idname
@@ -360,6 +388,8 @@ class RFTool_PolyPen(RFTool_Base):
 
     bl_keymap : BLKeyMaps = chain_rf_keymaps(
         RFOperator_PolyPen,
+        polypen_decrease_count,
+        polypen_increase_count,
         RFOperator_PolyPen_Edit,
         RFOperator_PolyPen_ToggleHandleType,
         RFOperator_MaximizeWatcher,
