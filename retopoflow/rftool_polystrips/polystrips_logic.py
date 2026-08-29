@@ -497,7 +497,7 @@ class PolyStrips_Logic:
             if bme not in unused: continue
             chains.append(walk(bme.verts[0], bme))
 
-        def foot(pt):
+        def closest_pt_on_stroke(pt):
             best = None
             for si in range(nstroke - 1):
                 cp = closest_point_segment(pt, stroke[si], stroke[si + 1])
@@ -508,7 +508,7 @@ class PolyStrips_Logic:
 
         runs = []
         for verts in chains:
-            feet = [foot(v.co) for v in verts]
+            feet = [closest_pt_on_stroke(v.co) for v in verts] # as in foot of the perpendicular
             als = [f[1] for f in feet]
             if als[0] > als[-1]:
                 verts, feet, als = verts[::-1], feet[::-1], als[::-1]
@@ -563,12 +563,13 @@ class PolyStrips_Logic:
         verts, feet = run['verts'], run['feet']
         n = len(verts)
 
-        # Rung direction per vert: perpendicular to the run in the surface plane, toward the stroke
-        # The existing edges win the direction, the stroke wins the width
+        # Rung direction per vert: perpendicular to the run, lying in the surface, pointing toward the stroke.
+        # The existing edges define the direction, the stroke defines the side and the width.
+        # "In the surface" is defined by the surface normal sampled at the vert's closest point on the stroke.
         perps, sides, nrms = [], [], []
         for i, v in enumerate(verts):
             d = verts[min(n - 1, i + 1)].co - verts[max(0, i - 1)].co
-            nrm = Direction(nearest_normal_valid_sources(context, M @ v.co, world=False))
+            nrm = Direction(nearest_normal_valid_sources(context, M @ feet[i][2], world=False))
             nrms.append(nrm)
             p = d.cross(nrm)
             p = p.normalized() if p.length else Vector((0.0, 0.0, 0.0))
@@ -587,9 +588,14 @@ class PolyStrips_Logic:
             d_in, d_out = verts[i].co - verts[i - 1].co, verts[i + 1].co - verts[i].co
             if d_in.length == 0 or d_out.length == 0: continue
             if d_in.normalized().dot(d_out.normalized()) > cos_split: continue
+            # Sharp bend! Test if it is a bend with the surface (fold) or across the surface (corner).
+            # For vert C on the crease, X = B + D - C gives us a supposed forth point to complete the quad.
+            # If X is within a quarter edge len of the surface we get a corner, if not we are on a fold.
+            X = verts[i - 1].co + verts[i + 1].co - verts[i].co
+            if (self.nearest_point(context, X) - X).length > 0.25 * min(d_in.length, d_out.length):
+                continue
             # continuing the grid through the corner lands on the strip's side only when the strip
             # is inside the wedge, i.e. the weld is on the outside of the turn
-            X = verts[i - 1].co + verts[i + 1].co - verts[i].co
             corner[i] = 'int' if (X - verts[i].co).dot(feet[i][2] - verts[i].co) > 0 else 'ext'
 
         plans, quads, shared_cos = [], [], []
@@ -717,7 +723,8 @@ class PolyStrips_Logic:
     def grid_outward_co(bmv, dir_outward, width):
         ''' Position for a rung's outer vert, continuing the existing grid outward from the welded vert `bmv`:
         `width` along whichever of its edges best matches `dir_outward`. Returns None when it has no outgoing edge. '''
-        best_dir, best_dot = None, 1e-4  # ignore edges along the boundary (dot ~ 0) or pointing inward
+        # The edge has to agree with the rung direction to be worth continuing.
+        best_dir, best_dot = None, 0.5 # 0.5 is roughly 60 degrees
         for e in bmv.link_edges:
             other = e.other_vert(bmv)
             d = bmv.co - other.co
