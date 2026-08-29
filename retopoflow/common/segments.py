@@ -40,7 +40,9 @@ from ..common.curves import (
 from ..common.maths import lerp, clamp, interp_piecewise
 from ..common.raycast import nearest_point_valid_sources, nearest_normal_valid_sources
 from ..common.accel import SourceCache
-from ..common.snapping import fold_crease, source_snap_radius, source_snap_settings
+from ..common.snapping import (
+    fold_crease, smoothed_normals, snap_along_normal, source_snap_radius, source_snap_settings,
+)
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.maths import Direction, sign_threshold
 from ...addon_common.common.utils import dedup
@@ -354,49 +356,62 @@ class QuadStripProvider:
             fracs = [j / count for j in range(nstations)]
         else:
             fracs = stations_with_reserved_fracs(nstations, reserved_fracs)
+        raw = [Vector(spline.eval(t)) for t in ts_at_arc_fracs(spline, fracs)]
+        base_half = (sum(recipe.half_widths) / len(recipe.half_widths)) if recipe.half_widths else 0.1
+
+        # from the unsnapped stations
+        normals_raw = [
+            Vector(nearest_normal_valid_sources(context, Mw @ p, world=False) or Vector((0, 0, 1)))
+            for p in raw
+        ]
+        # smooth over a full strip width to keep scan noise out of the rung frame
+        normals = [Direction(n) for n in smoothed_normals(raw, normals_raw, 4 * base_half)]
         stations = [
-            (nearest_point_valid_sources(context, Mw @ p, world=False, respect_clip_planes=True) or p)
-            for p in (Vector(spline.eval(t)) for t in ts_at_arc_fracs(spline, fracs))
+            (snap_along_normal(context, p, Mw, Mwi, along_local=Vector(n),
+                               max_correction=2 * base_half) or p)
+            for p, n in zip(raw, normals)
         ]
 
-        # Per-station frame (mirror PolyStrips' right-vector construction)
-        normals = [Direction(nearest_normal_valid_sources(context, Mw @ p, world=False) or Vector((0, 0, 1))) for p in stations]
-
         # Pin fold stations onto the source crease and remember the crease direction so the rung can lay along it.
-        base_half = (sum(recipe.half_widths) / len(recipe.half_widths)) if recipe.half_widths else 0.1
         fold_station_indices = [] if cyclic else [
             i for i, f in enumerate(fracs)
             if 0 < i < nstations - 1 and any(abs(f - sf) < 1e-6 for sf in sharp_fracs)
         ]
         fold_dirs = {}
         for i in fold_station_indices:
+            # Raw normals here, never smoothed ones. This intersects the two adjacent
+            # face planes to find the crease, and smoothing destroys exactly that signal
             crease = fold_crease(
-                stations[i], stations[i - 1], normals[i - 1], stations[i + 1], normals[i + 1],
+                stations[i], stations[i - 1], normals_raw[i - 1], stations[i + 1], normals_raw[i + 1],
                 Mw, Mwi, source_accel=source_accel, feature_radius=feature_radius,
                 max_plane_dist=2 * base_half,
             )
             if crease is not None:
                 stations[i], fold_dirs[i] = crease
 
-        forwards, backwards = [], []
+        # Rung direction, from a tangent measured over a baseline of arclength so surface
+        # bumps between neighbouring stations can't tilt it.
+        cumul = [0.0]
+        for a, b in zip(stations[:-1], stations[1:]):
+            cumul.append(cumul[-1] + (b - a).length)
+        span = cumul[-1] or 1e-6
+        baseline = min(2 * base_half, 0.25 * span)
+
+        def tangent_at(i):
+            lo = hi = i
+            while lo > 0 and cumul[i] - cumul[lo] < baseline: lo -= 1
+            while hi < nstations - 1 and cumul[hi] - cumul[i] < baseline: hi += 1
+            if cyclic and lo == hi:
+                lo, hi = (i - 1) % nstations, (i + 1) % nstations
+            v = stations[hi] - stations[lo]
+            return Vector(v) if v.length > 1e-9 else None
+
+        rights, prev_t = [], None
         for i in range(nstations):
-            if cyclic:
-                nxt, prv = stations[(i + 1) % nstations], stations[(i - 1) % nstations]
-            else:
-                nxt = stations[i + 1] if i + 1 < nstations else stations[i]
-                prv = stations[i - 1] if i - 1 >= 0 else stations[i]
-            fvec, bvec = nxt - stations[i], prv - stations[i]
-            forwards.append(Direction(fvec) if fvec.length > 1e-9 else normals[i])
-            if bvec.length > 1e-9:
-                backwards.append(Direction(bvec))
-            elif fvec.length > 1e-9:
-                backwards.append(Direction(-fvec))
-            else:
-                backwards.append(normals[i])
-        rights = [
-            (Vector(f.cross(n)).normalized() + Vector(n.cross(b)).normalized())
-            for (b, f, n) in zip(backwards, forwards, normals)
-        ]
+            t = tangent_at(i) or prev_t
+            prev_t = t or prev_t
+            r = Vector(t).cross(Vector(normals[i])) if t else Vector()
+            rights.append(r)
         # Sign-propagate so "rail 0" stays on one side the whole way regardless of each station's cross-product sign
         r_signed = []
         for i, r in enumerate(rights):
@@ -438,6 +453,7 @@ class QuadStripProvider:
 
         # Build the two new rails, reusing any welded end verts
         new_verts : list[BMVert] = []
+        rail_snaps : list[tuple] = []   # (vert, rung normal, cap) -- welded end verts stay out of it
 
         def rail_pair(i):
             p, r, w = stations[i], r_signed[i], widths[i]
@@ -454,14 +470,15 @@ class QuadStripProvider:
                     for0, for1 = vA, vB
                 else:
                     for0, for1 = vB, vA
-                v0 = for0 if (for0 is not None and for0.is_valid) else _new_vert(slot0_pos)
-                v1 = for1 if (for1 is not None and for1.is_valid) else _new_vert(slot1_pos)
+                v0 = for0 if (for0 is not None and for0.is_valid) else _new_vert(slot0_pos, i)
+                v1 = for1 if (for1 is not None and for1.is_valid) else _new_vert(slot1_pos, i)
                 return v0, v1
-            return _new_vert(slot0_pos), _new_vert(slot1_pos)
+            return _new_vert(slot0_pos, i), _new_vert(slot1_pos, i)
 
-        def _new_vert(co):
+        def _new_vert(co, i):
             nv = bm.verts.new(co)
             new_verts.append(nv)
+            rail_snaps.append((nv, Vector(normals[i]), 2 * widths[i]))
             return nv
 
         rail0, rail1 = [], []
@@ -471,8 +488,8 @@ class QuadStripProvider:
             rail1.append(v1)
 
         # Snap new verts to the source, then pin any that land on a mirror plane
-        for v in new_verts:
-            if snapped := nearest_point_valid_sources(context, Mw @ v.co, world=False, respect_clip_planes=True):
+        for v, n, cap in rail_snaps:
+            if snapped := snap_along_normal(context, v.co, Mw, Mwi, along_local=n, max_correction=cap):
                 v.co = snapped
         pin_to_mirror_planes(context, new_verts, recipe.mirror_axes)
 

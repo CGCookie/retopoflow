@@ -27,7 +27,7 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d
 
 from .bmesh import get_bmv_avg_edge_len, get_bmv_next_loop_vert, is_bmvert_corner
 from .maths import local_to_world, point_to_bvec3
-from .raycast import raycast_valid_sources
+from .raycast import raycast_valid_sources, raycast_ray_valid_sources, nearest_point_valid_sources
 
 
 FEATURE_RUN_MARGIN_FACTOR = 2.0 # How far beyond the brush in avg edge lengths to classify feature edges
@@ -172,6 +172,51 @@ def seed_source_snap_props(context, props):
     snapping = context.scene.retopoflow.snapping
     for name in SOURCE_EDGE_PROP_NAMES:
         setattr(props, name, getattr(snapping, name))
+
+
+def snap_along_normal(context, co_local, matrix_world, matrix_world_inv,
+                     along_local=None, max_correction=None):
+    ''' Project a local-space position onto the source, or None if nothing is in reach. '''
+    # cast along the surface normal instead of taking the nearest point to reduce noise on bumpy surfaces
+    co_world = matrix_world @ co_local
+    if along_local is not None:
+        d = (matrix_world_inv.transposed() @ Vector((*along_local, 0.0))).xyz
+        if d.length_squared > 1e-12:
+            d.normalize()
+            hits = [
+                hit
+                for sign in (1, -1)
+                if (hit := raycast_ray_valid_sources(
+                    context, (Vector((*co_world, 1.0)), Vector((*(d * sign), 0.0))),
+                    world=True, respect_clip_planes=True,
+                )) is not None
+            ]
+            if hits:
+                hit = min(hits, key=lambda h: (h - co_world).length)
+                # a ray that travelled too far grazed a crease or shot past a silhouette
+                if max_correction is None or (hit - co_world).length <= max_correction:
+                    return matrix_world_inv @ hit
+    snapped = nearest_point_valid_sources(context, co_world, respect_clip_planes=True)
+    return (matrix_world_inv @ snapped) if snapped else None
+
+
+def smoothed_normals(points, normals, window):
+    ''' Box average of per-point source normals over +/-`window` of arclength (prefix sums, O(n)). '''
+    n = len(points)
+    if n <= 2 or window <= 0: return list(normals)
+    cumul = [0.0]
+    for i in range(1, n):
+        cumul.append(cumul[-1] + (Vector(points[i]) - Vector(points[i - 1])).length)
+    pre = [Vector((0.0, 0.0, 0.0))]
+    for no in normals:
+        pre.append(pre[-1] + Vector(no))
+    out, j0, j1 = [], 0, 0
+    for i in range(n):
+        while j0 < i and cumul[j0] < cumul[i] - window: j0 += 1
+        while j1 < n - 1 and cumul[j1 + 1] <= cumul[i] + window: j1 += 1
+        v = pre[j1 + 1] - pre[j0]
+        out.append(v.normalized() if v.length_squared > 0 else Vector(normals[i]))
+    return out
 
 
 def source_snap_radius(ref_len_world, *, use_fixed, fixed_distance, avg_edge_factor):
