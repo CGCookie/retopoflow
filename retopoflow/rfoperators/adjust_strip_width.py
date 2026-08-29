@@ -22,7 +22,7 @@ Created by Jonathan Denning, Jonathan Lampel
 import bpy
 
 from ..common.operator import RFOperator_Execute
-from ..common.segments import detect_adjustable_strip
+from ..common.segments import detect_adjustable_strip, same_chain_shape
 from ...addon_common.common import bmesh_ops as bmops
 
 
@@ -63,12 +63,22 @@ class RFOperator_AdjustStripWidth(RFOperator_Execute):
         layout.prop(self, 'scale_start')
         layout.prop(self, 'scale_end')
 
+    def _find_widthed_strip(self, context):
+        ''' detect_adjustable_strip, minus the chains that have no width to scale (like wire edge runs). '''
+        found = detect_adjustable_strip(context)
+        if found is None:
+            self.report({'WARNING'}, 'Adjust Strip Width: select a single quad strip or ring first')
+            return None
+        if not found[2].has_width:
+            self.report({'WARNING'}, 'Adjust Strip Width: an edge run has no width to adjust')
+            return None
+        return found
+
     def invoke(self, context, event):
         # explicit scale means the caller already knows its target so run as-is.
         if not self.properties.is_property_set('scale_start'):
-            found = detect_adjustable_strip(context)
+            found = self._find_widthed_strip(context)
             if found is None:
-                self.report({'WARNING'}, 'Adjust Strip Width: select a single quad strip or ring first')
                 return {'CANCELLED'}
             bm, em, provider, descriptor = found
             recipe = provider.capture(context, bm, descriptor)
@@ -80,15 +90,14 @@ class RFOperator_AdjustStripWidth(RFOperator_Execute):
         return self.execute(context)
 
     def execute(self, context):
-        found = detect_adjustable_strip(context)
+        found = self._find_widthed_strip(context)
         if found is None:
-            self.report({'WARNING'}, 'Adjust Strip Width: select a single quad strip or ring first')
             return {'CANCELLED'}
         bm, em, provider, descriptor = found
 
         cached = RFOperator_AdjustStripWidth._cached_shape
         fresh = provider.capture(context, bm, descriptor)
-        reuse_shape = cached is not None and provider.is_same_chain(cached, fresh)
+        reuse_shape = cached is not None and same_chain_shape(cached, fresh)
         recipe = provider.capture(context, bm, descriptor, shape_of=cached) if reuse_shape else fresh
         RFOperator_AdjustStripWidth._cached_shape = recipe
 

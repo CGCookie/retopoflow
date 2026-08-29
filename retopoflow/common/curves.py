@@ -24,7 +24,7 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 
 from mathutils import Vector
-from bmesh.types import BMesh, BMFace, BMEdge
+from bmesh.types import BMesh, BMFace, BMEdge, BMVert
 from bpy.types import Context
 
 from .bmesh import (
@@ -294,6 +294,25 @@ def enclosed_selected_faces(loop_bmes, sel_bmfs : set) -> set:
     return visited
 
 
+def ordered_strip_bmvs(strip : Sequence[BMEdge], *, cyclic : bool) -> list[BMVert]:
+    ''' Walk a chain of edges into its BMVerts in order. A cyclic chain's verts
+    are returned once each (the wrap vert is not repeated at the end). '''
+    if not strip:
+        return []
+    if len(strip) == 1:
+        return list(strip[0].verts)
+    if cyclic:
+        start = bmes_shared_bmv(strip[-1], strip[0])
+        if not start:
+            return []
+        bmvs = get_strip_bmvs(strip, start)
+        if len(bmvs) > 1 and bmvs[0] == bmvs[-1]:
+            bmvs = bmvs[:-1]  # drop duplicated wrap vert
+        return bmvs
+    start = bme_unshared_bmv(strip[0], strip[1])
+    return get_strip_bmvs(strip, start)
+
+
 class LoopStripChainProvider(ChainProvider):
     ''' Selected edges -> open strips and closed loops of BMVerts. '''
 
@@ -324,31 +343,15 @@ class LoopStripChainProvider(ChainProvider):
 
         specs = []
         for strip in strips:
-            spec = self._make_spec(self._strip_bmvs(strip, cyclic=False), cyclic=False, avg_len=avg_len)
+            spec = self._make_spec(ordered_strip_bmvs(strip, cyclic=False), cyclic=False, avg_len=avg_len)
             if spec: specs.append(spec)
         for cycle in cycles:
             spec = self._make_spec(
-                self._strip_bmvs(cycle, cyclic=True), cyclic=True, avg_len=avg_len,
+                ordered_strip_bmvs(cycle, cyclic=True), cyclic=True, avg_len=avg_len,
                 loop_bmes=cycle, sel_bmfs=sel_bmfs,
             )
             if spec: specs.append(spec)
         return specs
-
-    def _strip_bmvs(self, strip, *, cyclic):
-        if not strip:
-            return []
-        if len(strip) == 1:
-            return list(strip[0].verts)
-        if cyclic:
-            start = bmes_shared_bmv(strip[-1], strip[0])
-            if not start:
-                return []
-            bmvs = get_strip_bmvs(strip, start)
-            if len(bmvs) > 1 and bmvs[0] == bmvs[-1]:
-                bmvs = bmvs[:-1]  # drop duplicated wrap vert
-            return bmvs
-        start = bme_unshared_bmv(strip[0], strip[1])
-        return get_strip_bmvs(strip, start)
 
     def _make_spec(self, bmvs, *, cyclic, avg_len, loop_bmes=None, sel_bmfs=None) -> ChainSpec | None:
         if not bmvs:

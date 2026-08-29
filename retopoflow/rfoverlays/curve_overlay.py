@@ -159,6 +159,10 @@ def create_curve_overlay(
 
     overlay_names.add(label)
 
+    # The tool's own ctrl-modal shows up in window.modal_operators like a transform would,
+    # but update_data must keep rebuilding through it to draw the count labels.
+    own_tool_bl_idname = _internal_bl_idname(rftool_idname)
+
     class RFOperator_Curve_Overlay(RFOverlay_Base):
         bl_idname : ClassVar[str] = f'retopoflow.{idname}'
         bl_label : ClassVar[str] = label
@@ -258,6 +262,13 @@ def create_curve_overlay(
                 return False
             return getattr(tool.operator_properties(rftool_idname), 'show_curve_handles', False)
 
+        def _own_tool_modal_running(self, context : Context) -> bool:
+            ''' Is the tool's own Ctrl-held insert modal up? '''
+            return any(
+                op.bl_idname == own_tool_bl_idname
+                for op in context.window.modal_operators
+            )
+
         def _bend_tolerance_factor(self, context : Context) -> float:
             return self._curve_props(context).bend_tolerance_factor
 
@@ -281,7 +292,9 @@ def create_curve_overlay(
             # so skip rather than rebuild on every frame of its drag.
             external_ops = [
                 op.bl_idname for op in context.window.modal_operators
-                if op is not self and op.bl_idname != RFCORE_OPERATOR_BL_IDNAME
+                if op is not self
+                and op.bl_idname != RFCORE_OPERATOR_BL_IDNAME
+                and op.bl_idname != own_tool_bl_idname
             ]
             if external_ops:
                 return False
@@ -795,6 +808,11 @@ def create_curve_overlay(
                 tw, th = Drawing.get_text_width(text), Drawing.get_text_height(text)
                 lbl_pos = lbl_pos - Vector((tw / 2, -th / 2))
                 Drawing.text_draw2D(text, lbl_pos.xy, color=(1,1,0,1), dropshadow=(0,0,0,0.75))
+
+            if self._own_tool_modal_running(context):
+                # The control points sit on top of the verts the user is working on, so hide those,
+                # but keep the labels so the user can see the counts while they change.
+                return
 
             for ci, (spline, chain) in enumerate(zip(self.curves, self.chains)):
                 cbs = spline.cbs

@@ -120,12 +120,13 @@ def create_loopstrip_selection_overlay(
                     sel_bmes = [ bme for bme in sel_bmes if bme.is_wire or bme.is_boundary ]
                 if len(sel_bmes) < 1000:
                     bmes_strips, bmes_cycles = get_boundary_strips_cycles(sel_bmes)
+                    # copy makes sure this cache doesn't hold a stale pointer to a vert
                     strips = [
-                        ([bme_midpoint(bme) for bme in strip], [bmv.co for bme in strip for bmv in bme.verts])
+                        ([bme_midpoint(bme) for bme in strip], [bmv.co.copy() for bme in strip for bmv in bme.verts])
                         for strip in bmes_strips
                     ]
                     cycles = [
-                        ([bme_midpoint(bme) for bme in cycle], [bmv.co for bme in cycle for bmv in bme.verts])
+                        ([bme_midpoint(bme) for bme in cycle], [bmv.co.copy() for bme in cycle for bmv in bme.verts])
                         for cycle in bmes_cycles
                     ]
                     if len(strips) + len(cycles) <= 5:

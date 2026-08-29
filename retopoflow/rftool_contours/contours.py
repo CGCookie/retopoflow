@@ -37,7 +37,7 @@ from ..common.drawing import Drawing
 from ..common.icons import get_path_to_blender_icon
 from ..common.operator import (
     execute_operator,
-    RFOperator, RFRegisterClass, RFOperator_Execute, RFKeyMaps, BLKeyMaps,
+    RFOperator, RFOperator_Execute, RFKeyMaps, BLKeyMaps,
     chain_rf_keymaps, poll_retopoflow,
 )
 from ..common.raycast import (
@@ -58,6 +58,9 @@ from ...addon_common.common.resetter import Resetter
 from ..rfoperators.quickswitch import RFOperator_Relax_QuickSwitch, RFOperator_Tweak_QuickSwitch
 from ..rfoperators.transform import RFOperator_Translate, sync_projection_from_blender
 from ..rfoperators.maximize_watcher import RFOperator_MaximizeWatcher
+from ..rfoperators.adjust_segment_count import adjust_selected_strip
+from ..rfoperators.twist import RFOperator_TwistLoop
+from ..rfoverlays.proportional_edit_overlay import flash_proportional_edit_circle
 
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
 from ..rfpanels.tweaking_panel import draw_tweaking_panel, draw_tweaking_popover
@@ -91,6 +94,47 @@ def warmup_cache_on_change(cls):
         # Returns None to unregister itself after first fire
 
     bpy.app.timers.register(warmup_if_walk, first_interval= 0.1)
+
+
+def _twist_selected_loop(context, sign):
+    ''' Shift+Scroll fallback once the just-inserted cut's redo state is gone:
+    twist the SELECTED loop instead. '''
+
+    TWIST_STEP = math.radians(5)  # per scroll notch, matching the fresh-cut redo path
+
+    ops = context.window_manager.operators
+    last = ops[-1] if ops else None
+    continuing = last is not None and last.name == RFOperator_TwistLoop.bl_label
+    # consecutive scrolls collapse onto one undo step, mirroring the insert-redo mechanism
+    if continuing:
+        # carry the running twist's own settings forward so an F9 edit sticks
+        angle = last.twist_angle + sign * TWIST_STEP
+        prop  = dict(
+            retain_shape          = last.retain_shape,
+            use_proportional_edit = last.use_proportional_edit,
+            proportional_distance = last.proportional_distance,
+            proportional_falloff  = last.proportional_falloff,
+        )
+        bpy.ops.ed.undo()
+    else:
+        # a fresh twist starts from the tool settings, matching what the operator's
+        # own invoke() reads when it is started modally from a menu
+        ts = context.tool_settings
+        angle = sign * TWIST_STEP
+        prop  = dict(
+            use_proportional_edit = ts.use_proportional_edit,
+            proportional_distance = ts.proportional_distance,
+            proportional_falloff  = ts.proportional_edit_falloff,
+        )
+    if bpy.ops.retopoflow.twist_loop('EXEC_DEFAULT', True, twist_angle=angle, **prop) != {'FINISHED'}:
+        return
+
+    # A scroll has no drag to show the falloff extent, so breifly flash the circle
+    bm, _ = get_bmesh_emesh(context)
+    sel_cos = [v.co for v in bm.verts if v.select]
+    if sel_cos and context.edit_object:
+        center = context.edit_object.matrix_world @ (sum(sel_cos, Vector()) / len(sel_cos))
+        flash_proportional_edit_circle(context, center)
 
 
 class RFOperator_Contours_Insert_Keymaps:
@@ -482,14 +526,14 @@ class RFOperator_Contours_Insert(
         return {'FINISHED'}
 
     @staticmethod
-    def create_redo_operator(idname: str, description: str, keymap: dict, op_props: dict | None = None):
+    def create_redo_operator(idname: str, description: str, keymap: dict, op_props: dict | None = None, *, fallback=None):
         # add keymap to RFOperator_Contours_Insert.rf_keymaps
         # note: still creating RFOperator_Contours_Insert, so using RFOperator_Contours_Insert_Keymaps.rf_keymaps
         def _poll(context:Context) -> bool:
             last_op = context.window_manager.operators[-1].name if context.window_manager.operators else None
             return last_op == RFOperator_Contours_Insert.bl_label
 
-        if op_props is not None:
+        if op_props is not None and fallback is None:
             op_props['km_poll'] = _poll
 
         RFOperator_Contours_Insert_Keymaps.rf_keymaps.append( (f'retopoflow.{idname}', keymap, op_props) )
@@ -498,7 +542,11 @@ class RFOperator_Contours_Insert(
             @execute_operator(idname, description, options={'INTERNAL'})
             @wraps(fn)
             def wrapped(context):
-                if not _poll(context): return
+                if not _poll(context):
+                    # The just-inserted cut's redo panel is no longer reachable, so
+                    # hand off to the equivalent standalone operator, else no-op
+                    if fallback: fallback(context)
+                    return
                 fn(context, RFOperator_Contours_Insert.logic)
                 bpy.ops.ed.undo()
                 RFOperator_Contours_Insert.reinsert(context)
@@ -507,7 +555,8 @@ class RFOperator_Contours_Insert(
 
     @create_redo_operator('contours_insert_spans_decreased', 'Reinsert cut with decreased spans',
                           {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'ctrl': 1},
-                          {'km_context': ('init', 'ready'), 'km_label': 'Change Spans / Loops'})
+                          {'km_context': ('init', 'ready'), 'km_label': 'Adjust Count'},
+                          fallback=lambda context: adjust_selected_strip(context, -1))
     def decrease_spans(context, logic):
         if logic.show_loop_count:
             logic.loop_count = max(1, logic.loop_count - 1)
@@ -517,7 +566,8 @@ class RFOperator_Contours_Insert(
         logic.span_insert_mode = 'FIXED'
 
     @create_redo_operator('contours_insert_spans_increased', 'Reinsert cut with increased spans',
-                          {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'ctrl': 1})
+                          {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'ctrl': 1},
+                          fallback=lambda context: adjust_selected_strip(context, +1))
     def increase_spans(context, logic):
         if logic.show_loop_count:
             logic.loop_count += 1
@@ -527,12 +577,14 @@ class RFOperator_Contours_Insert(
 
     @create_redo_operator('contours_insert_twist_decreased', 'Reinsert cut with decreased twist',
                           {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'shift': 1},
-                          {'km_context': ('init', 'ready'), 'km_label': 'Change Twist'})
+                          {'km_context': ('init', 'ready'), 'km_label': 'Twist'},
+                          fallback=lambda context: _twist_selected_loop(context, -1))
     def decrease_twist(context, logic):
         if logic.show_twist: logic.twist = max(-math.pi / 2, logic.twist - math.radians(5))
 
     @create_redo_operator('contours_insert_twist_increased', 'Reinsert cut with increased twist',
-                          {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'shift': 1})
+                          {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'shift': 1},
+                          fallback=lambda context: _twist_selected_loop(context, +1))
     def increase_twist(context, logic):
         if logic.show_twist: logic.twist = min(math.pi / 2, logic.twist + math.radians(5))
 
@@ -691,29 +743,6 @@ def switch_rftool(context):
     RFTool_Contours.activate_tool(context)
 
 
-class RFOperator_Contours_Twist(RFRegisterClass, bpy.types.Operator):
-    bl_idname     = 'retopoflow.contours_twist'
-    bl_label      = 'Contours: Adjust Twist'
-    bl_description = 'Rotate selected loop about its plane (Alt R)'
-    bl_options    = {'UNDO', 'INTERNAL'}
-
-    rf_keymaps : RFKeyMaps = []
-
-    @classmethod
-    def poll(cls, context):
-        return context.mode == 'EDIT_MESH'
-
-    def invoke(self, context, event):
-        return bpy.ops.retopoflow.twist_loop('INVOKE_DEFAULT')
-
-
-RFOperator_Contours_Twist.rf_keymaps = [
-    ('retopoflow.contours_twist', {'type': 'R', 'value': 'PRESS', 'alt': True},
-        {'km_context': ('init'), 'km_label': 'Twist Loops'}
-    ),
-]
-
-
 class RFTool_Contours(RFTool_Base):
     bl_idname = "retopoflow.contours"
     bl_label = "Contours"
@@ -730,7 +759,6 @@ class RFTool_Contours(RFTool_Base):
     bl_keymap : BLKeyMaps = chain_rf_keymaps(
         RFOperator_Contours,
         RFOperator_Contours_Insert,
-        RFOperator_Contours_Twist,
         RFOperator_MaximizeWatcher,
         RFOperator_Translate,
         RFOperator_Relax_QuickSwitch,

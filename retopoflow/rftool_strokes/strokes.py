@@ -47,6 +47,7 @@ from ..rfoperators.quickswitch import RFOperator_Relax_QuickSwitch, RFOperator_T
 from ..rfoperators.transform import RFOperator_Translate, sync_projection_from_blender
 from ..rfoperators.maximize_watcher import RFOperator_MaximizeWatcher
 from ..rfoperators.topo_rotate import RFOperator_TopoRotate
+from ..rfoperators.adjust_segment_count import adjust_selected_strip
 
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
 from ..rfpanels.tweaking_panel import draw_tweaking_panel, draw_tweaking_popover
@@ -370,28 +371,38 @@ class RFOperator_Stroke_Insert(
         return {'FINISHED'}
 
     @staticmethod
-    def create_redo_operator(idname, description, keymap):
+    def create_redo_operator(idname, description, keymap, op_props: dict | None = None, *, fallback=None):
         # add keymap to RFOperator_Stroke_Insert.rf_keymaps
         # note: still creating RFOperator_Stroke_Insert, so using RFOperator_Stroke_Insert_Keymaps.rf_keymaps
-        RFOperator_Stroke_Insert_Keymaps.rf_keymaps.append( (f'retopoflow.{idname}', keymap, None) )
+        RFOperator_Stroke_Insert_Keymaps.rf_keymaps.append( (f'retopoflow.{idname}', keymap, op_props) )
         def wrapper(fn_action):
             @execute_operator(idname, description, options={'INTERNAL'})
             @wraps(fn_action)
             def wrapped(context):
                 last_op = context.window_manager.operators[-1].name if context.window_manager.operators else None
-                if last_op != RFOperator_Stroke_Insert.bl_label: return
+                if last_op != RFOperator_Stroke_Insert.bl_label:
+                    # the just-inserted geometry's redo panel is no longer reachable, so
+                    # hand off to the generic adjuster, else no-op
+                    if fallback: fallback(context)
+                    return
                 fn_action(context, RFOperator_Stroke_Insert.logic)
                 bpy.ops.ed.undo()
                 RFOperator_Stroke_Insert.strokes_reinsert(context)
             return wrapped
         return wrapper
 
-    @create_redo_operator('strokes_insert_spans_decreased', 'Reinsert stroke with decreased spans', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'ctrl': 1})
+    # each scroll pair below labels only its down half so that there's only one status bar entry
+    @create_redo_operator('strokes_insert_spans_decreased', 'Reinsert stroke with decreased spans',
+                          {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'ctrl': 1},
+                          {'km_context': ('init', 'ready'), 'km_label': 'Adjust Count'},
+                          fallback=lambda context: adjust_selected_strip(context, -1))
     def decrease_spans(context, logic):
         if logic.cut_count is None: return
         logic.fixed_span_count -= 1
 
-    @create_redo_operator('strokes_insert_spans_increased', 'Reinsert stroke with increased spans', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'ctrl': 1})
+    @create_redo_operator('strokes_insert_spans_increased', 'Reinsert stroke with increased spans',
+                          {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'ctrl': 1},
+                          fallback=lambda context: adjust_selected_strip(context, +1))
     def increase_spans(context, logic):
         if logic.cut_count is None: return
         logic.fixed_span_count += 1

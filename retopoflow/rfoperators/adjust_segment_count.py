@@ -22,12 +22,12 @@ Created by Jonathan Denning, Jonathan Lampel
 import bpy
 
 from ..common.operator import RFOperator_Execute
-from ..common.segments import MIN_COUNT, detect_adjustable_strip
+from ..common.segments import MIN_COUNT, detect_adjustable_strip, min_segment_count, same_chain_shape
 from ...addon_common.common import bmesh_ops as bmops
 
 
 class RFOperator_AdjustSegmentCount(RFOperator_Execute):
-    ''' Resample the selected quad strip to a new quad count while retaining its shape. '''
+    ''' Resample the selected quad strip or edge run to a new segment count while retaining its shape. '''
     bl_idname = 'retopoflow.adjust_segment_count'
     bl_label = 'Adjust Segment Count'
     bl_description = 'Adjust the number of segments in the selected strip while retaining its shape'
@@ -57,7 +57,7 @@ class RFOperator_AdjustSegmentCount(RFOperator_Execute):
         if not self.properties.is_property_set('count'):
             found = detect_adjustable_strip(context)
             if found is None:
-                self.report({'WARNING'}, 'Adjust Segment Count: select a single quad strip or ring first')
+                self.report({'WARNING'}, 'Adjust Segment Count: select a single quad strip, ring, or edge run first')
                 return {'CANCELLED'}
             bm, em, provider, descriptor = found
             recipe = provider.capture(context, bm, descriptor)
@@ -69,15 +69,18 @@ class RFOperator_AdjustSegmentCount(RFOperator_Execute):
     def execute(self, context):
         found = detect_adjustable_strip(context)
         if found is None:
-            self.report({'WARNING'}, 'Adjust Segment Count: select a single quad strip or ring first')
+            self.report({'WARNING'}, 'Adjust Segment Count: select a single quad strip, ring, or edge run first')
             return {'CANCELLED'}
         bm, em, provider, descriptor = found
 
         cached = RFOperator_AdjustSegmentCount._cached_shape
         fresh = provider.capture(context, bm, descriptor)
-        reuse_shape = cached is not None and provider.is_same_chain(cached, fresh)
+        reuse_shape = cached is not None and same_chain_shape(cached, fresh)
         recipe = provider.capture(context, bm, descriptor, shape_of=cached) if reuse_shape else fresh
         RFOperator_AdjustSegmentCount._cached_shape = recipe
+
+        # Clamp to what the chain can actually be built at before comparing
+        self.count = max(min_segment_count(recipe), self.count)
 
         if self.count == recipe.current_count:
             # Already at this count so don't reshape.
@@ -89,3 +92,20 @@ class RFOperator_AdjustSegmentCount(RFOperator_Execute):
         bmops.select_iter(bm, new_faces)
         bmops.flush_selection(bm, em)
         return {'FINISHED'}
+
+
+def adjust_selected_strip(context, sign):
+    ''' Resegment the selected strip or edge run after the redo panel is gone. '''
+    ops = context.window_manager.operators
+    last = ops[-1] if ops else None
+    if last is not None and last.name == RFOperator_AdjustSegmentCount.bl_label:
+        # already adjusting: undo and re-run at the new absolute count, so consecutive
+        # scrolls collapse onto one undo step (reading .count back respects an F9 edit)
+        target = last.count + sign
+        bpy.ops.ed.undo()
+        # explicit `True` (undo) arg required for a REGISTER|UNDO op invoked
+        # via a nested bpy.ops call (from inside another operator's own execute)
+        # to properly register itself as the "last operator" so its F9 redo panel works
+        bpy.ops.retopoflow.adjust_segment_count('INVOKE_DEFAULT', True, count=target)
+    else:
+        bpy.ops.retopoflow.adjust_segment_count('INVOKE_DEFAULT', True, delta=sign)

@@ -51,7 +51,7 @@ from ..rfoperators.quickswitch import RFOperator_Relax_QuickSwitch, RFOperator_T
 from ..rfoperators.transform import RFOperator_Translate, sync_projection_from_blender
 from ..rfoperators.maximize_watcher import RFOperator_MaximizeWatcher
 from ..rfoperators.topo_rotate import RFOperator_TopoRotate
-from ..rfoperators.adjust_segment_count import RFOperator_AdjustSegmentCount
+from ..rfoperators.adjust_segment_count import adjust_selected_strip
 from ..rfoperators.adjust_strip_width import RFOperator_AdjustStripWidth
 
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
@@ -78,28 +78,6 @@ RFBrush_Strokes, RFOperator_StrokesBrush_Adjust = create_stroke_brush(
     radius=50,
     draw_leftright=True,
 )
-
-def _adjust_selected_strip(context, sign):
-    '''
-    Ctrl+Scroll fallback once the just-inserted strip's redo state is gone:
-    resegment the SELECTED strip via the generic Adjust Segment Count operator.
-    Consecutive scrolls collapse onto one undo step -- if the last operator is
-    already an adjust, undo it and re-run at the new absolute count (reading
-    .count back also respects an F9 edit), mirroring the insert-redo mechanism.
-    '''
-    ops = context.window_manager.operators
-    last = ops[-1] if ops else None
-    if last is not None and last.name == RFOperator_AdjustSegmentCount.bl_label:
-        target = last.count + sign
-        bpy.ops.ed.undo()
-        # explicit `True` (undo) arg, matching polystrips_reinsert above --
-        # required for a REGISTER|UNDO op invoked via a nested bpy.ops call
-        # (from inside this operator's own execute) to properly register
-        # itself as the "last operator" so its F9 redo panel works
-        bpy.ops.retopoflow.adjust_segment_count('INVOKE_DEFAULT', True, count=target)
-    else:
-        bpy.ops.retopoflow.adjust_segment_count('INVOKE_DEFAULT', True, delta=sign)
-
 
 def _adjust_selected_strip_width(context, sign):
     factor = 0.95 if sign < 0 else 1 / 0.95
@@ -300,10 +278,10 @@ class RFOperator_PolyStrips_Insert(
         return {'FINISHED'}
 
     @staticmethod
-    def create_redo_operator(idname : str, description : str, keymap : RFKeyMap, *, fallback=None):
+    def create_redo_operator(idname : str, description : str, keymap : RFKeyMap, op_props : dict | None = None, *, fallback=None):
         # add keymap to RFOperator_PolyStrips_Insert.rf_keymaps
         # note: still creating RFOperator_PolyStrips_Insert, so using RFOperator_PolyStrips_Insert_Keymaps.rf_keymaps
-        RFOperator_PolyStrips_Insert_Keymaps.rf_keymaps.append( (f'retopoflow.{idname}', keymap, None) )
+        RFOperator_PolyStrips_Insert_Keymaps.rf_keymaps.append( (f'retopoflow.{idname}', keymap, op_props) )
         def wrapper(fn):
             @execute_operator(idname, description, options={'INTERNAL'})
             @wraps(fn)
@@ -322,21 +300,32 @@ class RFOperator_PolyStrips_Insert(
             return wrapped
         return wrapper
 
-    @create_redo_operator('polystrips_insert_count0_decreased', 'Decrease quad strip count', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'ctrl': 1}, fallback=lambda context: _adjust_selected_strip(context, -1))
+    # each scroll pair below labels only its down half so that there's only one status bar entry
+    @create_redo_operator('polystrips_insert_count0_decreased', 'Decrease quad strip count',
+                          {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'ctrl': 1},
+                          {'km_context': ('init', 'ready'), 'km_label': 'Adjust Count'},
+                          fallback=lambda context: adjust_selected_strip(context, -1))
     def decrease_count0(context, logic):
         logic.count -= 1
 
-    @create_redo_operator('polystrips_insert_count0_increased', 'Increase quad strip count', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'ctrl': 1}, fallback=lambda context: _adjust_selected_strip(context, +1))
+    @create_redo_operator('polystrips_insert_count0_increased', 'Increase quad strip count',
+                          {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'ctrl': 1},
+                          fallback=lambda context: adjust_selected_strip(context, +1))
     def increase_count0(context, logic):
         logic.count += 1
 
-    @create_redo_operator('polystrips_insert_width0_decreased', 'Decrease quad strip width', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'shift': 1}, fallback=lambda context: _adjust_selected_strip_width(context, -1))
+    @create_redo_operator('polystrips_insert_width0_decreased', 'Decrease quad strip width',
+                          {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'shift': 1},
+                          {'km_context': ('init', 'ready'), 'km_label': 'Adjust Width'},
+                          fallback=lambda context: _adjust_selected_strip_width(context, -1))
     def decrease_width0(context, logic):
         # scales both ends together, preserving the start/end gradient shape
         logic.scale_start *= 0.95
         logic.scale_end *= 0.95
 
-    @create_redo_operator('polystrips_insert_width0_increased', 'Increase quad strip width', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'shift': 1}, fallback=lambda context: _adjust_selected_strip_width(context, +1))
+    @create_redo_operator('polystrips_insert_width0_increased', 'Increase quad strip width',
+                          {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'shift': 1},
+                          fallback=lambda context: _adjust_selected_strip_width(context, +1))
     def increase_width1(context, logic):
         logic.scale_start /= 0.95
         logic.scale_end /= 0.95
@@ -442,7 +431,6 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
         self.km_context = 'ready'
         RFTool_PolyStrips.rf_brush.set_operator(self)
         RFTool_PolyStrips.rf_brush.reset_nearest(context)
-        RFTool_PolyStrips.rf_overlay.pause_overlay()
         self.tickle(context)
 
     def finish(self, context):
@@ -685,11 +673,13 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
             return {'RUNNING_MODAL'}
 
         if RFTool_PolyStrips.rf_brush.is_stroking():
+            RFTool_PolyStrips.rf_overlay.pause_overlay()
             self.set_statusbar_override(self.rf_status['insert'])
             if event.type in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE', 'LEFTMOUSE'}:
                 RFCore.handle_update(context, event)
                 return {'RUNNING_MODAL'}
         else:
+            RFTool_PolyStrips.rf_overlay.unpause_overlay()
             self.set_statusbar_override(None)
             if not event.ctrl:
                 Cursors.restore()
