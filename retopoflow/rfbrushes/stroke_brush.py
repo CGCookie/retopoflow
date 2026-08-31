@@ -690,7 +690,8 @@ def create_stroke_brush(
                 while j1 < n - 1 and cumul[j1 + 1] <= cumul[k] + baseline: j1 += 1
                 d = stroke[j1] - stroke[j0]
                 tangents.append(d.normalized() if d.length else Vector((0.0, 0.0, 0.0)))
-            cap_radius = max(w_start, w_end) * JOIN_DETECT_SLACK * 1.5
+            # How far from a stroke end a cap can be detected
+            cap_radius = max(self.stroke_radius3D(context) or brush_r, w_start, w_end) * JOIN_DETECT_SLACK * 1.5
 
             # Exclude the snapped start/end face's own edges from joining.
             exclude_bmes = set()
@@ -701,7 +702,9 @@ def create_stroke_brush(
             joined, caps = set(), set()
             for (i, pt) in enumerate(stroke):
                 # Never sweep narrower than the brush itself. Avoids flickering when snapped edge is small.
-                radius3D = max(brush_r, w_start + (w_end - w_start) * (i / nspan)) * JOIN_DETECT_SLACK
+                sweep_r = max(brush_r, w_start + (w_end - w_start) * (i / nspan)) * JOIN_DETECT_SLACK
+                at_end = (i == 0 or i == n - 1)
+                radius3D = max(sweep_r, cap_radius) if at_end else sweep_r
                 entry = self.bme_join_cache.get(i)
                 if entry is not None and (entry[0] - pt).length < 1e-6 and entry[1] == radius3D:
                     raw = entry[2]
@@ -715,12 +718,17 @@ def create_stroke_brush(
                     self.bme_join_cache[i] = (pt.copy(), radius3D, raw)
                 # under this disc: drop perpendicular non-cap edges (e.g. the face we drew out of)
                 # then collapse each loop run / uncapped corner to its closest edge.
-                cls = {
-                    bme: self.classify_join_edge(bme, stroke, tangents, cap_radius)
-                    for bme in raw
-                    if bme.is_valid and bme not in exclude_bmes
-                }
-                survivors = [bme for bme, c in cls.items() if c is not None]
+                cls = {}
+                for bme in raw:
+                    if not bme.is_valid or bme in exclude_bmes: continue
+                    c = self.classify_join_edge(bme, stroke, tangents, cap_radius)
+                    if c is None: continue
+                    if c != 'cap' and radius3D > sweep_r:
+                        # the extra reach above is for caps only, a rail still has to be swept over
+                        v0, v1 = bme.verts
+                        if (closest_point_segment(pt, v0.co, v1.co) - pt).length > sweep_r: continue
+                    cls[bme] = c
+                survivors = list(cls)
                 caps_here = {bme for bme, c in cls.items() if c == 'cap'}
                 for bme in self.limit_loop_runs(survivors, [pt], lambda e: e in caps_here):
                     joined.add(bme)
@@ -1178,6 +1186,16 @@ def create_stroke_brush(
 
             return True
 
+        def stroke_radius3D(self, context):
+            ''' Brush radius in local space, averaged over the stroke's view distances.
+            None before the stroke has any samples. '''
+            if not self.stroke_dist: return None
+            # size2D_to_size is linear in depth (and constant in ortho), so the mean view distance
+            # gives the same answer as averaging per-sample sizes, in one call instead of one per
+            # sample. This runs per redraw once the brush disc previews the snapped size.
+            avg_dist = sum(self.stroke_dist) / len(self.stroke_dist)
+            return self.stroke_radius * (size2D_to_size(context, avg_dist) or 0.0) / (self.edit_scale or 1.0)
+
         def process_stroke(self, context):
             # # tessellate stroke
             # new_stroke = []
@@ -1193,8 +1211,7 @@ def create_stroke_brush(
             # self.stroke = new_stroke
             # self.stroke3D = [raycast_valid_sources(context, pt2D)['co_local'] for pt2D in self.stroke]
 
-            avg_scale = sum(size2D_to_size(context, d) for d in self.stroke_dist) / len(self.stroke_dist)
-            radius3D = self.stroke_radius * avg_scale / self.edit_scale
+            radius3D = self.stroke_radius3D(context)
 
             # boundary edges the disc passed over, for side-joining (reserved snapped_geo[1] slot)
             join_bmes = [bme for bme in self.snap_join if bme.is_valid]

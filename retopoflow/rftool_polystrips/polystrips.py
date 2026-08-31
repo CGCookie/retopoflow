@@ -32,6 +32,7 @@ from ..rfoperators.curve_edit import create_curve_edit_operator, create_curve_to
 from ..rftool_base import RFTool_Base
 from ..common.icons import get_path_to_blender_icon
 from ..common.raycast import raycast_point_valid_sources
+from ..common.bmesh import bme_length
 from ..common.operator import (
     execute_operator,
     RFOperator, RFOperator_Execute, RFKeyMap, RFKeyMaps, BLKeyMaps,
@@ -68,6 +69,11 @@ from functools import wraps
 
 
 DEBUG_SNAP_ENDS = False # prints how each stroke end resolved and why
+
+def cap_search_radius(radius3D):
+    ''' How far from a stroke end a cap edge may sit, in local space. One definition, so the
+    brush preview and the insert agree on which ends count as capped. '''
+    return (radius3D or 0) * 1.5
 
 
 RFBrush_Strokes, RFOperator_StrokesBrush_Adjust = create_stroke_brush(
@@ -454,44 +460,16 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
         # Valid boundary edges the brush passed over
         join_bme_list = [bme for bme in (snapped_geo[1] or []) if hasattr(bme, 'verts') and bme.is_valid]
 
-        # A cap is a boundary edge lying across a stroke end.
-        cap_radius = (radius3D or 0) * 1.5
-        def find_cap_edge(end_pt3D, along, label):
-            if not join_bme_list or not cap_radius or along.length == 0:
-                if DEBUG_SNAP_ENDS: print(f'[cap:{label}] no candidates: joins={len(join_bme_list)} cap_radius={cap_radius:.4f} along_len={along.length:.4f}')
-                return None
-            along = along.normalized()
-            best = None
-            for bme in join_bme_list:
-                v0, v1 = bme.verts
-                ed = v1.co - v0.co
-                L2 = ed.length_squared
-                if L2 == 0: continue
-                dot = abs(ed.normalized().dot(along))
-                # the stroke end must terminate into the edge (project onto its interior), not off to a side
-                t = (end_pt3D - v0.co).dot(ed) / L2
-                d = ((v0.co + ed * min(max(t, 0.0), 1.0)) - end_pt3D).length
-                reject = []
-                if dot > 0.9: reject.append(f'parallel dot={dot:.2f}')
-                if not (0.15 <= t <= 0.85): reject.append(f't={t:.2f}')
-                if d > cap_radius: reject.append(f'd={d:.3f}>{cap_radius:.3f}')
-                if DEBUG_SNAP_ENDS:
-                    ec = f'({v0.co.x:.2f},{v0.co.y:.2f},{v0.co.z:.2f})-({v1.co.x:.2f},{v1.co.y:.2f},{v1.co.z:.2f})'
-                    print(f'[cap:{label}] bme{bme.index} {ec} ' + (('REJECT: ' + ', '.join(reject)) if reject else f'OK d={d:.3f} dot={dot:.2f} t={t:.2f}'))
-                if reject: continue
-                if best is None or d < best[0]: best = (d, bme)
-            return best[1] if best else None
-        def end_tangent(at_end):
-            # Stroke direction at an end, measured over about one brush radius of arclength,
-            # NOT the last few samples, whose direction is end-of-drag hand jitter.
-            pts = stroke3D[::-1] if at_end else stroke3D
-            acc, j = 0.0, 0
-            while j < len(pts) - 1 and (acc < (radius3D or 0.0) or j < 3):
-                acc += (pts[j + 1] - pts[j]).length
-                j += 1
-            return pts[0] - pts[j]
-        cap_bme0 = find_cap_edge(p3D_0, end_tangent(False), 'start') if (len(stroke3D) > 1 and not snap_bmf0) else None
-        cap_bme1 = find_cap_edge(p3D_1, end_tangent(True), 'end') if (len(stroke3D) > 1 and not snap_bmf1) else None
+        cap_radius = cap_search_radius(radius3D) # A cap is a boundary edge lying across a stroke end.
+        def find_cap_edge(end_pt3D, at_end, label):
+            return PolyStrips_Logic.find_cap_edge(
+                join_bme_list, end_pt3D,
+                PolyStrips_Logic.cap_search_tangent(stroke3D, at_end, radius3D),
+                cap_radius,
+                debug_label=(label if DEBUG_SNAP_ENDS else None),
+            )
+        cap_bme0 = find_cap_edge(p3D_0, False, 'start') if (len(stroke3D) > 1 and not snap_bmf0) else None
+        cap_bme1 = find_cap_edge(p3D_1, True,  'end')   if (len(stroke3D) > 1 and not snap_bmf1) else None
         if DEBUG_SNAP_ENDS:
             print(f'[snap-ends] snap_bmf0={snap_bmf0.index if snap_bmf0 else None} snap_bmf1={snap_bmf1.index if snap_bmf1 else None} '
                   f'cap0={cap_bme0.index if cap_bme0 else None} cap1={cap_bme1.index if cap_bme1 else None} joins={len(join_bme_list)}')
@@ -581,23 +559,29 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
                 if not bmf or not getattr(bmf, 'is_valid', False): return None
                 pts = PolyStrips_Logic.face_entry_points(bmf, stroke3D, from_start)
                 return PolyStrips_Logic.snapped_edge_radius(bmf, pts)
-            caps = getattr(brush, 'snap_caps', None) or set()
-            joins = getattr(brush, 'snap_join', None) or ()
-            valid_caps = [b for b in caps if getattr(b, 'is_valid', False)]
-            valid_rails = [b for b in joins if getattr(b, 'is_valid', False) and b not in caps]
-            def cap_radius_at(end_pt):
-                # nearest cap (within 1.5x its length) to this stroke end sets that end's width
-                return PolyStrips_Logic.nearest_edge_halfwidth(valid_caps, end_pt, max_dist=1.5)
-            w0 = snapped_radius(getattr(brush, 'snap_bmf0', None), True)
-            w1 = snapped_radius(getattr(brush, 'snap_bmf1', None), False)
-            if w0 is None: w0 = cap_radius_at(stroke3D[0])
-            if w1 is None: w1 = cap_radius_at(stroke3D[-1])
-            # The side rail nearest the start only, so the preview doesn't fluctuate as the stroke passes rails of varying length
-            w_par = PolyStrips_Logic.nearest_edge_halfwidth(valid_rails, stroke3D[0], rail_sizing=True) # both ends share the first parallel rail's width
-            if w0 is None: w0 = w_par
-            if w1 is None: w1 = w_par
+            bmf0, bmf1 = getattr(brush, 'snap_bmf0', None), getattr(brush, 'snap_bmf1', None)
+            joins = [b for b in (getattr(brush, 'snap_join', None) or ()) if getattr(b, 'is_valid', False)]
+            radius3D = brush.stroke_radius3D(context)
+            cap_radius = cap_search_radius(radius3D)
+            def cap_edge_at(from_start):
+                return PolyStrips_Logic.find_cap_edge(
+                    joins, stroke3D[0] if from_start else stroke3D[-1],
+                    PolyStrips_Logic.cap_search_tangent(stroke3D, not from_start, radius3D),
+                    cap_radius,
+                )
+            w0 = snapped_radius(bmf0, True)
+            w1 = snapped_radius(bmf1, False)
+            cap0 = cap_edge_at(True) if not bmf0 else None
+            cap1 = cap_edge_at(False) if not bmf1 else None
+            if w0 is None and cap0: w0 = bme_length(cap0) / 2
+            if w1 is None and cap1: w1 = bme_length(cap1) / 2
             if w0 is None and w1 is None:
-                return None  # nothing snapped at either end -> brush radius
+                # Neither end landed on a face or cap so fall back to the swept rails.
+                w_par = PolyStrips_Logic.rail_halfwidth(joins, stroke3D)
+                if w_par is None:
+                    return None  # nothing snapped at either end -> brush radius
+                return (w_par, w_par)
+            # Only one end landed on a face or cap so that is the width for the whole stroke
             if w0 is None: w0 = w1
             if w1 is None: w1 = w0
             return (w0, w1)
@@ -617,32 +601,20 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
         if mode == 'SNAPPED':
             if not brush.is_stroking():
                 return None
-            # face under the cursor: the moving end, else the start face the stroke left
-            bmf = getattr(brush, 'snap_bmf1', None) or getattr(brush, 'snap_bmf0', None)
-            pt = getattr(brush, 'hit_pl', None)
             stroke3D = brush.stroke3D_original
-            if bmf and getattr(bmf, 'is_valid', False):
-                if stroke3D and len(stroke3D) >= 2:
-                    # size to the connection edge where the stroke crossed the face boundary
-                    from_start = bmf == getattr(brush, 'snap_bmf0', None) and bmf != getattr(brush, 'snap_bmf1', None)
-                    ref_pts = PolyStrips_Logic.face_entry_points(bmf, stroke3D, from_start)
-                else:
-                    ref_pts = [pt] if pt is not None else None
-                r_local = PolyStrips_Logic.snapped_edge_radius(bmf, ref_pts)
-                if r_local is not None:
+            if not stroke3D or len(stroke3D) < 2:
+                # Too early to measure a stroke end. Size off the face under the cursor if there is one,
+                # so the disc doesn't sit at the brush radius for the first samples of the stroke.
+                bmf = getattr(brush, 'snap_bmf1', None) or getattr(brush, 'snap_bmf0', None)
+                pt = getattr(brush, 'hit_pl', None)
+                if bmf and getattr(bmf, 'is_valid', False) and pt is not None:
+                    r_local = PolyStrips_Logic.snapped_edge_radius(bmf, [pt])
                     # snapped_edge_radius is local space (bme_length); the disc is world
-                    return r_local * (brush.edit_scale or 1.0)
-            # No face highlighted -> a cap the moving end is landing on, else the first parallel rail
-            caps = getattr(brush, 'snap_caps', None) or set()
-            joins = getattr(brush, 'snap_join', None) or ()
-            valid_caps = [b for b in caps if getattr(b, 'is_valid', False)]
-            valid_rails = [b for b in joins if getattr(b, 'is_valid', False) and b not in caps]
-            r_local = PolyStrips_Logic.nearest_edge_halfwidth(valid_caps, pt) if pt is not None else None
-            if r_local is None and stroke3D:
-                r_local = PolyStrips_Logic.nearest_edge_halfwidth(valid_rails, stroke3D[0], rail_sizing=True)
-            if r_local is not None:
-                return r_local * (brush.edit_scale or 1.0)
-            return None
+                    if r_local is not None: return r_local * (brush.edit_scale or 1.0)
+                return None
+            widths = self.get_preview_widths(context, brush)
+            if not widths: return None
+            return widths[1] * (brush.edit_scale or 1.0)
 
         return None
 

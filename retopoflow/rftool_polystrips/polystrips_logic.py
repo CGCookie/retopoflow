@@ -799,6 +799,60 @@ class PolyStrips_Logic:
         return perp
 
     @staticmethod
+    def cap_search_tangent(stroke3D, at_end, min_length):
+        """ Stroke direction at an end, averaged over about `min_length` of arclength. """
+        pts = stroke3D[::-1] if at_end else stroke3D
+        acc, j = 0.0, 0
+        while j < len(pts) - 1 and (acc < (min_length or 0.0) or j < 3):
+            acc += (pts[j + 1] - pts[j]).length
+            j += 1
+        return pts[0] - pts[j]
+
+    @staticmethod
+    def find_cap_edge(edges, end_pt, along, cap_radius, debug_label=None):
+        """ The edge in `edges` lying across a stroke end, to be welded as the strip's end rung, or None.
+        `along` is the stroke tangent at that end and `cap_radius` the reach in local space. """
+        if not edges or not cap_radius or along.length == 0:
+            if debug_label: print(f'[cap:{debug_label}] no candidates: joins={len(edges)} cap_radius={cap_radius:.4f} along_len={along.length:.4f}')
+            return None
+        along = along.normalized()
+        best = None
+        for bme in edges:
+            v0, v1 = bme.verts
+            ed = v1.co - v0.co
+            L2 = ed.length_squared
+            if L2 == 0: continue
+            dot = abs(ed.normalized().dot(along))
+            # the stroke end must terminate into the edge (project onto its interior), not off to a side
+            t = (end_pt - v0.co).dot(ed) / L2
+            d = ((v0.co + ed * min(max(t, 0.0), 1.0)) - end_pt).length
+            reject = []
+            if dot > 0.9: reject.append(f'parallel dot={dot:.2f}')
+            if not (0.15 <= t <= 0.85): reject.append(f't={t:.2f}')
+            if d > cap_radius: reject.append(f'd={d:.3f}>{cap_radius:.3f}')
+            if debug_label:
+                ec = f'({v0.co.x:.2f},{v0.co.y:.2f},{v0.co.z:.2f})-({v1.co.x:.2f},{v1.co.y:.2f},{v1.co.z:.2f})'
+                print(f'[cap:{debug_label}] bme{bme.index} {ec} ' + (('REJECT: ' + ', '.join(reject)) if reject else f'OK d={d:.3f} dot={dot:.2f} t={t:.2f}'))
+            if reject: continue
+            if best is None or d < best[0]: best = (d, bme)
+        return best[1] if best else None
+
+    @staticmethod
+    def rail_halfwidth(join_bmes, stroke3D):
+        """ Half-width taken from the swept rail edge nearest the stroke's start, or None. """
+        if not join_bmes or len(stroke3D) < 2: return None
+        kloc = min(3, len(stroke3D) - 1)
+        start = stroke3D[0]
+        along = (stroke3D[kloc] - start) if kloc > 0 else Vector((0, 0, 0))
+        along = along.normalized() if along.length else None
+        def is_parallel(e):  # skip edges perpendicular to the start tangent
+            ev = e.verts[1].co - e.verts[0].co
+            return ev.length != 0 and (not along or abs(ev.normalized().dot(along)) > 0.6)
+        return PolyStrips_Logic.nearest_edge_halfwidth(
+            [e for e in join_bmes if is_parallel(e)], start, rail_sizing=True,
+        )
+
+    @staticmethod
     def nearest_edge_halfwidth(edges, ref_pt, *, max_dist=None, rail_sizing=False):
         ''' Half length (local space) of the edge in `edges` whose closest point to ref_pt is nearest, or None. `edges` must be pre-filtered.
         Pass max_dist (a multiple of the edge's length) to reject an edge whose nearest point is farther away than that.
@@ -907,19 +961,14 @@ class PolyStrips_Logic:
             if w_snap_start is None and cap_bme_start is not None: w_snap_start = bme_length(cap_bme_start) / 2
             if w_snap_end   is None and cap_bme_end   is not None: w_snap_end   = bme_length(cap_bme_end) / 2
             # Width priority: faces and caps, then the first swept rail edge
-            if (w_snap_start is None or w_snap_end is None) and join_bmes:
-                # the rail edge nearest the start sets the width for the whole run,
-                # so drawing past rails of varying length doesn't make the strip fluctuate.
-                kloc = min(3, len(self.stroke3D_local) - 1)
-                start = self.stroke3D_local[0]
-                along = (self.stroke3D_local[kloc] - start) if kloc > 0 else Vector((0, 0, 0))
-                along = along.normalized() if along.length else None
-                def is_parallel(e):  # skip edges perpendicular to the start tangent
-                    ev = e.verts[1].co - e.verts[0].co
-                    return ev.length != 0 and (not along or abs(ev.normalized().dot(along)) > 0.6)
-                w_par = self.nearest_edge_halfwidth([e for e in join_bmes if is_parallel(e)], start, rail_sizing=True)
-                if w_snap_start is None: w_snap_start = w_par
-                if w_snap_end is None: w_snap_end = w_par
+            if w_snap_start is None or w_snap_end is None:
+                w_one_end = w_snap_start if w_snap_start is not None else w_snap_end
+                if w_one_end is not None:
+                    # Only one end landed on a face or cap, so there is no second end to interpolate
+                    w_snap_start = w_snap_end = w_one_end
+                else:
+                    # Neither end landed on a face or cap so fall back to the swept rails
+                    w_snap_start = w_snap_end = self.rail_halfwidth(join_bmes, self.stroke3D_local)
 
         scale = sum(M.to_scale()) / 3
 
@@ -1078,12 +1127,11 @@ class PolyStrips_Logic:
 
         base0 = base1 = base_width
         if self.size_mode == 'SNAPPED':
+            # The two only differ when both ends landed on a face or cap
             if w_snap_start and w_snap_end:
                 base0, base1 = w_snap_start, w_snap_end
-            elif w_snap_start:
-                base0 = base1 = w_snap_start
-            elif w_snap_end:
-                base0 = base1 = w_snap_end
+            elif w_snap_start or w_snap_end:
+                base0 = base1 = w_snap_start or w_snap_end
             # else: neither end snapped -> keep the brush-derived base_width
 
         def width_at(t):
