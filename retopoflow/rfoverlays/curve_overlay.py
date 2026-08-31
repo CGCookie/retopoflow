@@ -393,6 +393,7 @@ def create_curve_overlay_logic(
                 'interior_bmv_indices': spec.interior_bmv_indices,
                 'deform_bmv_rungs': spec.deform_bmv_rungs,
                 'coupled': spec.coupled, # True when points are on verts, False when derived from faces
+                'junction_bmf_indices': spec.junction_bmf_indices,
             })
 
         def _attach_occlusion_probes(self, bm, spec : ChainSpec, spline, handles):
