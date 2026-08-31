@@ -34,10 +34,10 @@ from ..common.bmesh import (
 )
 from ..common.bmesh_maths import orient_bmf_normals
 from ..common.curves import (
-    find_quadstrip_chains, fit_centerline_spline, ordered_rungs,
+    find_quadstrip_chains, fit_centerline_spline, ordered_rung_rails, ordered_rungs,
     ordered_strip_bmvs, sharp_angle_indices,
 )
-from ..common.maths import lerp, clamp, interp_piecewise
+from ..common.maths import lerp, clamp, interp_direction, interp_piecewise
 from ..common.raycast import nearest_point_valid_sources, nearest_normal_valid_sources
 from ..common.accel import SourceCache
 from ..common.snapping import (
@@ -60,6 +60,9 @@ class SegmentRecipe:
         'current_count',
         'centerline_cos',     # list[Vector]: the rung midpoints spine to preserve
         'half_widths',        # list[float]: half the rung width at each spine point
+        'rung_dirs',          # list[Vector]: across-the-strip direction, every one off the same rail
+        'rung_tangents',      # list[Vector]: centerline tangent, over the same baseline rebuild uses
+        'rung_normals',       # list[Vector]: tangent x dir, so a rung is perpendicular to its own normal
         'arc_fracs',          # list[float]: each spine point's chord fraction
         'corner_indices',     # frozenset[int]: centerline_cos/arc_fracs indices known from topology to bound a sharp corner
         'end0_cos', 'end1_cos',   # (Vector, Vector): the two verts of each end rung, None if cyclic
@@ -157,6 +160,119 @@ def min_segment_count(recipe : SegmentRecipe) -> int:
     return max(base, len(reserved_arc_fracs(recipe)[1]) + 1)
 
 
+def filled_directions(vecs : list[Vector]) -> list[Vector]:
+    first = next((v for v in vecs if v.length > 1e-9), None)
+    if first is None:
+        return []
+    out, prev = [], first.normalized()
+    for v in vecs:
+        if v.length > 1e-9:
+            prev = v.normalized()
+        out.append(Vector(prev))
+    return out
+
+
+def frame_baseline(points : list[Vector], half_widths : list[float]) -> float:
+    ''' Arclength either side of a point to measure its tangent over. '''
+    # Scaled to the strip's width so a resampled centerline is measured the same way
+    base_half = (sum(half_widths) / len(half_widths)) if half_widths else 0.1
+    span = sum((Vector(b) - Vector(a)).length for a, b in zip(points[:-1], points[1:])) or 1e-6
+    return min(2 * base_half, 0.25 * span)
+
+
+def baseline_tangents(points : list[Vector], cyclic : bool, baseline : float) -> list[Vector]:
+    ''' Unit tangent at each point, from a chord spanning `baseline` of arclength either side. '''
+    n = len(points)
+    if n < 2:
+        return []
+    cumul = [0.0]
+    for a, b in zip(points[:-1], points[1:]):
+        cumul.append(cumul[-1] + (Vector(b) - Vector(a)).length)
+    out = []
+    for i in range(n):
+        lo = hi = i
+        while lo > 0 and cumul[i] - cumul[lo] < baseline: lo -= 1
+        while hi < n - 1 and cumul[hi] - cumul[i] < baseline: hi += 1
+        if cyclic and lo == hi:
+            lo, hi = (i - 1) % n, (i + 1) % n
+        out.append(Vector(points[hi]) - Vector(points[lo]))
+    return filled_directions(out)
+
+
+def rung_frames(rungs, centerline_cos : list[Vector], half_widths : list[float], cyclic : bool):
+    ''' (dirs, tangents, normals): the strip's frame at each rung. '''
+    rails = ordered_rung_rails(rungs, cyclic)
+    if rails is None or len(centerline_cos) != len(rungs):
+        return [], [], []
+    dirs = filled_directions([Vector(bmv0.co) - Vector(bmv1.co) for bmv0, bmv1 in zip(*rails)])
+    tangents = baseline_tangents(centerline_cos, cyclic, frame_baseline(centerline_cos, half_widths))
+    if not dirs or len(tangents) != len(dirs):
+        return [], [], []
+    normals = filled_directions([t.cross(r) for t, r in zip(tangents, dirs)])
+    if not normals:
+        return [], [], []
+    return dirs, tangents, normals
+
+
+def rung_frame_components(dirs : list[Vector], tangents : list[Vector], normals : list[Vector]):
+    ''' Each captured rung resolved into its own frame: (across, along).
+    `across` is how much of the rung lies square to the centerline,
+    `along` how far it leans up or down the strip. '''
+    across, along = [], []
+    for r, t, n in zip(dirs, tangents, normals):
+        b = Vector(n).cross(Vector(t))
+        across.append(Vector(r).dot(b.normalized()) if b.length > 1e-9 else 1.0)
+        along.append(Vector(r).dot(Vector(t)))
+    return across, along
+
+
+def rung_dir_from_frame(t : Vector, n : Vector, across : float, along : float) -> Vector | None:
+    ''' Rebuild a rung direction from an interpolated frame and its two components. '''
+    if t is None or n is None:
+        return None
+    t = Vector(t)
+    n = Vector(n) - t * Vector(n).dot(t)   # re-square: interpolating two frames tilts it slightly
+    if n.length < 1e-9:
+        return None
+    b = n.normalized().cross(t)
+    if b.length < 1e-9:
+        return None
+    out = b.normalized() * across + t * along
+    return out.normalized() if out.length > 1e-9 else None
+
+
+def end_center(verts_or_cos) -> Vector:
+    ''' Midpoint of an end handle: a rung's two verts, or a coupled run's single one. '''
+    pts = [Vector(x.co if hasattr(x, 'co') else x) for x in verts_or_cos]
+    return sum(pts, Vector()) / max(len(pts), 1)
+
+
+def same_end(cos_a, cos_b, tol : float) -> bool:
+    ''' Do these two end handles sit on the same spot, in either vert order? '''
+    if cos_a is None or cos_b is None or len(cos_a) != len(cos_b):
+        return False
+    a = [Vector(c) for c in cos_a]
+    b = [Vector(c) for c in cos_b]
+    if len(a) == 1:
+        return (a[0] - b[0]).length < tol
+    return (
+        ((a[0] - b[0]).length < tol and (a[1] - b[1]).length < tol) or
+        ((a[0] - b[1]).length < tol and (a[1] - b[0]).length < tol)
+    )
+
+
+def aligned_end_handles(shape_of : SegmentRecipe, end0, end1):
+    ''' (end0, end1) swapped if needed so end0 is the one at the cached shape's start. '''
+    cos = shape_of.centerline_cos if shape_of else None
+    if not cos or end0 is None or end1 is None:
+        return end0, end1
+    c0, c1 = Vector(cos[0]), Vector(cos[-1])
+    p0, p1 = end_center(end0), end_center(end1)
+    straight = (p0 - c0).length + (p1 - c1).length
+    flipped  = (p1 - c0).length + (p0 - c1).length
+    return (end1, end0) if flipped < straight else (end0, end1)
+
+
 def same_chain_shape(cached : SegmentRecipe, fresh : SegmentRecipe, *, tol : float = 1e-4) -> bool:
     ''' Are these two recipes the same chain? '''
     if cached is None or cached.cyclic != fresh.cyclic or cached.coupled != fresh.coupled:
@@ -164,11 +280,12 @@ def same_chain_shape(cached : SegmentRecipe, fresh : SegmentRecipe, *, tol : flo
     if not cached.cyclic:
         if cached.end0_cos is None or fresh.end0_cos is None:
             return False
-        pairs = [
-            *zip(cached.end0_cos, fresh.end0_cos),
-            *zip(cached.end1_cos, fresh.end1_cos),
-        ]
-        return all((Vector(a) - Vector(b)).length < tol for a, b in pairs)
+        # the walk's direction and a rung's vert order are both arbitrary, so match
+        # the ends as a pair of unordered handles. capture() re-anchors the direction
+        return (
+            (same_end(cached.end0_cos, fresh.end0_cos, tol) and same_end(cached.end1_cos, fresh.end1_cos, tol)) or
+            (same_end(cached.end0_cos, fresh.end1_cos, tol) and same_end(cached.end1_cos, fresh.end0_cos, tol))
+        )
     # a cyclic chain has no fixed end to compare, so fingerprint it instead
     def centroid(cos): return sum((Vector(c) for c in cos), Vector()) / max(len(cos), 1)
     def total_len(cos): return sum((Vector(a) - Vector(b)).length for a, b in zip(cos, cos[1:] + cos[:1]))
@@ -267,6 +384,10 @@ class QuadStripProvider:
         strip_verts = list({v for f in faces for v in f.verts})
 
         if shape_of is not None:
+            # the fresh walk may run either way down the chain, so re-anchor the live
+            # ends onto the cached centerline before pairing them with its stations
+            if not cyclic:
+                end0_verts, end1_verts = aligned_end_handles(shape_of, end0_verts, end1_verts)
             # Reuse the previous shape to avoid compounded shrinking
             return SegmentRecipe(
                 coupled=False,
@@ -274,10 +395,13 @@ class QuadStripProvider:
                 current_count=len(faces),
                 centerline_cos=shape_of.centerline_cos,
                 half_widths=shape_of.half_widths,
+                rung_dirs=shape_of.rung_dirs,
+                rung_tangents=shape_of.rung_tangents,
+                rung_normals=shape_of.rung_normals,
                 arc_fracs=shape_of.arc_fracs,
                 corner_indices=shape_of.corner_indices,
-                end0_cos=shape_of.end0_cos,
-                end1_cos=shape_of.end1_cos,
+                end0_cos=None if cyclic else tuple(Vector(v.co) for v in end0_verts), # read from the live verts
+                end1_cos=None if cyclic else tuple(Vector(v.co) for v in end1_verts),
                 end0_verts=end0_verts,
                 end1_verts=end1_verts,
                 strip_faces=strip_faces,
@@ -290,6 +414,7 @@ class QuadStripProvider:
         centerline_cos = [bme_midpoint(r) for r in rungs]
         half_widths    = [bme_length(r) / 2 for r in rungs]
         arc_fracs      = chord_fracs(centerline_cos, cyclic)
+        rung_dirs, rung_tangents, rung_normals = rung_frames(rungs, centerline_cos, half_widths, cyclic)
 
         # a corner face at position c is bounded by rungs c and c+1; force both
         # as knots so the fit doesn't round the turn (rebuild() also pins a
@@ -306,6 +431,9 @@ class QuadStripProvider:
             current_count=len(faces),
             centerline_cos=centerline_cos,
             half_widths=half_widths,
+            rung_dirs=rung_dirs,
+            rung_tangents=rung_tangents,
+            rung_normals=rung_normals,
             arc_fracs=arc_fracs,
             corner_indices=corner_indices,
             end0_cos=None if cyclic else (Vector(end0_verts[0].co), Vector(end0_verts[1].co)),
@@ -389,44 +517,37 @@ class QuadStripProvider:
             if crease is not None:
                 stations[i], fold_dirs[i] = crease
 
-        # Rung direction, from a tangent measured over a baseline of arclength so surface
-        # bumps between neighbouring stations can't tilt it.
-        cumul = [0.0]
-        for a, b in zip(stations[:-1], stations[1:]):
-            cumul.append(cumul[-1] + (b - a).length)
-        span = cumul[-1] or 1e-6
-        baseline = min(2 * base_half, 0.25 * span)
+        # Rung direction, interpolated the captured frame.
+        rung_across, rung_along = rung_frame_components(
+            recipe.rung_dirs or [], recipe.rung_tangents or [], recipe.rung_normals or [])
+        tangents = baseline_tangents(stations, cyclic, frame_baseline(stations, recipe.half_widths))
 
-        def tangent_at(i):
-            lo = hi = i
-            while lo > 0 and cumul[i] - cumul[lo] < baseline: lo -= 1
-            while hi < nstations - 1 and cumul[hi] - cumul[i] < baseline: hi += 1
-            if cyclic and lo == hi:
-                lo, hi = (i - 1) % nstations, (i + 1) % nstations
-            v = stations[hi] - stations[lo]
-            return Vector(v) if v.length > 1e-9 else None
-
-        rights, prev_t = [], None
-        for i in range(nstations):
-            t = tangent_at(i) or prev_t
-            prev_t = t or prev_t
-            r = Vector(t).cross(Vector(normals[i])) if t else Vector()
-            rights.append(r)
-        # Sign-propagate so "rail 0" stays on one side the whole way regardless of each station's cross-product sign
         r_signed = []
-        for i, r in enumerate(rights):
-            if r.length > 1e-9:
-                r = r.normalized()
-            elif r_signed:
-                r = Vector(r_signed[-1])
-            else:
-                f = Vector(forwards[i])
-                r = f.cross(Vector((0, 0, 1)))
-                if r.length < 1e-9:
-                    r = f.cross(Vector((0, 1, 0)))
-                r = r.normalized()
-            if i > 0 and r.dot(r_signed[-1]) < 0:
-                r = -r
+        for i in range(nstations):
+            f = fracs[i]
+            r = rung_dir_from_frame(
+                interp_direction(recipe.arc_fracs, recipe.rung_tangents or [], f, cyclic=cyclic),
+                interp_direction(recipe.arc_fracs, recipe.rung_normals  or [], f, cyclic=cyclic),
+                interp_piecewise(recipe.arc_fracs, rung_across, f, cyclic=cyclic) if rung_across else 1.0,
+                interp_piecewise(recipe.arc_fracs, rung_along,  f, cyclic=cyclic) if rung_along  else 0.0,
+            ) if rung_across else None
+            if r is None:
+                # no captured frame to inherit, so fall back to the local surface frame
+                # and keep it locally consistent by sign-propagating along the strip
+                n = Vector(normals[i])
+                t = tangents[i] if i < len(tangents) else None
+                c = Vector(t).cross(n) if t is not None else Vector()
+                if c.length > 1e-9:
+                    r = c.normalized()
+                elif r_signed:
+                    r = Vector(r_signed[-1])
+                else:
+                    c = n.cross(Vector((0, 0, 1)))
+                    if c.length < 1e-9:
+                        c = n.cross(Vector((0, 1, 0)))
+                    r = c.normalized()
+                if r_signed and r.dot(r_signed[-1]) < 0:
+                    r = -r
             r_signed.append(r)
 
         # A fold rung lies along the crease so both verts sit on the edge.
@@ -439,7 +560,7 @@ class QuadStripProvider:
 
         # Resample the width taper, scaled start -> end along the strip
         widths = [
-            interp_piecewise(recipe.arc_fracs, recipe.half_widths, f) * (scale_start if cyclic else lerp(f, scale_start, scale_end))
+            interp_piecewise(recipe.arc_fracs, recipe.half_widths, f, cyclic=cyclic) * (scale_start if cyclic else lerp(f, scale_start, scale_end))
             for f in fracs
         ]
 
@@ -564,11 +685,16 @@ class EdgeLoopProvider:
         # A coupled run has one vert per end rather than a rung pair.
         end0_verts = None if cyclic else (verts[0],)
         end1_verts = None if cyclic else (verts[-1],)
+        # the fresh walk may run either way down the run, so re-anchor the live ends
+        # onto the cached centerline before pairing them with its stations
+        if shape_of is not None and not cyclic:
+            end0_verts, end1_verts = aligned_end_handles(shape_of, end0_verts, end1_verts)
 
         common = dict(
             coupled=True,
             cyclic=cyclic,
             current_count=len(edges),
+            rung_dirs=[], rung_tangents=[], rung_normals=[],  # a run of edges has no rung to orient
             corner_indices=frozenset(),
             end0_verts=end0_verts,
             end1_verts=end1_verts,
@@ -584,8 +710,9 @@ class EdgeLoopProvider:
                 centerline_cos=shape_of.centerline_cos,
                 half_widths=shape_of.half_widths,
                 arc_fracs=shape_of.arc_fracs,
-                end0_cos=shape_of.end0_cos,
-                end1_cos=shape_of.end1_cos,
+                # read off the live verts, never carried over from shape_of
+                end0_cos=None if cyclic else tuple(Vector(v.co) for v in end0_verts),
+                end1_cos=None if cyclic else tuple(Vector(v.co) for v in end1_verts),
                 mirror_axes=shape_of.mirror_axes,
                 bend_tolerance_factor=shape_of.bend_tolerance_factor,
                 sharp_angle=shape_of.sharp_angle,
