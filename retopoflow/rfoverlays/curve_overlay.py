@@ -73,6 +73,7 @@ MAX_HANDLE_SEGMENTS = 25
 
 # Avoids drawing handles when there aren't enough points to control to make it useful
 MIN_SEGMENT_POINTS = 2
+MIN_STRIP_SEGMENT_POINTS = 1 # For face strips
 
 
 def _internal_bl_idname(dotted_idname : str) -> str:
@@ -492,9 +493,11 @@ def create_curve_overlay_logic(
             def resolve_handle_type(k):
                 return handle_type_overrides.get(k) or ('vector' if k in display_forced_vector else 'automatic')
             corners_for_fit = { k for k in knots if resolve_handle_type(k) == 'vector' } | endpoints
+            # A knot at a sharp angle is drawn no matter how short its segments are
+            always_shown_knots = set(knots) & set(corner_set)
 
             # Nothing of this chain would display, so skip the fit
-            if coupled and knots:
+            if coupled and knots and not always_shown_knots:
                 ext_knots = knots + ([knots[0] + n] if cyclic else [])
                 if (
                     all(kb - ka - 1 < MIN_SEGMENT_POINTS for ka, kb in zip(ext_knots, ext_knots[1:]))
@@ -543,7 +546,7 @@ def create_curve_overlay_logic(
                     if knots[i + 1] not in corners_for_fit:
                         smooth_junctions.add(i)
 
-            handles = self._build_handles(spline, cyclic, smooth_junctions, knots, resolve_handle_type, display_forced_vector, coupled, corner_eligible_knots, corner_removable_knots)
+            handles = self._build_handles(spline, cyclic, smooth_junctions, knots, resolve_handle_type, always_shown_knots, coupled, corner_eligible_knots, corner_removable_knots)
             snap_hidden_vector_arms(spline.cbs, handles)
 
             # always cache as we need a baseline for the next call
@@ -582,7 +585,7 @@ def create_curve_overlay_logic(
                 locked[i] = cb
             return locked
 
-        def _build_handles(self, spline, cyclic, smooth_junctions, knots, resolve_handle_type, forced_vector, coupled=True, corner_eligible_knots=frozenset(), corner_removable_knots=frozenset()):
+        def _build_handles(self, spline, cyclic, smooth_junctions, knots, resolve_handle_type, always_shown_knots, coupled=True, corner_eligible_knots=frozenset(), corner_removable_knots=frozenset()):
             cbs = spline.cbs
             nseg = len(cbs)
             handles = []
@@ -642,24 +645,32 @@ def create_curve_overlay_logic(
                     h_p2['g1_peer'] = ((i + 1) % nseg, 'p1')
                 handles.append(h_p2)
 
-            self._mark_inert_handles(handles, spline, coupled, resolve_handle_type)
+            self._mark_inert_handles(handles, spline, cyclic, coupled, resolve_handle_type, always_shown_knots)
             return handles
 
-        def _mark_inert_handles(self, handles, spline, coupled, resolve_handle_type):
-            ''' Flag handles that have nothing to reshape so the user doesn't have to see them '''
-            usable = [(kb - ka - 1) >= MIN_SEGMENT_POINTS for (ka, kb) in spline.inds]
+        def _mark_inert_handles(self, handles, spline, cyclic, coupled, resolve_handle_type, always_shown_knots=frozenset()):
+            ''' Flag handles that have nothing to reshape so the user doesn't have to see them. '''
+            min_points = MIN_SEGMENT_POINTS if coupled else MIN_STRIP_SEGMENT_POINTS
+            usable = [(kb - ka - 1) >= min_points for (ka, kb) in spline.inds]
+            # An open strip's cap rungs sit past the ends of the centerline and extrapolate along the end tangents,
+            # so those are still helpful to rotate even with no faces between it and the next knot.
+            outward_arms = set() if (cyclic or coupled) else {(0, 'p1'), (len(spline.cbs) - 1, 'p2')}
             for h in handles:
                 if h['kind'] == 'tangent':
                     owner, segs = h['owner_vert_index'], [h['pos'][0]]   # one arm, one segment
-                    endpoint = False
+                    keep = h['pos'] in outward_arms
+                elif not coupled:
+                    h['inert'] = False
+                    continue
                 else:
                     owner, segs = h['vert_index'], [seg for seg, _ in h['set']]  # one per side
                     # exactly one adjacent segment = an open chain's END knot. Don't hide it.
-                    endpoint = len(h['set']) == 1
+                    # A knot at a sharp angle should stay visible as well.
+                    keep = len(h['set']) == 1 or owner in always_shown_knots
                 sides = [seg for seg in segs if seg < len(usable)]
                 h['inert'] = bool(
-                    not endpoint
-                    and coupled and sides
+                    not keep
+                    and sides
                     and resolve_handle_type(owner) != 'automatic'
                     and not any(usable[seg] for seg in sides)
                 )
