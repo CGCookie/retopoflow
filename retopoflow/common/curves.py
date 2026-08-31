@@ -37,6 +37,7 @@ from .bmesh import (
     get_boundary_strips_cycles,
     bme_unshared_bmv,
     bmes_shared_bmv,
+    bmvs_shared_bme,
     get_bmesh_emesh,
 )
 from .bmesh_maths import rdp_corner_indices, get_strip_bmvs, orient_bmf_normals
@@ -447,6 +448,28 @@ def ordered_rungs(faces : list[BMFace], cyclic : bool) -> list[BMEdge]:
         if (shared_last := bmfs_shared_bme(faces[-2], faces[-1])) and (capN := quad_bmf_opposite_bme(faces[-1], shared_last)):
             rungs.append(capN)
     return rungs
+
+
+def ordered_rung_rails(rungs : Sequence[BMEdge], cyclic : bool) -> tuple[list[BMVert], list[BMVert]] | None:
+    ''' Ordered rungs split into the strip's two rails, so rail0[i] and rail0[i+1] are
+    the pair joined by a side edge. Which is first is arbitrary. None if the rungs don't chain. '''
+    if len(rungs) < 2 or any(len(bme.verts) != 2 for bme in rungs):
+        return None
+    rail0, rail1 = [rungs[0].verts[0]], [rungs[0].verts[1]]
+    for bme in rungs[1:]:
+        bmv_a, bmv_b = bme.verts
+        # count how many side edges each hypothesis explains, so a rung that happens to
+        # touch the previous one on both sides is decided by the other rail, not by luck
+        straight = bool(bmvs_shared_bme(rail0[-1], bmv_a)) + bool(bmvs_shared_bme(rail1[-1], bmv_b))
+        crossed  = bool(bmvs_shared_bme(rail0[-1], bmv_b)) + bool(bmvs_shared_bme(rail1[-1], bmv_a))
+        if straight == crossed:
+            # no side edges either way (or both): keep whichever pairing stays narrower
+            straight = -((rail0[-1].co - bmv_a.co).length + (rail1[-1].co - bmv_b.co).length)
+            crossed  = -((rail0[-1].co - bmv_b.co).length + (rail1[-1].co - bmv_a.co).length)
+        nxt0, nxt1 = (bmv_a, bmv_b) if straight >= crossed else (bmv_b, bmv_a)
+        rail0.append(nxt0)
+        rail1.append(nxt1)
+    return rail0, rail1
 
 
 def quad_chain_rung_map(segment_faces : Sequence[list[BMFace]], *, cyclic : bool, pinned_ends : tuple[bool, bool] = (False, False)) -> dict[int, tuple[Vector, float, bool]]:

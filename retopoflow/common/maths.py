@@ -219,9 +219,14 @@ def lerp_map(v : float, vm : float, vM : float, m : float, M : float) -> float:
     f = (v - vm) / (vM - vm)
     return m + f * (M - m)
 
-def interp_piecewise(fracs : list[float], values : list[float], f : float) -> float:
+def interp_piecewise(fracs : list[float], values : list[float], f : float, *, cyclic : bool = False) -> float:
     ''' Piecewise-linear lookup of `values`, indexed by the monotonic `fracs`
-    (ascending, in [0,1]), at fraction f. Clamps to the ends outside range. '''
+    (ascending, in [0,1]), at fraction f. Clamps to the ends outside range, unless
+    `cyclic`, where the final span wraps back around to the first value. '''
+    if cyclic and fracs:
+        fracs = list(fracs) + [fracs[0] + 1.0]
+        values = list(values) + [values[0]]
+        f = fracs[0] + ((f - fracs[0]) % 1.0)
     if f <= fracs[0]:  return values[0]
     if f >= fracs[-1]: return values[-1]
     for i in range(1, len(fracs)):
@@ -231,6 +236,33 @@ def interp_piecewise(fracs : list[float], values : list[float], f : float) -> fl
             t = 0.0 if span < 1e-12 else (f - f0) / span
             return values[i - 1] * (1 - t) + values[i] * t
     return values[-1]
+
+def interp_direction(fracs : list[float], dirs : list[Vector], f : float, *, cyclic : bool = False) -> Vector | None:
+    ''' Normalized lerp between the two directions bracketing fraction f. `fracs` is
+    ascending in [0,1] and indexes `dirs`. A cyclic chain wraps the final span back
+    around to the first direction. None if there's nothing usable to interpolate. '''
+    n = min(len(fracs), len(dirs))
+    if n == 0: return None
+    xs = list(fracs[:n])
+    vs = [Vector(d) for d in dirs[:n]]
+    if n == 1:
+        return vs[0].normalized() if vs[0].length > 1e-9 else None
+    if cyclic:
+        xs.append(xs[0] + 1.0)
+        vs.append(Vector(vs[0]))
+        f = xs[0] + ((f - xs[0]) % 1.0)
+    if f <= xs[0]:
+        v = vs[0]
+    elif f >= xs[-1]:
+        v = vs[-1]
+    else:
+        i = next(i for i in range(1, len(xs)) if f <= xs[i])
+        span = xs[i] - xs[i - 1]
+        t = 0.0 if span < 1e-12 else (f - xs[i - 1]) / span
+        v = vs[i - 1] * (1 - t) + vs[i] * t
+        if v.length < 1e-9:
+            v = vs[i - 1] if t < 0.5 else vs[i]  # opposed neighbours cancelled: take the nearer
+    return v.normalized() if v.length > 1e-9 else None
 
 def xform_point(M : Matrix, p : Point | Vector) -> Vector:
     return point_to_bvec3(M @ bvec_point_to_bvec4(p))

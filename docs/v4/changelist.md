@@ -69,13 +69,14 @@ This document contains details about what has changed in Retopoflow in version 4
     - All brush based tools can now use the bracket keys to change the size as well
     - Fixed incorrect brush preview size when adjusting radius in non-default UI scales
 
-**Tweak**
+**Tweak and Relax**
 
 - Added Nudge, Nudge Loops, and Pinch / Magnify modes to Tweak tool
     - Nudge is now the default instead of Grab
     - You can hold Alt to quickly toggle loops mode in Nudge
 - Tweak and Relax now default to affecting only one mesh island at a time
     - Can be changed in the Masking options
+- Relax is now significantly faster
 
 **Misc.**
 
