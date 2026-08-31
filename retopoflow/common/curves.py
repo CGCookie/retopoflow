@@ -37,9 +37,11 @@ from .bmesh import (
     get_boundary_strips_cycles,
     bme_unshared_bmv,
     bmes_shared_bmv,
+    get_bmesh_emesh,
 )
-from .bmesh_maths import rdp_corner_indices, get_strip_bmvs
-from .topology_corners import corner_reroute_is_legal
+from .bmesh_maths import rdp_corner_indices, get_strip_bmvs, orient_bmf_normals
+from .topology_corners import corner_reroute_is_legal, insert_corner, remove_corner
+from .raycast import nearest_point_valid_sources
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.bezier import CubicBezierSpline
 from ...addon_common.common.utils import iter_pairs
@@ -782,3 +784,158 @@ class QuadStripChainProvider(ChainProvider):
             current_points=current_points,
             deform_bmv_rungs=rung_map,
         )
+
+
+# =============================================================================
+# Curve-handle editing
+# =============================================================================
+
+def relax_interior_verts(bm, interior, iterations):
+    ''' Laplacian relaxation of a patch's interior verts as its boundary moves. '''
+    indices = interior['indices']
+    neighbors = interior['neighbors']
+    orig_co = interior['orig_co']
+    displacement = interior['displacement']
+    boundary_orig_co = interior['boundary_orig_co']
+    for _ in range(iterations):
+        for idx in indices:
+            nbrs = neighbors[idx]
+            if not nbrs:
+                continue
+            total = Vector((0.0, 0.0, 0.0))
+            weight_sum = 0.0
+            for (n, w) in nbrs:
+                d = displacement[n] if n in displacement else (bm.verts[n].co - boundary_orig_co[n])
+                total = total + d * w
+                weight_sum += w
+            # Weighted by original edge length to reduce fold-over under large deformations
+            displacement[idx] = total / weight_sum
+            bm.verts[idx].co = orig_co[idx] + displacement[idx]
+
+
+def segment_arc_length(cb):
+    return sum(d for _, _, d in cb.get_tessellate_uniform())
+
+
+def cumulative_lengths(cbs, segs):
+    ''' Running total arc length at each boundary of `segs` (len(segs)+1 entries, starting at 0). '''
+    cumul = [0.0]
+    for seg in segs:
+        cumul.append(cumul[-1] + segment_arc_length(cbs[seg]))
+    return cumul
+
+
+def walk_free_run(start, step, nseg, cyclic, free_at_seg_p0, visited):
+    ''' Walks `visited` outward from `start` (step = -1/+1), one segment at a time,
+    for as long as the knot crossed at each step is free. Returns the new segments
+    in walk order; `visited` grows so the opposite walk can't cross back in. '''
+    result = []
+    cur = start
+    while True:
+        nxt = (cur + step) % nseg if cyclic else cur + step
+        if not cyclic and not (0 <= nxt < nseg):
+            break
+        if nxt in visited:
+            break
+        # the boundary knot between cur and nxt is "at p0" of whichever one
+        # comes later in forward (increasing-index) order
+        if not free_at_seg_p0.get(nxt if step > 0 else cur, False):
+            break
+        result.append(nxt)
+        visited.add(nxt)
+        cur = nxt
+    return result
+
+
+def hovered_toggleable_knot(overlay):
+    ''' The hovered (chain, handle) if it's a knot whose type can be toggled, else None. '''
+    if not overlay or not overlay.hovering:
+        return None
+    chain_idx, handle_idx, _snapshot = overlay.hovering
+    chain = overlay.chains[chain_idx]
+    handle = chain['handles'][handle_idx]
+    if handle['kind'] != 'knot' or not handle.get('can_toggle', False):
+        return None
+    return chain, handle
+
+
+def reroute_corner(context, overlay, chain, handle):
+    ''' Insert or remove a topological L-corner on a face strip. '''
+    cache_key = chain['cache_key']
+    # even knot (face center 2k) -> face k, keeping the knot marker in place
+    # odd knot (bend rung 2k-1) -> face k, so the corner's pivot vertex lands on that bend rung.
+    # Matches the eligibility indices in QuadStripChainProvider.
+    ci = handle['vert_index']
+    face_pos = (ci + (ci & 1)) // 2
+    is_corner = handle.get('handle_type') == 'vector'
+
+    bm, em = get_bmesh_emesh(context, ensure_lookup_tables=True)
+    try:
+        faces = [bm.faces[i] for i in cache_key[1:]]
+    except IndexError:
+        return {'CANCELLED'}
+    if not (1 <= face_pos <= len(faces) - 2):
+        return {'CANCELLED'}
+    rungs = ordered_rungs(faces, False)
+
+    M = context.edit_object.matrix_world
+
+    edit = remove_corner if is_corner else insert_corner
+    result = edit(bm, faces, rungs, face_pos)
+    if result is None:
+        return {'CANCELLED'}  # attached to existing geometry / degenerate so leave unchanged
+
+    # the squared corner verts were placed in-plane, pull them onto the source
+    for bmv in result.get('moved_verts', ()):
+        if snapped := nearest_point_valid_sources(context, M @ bmv.co, world=False, respect_clip_planes=True):
+            bmv.co = snapped
+
+    # only decide the normal after it is on the surface
+    orient_bmf_normals(context, [result['new_face']] if result.get('new_face') is not None else [], new_faces=True)
+
+    # reselect the whole resulting strip so the overlay re-detects the same chain
+    new_faces = [f for f in faces if f.is_valid]
+    if result.get('new_face') is not None:
+        new_faces.append(result['new_face'])
+    bmops.deselect_all(bm)
+    bmops.select_iter(bm, new_faces)
+    bmops.flush_selection(bm, em)  # also calls bmesh.update_edit_mesh
+
+    # force the overlay to re-collect and rebuild and drop cache keyed by the now-stale face indices
+    type(overlay).depsgraph_version = -42
+    overlay._curve_struct_cache.pop(cache_key, None)
+    overlay._handle_type_overrides.pop(cache_key, None)
+    context.area.tag_redraw()
+    return {'FINISHED'}
+
+
+def toggle_hovered_handle(context, overlay):
+    ''' Cycle the hovered knot's handle type. Returns FINISHED only when the mesh's
+    topology changed (a face-strip corner was inserted or removed); every pure
+    handle-type change returns CANCELLED, so the caller can key undo off the result. '''
+    found = hovered_toggleable_knot(overlay)
+    if found is None:
+        return {'CANCELLED'}
+    chain, handle = found
+    cache_key, k = chain['cache_key'], handle['vert_index']
+    current = handle.get('handle_type', 'automatic')
+
+    if chain.get('coupled', True):
+        # Edge loops: the pure handle-type cycle. No vert ever moves, so the toggle is perfectly reversible.
+        overlay.toggle_handle_type(cache_key, k)
+        context.area.tag_redraw()
+        return {'CANCELLED'}
+
+    if current == 'aligned':
+        if handle.get('corner_eligible', False):
+            return reroute_corner(context, overlay, chain, handle)  # -> vector (insert corner)
+        new_type = 'automatic'  # no corner possible here: skip Vector in the cycle
+    elif current == 'vector':
+        if handle.get('corner_eligible', False):
+            return reroute_corner(context, overlay, chain, handle)  # -> automatic (remove corner)
+        return {'CANCELLED'}  # corner attached to existing geometry so leave unchanged
+    else:  # automatic
+        new_type = 'aligned'
+    overlay.set_handle_type(cache_key, k, new_type, reposition=True)
+    context.area.tag_redraw()
+    return {'CANCELLED'}
