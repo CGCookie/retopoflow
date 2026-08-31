@@ -737,6 +737,23 @@ class PolyStrips_Logic:
         return bmv.co + best_dir * width
 
     @staticmethod
+    def rail_sizing_length(bme):
+        ''' Sizing length for a swept rail edge. On a quad the stroke is parallel to, averages the perpendicular edges,
+        i.e. the quad's depth. Otherwise, uses the edge length itself. '''
+        quads = [bmf for bmf in bme.link_faces if len(bmf.edges) == 4]
+        if not quads:
+            return bme_length(bme)
+        bme_verts = set(bme.verts)
+        sides = [
+            bme_length(e)
+            for bmf in quads
+            for e in bmf.edges
+            # a quad's side edges share exactly one vert with bme; the opposite edge shares none
+            if e is not bme and len(set(e.verts) & bme_verts) == 1
+        ]
+        return (sum(sides) / len(sides)) if sides else bme_length(bme)
+
+    @staticmethod
     def snapped_edge_radius(bmf, pts):
         ''' Half-length in local space of the snapped face's edge nearest the given stroke points. '''
         if not bmf or not pts: return None
@@ -782,9 +799,10 @@ class PolyStrips_Logic:
         return perp
 
     @staticmethod
-    def nearest_edge_halfwidth(edges, ref_pt, *, max_dist=None):
-        ''' Half-length (local space) of the edge in `edges` whose closest point to ref_pt is nearest, or None. `edges` must be pre-filtered.
+    def nearest_edge_halfwidth(edges, ref_pt, *, max_dist=None, rail_sizing=False):
+        ''' Half length (local space) of the edge in `edges` whose closest point to ref_pt is nearest, or None. `edges` must be pre-filtered.
         Pass max_dist (a multiple of the edge's length) to reject an edge whose nearest point is farther away than that.
+        rail_sizing sizes each edge by its quad's depth instead of its own length, so pass it for rails, not caps.
         '''
         best = None
         for bme in edges:
@@ -792,7 +810,8 @@ class PolyStrips_Logic:
             d = (closest_point_segment(ref_pt, v0.co, v1.co) - ref_pt).length
             L = (v1.co - v0.co).length
             if max_dist is not None and d > L * max_dist: continue
-            if best is None or d < best[0]: best = (d, L / 2)
+            if best is None or d < best[0]:
+                best = (d, (PolyStrips_Logic.rail_sizing_length(bme) if rail_sizing else L) / 2)
         return best[1] if best else None
 
 
@@ -898,7 +917,7 @@ class PolyStrips_Logic:
                 def is_parallel(e):  # skip edges perpendicular to the start tangent
                     ev = e.verts[1].co - e.verts[0].co
                     return ev.length != 0 and (not along or abs(ev.normalized().dot(along)) > 0.6)
-                w_par = self.nearest_edge_halfwidth([e for e in join_bmes if is_parallel(e)], start)
+                w_par = self.nearest_edge_halfwidth([e for e in join_bmes if is_parallel(e)], start, rail_sizing=True)
                 if w_snap_start is None: w_snap_start = w_par
                 if w_snap_end is None: w_snap_end = w_par
 
@@ -1004,6 +1023,7 @@ class PolyStrips_Logic:
             for (a, b) in iter_pairs([jA] + splits + [jB], False):
                 if b <= a: continue
                 sections.append({'kind': 'free', 'i0': a, 'i1': b})
+        min_leftover = 1.5 * base_width # Anything smaller than this (base_width is half a quad) on the ends is trimmed
         cursor = 0
         for run in runs:
             j0, j1 = idx_at_al(run['al0']), idx_at_al(run['al1'])
@@ -1011,14 +1031,14 @@ class PolyStrips_Logic:
             need_bridge = (
                 (not sections and start_standalone)     # a start weld the first run didn't absorb
                 or (sections and sections[-1]['kind'] == 'run')  # two runs that don't touch
-                or gap > 0.5 * base_width               # stroke left the geometry in between
+                or gap > min_leftover                   # stroke left the geometry in between
             )
             if need_bridge:
                 add_free_sections(cursor, max(j0, cursor))
             sections.append({'kind': 'run', 'run': run})
             cursor = max(cursor, j1)
         tail_gap = total_local - cumlen_local[min(cursor, nstroke - 1)]
-        if not sections or tail_gap > 0.5 * base_width or end_standalone:
+        if not sections or tail_gap > min_leftover or end_standalone:
             add_free_sections(cursor, nstroke)
 
         # how each free span connects at each end:
