@@ -820,17 +820,18 @@ class RFCore:
     @staticmethod
     def is_foreign_modal_running(context : Context) -> bool:
         '''
-        True while a non-RF modal operator that can edit the mesh is running.
+        True while a non-RF modal operator that can edit the mesh is running on top.
         Outside operators can rebuild the bmesh at any moment, and RF operators cannot
         react until it ends, so draw callbacks must not touch tool state in the meantime.
         '''
         window = context.window
         if not window: return False
-        return any(
-            not op.bl_idname.startswith(MESH_SAFE_MODAL_PREFIXES)
-            and op.name not in IGNORED_TOP_OPERATORS
-            for op in window.modal_operators
+        top = next(
+            (op for op in window.modal_operators if op.name not in IGNORED_TOP_OPERATORS),
+            None,
         )
+        if not top: return False
+        return not top.bl_idname.startswith(MESH_SAFE_MODAL_PREFIXES)
 
     @staticmethod
     def handle_draw_cursor(context : Context, area : Area, mouse : tuple[int, int]):
