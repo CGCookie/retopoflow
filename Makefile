@@ -90,8 +90,12 @@ clean-docs:
 # build targets
 
 blinfo:
-	@echo "Updating bl_info in __init__.py by running Blender with --background"
-	$(BLENDER) --background
+	@if [ -x "$(BLENDER)" ]; then \
+		echo "Smoke-testing addon by running Blender with --background"; \
+		$(BLENDER) --background; \
+	else \
+		echo "Blender not found at $(BLENDER), skipping smoke test"; \
+	fi
 
 check:
 	# check that we don't have case-conflicting filenames (ex: utils.py Utils.py)
