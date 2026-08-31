@@ -314,10 +314,10 @@ def draw_contours_method_options(context, layout, props, redo=None):
     use_row = context.region.width > 1000 # usually only true for popover, but fine for really wide panel too
     if use_row:
         layout.use_property_split = False
-        layout.row().prop(props, 'process_source_method', text='Method', expand=True)
+        layout.row().prop(props, 'process_source_method', text='Processing', expand=True)
     else:
         layout.use_property_split = True
-        layout.row().prop(props, 'process_source_method', text='Method', expand=True)
+        layout.row().prop(props, 'process_source_method', text='Processing', expand=True)
     layout.use_property_split = True
 
     if props.process_source_method == 'walk':

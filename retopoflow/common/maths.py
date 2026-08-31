@@ -481,6 +481,24 @@ def lerp_path_fac(a: float, b: float, t: float, cyclic: bool) -> float:
     return a + t * (b - a)
 
 
+def cyclic_even_phase(path_facs: list, step: float) -> float:
+    '''Starting phase for an evenly spaced cyclic ring (`phase + i * step`)
+    that moves the given path factors the least.'''
+    n = len(path_facs)
+    if n == 0: return 0.0
+    # Average the residuals as unit vectors so the wrap at 0/1 does not skew the result
+    sx = sy = 0.0
+    for i, path_fac in enumerate(path_facs):
+        angle = math.tau * ((path_fac - i * step) % 1.0)
+        sx += math.cos(angle)
+        sy += math.sin(angle)
+    if sx * sx + sy * sy < 1e-12:
+        # Residuals cancel each other out, so anchor on the member closest to the path start
+        first = min(range(n), key=lambda k: path_facs[k])
+        return (path_facs[first] - first * step) % 1.0
+    return (math.atan2(sy, sx) / math.tau) % 1.0
+
+
 def curvature_rdp_scores(points: list, cyclic: bool) -> list:
     '''Normalised Ramer-Douglas-Peucker corner score for each point. 1 = sharp, 0 = flat.'''
     n = len(points)
