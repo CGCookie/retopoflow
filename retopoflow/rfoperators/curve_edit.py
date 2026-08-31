@@ -49,6 +49,7 @@ from ..common.raycast import (
 from ..common.curves import (
     QuadStripChainProvider, LoopStripChainProvider,
     relax_interior_verts, cumulative_lengths, walk_free_run, toggle_hovered_handle,
+    branch_knot_arms,
 )
 from ..rfoverlay_base import RFOverlay_Base
 from ..rfoverlays.proportional_edit_overlay import draw_proportional_edit_circle
@@ -199,13 +200,43 @@ def create_curve_edit_logic(idname : str, label : str, description : str, *,
                 r, g, b = (ui.axis_x, ui.axis_y, ui.axis_z)[axis_idx]
                 Drawing.draw2D_lines(context, [p0 - d * ext, p0 + d * ext], (r, g, b, 0.8), width=1)
 
-        def init(self, context, event):
-            overlay_type = get_overlay()
-            assert overlay_type
-            overlay = overlay_type.instance
-            self.curves = overlay.curves
-            self.chains = overlay.chains
-            chain_idx, handle_idx, snapshot = overlay.hovering
+        # Everything a drag holds per chain.
+        # One set for an ordinary drag and one per arm when a branch knot is grabbed.
+        CHAIN_DRAG_STATE = (
+            'chain', 'spline', 'handle', 'snapshot', 'knot_visible', 'grab',
+            'touched_segs', 'combined_segs', 'interior',
+            'taper_scale', 'taper_t', 'horizon_factor', 'horizon_segs',
+        )
+        sibling_arms : tuple = ()  # the other arms of a grabbed branch knot, if any
+
+        def capture_chain_state(self) -> dict:
+            return { name: getattr(self, name) for name in self.CHAIN_DRAG_STATE }
+
+        def restore_chain_state(self, state : dict):
+            for name, value in state.items():
+                setattr(self, name, value)
+
+        def each_arm(self, fn):
+            ''' Run `fn` once per chain this drag moves, with that chain's state live on self.
+            An ordinary drag has only the grabbed chain, and nothing is swapped at all. '''
+            fn()
+            if not self.sibling_arms:
+                return
+            primary = self.capture_chain_state()
+            try:
+                for state in self.sibling_arms:
+                    self.restore_chain_state(state)
+                    fn()
+                    state.update(self.capture_chain_state())
+            finally:
+                self.restore_chain_state(primary)
+
+        def arm_states(self) -> list[dict]:
+            ''' Per-chain drag state for every chain this drag moves, the grabbed one first. '''
+            return [self.capture_chain_state(), *self.sibling_arms]
+
+        def select_chain(self, context, overlay, chain_idx, handle_idx, snapshot):
+            ''' Aim the per-chain drag state at one chain and its grabbed handle. '''
             self.chain = self.chains[chain_idx]
             self.spline = self.curves[chain_idx]
             self.handle = self.chain['handles'][handle_idx]
@@ -216,6 +247,15 @@ def create_curve_edit_logic(idname : str, label : str, description : str, *,
             self.taper_t = None
             self.horizon_factor = 0.0 # for automatic knots only
             self.horizon_segs = frozenset()
+
+        def init(self, context, event):
+            overlay_type = get_overlay()
+            assert overlay_type
+            overlay = overlay_type.instance
+            self.curves = overlay.curves
+            self.chains = overlay.chains
+            chain_idx, handle_idx, snapshot = overlay.hovering
+            self.select_chain(context, overlay, chain_idx, handle_idx, snapshot)
             if not self.constraint_persists:
                 # constraints persist when used via menu modal, not via RF active tool
                 reset_axis_constraint(type(self))
@@ -225,8 +265,6 @@ def create_curve_edit_logic(idname : str, label : str, description : str, *,
 
             mouse = mouse_from_event(event)
             M, Mi = context.edit_object.matrix_world, context.edit_object.matrix_world.inverted_safe()
-
-            use_proportional_edit = context.tool_settings.use_proportional_edit
 
             self.mirror = set()
             self.mirror_clip = False
@@ -244,10 +282,6 @@ def create_curve_edit_logic(idname : str, label : str, description : str, *,
             self.bm, self.em = get_bmesh_emesh(context, ensure_lookup_tables=True)
             self.M, self.Mi = M, Mi
             self.sources = self._gather_sources(context)
-            self.spline.tessellate_uniform()
-            # Every vert below is parametrized by a nearest-point search over this tessellation.
-            # With proportional editing on, "every vert" means every vert in the mesh, so index it only once.
-            self.spline.tessellate_kdtree()
 
             self.source_accel = SourceCache.get(context)
             if self.source_accel:
@@ -260,6 +294,48 @@ def create_curve_edit_logic(idname : str, label : str, description : str, *,
             else:
                 self.feature_radius = 0.0
 
+            self.init_chain_drag(context, mouse)
+
+            # The arms of a branch are separate chains that meet on one knot.
+            # Grabbing it drags every arm at once. Each arm carries its own drag state.
+            self.sibling_arms = []
+            primary = self.capture_chain_state()
+            try:
+                for ci, hi in branch_knot_arms(self.chains, chain_idx, handle_idx)[1:]:
+                    self.select_chain(context, overlay, ci, hi, overlay._snapshot(self.curves[ci]))
+                    self.init_chain_drag(context, mouse)
+                    self.sibling_arms.append(self.capture_chain_state())
+            finally:
+                self.restore_chain_state(primary)  # the grabbed chain leads again
+            if self.sibling_arms:
+                self.claim_shared_verts()
+
+            if on_init:
+                on_init(self, context, event)
+
+        def claim_shared_verts(self):
+            ''' Hand every vert to the arm whose chain is nearest. '''
+            states = self.arm_states()
+            nearest : dict[int, tuple[float, int]] = {}
+            for ai, state in enumerate(states):
+                for idx, tup in state['grab']['data'].items():
+                    distance = tup[3]
+                    if idx not in nearest or distance < nearest[idx][0]:
+                        nearest[idx] = (distance, ai)  # ties keep the earlier arm, so it's stable
+            for ai, state in enumerate(states):
+                data, rot = state['grab']['data'], state['grab']['rot']
+                for idx in [idx for idx in data if nearest[idx][1] != ai]:
+                    del data[idx]
+                    rot.pop(idx, None)
+
+        def init_chain_drag(self, context, mouse):
+            ''' Build the drag state for whichever chain is live on self. '''
+            use_proportional_edit = context.tool_settings.use_proportional_edit
+            M = self.M
+            self.spline.tessellate_uniform()
+            # Every vert below is parametrized by a nearest-point search over this tessellation.
+            # With proportional editing on, "every vert" means every vert in the mesh, so index it only once.
+            self.spline.tessellate_kdtree()
 
             # segments this drag reshapes.
             nseg = len(self.spline.cbs)
@@ -441,9 +517,6 @@ def create_curve_edit_logic(idname : str, label : str, description : str, *,
                 'rot':     {bmv_idx: Quaternion() for bmv_idx in data},
             }
 
-            if on_init:
-                on_init(self, context, event)
-
         def finish(self, context):
             # the dragged spline IS the overlay's cached one, so sync the cache's
             # 'cos' baseline to the current points for the next rebuild to reuse
@@ -451,13 +524,16 @@ def create_curve_edit_logic(idname : str, label : str, description : str, *,
             try:
                 overlay = get_overlay().instance
                 bm    = getattr(self, 'bm', None)
-                chain = getattr(self, 'chain', None)
-                if overlay is not None and chain and bm and bm.is_valid:
+                def sync_arm():
+                    chain = getattr(self, 'chain', None)
+                    if overlay is None or not chain or not bm or not bm.is_valid:
+                        return
                     cached = getattr(overlay, '_curve_struct_cache', {}).get(chain['cache_key'])
                     if cached:
                         new_cos = chain['current_points'](bm)
                         if new_cos and len(new_cos) == len(cached['cos']):
                             cached['cos'] = new_cos
+                self.each_arm(sync_arm)
             finally:
                 # finish() also runs from cancel() / stop(), where the bmesh may already be
                 # gone and init may not have finished. The cache sync above is best effort, but
@@ -910,25 +986,27 @@ def create_curve_edit_logic(idname : str, label : str, description : str, *,
             INTERIOR_RELAX_ITERATIONS = 10 # per frame
             INTERIOR_RELAX_FINAL_ITERATIONS = 40 # on release
 
-            data = self.grab['data']
             bm, em = self.bm, self.em
 
             if event.type == 'LEFTMOUSE' and event.value == 'RELEASE':
                 # settle the interior harder -- a fast drag-and-release may not have
                 # caught up to the final boundary shape
-                self._relax_interior(context, INTERIOR_RELAX_FINAL_ITERATIONS)
+                self.each_arm(lambda: self._relax_interior(context, INTERIOR_RELAX_FINAL_ITERATIONS))
                 bmesh.update_edit_mesh(em)
                 return {'FINISHED'}
 
             if event.type in {'ESC', 'RIGHTMOUSE'}:
-                for cb, pts in zip(self.spline.cbs, self.snapshot):
-                    # restore snapshot
-                    cb.p0, cb.p1, cb.p2, cb.p3 = (Vector(p) for p in pts)
-                for bmv_idx in data:
-                    bm.verts[bmv_idx].co = data[bmv_idx][2]
-                if self.interior:
-                    for idx, orig in self.interior['orig_co'].items():
-                        bm.verts[idx].co = orig
+                def restore_arm():
+                    for cb, pts in zip(self.spline.cbs, self.snapshot):
+                        # restore snapshot
+                        cb.p0, cb.p1, cb.p2, cb.p3 = (Vector(p) for p in pts)
+                    arm_data = self.grab['data']
+                    for bmv_idx in arm_data:
+                        bm.verts[bmv_idx].co = arm_data[bmv_idx][2]
+                    if self.interior:
+                        for idx, orig in self.interior['orig_co'].items():
+                            bm.verts[idx].co = orig
+                self.each_arm(restore_arm)
                 bmesh.update_edit_mesh(em)
                 context.area.tag_redraw()
                 return {'CANCELLED'}
@@ -944,10 +1022,13 @@ def create_curve_edit_logic(idname : str, label : str, description : str, *,
                     context.tool_settings.proportional_distance *= 0.90
                 else:
                     context.tool_settings.proportional_distance /= 0.90
-                if self.grab['only']:
-                    for bmv_idx in self.grab['only']:
-                        bm.verts[bmv_idx].co = data[bmv_idx][2]
-                self.grab['only'] = None
+                def reset_arm():
+                    arm_data = self.grab['data']
+                    if self.grab['only']:
+                        for bmv_idx in self.grab['only']:
+                            bm.verts[bmv_idx].co = arm_data[bmv_idx][2]
+                    self.grab['only'] = None
+                self.each_arm(reset_arm)
 
             mouse = mouse_from_event(event)
             self.grab['current'] = mouse
@@ -956,24 +1037,29 @@ def create_curve_edit_logic(idname : str, label : str, description : str, *,
             M, Mi = self.M, self.Mi
             prop_dist_world = context.tool_settings.proportional_distance
 
-            self.apply_handle(context, delta, rgn, r3d, M, Mi, event.alt, event.shift)
-            # hidden vector arms are point-at handles under the hood. Re-aim
-            # them at the knots' CURRENT positions every frame, so a segment
-            # whose arms aren't drawn stays straight.
-            snap_hidden_vector_arms(self.spline.cbs, self.chain['handles'])
+            def drag_arm():
+                # every arm reads the same original knot position out of its own snapshot, so
+                # they all land on the same new one and the shared knot stays shared
+                self.apply_handle(context, delta, rgn, r3d, M, Mi, event.alt, event.shift)
+                # hidden vector arms are point-at handles under the hood. Re-aim
+                # them at the knots' CURRENT positions every frame, so a segment
+                # whose arms aren't drawn stays straight.
+                snap_hidden_vector_arms(self.spline.cbs, self.chain['handles'])
 
-            if self.grab['only'] is None:
-                # arc_frac/combined_frac (indices 4/5) are both None when a vert's t falls in a
-                # segment whose control points this drag never touches.
-                self.grab['only'] = [
-                    bmv_idx
-                    for bmv_idx in data
-                    if data[bmv_idx][3] <= prop_dist_world
-                    and (data[bmv_idx][4] is not None or data[bmv_idx][5] is not None)
-                ]
+                arm_data = self.grab['data']
+                if self.grab['only'] is None:
+                    # arc_frac/combined_frac (indices 4/5) are both None when a vert's t falls in a
+                    # segment whose control points this drag never touches.
+                    self.grab['only'] = [
+                        bmv_idx
+                        for bmv_idx in arm_data
+                        if arm_data[bmv_idx][3] <= prop_dist_world
+                        and (arm_data[bmv_idx][4] is not None or arm_data[bmv_idx][5] is not None)
+                    ]
 
-            self._deform_verts(context, self.spline)
-            self._relax_interior(context, INTERIOR_RELAX_ITERATIONS)
+                self._deform_verts(context, self.spline)
+                self._relax_interior(context, INTERIOR_RELAX_ITERATIONS)
+            self.each_arm(drag_arm)
 
             bmesh.update_edit_mesh(em, loop_triangles=False)
             context.area.tag_redraw()
@@ -1124,6 +1210,9 @@ def create_curve_edit_logic(idname : str, label : str, description : str, *,
 
         def draw_curve(self, context):
             ''' Draw the dashed curve + control handles live while dragging. '''
+            self.each_arm(lambda: self.draw_chain_curve(context))
+
+        def draw_chain_curve(self, context):
             rgn, r3d = context.region, context.region_data
             if not r3d: return
             M = self.M
@@ -1743,24 +1832,27 @@ class RFOperator_EditAsCurve(RFOperator_Invoke):
         ''' Called by the drag operator at drag start: stages this drag's
         pre-state for the Esc full revert and the session undo stack. '''
         pre = {}
-        for idx, tup in drag.grab['data'].items():
-            co = Vector(tup[2])  # tup[2] = pre-drag co
-            self._orig_cos.setdefault(idx, co.copy())  # first writer wins, across any number of drags
-            pre[idx] = co
-        if drag.interior:
-            for idx, co in drag.interior['orig_co'].items():
-                v = Vector(co)
-                self._orig_cos.setdefault(idx, v.copy())
-                pre[idx] = v
-        # a drag can also re-aim arms or pin an Automatic knot to Aligned, so the
-        # undo entry needs the chain's curve structure and overrides too, not just cos
-        cache_key = drag.chain['cache_key']
-        self._pending_undo = {
-            'cache_key': cache_key,
-            'pre_cos': pre,
-            'struct': self._snapshot_struct(cache_key),
-            'overrides': dict(o) if (o := self.overlay._handle_type_overrides.get(cache_key)) else None,
-        }
+        chains = []
+        # a branch knot drags every arm meeting it, so stage each of their chains
+        for state in drag.arm_states():
+            for idx, tup in state['grab']['data'].items():
+                co = Vector(tup[2])  # tup[2] = pre-drag co
+                self._orig_cos.setdefault(idx, co.copy())  # first writer wins, across any number of drags
+                pre[idx] = co
+            if state['interior']:
+                for idx, co in state['interior']['orig_co'].items():
+                    v = Vector(co)
+                    self._orig_cos.setdefault(idx, v.copy())
+                    pre[idx] = v
+            # a drag can also re-aim arms or pin an Automatic knot to Aligned, so the
+            # undo entry needs each chain's curve structure and overrides too, not just cos
+            cache_key = state['chain']['cache_key']
+            chains.append({
+                'cache_key': cache_key,
+                'struct': self._snapshot_struct(cache_key),
+                'overrides': dict(o) if (o := self.overlay._handle_type_overrides.get(cache_key)) else None,
+            })
+        self._pending_undo = { 'pre_cos': pre, 'chains': chains }
 
     def commit_drag_undo(self, drag):
         ''' The drag finished: keep only what it actually changed, or nothing. '''
@@ -1775,12 +1867,17 @@ class RFOperator_EditAsCurve(RFOperator_Invoke):
             idx: co for idx, co in pending['pre_cos'].items()
             if idx < nverts and (bm.verts[idx].co - co).length_squared > 1e-18
         }
-        key = pending['cache_key']
-        struct = pending['struct']
         # the recorded spline object is the live one drags mutate in place, so
         # comparing its current points against the snapshot detects curve changes
-        struct_changed = struct is not None and self._spline_points(struct['spline']) != struct['spline_points']
-        overrides_changed = (self.overlay._handle_type_overrides.get(key) or {}) != (pending['overrides'] or {})
+        struct_changed = any(
+            (struct := rec['struct']) is not None
+            and self._spline_points(struct['spline']) != struct['spline_points']
+            for rec in pending['chains']
+        )
+        overrides_changed = any(
+            (self.overlay._handle_type_overrides.get(rec['cache_key']) or {}) != (rec['overrides'] or {})
+            for rec in pending['chains']
+        )
         if not pending['pre_cos'] and not struct_changed and not overrides_changed:
             return  # a click without movement: nothing to undo
         self._undo_stack.append(pending)
@@ -1801,21 +1898,21 @@ class RFOperator_EditAsCurve(RFOperator_Invoke):
             if idx < nverts:
                 bm.verts[idx].co = co
         overlay = self.overlay
-        key = entry['cache_key']
-        struct = entry['struct']
-        if struct is None:
-            overlay._curve_struct_cache.pop(key, None)
-        else:
-            spline, points = struct.pop('spline'), struct.pop('spline_points')
-            if spline is not None and points is not None:
-                for cb, (p0, p1, p2, p3) in zip(spline.cbs, points):
-                    cb.p0, cb.p1, cb.p2, cb.p3 = p0, p1, p2, p3
-            struct['spline'] = spline
-            overlay._curve_struct_cache[key] = struct
-        if entry['overrides'] is None:
-            overlay._handle_type_overrides.pop(key, None)
-        else:
-            overlay._handle_type_overrides[key] = entry['overrides']
+        for rec in entry['chains']:
+            key, struct = rec['cache_key'], rec['struct']
+            if struct is None:
+                overlay._curve_struct_cache.pop(key, None)
+            else:
+                spline, points = struct.pop('spline'), struct.pop('spline_points')
+                if spline is not None and points is not None:
+                    for cb, (p0, p1, p2, p3) in zip(spline.cbs, points):
+                        cb.p0, cb.p1, cb.p2, cb.p3 = p0, p1, p2, p3
+                struct['spline'] = spline
+                overlay._curve_struct_cache[key] = struct
+            if rec['overrides'] is None:
+                overlay._handle_type_overrides.pop(key, None)
+            else:
+                overlay._handle_type_overrides[key] = rec['overrides']
         bmesh.update_edit_mesh(em)
         overlay.hovering = None
         type(overlay).depsgraph_version = -42  # rebuild from the restored baseline

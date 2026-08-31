@@ -233,7 +233,7 @@ class ChainSpec:
         'points', 'cyclic', 'cache_key', 'deform_bmv_indices', 'label',
         'min_spline_points', 'coupled', 'avg_len', 'current_points',
         'interior_bmv_indices', 'deform_bmv_rungs', 'forced_sharp_indices',
-        'corner_eligible_knots', 'corner_removable_knots',
+        'corner_eligible_knots', 'corner_removable_knots', 'junction_bmf_indices',
     )
 
     def __init__(
@@ -252,6 +252,7 @@ class ChainSpec:
         forced_sharp_indices : Sequence[int] = (),
         corner_eligible_knots : Sequence[int] = (),
         corner_removable_knots : Sequence[int] = (),
+        junction_bmf_indices : tuple[int | None, int | None] = (None, None),
     ):
         self.points = points
         self.cyclic = cyclic
@@ -267,6 +268,7 @@ class ChainSpec:
         self.interior_bmv_indices = list(interior_bmv_indices) # Empty when nothing's enclosed
         self.corner_eligible_knots = set(corner_eligible_knots)
         self.corner_removable_knots = set(corner_removable_knots)
+        self.junction_bmf_indices = tuple(junction_bmf_indices)
 
 
 class ChainProvider:
@@ -447,10 +449,12 @@ def ordered_rungs(faces : list[BMFace], cyclic : bool) -> list[BMEdge]:
     return rungs
 
 
-def quad_chain_rung_map(segment_faces : Sequence[list[BMFace]], *, cyclic : bool) -> dict[int, tuple[Vector, float, bool]]:
-    ''' Returns {vert index: (rung midpoint, distance in rungs from the nearest open end, is that rung a mesh boundary edge)}.  '''
+def quad_chain_rung_map(segment_faces : Sequence[list[BMFace]], *, cyclic : bool, pinned_ends : tuple[bool, bool] = (False, False)) -> dict[int, tuple[Vector, float, bool]]:
+    ''' Returns {vert index: (rung midpoint, distance in rungs from the nearest open end, is that rung a mesh boundary edge)}.
+    `pinned_ends` marks a chain end that meets other strips at a branch knot. '''
     rung_map : dict[int, tuple[Vector, float, bool]] = {}
-    for seg in segment_faces:
+    last_seg = len(segment_faces) - 1
+    for si, seg in enumerate(segment_faces):
         if len(seg) < 2:
             continue  # lone face, no neighbor to define a rung
         rungs = ordered_rungs(seg, cyclic)
@@ -460,6 +464,11 @@ def quad_chain_rung_map(segment_faces : Sequence[list[BMFace]], *, cyclic : bool
             # ring has no ends, large distance disables end-of-chain handling
             end_dist = float(nr) if cyclic else float(min(ri, nr - 1 - ri))
             is_boundary = len(bme.link_faces) <= 1  # only used at a chain end
+            if is_boundary and (
+                (ri == 0 and si == 0 and pinned_ends[0])
+                or (ri == nr - 1 and si == last_seg and pinned_ends[1])
+            ):
+                is_boundary = False
             for v in bme.verts:
                 # clean ladders don't share verts between rungs; if they do,
                 # keep the nearer-to-end anchor so the taper stays conservative
@@ -504,6 +513,8 @@ def reversed_quad_chain(chain : dict) -> dict:
         'points': quad_chain_centerline(seg_faces, cyclic=False),
         'start_edge_mid': chain['end_edge_mid'],
         'end_edge_mid': chain['start_edge_mid'],
+        'junction_faces': (chain['junction_faces'][1], chain['junction_faces'][0]),
+        'corner_face_positions': set(),
     }
 
 
@@ -516,10 +527,15 @@ def join_quad_chains(a : dict, b : dict) -> dict:
         'points': quad_chain_centerline(seg_faces, cyclic=False),
         'start_edge_mid': a['start_edge_mid'],
         'end_edge_mid': b['end_edge_mid'],
+        'junction_faces': (a['junction_faces'][0], b['junction_faces'][1]),
+        'corner_face_positions': set(),
     }
 
 
 def try_join_quad_chains(a : dict, b : dict) -> dict | None:
+    faces_a = { bmf for seg in a['segment_faces'] for bmf in seg }
+    if any(bmf in faces_a for seg in b['segment_faces'] for bmf in seg):
+        return None  # the arms of a branch share its face; joining them would double it
     eps = max(
         CORNER_MERGE_FRACTION * min(chain_point_scale(a['points']), chain_point_scale(b['points'])),
         CORNER_MERGE_MIN_EPSILON,
@@ -552,11 +568,8 @@ def quad_face_network(bmfs_set : set[BMFace]) -> dict[BMFace, set[BMFace]]:
 def selection_has_patch(bmfs : Sequence[BMFace]) -> bool:
     ''' True when some connected run of the selected quads is more than one face wide. '''
     bmfs_set = set(bmfs)
-    network = quad_face_network(bmfs_set)
-    if any(len(neighbors) >= 3 for neighbors in network.values()):
-        return True
     return any(
-        len(bmv.link_faces) == 4 and all(f in bmfs_set and len(network[f]) == 2 for f in bmv.link_faces)
+        sum(1 for bmf_around in bmv.link_faces if bmf_around in bmfs_set) >= 4
         for bmf in bmfs_set for bmv in bmf.verts
     )
 
@@ -565,15 +578,17 @@ def find_quadstrip_chains(bmfs : Sequence[BMFace]) -> tuple[list[dict], list[lis
     ''' Discover chains of edge-adjacent selected quads, open chains and closed rings. '''
     bmfs_set : set[BMFace] = set(bmfs)
     network = quad_face_network(bmfs_set)
+    branches = { bmf for bmf, neighbors in network.items() if len(neighbors) >= 3 }
 
-    def walk_chain(start : BMFace) -> tuple[list[BMFace], set[int]]:
+    def walk_chain(start : BMFace, pre : BMFace | None = None) -> tuple[list[BMFace], set[int]]:
         # Prefer a straight continuation and turn through an L-attached corner when there's none.
+        # `pre` seeds the direction: the walk leaves `start` heading away from `pre`, which then leads the chain.
         # Returns the face sequence and the positions of pivot faces turned through.
-        pre, cur = None, start
-        chain = [cur]
-        visited = {cur}
+        cur = start
+        chain = [cur] if pre is None else [pre, cur]
+        visited = set(chain)
         corners : set[int] = set()
-        while True:
+        while cur not in branches:  # a branch face ends the arm that walked into it
             unvisited = [bmf_next for bmf_next in network[cur] if bmf_next not in visited]
             # a straight run's next face never touches the face before last, so
             # excluding pre's vert-neighbors both prevents doubling back and disambiguates a branch
@@ -584,10 +599,11 @@ def find_quadstrip_chains(bmfs : Sequence[BMFace]) -> tuple[list[dict], list[lis
                 nxt = unvisited[0]
                 corners.add(len(chain) - 1)  # pivot = the face turned from
             else:
-                return chain, corners
+                break
             pre, cur = cur, nxt
             chain.append(cur)
             visited.add(cur)
+        return chain, corners
 
     def walk_ring(start : BMFace) -> tuple[list[BMFace], bool]:
         # A ring is a uniform degree-2 cycle, so exclude `pre` by identity, not by vertex-sharing.
@@ -610,15 +626,23 @@ def find_quadstrip_chains(bmfs : Sequence[BMFace]) -> tuple[list[dict], list[lis
     chains : list[list[BMFace]] = []
     chain_corners : list[set[int]] = []
     touched : set[BMFace] = set()
-    working = { bmf for bmf in bmfs_set if len(network[bmf]) == 1 }
-    while working:
-        cur = working.pop()
-        if cur in touched:
-            continue
-        chain, corners = walk_chain(cur)
-        touched |= set(chain)
+
+    def add_chain(start : BMFace, pre : BMFace | None = None):
+        if start in touched:
+            return  # already walked, from its far end or from another branch
+        chain, corners = walk_chain(start, pre)
+        touched.update(chain)
         chains.append(chain)
         chain_corners.append(corners)
+
+    # free ends first, so an arm runs outside-in and only the arms left over, the ones
+    # strung between two branches, have to be walked out of a branch instead
+    working = { bmf for bmf in bmfs_set if len(network[bmf]) == 1 }
+    while working:
+        add_chain(working.pop())
+    for bmf in branches:
+        for arm in network[bmf]:
+            add_chain(arm, bmf)
 
     rings : list[list[BMFace]] = []
     remaining = bmfs_set - touched
@@ -638,6 +662,7 @@ def find_quadstrip_chains(bmfs : Sequence[BMFace]) -> tuple[list[dict], list[lis
             'start_edge_mid': quad_outer_edge_midpoint(chain, at_start=True),
             'end_edge_mid': quad_outer_edge_midpoint(chain, at_start=False),
             'corner_face_positions': corners,
+            'junction_faces': tuple(f if f in branches else None for f in (chain[0], chain[-1])),
         }
         for chain, corners in zip(chains, chain_corners)
     ]
@@ -703,7 +728,11 @@ class QuadStripChainProvider(ChainProvider):
             [f for seg in open_chain['segment_faces'] for f in seg]
             for bmv in f.verts
         })
-        rung_map = quad_chain_rung_map(open_chain['segment_faces'], cyclic=False)
+        junction_bmfs = open_chain['junction_faces']
+        rung_map = quad_chain_rung_map(
+            open_chain['segment_faces'], cyclic=False,
+            pinned_ends=tuple(bmf is not None for bmf in junction_bmfs),
+        )
         label = ('Strip', n)
 
         # even = face centers, odd = edge midpoints.
@@ -753,6 +782,7 @@ class QuadStripChainProvider(ChainProvider):
             corner_eligible_knots=corner_eligible_knots,
             corner_removable_knots=corner_removable_knots,
             deform_bmv_rungs=rung_map,
+            junction_bmf_indices=tuple(bmf.index if bmf else None for bmf in junction_bmfs),
         )
 
     def _make_ring_spec(self, faces : list[BMFace]) -> ChainSpec | None:
@@ -845,6 +875,37 @@ def walk_free_run(start, step, nseg, cyclic, free_at_seg_p0, visited):
         visited.add(nxt)
         cur = nxt
     return result
+
+
+def branch_knot_identity(chain : dict, handle : dict) -> tuple[str, int] | None:
+    ''' What this handle's knot has in common with another chain's knot at the same branch
+    point, or None when it isn't a branch knot. '''
+    if handle.get('kind') != 'knot' or len(handle.get('set', ())) != 1:
+        return None
+    if chain.get('coupled', True):
+        bmv_indices = chain.get('deform_bmv_indices')
+        vert_index = handle.get('vert_index')
+        if not bmv_indices or vert_index is None or not (0 <= vert_index < len(bmv_indices)):
+            return None
+        return ('bmv', bmv_indices[vert_index])
+    junctions = chain.get('junction_bmf_indices') or (None, None)
+    bmf = junctions[0] if handle['pos'][1] == 'p0' else junctions[1]
+    return ('bmf', bmf) if bmf is not None else None
+
+
+def branch_knot_arms(chains : Sequence[dict], ci : int, hi : int) -> list[tuple[int, int]]:
+    ''' Every (chain index, handle index) whose knot shares the same branch point as
+    (ci, hi). That one first, then its siblings. Empty when it isn't a branch knot. '''
+    identity = branch_knot_identity(chains[ci], chains[ci]['handles'][hi])
+    if identity is None:
+        return []
+    siblings = [
+        (ci_, hi_)
+        for ci_, chain in enumerate(chains)
+        for hi_, handle in enumerate(chain['handles'])
+        if (ci_, hi_) != (ci, hi) and branch_knot_identity(chain, handle) == identity
+    ]
+    return [(ci, hi), *siblings]
 
 
 def hovered_toggleable_knot(overlay):
