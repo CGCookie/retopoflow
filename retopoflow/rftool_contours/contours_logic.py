@@ -46,7 +46,7 @@ from ..common.maths import (
     lerp, snap_plane_to_direction, map_range,
     arc_path_factors, path_facs_to_positions, project_to_path_fac,
     lerp_path_fac, curvature_rdp_scores, curvature_change_scores,
-    enforce_path_min_gap, sample_even,
+    enforce_path_min_gap, sample_even, cyclic_even_phase,
 )
 from ..common.accel import SourceMeshCache
 from ..common.raycast import raycast_ray_valid_sources, nearest_point_valid_sources, raycast_multiple_hits
@@ -227,7 +227,8 @@ def sample_curvature(points: list, cyclic: bool, vertex_count: int, path_length:
             if not free_in_gap:
                 continue
             fa, fb = rdp_path_factors[pa], rdp_path_factors[pb]
-            gap = (fb - fa) % 1.0
+            # A lone pin wraps the whole path, so its gap is the full loop rather than 0
+            gap = 1.0 if n_pins == 1 else (fb - fa) % 1.0
             n_free = len(free_in_gap)
             for j, k in enumerate(free_in_gap):
                 final_path_factors[k] = (fa + gap * (j + 1) / (n_free + 1)) % 1.0
@@ -725,7 +726,9 @@ class Contours_Logic:
                 pins_list = sorted([(i, pin_path_fac[i]) for i in range(n) if pin_path_fac[i] is not None])
                 even_path_facs = [None] * n
                 if not pins_list:
-                    even_path_facs = [(current_path_facs[0] + i * step) % 1.0 for i in range(n)]
+                    # Phase the ring so the connections are stable on adjusting redo
+                    phase = cyclic_even_phase(current_path_facs, step)
+                    even_path_facs = [(phase + i * step) % 1.0 for i in range(n)]
                 else:
                     P_ev = len(pins_list)
                     for s in range(P_ev):
@@ -738,7 +741,7 @@ class Contours_Logic:
                             k = (k + 1) % n
                         nf = len(free_verts)
                         if not nf: continue
-                        span = (bf - af) % 1.0 if step > 0 else (af - bf) % 1.0
+                        span = 1.0 if P_ev == 1 else ((bf - af) % 1.0 if step > 0 else (af - bf) % 1.0)
                         for j, idx in enumerate(free_verts):
                             t = (j + 1) / (nf + 1)
                             even_path_facs[idx] = (af + span * t * (1 if step > 0 else -1)) % 1.0

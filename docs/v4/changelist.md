@@ -8,6 +8,8 @@ This document contains details about what has changed in Retopoflow in version 4
     - Enabled via the new Snapping menu
     - Inludes a new caching system for the source objects
 
+**New Operators**
+
 - Added standalone operator for Relax that can even be used outside of Retopoflow
     - Has all the same masking and snapping options as the brush version
     - Includes unique options for retaining / reconstructing the desired shape
@@ -26,16 +28,20 @@ This document contains details about what has changed in Retopoflow in version 4
     - All vertices that are not on complete loops are properly interpolated
     - Works great with proportional editing
 
+**Contours**
+
 - Added new source processing method, SDF, to Contours
     - It is much faster than Walk but slower than Fast
     - It is slightly less accurate than Walk but much more accurate than Fast
     - It can handle flipped normals, split edges, and overhangs just fine
-- Added Alt R hotkey to twist in Contours
+- Added Shift Scroll hotkey to twist in Contours
 - Added Ctrl Scroll after extruding in Contours to adjust segment count
 - Added Curvature and Space Evenly controls to Contours that determine where new points are placed
 - Added Refinement option to Contours Fast method that improves quality without much overhead
 - Exposed the Contours Walk method source object cache so it can be managed manually if needed
 - Increased max span count in Contours
+
+**PolyStrips**
 
 - Added Ctrl and Shift scroll operators to adjust segments and width at any time in PolyStrips
     - This is also a standalone operator that can be used outside of Retopoflow
@@ -45,6 +51,8 @@ This document contains details about what has changed in Retopoflow in version 4
 - PolyStrips now snaps to adjacent geometry, so you can draw alongside existing edges
 - PolyStrips face sizing now matches the faces you snap to or from by default
 - Significantly improved PolyStrips curve handles
+
+**Strokes**
 
 - The curve handles are now available when working in Strokes and PolyPen as well
     - Expanded the curve handle system to work with edge loops and patches of faces
@@ -61,11 +69,15 @@ This document contains details about what has changed in Retopoflow in version 4
     - All brush based tools can now use the bracket keys to change the size as well
     - Fixed incorrect brush preview size when adjusting radius in non-default UI scales
 
+**Tweak**
+
 - Added Nudge, Nudge Loops, and Pinch / Magnify modes to Tweak tool
     - Nudge is now the default instead of Grab
     - You can hold Alt to quickly toggle loops mode in Nudge
 - Tweak and Relax now default to affecting only one mesh island at a time
     - Can be changed in the Masking options
+
+**Misc.**
 
 - All Retopoflow tools now respect Blender's Alt+B clipping region
     - Useful for isolating areas while working
