@@ -149,15 +149,12 @@ def get_label_pos(context : Context, lbl : str, cos : Sequence[Vector]) -> Vecto
     return location_3d_to_region_2d(rgn, r3d, M @ pt3d)
 
 
-def create_curve_overlay(
-    opname : str,
+def create_curve_overlay_logic(
     rftool_idname : str,
     idname : str,
     label : str,
     providers : Sequence[ChainProvider],
 ) -> type[RFOverlay_Base]:
-
-    overlay_names.add(label)
 
     # The tool's own ctrl-modal shows up in window.modal_operators like a transform would,
     # but update_data must keep rebuilding through it to draw the count labels.
@@ -172,6 +169,10 @@ def create_curve_overlay(
         depsgraph_version : ClassVar[int] = -42
         paused_update : ClassVar[bool] = False
         paused_overlay : ClassVar[bool] = False
+
+        # modal operators update_data keeps rebuilding through.
+        # A standalone host overrides this with its own operator's internal idname.
+        ignore_modal_bl_idnames : ClassVar[set[str]] = { RFCORE_OPERATOR_BL_IDNAME, own_tool_bl_idname }
 
         hovering : tuple[int, int, list] | None = None  # (chain_index, handle_index, control-point snapshot)
 
@@ -275,9 +276,15 @@ def create_curve_overlay(
         def _sharp_corner_angle(self, context : Context) -> float:
             return self._curve_props(context).curve_corner_angle
 
-        def update_data(self, context : Context) -> bool:
+        def _dirty_version(self) -> int | None:
+            ''' Counter that changes whenever the curves may need rebuilding,
+            or None while rebuilds aren't possible at all. '''
             RFCore = RFGlobals.RFCore_None
-            if not RFCore: return False
+            return RFCore.depsgraph_version if RFCore else None
+
+        def update_data(self, context : Context) -> bool:
+            version = self._dirty_version()
+            if version is None: return False
 
             if not self._curve_handles_enabled(context):
                 cls = type(self)
@@ -293,8 +300,7 @@ def create_curve_overlay(
             external_ops = [
                 op.bl_idname for op in context.window.modal_operators
                 if op is not self
-                and op.bl_idname != RFCORE_OPERATOR_BL_IDNAME
-                and op.bl_idname != own_tool_bl_idname
+                and op.bl_idname not in self.ignore_modal_bl_idnames
             ]
             if external_ops:
                 return False
@@ -306,11 +312,11 @@ def create_curve_overlay(
                 # throttle during the drag
                 tunables_changed = False
 
-            if not tunables_changed and self.depsgraph_version == RFCore.depsgraph_version and hasattr(self, 'curves'): return True
+            if not tunables_changed and self.depsgraph_version == version and hasattr(self, 'curves'): return True
             if self.paused_update: return False
 
             cls = type(self)
-            cls.depsgraph_version = RFCore.depsgraph_version
+            cls.depsgraph_version = version
             self._last_tunables = tunables
             self._last_tunables_rebuild_time = time.monotonic()
             bend_tolerance_factor, sharp_angle = tunables
@@ -416,10 +422,9 @@ def create_curve_overlay(
             Cached per (mesh, view, retopology offset), because occlusion cannot
             change unless one of those does, and we don't want to do this every frame.
             '''
-            RFCore = RFGlobals.RFCore_None
             r3d = context.region_data
             key = (
-                RFCore.depsgraph_version if RFCore else None,
+                self._dirty_version(),
                 r3d.perspective_matrix.copy().freeze() if r3d else None,
                 getattr(getattr(context.space_data, 'overlay', None), 'retopology_offset', 0.0),
                 is_xray_enabled(context),
@@ -788,8 +793,9 @@ def create_curve_overlay(
             if not RFCore: return
             if RFCore.selected_RFTool_idname != rftool_idname: return
             if self.paused_overlay: return
+            self.draw_overlay(bpy.context)
 
-            context = bpy.context
+        def draw_overlay(self, context : Context):
             if not context.edit_object:
                 return
             if not self.update_data(context):
@@ -884,4 +890,16 @@ def create_curve_overlay(
                 if auto_knot_pts2d:
                     Drawing.draw2D_points(context, auto_knot_pts2d, AUTO_KNOT_FILL_COLOR, radius=KNOT_RADIUS, border=2, borderColor=KNOT_BORDER_COLOR)
 
-    return type(opname, (RFOperator_Curve_Overlay, RFOperator), {})
+    return RFOperator_Curve_Overlay
+
+
+def create_curve_overlay(
+    opname : str,
+    rftool_idname : str,
+    idname : str,
+    label : str,
+    providers : Sequence[ChainProvider],
+) -> type[RFOverlay_Base]:
+    overlay_names.add(label)
+    logic = create_curve_overlay_logic(rftool_idname, idname, label, providers)
+    return type(opname, (logic, RFOperator), {})

@@ -21,127 +21,53 @@ Created by Jonathan Denning, Jonathan Lampel
 
 from __future__ import annotations
 
+import bpy
 import bmesh
 import heapq
 import math
 from mathutils import Vector, Quaternion, kdtree
-from bpy.types import Context, Event
+from bpy.types import Context, Event, SpaceView3D
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 
+from typing import ClassVar
 from collections.abc import Callable
 
+from ..rfglobals import RFGlobals
+from ...addon_common.common.maths import sign_threshold
+from ...addon_common.common.blender_cursors import Cursors
 from ..common.accel import SourceCache
 from ..common.bmesh import get_bmesh_emesh
-from ..common.bmesh_maths import orient_bmf_normals
-from ..common.curves import ordered_rungs
-from ..common.topology_corners import insert_corner, remove_corner
 from ..common.drawing import Drawing
 from ..common.maths import proportional_edit
-from ..common.raycast import raycast_point_valid_sources, nearest_point_valid_sources, iter_all_valid_sources, mouse_from_event, region_2d_to_location_3d_stable
-from ..common.snapping import source_snap_settings, source_snap_radius
-from ..common.operator import RFOperator, RFKeyMaps, execute_operator, Operator_Execute_Function
+from ..common.snapping import source_snap_settings, source_snap_radius, SNAP_TO_ITEMS, build_snap_sources, build_island_bvh
+from ..common.operator import RFOperator, RFOperator_Invoke, RFKeyMaps, execute_operator, Operator_Execute_Function, rf_is_running
+from ..common.orientation import cycle_axis_constraint, reset_axis_constraint
+from ..common.raycast import (
+    raycast_point_valid_sources, nearest_point_valid_sources, iter_all_valid_sources,
+    mouse_from_event, region_2d_to_location_3d_stable, ray_from_point
+)
+from ..common.curves import (
+    QuadStripChainProvider, LoopStripChainProvider,
+    relax_interior_verts, cumulative_lengths, walk_free_run, toggle_hovered_handle,
+)
 from ..rfoverlay_base import RFOverlay_Base
 from ..rfoverlays.proportional_edit_overlay import draw_proportional_edit_circle
-from ..rfglobals import RFGlobals
-from ...addon_common.common import bmesh_ops as bmops
-from ...addon_common.common.maths import sign_threshold
 from ..rfoverlays.curve_overlay import (
     shrink_segment, snap_hidden_vector_arms, KNOT_RADIUS, TANGENT_RADIUS,
     CURVE_LINE_COLOR, CONTROL_POLYGON_COLOR, TANGENT_FILL_COLOR, TANGENT_BORDER_COLOR,
     KNOT_FILL_COLOR, KNOT_BORDER_COLOR, FREE_KNOT_FILL_COLOR, AUTO_KNOT_FILL_COLOR,
-    DEBUG_SHOW_AUTO_HANDLES,
+    DEBUG_SHOW_AUTO_HANDLES, create_curve_overlay_logic, _internal_bl_idname,
 )
 
 
-# per-frame iterations for the interior-vert relaxation; it's warm-started, so a
-# few iterations per frame track a slowly-moving boundary
-INTERIOR_RELAX_ITERATIONS = 10
-# extra settling on release, in case a fast drag-and-release didn't catch up
-INTERIOR_RELAX_FINAL_ITERATIONS = 40
-
-# tangent swing at which the curve-normal correction reaches full strength
-# (ramps in below that) -- a feel knob, tune freely
-CURVE_NORMAL_EDIT_ANGLE = math.radians(90)
-
-
-def _relax_interior_verts(bm, interior, iterations):
-    ''' Laplacian relaxation of a patch's interior verts as its boundary moves. '''
-    # relaxes each vert's DISPLACEMENT from its original position, not its absolute
-    # position, so nothing moves until the boundary does and existing surface detail
-    # is preserved. Weighted by original edge length to reduce (not eliminate --
-    # it's still a linear method) fold-over under large deformations.
-    indices = interior['indices']
-    neighbors = interior['neighbors']
-    orig_co = interior['orig_co']
-    displacement = interior['displacement']
-    boundary_orig_co = interior['boundary_orig_co']
-    for _ in range(iterations):
-        for idx in indices:
-            nbrs = neighbors[idx]
-            if not nbrs:
-                continue
-            total = Vector((0.0, 0.0, 0.0))
-            weight_sum = 0.0
-            for (n, w) in nbrs:
-                d = displacement[n] if n in displacement else (bm.verts[n].co - boundary_orig_co[n])
-                total = total + d * w
-                weight_sum += w
-            displacement[idx] = total / weight_sum
-            bm.verts[idx].co = orig_co[idx] + displacement[idx]
-
-def _segment_arc_length(cb):
-    return sum(d for _, _, d in cb.get_tessellate_uniform())
-
-
-def _cumulative_lengths(cbs, segs):
-    ''' Running total arc length at each boundary of `segs` (len(segs)+1 entries, starting at 0). '''
-    cumul = [0.0]
-    for seg in segs:
-        cumul.append(cumul[-1] + _segment_arc_length(cbs[seg]))
-    return cumul
-
-
-def _walk_free_run(start, step, nseg, cyclic, free_at_seg_p0, visited):
-    ''' Walks `visited` outward from `start` (step = -1/+1), one segment at a time,
-    for as long as the knot crossed at each step is free. Returns the new segments
-    in walk order; `visited` grows so the opposite walk can't cross back in. '''
-    result = []
-    cur = start
-    while True:
-        nxt = (cur + step) % nseg if cyclic else cur + step
-        if not cyclic and not (0 <= nxt < nseg):
-            break
-        if nxt in visited:
-            break
-        # the boundary knot between cur and nxt is "at p0" of whichever one
-        # comes later in forward (increasing-index) order
-        if not free_at_seg_p0.get(nxt if step > 0 else cur, False):
-            break
-        result.append(nxt)
-        visited.add(nxt)
-        cur = nxt
-    return result
-
-
-def create_curve_edit_operator(
-    opname : str,
-    idname : str,
-    label : str,
-    description : str,
-    *,
-    get_overlay : Callable[[], type[RFOverlay_Base] | None],
-    on_init : Callable[[Context, Event], None] | None = None,
-) -> type[RFOperator]:
-    ''' Shared curve-handle drag operator: works for any overlay built with
-    create_curve_overlay, regardless of whether its chains come from real
-    edge loops/strips or from a derived centerline (e.g. a quad strip) --
-    see curves.ChainSpec for what makes a chain interchangeable
-    here (deform_bmv_indices, cache_key, current_points). '''
-
-    # deliberately does NOT inherit RFOperator: __init_subclass__ auto-registers
-    # anything with a bl_idname, so only the final type(...) combination below may
-    # trigger that, exactly once
+def create_curve_edit_logic(idname : str, label : str, description : str, *,
+                            get_overlay : Callable[[], type[RFOverlay_Base] | None],
+                            on_init : Callable[[Context, Event], None] | None = None
+                            ) -> type:
+    ''' Shared curve handle drag logic for any chain from create_curve_overlay(_logic). '''
     class RFOperator_Curve_Edit:
+        # deliberately does NOT inherit RFOperator because __init_subclass__ auto-registers anything with a bl_idname,
+        # so only the final class combination should trigger that, exactly once
         bl_idname = f'retopoflow.{idname}'
         bl_label = label
         bl_description = description
@@ -149,16 +75,129 @@ def create_curve_edit_operator(
 
         rf_keymaps : RFKeyMaps = [
             (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS'}, None),
-            # separate entries so Alt(+Shift) drags also start when the modifiers are
-            # already held before the click -- unlisted modifiers default to False
             (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS', 'alt': True}, None),
             (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS', 'alt': True, 'shift': True}, None),
         ]
+
+        constraint_axis = None
+        constraint_stage = 0
+        constraint_plane = False
+        constraint_dir_world = None
+        constraint_plane_axes = ()  # ((axis_idx, dir_world), ...) for the plane mode guide draw
+        constraint_label = ''
+        constraint_persists = False
 
         @classmethod
         def can_start(cls, context):
             i = get_overlay().instance
             return False if not i else bool(getattr(i, 'hovering', False))
+
+        def _gather_sources(self, context):
+            return [
+                (obj, obj.matrix_world, (mi := obj.matrix_world.inverted_safe()), mi.to_3x3())
+                for obj in iter_all_valid_sources(context)
+            ]
+
+        def _place_knot(self, context, new_screen, pt_orig):
+            ''' New local-space position for a dragged knot, or None to leave it put. '''
+            new_world = raycast_point_valid_sources(context, new_screen, respect_clip_planes=True)
+            return (self.Mi @ new_world) if new_world else None
+
+        def _snap_deformed(self, context, pt_edit_new, pt_edit_orig):
+            ''' Snap a curve-deformed vert to the target surface (local space). '''
+            return nearest_point_valid_sources(
+                context, self.M @ pt_edit_new,
+                world=False, sources=self.sources, respect_clip_planes=True,
+            ) or pt_edit_orig
+
+        # ------------------------------------------------- axis constraints
+
+        def _constrained_pos(self, context, new_screen, pt_orig):
+            ''' Closest point to the mouse ray on the constraint line through the
+            handle's pre-drag position (local space), or None when the axis runs
+            straight into the view and there is no stable solution. '''
+            ray_o, ray_d = ray_from_point(context, new_screen)
+            if ray_o is None or ray_d is None:
+                return None
+            p1, d1 = self.M @ pt_orig, self.constraint_dir_world
+            p2, d2 = ray_o.xyz, ray_d.xyz
+            w0 = p1 - p2
+            a, b, c = d1.dot(d1), d1.dot(d2), d2.dot(d2)
+            denom = a * c - b * b
+            if denom < 1e-9:
+                return None
+            t = (b * d2.dot(w0) - c * d1.dot(w0)) / denom
+            return self.Mi @ (p1 + d1 * t)
+
+        def _constrained_plane_pos(self, context, new_screen, pt_orig):
+            ''' Mouse ray intersected with the constraint plane through the handle's
+            pre-drag position (plane normal = the excluded axis), local space, or
+            None when the ray runs parallel to the plane. '''
+            ray_o, ray_d = ray_from_point(context, new_screen)
+            if ray_o is None or ray_d is None:
+                return None
+            n = self.constraint_dir_world
+            p0 = self.M @ pt_orig
+            o, d = ray_o.xyz, ray_d.xyz
+            dn = d.dot(n)
+            if abs(dn) < 1e-9:
+                return None
+            t = (p0 - o).dot(n) / dn
+            return self.Mi @ (o + d * t)
+
+        def _constrained_tangent_pos(self, context, new_screen, pt_orig, h, orig):
+            ''' New local-space position for a dragged tangent arm under an axis
+            constraint -- a plane through the owner knot, never the line a knot
+            gets (see below), or None when the view-plane move fails. '''
+            rgn, r3d = context.region, context.region_data
+            new_world = region_2d_to_location_3d_stable(rgn, r3d, new_screen, self.M @ pt_orig)
+            if new_world is None:
+                return None
+            knot_h = self._knot_for_tangent(h)
+            if knot_h is None:
+                return self.Mi @ new_world
+            knot_w = self.M @ orig(*knot_h['pos'])
+            arm_w = (self.M @ pt_orig) - knot_w
+            # a tangent arm's gesture is a rotation around its knot, so a line
+            # constraint would deadlock it; this plane (through the arm and the
+            # axis) swings freely while still driving the points along the axis
+            n = arm_w.cross(self.constraint_dir_world)
+            if n.length < 1e-9:
+                # the arm already runs along the axis: every containing plane works,
+                # so leave the move free and let the vert projection constrain
+                return self.Mi @ new_world
+            n.normalize()
+            new_world = new_world - n * ((new_world - knot_w).dot(n))
+            return self.Mi @ new_world
+
+        def draw_constraint_axis(self, context):
+            if self.constraint_dir_world is None:
+                return
+            rgn, r3d = context.region, context.region_data
+            if not r3d:
+                return
+            h = self.handle # anchored at the knot
+            anchor_h = h if h['kind'] == 'knot' else (self._knot_for_tangent(h) or h)
+            seg0, attr0 = anchor_h['pos']
+            anchor = self.M @ Vector(getattr(self.spline.cbs[seg0], attr0))
+            p0 = location_3d_to_region_2d(rgn, r3d, anchor)
+            if p0 is None:
+                return
+            # plane mode draws the plane's own two axes, like Blender's transform
+            lines = self.constraint_plane_axes if self.constraint_plane else \
+                    ((self.constraint_axis, self.constraint_dir_world),)
+            ext = rgn.width + rgn.height
+            ui = bpy.context.preferences.themes[0].user_interface
+            for axis_idx, dir_world in lines:
+                p1 = location_3d_to_region_2d(rgn, r3d, anchor + dir_world)
+                if p1 is None:
+                    continue
+                d = p1 - p0
+                if d.length < 1e-3:
+                    continue  # this axis is parallel to the view
+                d = d / d.length
+                r, g, b = (ui.axis_x, ui.axis_y, ui.axis_z)[axis_idx]
+                Drawing.draw2D_lines(context, [p0 - d * ext, p0 + d * ext], (r, g, b, 0.8), width=1)
 
         def init(self, context, event):
             overlay_type = get_overlay()
@@ -173,13 +212,13 @@ def create_curve_edit_operator(
             self.snapshot = snapshot
             # freeze the overlay's knot-occlusion result for the whole drag
             self.knot_visible = dict(overlay.knot_visibility(context, chain_idx, self.chain))
-            # set by apply_handle when Alt+dragging a knot -- see _scale_handles
             self.taper_scale = None
             self.taper_t = None
-            # set by _recompute_typed_handles while dragging an Automatic knot with
-            # two valid neighbors; no-op defaults for every other drag kind
-            self.horizon_factor = 0.0
+            self.horizon_factor = 0.0 # for automatic knots only
             self.horizon_segs = frozenset()
+            if not self.constraint_persists:
+                # constraints persist when used via menu modal, not via RF active tool
+                reset_axis_constraint(type(self))
 
             get_overlay().pause_update()
             get_overlay().instance.depsgraph_version = None
@@ -204,14 +243,10 @@ def create_curve_edit_operator(
 
             self.bm, self.em = get_bmesh_emesh(context, ensure_lookup_tables=True)
             self.M, self.Mi = M, Mi
-            self.sources = [
-                (obj, obj.matrix_world, (mi := obj.matrix_world.inverted_safe()), mi.to_3x3())
-                for obj in iter_all_valid_sources(context)
-            ]
+            self.sources = self._gather_sources(context)
             self.spline.tessellate_uniform()
             # Every vert below is parametrized by a nearest-point search over this tessellation.
-            # With proportional editing on, "every vert" means every vert in the mesh,
-            # so index it once instead.
+            # With proportional editing on, "every vert" means every vert in the mesh, so index it only once.
             self.spline.tessellate_kdtree()
 
             self.source_accel = SourceCache.get(context)
@@ -226,13 +261,12 @@ def create_curve_edit_operator(
                 self.feature_radius = 0.0
 
 
-            # segments this drag reshapes -- their verts track arc-length fraction
-            # instead of raw t, which drifts spacing as a segment stretches
+            # segments this drag reshapes.
             nseg = len(self.spline.cbs)
             if self.handle['kind'] == 'knot':
                 self.touched_segs = { seg for seg, _ in self.handle['set'] }
                 # a knot drag also live-recomputes adjacent Automatic/Vector knots'
-                # arms, reshaping the segments past them; over-inclusion is harmless
+                # arms, reshaping the segments past them. Over-inclusion is harmless
                 for seg in list(self.touched_segs):
                     for nb in (seg - 1, seg + 1):
                         if self.chain['cyclic']:
@@ -244,17 +278,16 @@ def create_curve_edit_operator(
                 if 'g1_peer' in self.handle:
                     # a G1-mirrored arm reshapes the peer segment too
                     self.touched_segs.add(self.handle['g1_peer'][0])
-                # Alt-dragging a tangent scales/rotates its knot instead, which can
-                # reshape the segment on the knot's other side -- cover it in case
-                # Alt is held or toggled mid-drag
+                # Alt-dragging a tangent scales/rotates its knot instead,
+                # which can reshape the segment on the knot's other side.
+                # Cover it in case Alt is toggled mid-drag.
                 knot_h = self._knot_for_tangent(self.handle)
                 if knot_h:
                     self.touched_segs |= { seg for seg, _ in knot_h['move'] }
 
-            # a free knot isn't a vertex, so nothing should bunch up on it as it
-            # moves: treat the whole run between the nearest TRUE knots on either
-            # side as one combined span, and keep each vert's proportional position
-            # within that span's total arc length
+            # a free knot isn't a vertex, so nothing should bunch up on it as it moves:
+            # combined_segs spans the whole run between the nearest true knots,
+            # and each vert keeps its proportional position within that span
             self.combined_segs = None
             if self.handle['kind'] == 'knot' and self.handle.get('free') and len(self.handle['set']) == 2:
                 free_at_seg_p0 = {
@@ -265,8 +298,8 @@ def create_curve_edit_operator(
                 seg_before, seg_after = self.handle['set'][0][0], self.handle['set'][1][0]
                 cyclic = self.chain['cyclic']
                 visited = {seg_before, seg_after}
-                backward = _walk_free_run(seg_before, -1, nseg, cyclic, free_at_seg_p0, visited)
-                forward = _walk_free_run(seg_after, 1, nseg, cyclic, free_at_seg_p0, visited)
+                backward = walk_free_run(seg_before, -1, nseg, cyclic, free_at_seg_p0, visited)
+                forward = walk_free_run(seg_after, 1, nseg, cyclic, free_at_seg_p0, visited)
                 self.combined_segs = list(reversed(backward)) + [seg_before, seg_after] + forward
 
             bmvs = [self.bm.verts[i] for i in self.chain['deform_bmv_indices']]
@@ -296,7 +329,7 @@ def create_curve_edit_operator(
 
             # all data is local to edit!
             data = {}
-            combined_cumul = _cumulative_lengths(self.spline.cbs, self.combined_segs) if self.combined_segs else None
+            combined_cumul = cumulative_lengths(self.spline.cbs, self.combined_segs) if self.combined_segs else None
             # face strips only: {vert index -> (rung midpoint, rungs from nearest open
             # end, is_boundary)}; empty for vertex-coupled chains
             rung_map = self.chain.get('deform_bmv_rungs') or {}
@@ -311,11 +344,9 @@ def create_curve_edit_operator(
                 if rung is None or rung[1] != 0.0 or rung[2]:
                     rung_pt = rung[0] if rung else bmv.co
                     t = self.spline.approximate_t_at_point_kdtree(rung_pt)
-                    # a cap rung sits past the centerline's endpoint (it runs face
-                    # center to face center), so extrapolate along the endpoint
-                    # tangent out to the cap -- the cap vert's offset then lands
-                    # perpendicular like any interior vert. Re-applied against the
-                    # live spline each frame.
+                    # a cap rung sits past the centerline's endpoint (face-center to
+                    # face-center); extrapolate along the endpoint tangent to it, then
+                    # re-evaluate that offset against the live spline every frame
                     end_t = None
                     if rung and rung[1] == 0.0:
                         end_t = 0.0 if t < nseg / 2 else float(nseg)
@@ -378,7 +409,7 @@ def create_curve_edit_operator(
                 for idx in interior_bmv_indices:
                     bmv = self.bm.verts[idx]
                     orig_co[idx] = Vector(bmv.co)
-                    # weighted by original edge length -- see _relax_interior_verts
+                    # weighted by original edge length -- see relax_interior_verts
                     neighbors[idx] = [
                         (other.index, 1.0 / max((other.co - bmv.co).length, 1e-6))
                         for bme in bmv.link_edges
@@ -415,10 +446,8 @@ def create_curve_edit_operator(
 
         def finish(self, context):
             # the dragged spline IS the overlay's cached one, so sync the cache's
-            # 'cos' baseline to the current points and the next rebuild reuses it
-            # verbatim. A refit here is NOT a safe no-op: the plain best-fit search
-            # knows nothing about handle types or a deliberate straight-line result
-            # and can visibly replace it the instant the drag ends.
+            # 'cos' baseline to the current points for the next rebuild to reuse
+            # verbatim -- a refit here would lose handle-type/straight-line intent
             try:
                 overlay = get_overlay().instance
                 bm    = getattr(self, 'bm', None)
@@ -475,14 +504,21 @@ def create_curve_edit_operator(
             new_screen = pt_screen + delta
 
             if h['kind'] == 'knot':
-                # knots snap to the source surface and carry their tangent arms along
-                new_world = raycast_point_valid_sources(context, new_screen, respect_clip_planes=True)
-                if not new_world:
+                if self.constraint_dir_world is not None:
+                    # a constraint wins over surface and feature snapping: the knot
+                    # slides along the constraint line, or within the plane
+                    if self.constraint_plane:
+                        new_edit = self._constrained_plane_pos(context, new_screen, pt_orig)
+                    else:
+                        new_edit = self._constrained_pos(context, new_screen, pt_orig)
+                else:
+                    # knots snap to the source surface and carry their tangent arms along
+                    new_edit = self._place_knot(context, new_screen, pt_orig)
+                if new_edit is None:
                     return
-                new_edit = Mi @ new_world
                 # A coupled edge chain's control point is a mesh vert, so snap the control point too.
                 # Control points on a face loop are never verts, so don't snap those.
-                if self.chain.get('coupled', True):
+                if self.chain.get('coupled', True) and self.constraint_dir_world is None:
                     new_edit = self.snap_co_to_feature(new_edit)
                 knot_delta = new_edit - pt_orig
                 for (seg, attr) in h['set']:
@@ -494,9 +530,19 @@ def create_curve_edit_operator(
                 # positions every frame, for the dragged knot and its neighbors
                 self._recompute_typed_handles(h, cbs)
             else:
-                # tangent arms move freely in the view plane
-                new_world = region_2d_to_location_3d_stable(rgn, r3d, new_screen, M @ pt_orig)
-                new_edit = Mi @ new_world
+                if self.constraint_dir_world is not None:
+                    # never a line for a tangent arm -- it must stay able to swing;
+                    # the points themselves are constrained in _deform_verts
+                    if self.constraint_plane:
+                        new_edit = self._constrained_plane_pos(context, new_screen, pt_orig)
+                    else:
+                        new_edit = self._constrained_tangent_pos(context, new_screen, pt_orig, h, orig)
+                    if new_edit is None:
+                        return
+                else:
+                    # tangent arms move freely in the view plane
+                    new_world = region_2d_to_location_3d_stable(rgn, r3d, new_screen, M @ pt_orig)
+                    new_edit = Mi @ new_world
                 setattr(cbs[seg0], attr0, new_edit)
                 # G1: at smooth junctions, mirror the peer tangent arm to stay collinear
                 if 'g1_peer' in h:
@@ -508,11 +554,9 @@ def create_curve_edit_operator(
                     peer_len = (peer_orig_pt - K).length
                     if T_moved.length > 1e-9 and peer_len > 1e-9:
                         setattr(cbs[peer_seg], peer_attr, K - T_moved.normalized() * peer_len)
-                # a direct tangent drag is a manual choice: pin an AUTOMATIC owner
-                # to 'aligned' so a later drag of that knot doesn't overwrite the
-                # adjustment. A VECTOR owner keeps its type -- the next drag
-                # re-snapshots from this edit as the new baseline offset, whereas
-                # pinning would freeze it solid for no benefit.
+                # a direct tangent drag pins an AUTOMATIC owner to 'aligned' so a
+                # later knot drag doesn't overwrite it; a VECTOR owner keeps its
+                # type since the next drag re-snapshots from this edit anyway
                 overlay = get_overlay().instance
                 owner = h.get('owner_vert_index')
                 if overlay is not None and owner is not None:
@@ -530,11 +574,9 @@ def create_curve_edit_operator(
             return None
 
         def _recompute_typed_handles(self, dragged_h, cbs):
-            ''' Live handle update while an Automatic knot is dragged: blends the
-            fitted handles toward Blender's point-at handles as the knot nears the
-            straight line between its two neighbors, reaching pure point-at (exactly
-            straight) right on it. Touches only the dragged knot's arms and each
-            neighbor's facing arm. '''
+            ''' Live handle update while an Automatic knot is dragged: blends its
+            arms and each neighbor's facing arm toward Blender's point-at handles
+            as the knot nears the straight line between its two neighbors. '''
             # the line + blend only make sense for an auto knot flattening
             # toward the run between its two neighbors -- a vector/aligned
             # drag just keeps apply_handle's rigid translate (its own fit)
@@ -603,10 +645,9 @@ def create_curve_edit_operator(
                 return v - 2.0 * v.dot(nrm) * nrm
 
             def point_at_dir(i, attr, pos_fn):
-                ''' Blender-handle direction for knot i's `attr` arm, from
-                whichever positions `pos_fn` reads (cur = live/current, snap
-                = grab-time): auto -> its own unit(b-a)+unit(c-b) (arm sign
-                by side); vector/endpoint -> aim at the faced neighbor. '''
+                ''' Blender-handle direction for knot i's `attr` arm (auto: own
+                tangent-sum unit(b-a)+unit(c-b); vector/endpoint: aim at the
+                faced neighbor), read via `pos_fn` (cur = live, snap = grab-time). '''
                 kh = knot_at(i)
                 if kh is None:
                     return None
@@ -625,17 +666,9 @@ def create_curve_edit_operator(
                 return (pos_fn(m['pos']) - b) if m is not None else None
 
             def blender_len_ref(i, attr, pos_fn):
-                ''' Reference quantity proportional to Blender's own handle
-                LENGTH for knot i's `attr` arm (the constant factor Blender
-                applies -- /3 for Vector, /2.5614 for Auto -- cancels out
-                since only the ratio between two calls is ever used, to scale
-                our own fit-derived length rather than replace it):
-                vector/endpoint -> distance to the faced neighbor (Blender's
-                Vector handle is exactly that distance / 3); auto -> that
-                same distance divided by |unit(b-a)+unit(c-b)| (Blender's
-                Auto handle divides by the tangent-sum magnitude, which
-                shrinks/grows the handle as the knot's angle to its neighbors
-                changes, not just its raw distance to them). '''
+                ''' Reference proportional to Blender's own handle LENGTH for knot
+                i's `attr` arm -- only the ratio between two calls is ever used,
+                so Blender's own constant factor (/3 Vector, /2.5614 Auto) cancels. '''
                 kh = knot_at(i)
                 if kh is None:
                     return None
@@ -644,6 +677,7 @@ def create_curve_edit_operator(
                 m = nk if attr == 'p1' else pk
                 if m is None:
                     return None
+                # vector/endpoint: Blender's Vector handle is exactly this distance / 3
                 len_x = (pos_fn(m['pos']) - b).length
                 if kh.get('handle_type') == 'automatic' and pk is not None and nk is not None:
                     va, vc = b - pos_fn(pk['pos']), pos_fn(nk['pos']) - b
@@ -652,6 +686,8 @@ def create_curve_edit_operator(
                     t_len = (va.normalized() + vc.normalized()).length
                     if t_len < 1e-9:
                         return None
+                    # auto: Blender also divides by the tangent-sum magnitude, so the
+                    # handle scales with the knot's angle to its neighbors, not just distance
                     return len_x / t_len
                 return len_x
 
@@ -754,10 +790,9 @@ def create_curve_edit_operator(
                     orig_h = orig(seg, attr)
                     setattr(cbs[seg], attr, pt_orig + (orig_h - pt_orig) * scale)
             else:
-                # a face strip's handles describe its spine -- scaling them would
-                # bend the spine as a side effect of the taper, so hold the curve at
-                # its snapshot and taper the verts' width against it instead (see
-                # the taper_scale block in _deform_verts)
+                # a face strip's handles describe its spine, so scaling them would
+                # bend it as a side effect; hold the curve at its snapshot and taper
+                # the verts' width against it instead (see taper_scale in _deform_verts)
                 for (seg, attr) in h['move']:
                     setattr(cbs[seg], attr, orig(seg, attr))
                 self.taper_scale = scale
@@ -803,11 +838,9 @@ def create_curve_edit_operator(
                 setattr(cbs[seg], attr, Mi @ new_world)
 
         def _taper_weight(self, t, nseg):
-            ''' 1.0 exactly at the Alt-scaled knot's own parameter, falling
-            off LINEARLY to 0.0 by the adjacent knots (one full segment of
-            parameter `t` away on either side) -- a localized taper centered
-            on the dragged knot, not a uniform width change across the whole
-            chain. Wraps around for a cyclic chain. '''
+            ''' 1.0 at the Alt-scaled knot's own parameter, falling off linearly
+            to 0.0 by the adjacent knots (one segment of `t` either side); wraps
+            for a cyclic chain. A localized taper, not a uniform width change. '''
             dist = abs(t - self.taper_t)
             if self.chain['cyclic']:
                 dist = min(dist, nseg - dist)
@@ -864,14 +897,19 @@ def create_curve_edit_operator(
             if not interior:
                 return
             bm = self.bm
-            _relax_interior_verts(bm, interior, iterations)
+            relax_interior_verts(bm, interior, iterations)
             for idx in interior['indices']:
                 bmv = bm.verts[idx]
-                # input must be WORLD (world=False only localizes the output)
-                co = nearest_point_valid_sources(context, self.M @ bmv.co, world=False, sources=self.sources, respect_clip_planes=True) or bmv.co
+                # constrained displacements stay axis-pure through the relax (it's a
+                # linear combination of axis-pure boundary displacements), so only
+                # snap when unconstrained -- snapping would pull them off-axis
+                co = bmv.co if self.constraint_dir_world is not None else self._snap_deformed(context, bmv.co, bmv.co)
                 bmv.co = self._mirror_clamp(context, co, interior['orig_co'][idx], self.M, self.Mi)
 
         def update(self, context, event):
+            INTERIOR_RELAX_ITERATIONS = 10 # per frame
+            INTERIOR_RELAX_FINAL_ITERATIONS = 40 # on release
+
             data = self.grab['data']
             bm, em = self.bm, self.em
 
@@ -894,6 +932,12 @@ def create_curve_edit_operator(
                 bmesh.update_edit_mesh(em)
                 context.area.tag_redraw()
                 return {'CANCELLED'}
+
+            if event.value == 'PRESS' and event.type in {'X', 'Y', 'Z'} and not (event.ctrl or event.alt or event.oskey):
+                # Shift+axis = plane constraint, like Blender's transform
+                cycle_axis_constraint(type(self), context, event.type, plane=event.shift)
+                # fall through: apply_handle below repositions against the new
+                # constraint using this event's mouse position
 
             if event.type in {'WHEELDOWNMOUSE', 'WHEELUPMOUSE'}:
                 if event.type == 'WHEELUPMOUSE':
@@ -949,7 +993,7 @@ def create_curve_edit_operator(
             # taper_scale is only ever set for a face-derived chain -- see _scale_handles
             taper_active = self.taper_scale is not None
             nseg = len(spline.cbs)
-            combined_cumul = _cumulative_lengths(spline.cbs, self.combined_segs) if self.combined_segs else None
+            combined_cumul = cumulative_lengths(spline.cbs, self.combined_segs) if self.combined_segs else None
 
             # Pass 1: compute each vert's (anchor, offset) but don't finalize
             # bmv.co yet -- pass 2 needs a whole rung's results first. A rung's
@@ -994,13 +1038,12 @@ def create_curve_edit_operator(
                 z1 = Vector(spline.eval_derivative(eval_t))
                 if z1.length < 1e-9: z1 = Vector((0, 0, 1))
                 z1.normalize()
-                # rotate the stored offset by however much this point's tangent has
-                # turned since init: rigid, so it can't shear and undoes itself when
-                # the curve straightens back out. Tracked as small per-frame deltas
-                # composed into grab['rot'] -- a single shortest-arc from z0 picks
-                # the wrong way around once the true total turn exceeds 180 degrees,
-                # twisting adjacent verts around unrelated axes.
+                # rotate the stored offset by how much this point's tangent has
+                # turned since init: rigid, so it can't shear and undoes itself
+                # as the curve straightens back out
                 R_prev = rot_state[bmv_idx]
+                # composed from small per-frame deltas, not a one-shot shortest-arc
+                # from z0, which would pick the wrong way past a 180-degree turn
                 z_prev = R_prev @ z0
                 if z_prev.dot(z1) < -0.9999:
                     # tangent fully reversed in one event: the shortest-arc axis is
@@ -1024,17 +1067,18 @@ def create_curve_edit_operator(
                         # it scales the strip's width here, not position along it
                         d = d0 * (1 + (self.taper_scale - 1) * w)
                 d_final = R @ d
-                # Curve-normal correction, RUNG VERTS ONLY: as the edit gets large
-                # (edit_w) nudge a well-fit (fit_w) cross-section into the curve's
-                # normal plane at full width, so carried-along fit skew can't kink
-                # the faces; horizon_boost forces it to full strength -- bypassing
-                # fit_w -- so a perfectly straight line yields a perfectly flat
-                # strip. Everyone else's d0 is fit residual, not a width: rescaling
-                # its perpendicular NOISE back up to full length flings the vert in
-                # an arbitrary direction, so non-rung verts stay purely rigid.
+                # Curve-normal correction, rung verts only: as the edit grows,
+                # nudge a well-fit cross-section fully into the curve's normal
+                # plane so carried-along fit skew can't kink the faces.
                 d_len = d.length
                 if d_len > 1e-9 and is_rung:
+                    # non-rung d0 is fit residual, not a width -- rescaling it to
+                    # full length would fling the vert in an arbitrary direction
+                    # feel knob: tangent swing for full-strength correction (ramps in below)
+                    CURVE_NORMAL_EDIT_ANGLE = math.radians(90)
                     edit_w = min(z0.angle(z1, 0.0) / CURVE_NORMAL_EDIT_ANGLE, 1.0)
+                    # max(), not fit_w*edit_w alone: horizon_boost bypasses fit_w
+                    # entirely, so a perfectly straight line yields a flat strip
                     blend = max(fit_w * edit_w, horizon_boost)
                     if blend > 0.0:
                         d_perp = d_final - d_final.dot(z1) * z1
@@ -1044,11 +1088,9 @@ def create_curve_edit_operator(
                 computed[bmv_idx] = [o, d_final, horizon_boost, factor, pt_edit_orig]
                 rung_groups.setdefault(t, []).append(bmv_idx)
 
-            # Pass 2: the correction rescales each vert's offset independently, so
-            # a slightly asymmetric rung can end up centered off its anchor `o` --
-            # a subtle rail skew even on a straight stretch. Pull the rung's average
-            # offset back to zero, ramped by the same horizon_boost. A rung with
-            # fewer than 2 verts computed this frame has nothing to center against.
+            # Pass 2: the correction rescales each vert independently, so an
+            # asymmetric rung can skew off its anchor `o`; pull the rung's
+            # average offset back to zero, ramped by the same horizon_boost.
             for idxs in rung_groups.values():
                 if len(idxs) < 2:
                     continue
@@ -1062,12 +1104,22 @@ def create_curve_edit_operator(
                     computed[i][1] = computed[i][1] - center_off * boost
 
             # Pass 3: finalize
+            axis = self.constraint_dir_world
             for bmv_idx, (o, d_final, horizon_boost, factor, pt_edit_orig) in computed.items():
                 bmv = bm.verts[bmv_idx]
-                # blend in local space; the surface query below wants world input
+                # blend in local space; the surface query inside _snap_deformed wants world input
                 pt_edit_new = pt_edit_orig + ((o + d_final) - pt_edit_orig) * factor
-                co = nearest_point_valid_sources(context, M @ pt_edit_new, world=False, sources=self.sources, respect_clip_planes=True) or pt_edit_orig
-                co = self.snap_co_to_feature(co)
+                if axis is not None:
+                    # the constraint proper: each POINT moves only along the axis
+                    # (or within the plane perpendicular to it), whatever the
+                    # handles did; snapping would pull it back off-constraint
+                    orig_w = M @ pt_edit_orig
+                    disp = (M @ pt_edit_new) - orig_w
+                    along = axis * disp.dot(axis)
+                    co = Mi @ (orig_w + ((disp - along) if self.constraint_plane else along))
+                else:
+                    co = self._snap_deformed(context, pt_edit_new, pt_edit_orig)
+                    co = self.snap_co_to_feature(co)
                 bmv.co = self._mirror_clamp(context, co, pt_edit_orig, M, Mi)
 
         def draw_curve(self, context):
@@ -1139,6 +1191,7 @@ def create_curve_edit_operator(
 
         def draw_postpixel(self, context):
             ''' Draw the live curve, plus the proportional edit circle in 2D space. '''
+            self.draw_constraint_axis(context)
             self.draw_curve(context)
             if not context.tool_settings.use_proportional_edit: return
             h = self.handle
@@ -1149,7 +1202,23 @@ def create_curve_edit_operator(
             # so a local-space center would scale/rotate with the object
             draw_proportional_edit_circle(context, self.M @ Vector(getattr(self.spline.cbs[seg], attr)))
 
-    return type(opname, (RFOperator_Curve_Edit, RFOperator), {})
+    return RFOperator_Curve_Edit
+
+
+def create_curve_edit_operator(
+    opname : str,
+    idname : str,
+    label : str,
+    description : str,
+    *,
+    get_overlay : Callable[[], type[RFOverlay_Base] | None],
+    on_init : Callable[[Context, Event], None] | None = None,
+) -> type[RFOperator]:
+    logic = create_curve_edit_logic(
+        idname, label, description,
+        get_overlay=get_overlay, on_init=on_init,
+    )
+    return type(opname, (logic, RFOperator), {})
 
 
 def create_curve_toggle_handle_type_operator(
@@ -1159,25 +1228,9 @@ def create_curve_toggle_handle_type_operator(
     *,
     get_overlay : Callable[[], type[RFOverlay_Base] | None],
 ) -> Operator_Execute_Function:
-    ''' Toggling curve control points (Aligned -> Vector -> Automatic -> Aligned):
-        - on an edge loop, the cycle is a pure handle-type change: no vert ever moves, so it's perfectly
-            reversible. Vector creases the fit at the knot and re-aims its arms and its neighbors'.
-        - on a face strip, Vector means a topological corner: entering Vector inserts a real L-junction
-            in the mesh, leaving Vector removes it. Knots that can't host a corner skip the Vector step.
-    Open-chain endpoints stay forced Vector and aren't togglable (pre-corner-feature behavior). '''
-
-    def _hovered_toggleable_knot():
-        overlay_type = get_overlay()
-        assert overlay_type
-        overlay = overlay_type.instance
-        if not overlay or not overlay.hovering:
-            return None
-        chain_idx, handle_idx, _snapshot = overlay.hovering
-        chain = overlay.chains[chain_idx]
-        handle = chain['handles'][handle_idx]
-        if handle['kind'] != 'knot' or not handle.get('can_toggle', False):
-            return None
-        return overlay, chain, handle
+    ''' Registers the V-key operator that cycles the hovered knot's handle type
+    (Aligned -> Vector -> Automatic -> Aligned); see toggle_hovered_handle in
+    common/curves.py for what each cycle step does on each chain kind. '''
 
     def can_toggle(context):
         # Only claim the hotkey while the cursor is actually over a curve control point.
@@ -1192,82 +1245,9 @@ def create_curve_toggle_handle_type_operator(
         overlay = overlay_type.instance if overlay_type else None
         return bool(overlay and overlay.hovering)
 
-    def _reroute_corner(context, overlay, chain, handle):
-        ''' Insert or remove a topological L-corner on a face strip. '''
-        cache_key = chain['cache_key']
-        # even knot (face center 2k) -> face k, keeping the knot marker in place
-        # odd knot (bend rung 2k-1) -> face k, so the corner's pivot vertex lands on that bend rung.
-        # Matches the eligibility indices in QuadStripChainProvider.
-        ci = handle['vert_index']
-        face_pos = (ci + (ci & 1)) // 2
-        is_corner = handle.get('handle_type') == 'vector'
-
-        bm, em = get_bmesh_emesh(context, ensure_lookup_tables=True)
-        try:
-            faces = [bm.faces[i] for i in cache_key[1:]]
-        except IndexError:
-            return {'CANCELLED'}
-        if not (1 <= face_pos <= len(faces) - 2):
-            return {'CANCELLED'}
-        rungs = ordered_rungs(faces, False)
-
-        M = context.edit_object.matrix_world
-
-        edit = remove_corner if is_corner else insert_corner
-        result = edit(bm, faces, rungs, face_pos)
-        if result is None:
-            return {'CANCELLED'}  # attached to existing geometry / degenerate so leave unchanged
-
-        # the squared corner verts were placed in-plane, pull them onto the source
-        for bmv in result.get('moved_verts', ()):
-            if snapped := nearest_point_valid_sources(context, M @ bmv.co, world=False, respect_clip_planes=True):
-                bmv.co = snapped
-
-        # only decide the normal after it is on the surface
-        orient_bmf_normals(context, [result['new_face']] if result.get('new_face') is not None else [], new_faces=True)
-
-        # reselect the whole resulting strip so the overlay re-detects the same chain
-        new_faces = [f for f in faces if f.is_valid]
-        if result.get('new_face') is not None:
-            new_faces.append(result['new_face'])
-        bmops.deselect_all(bm)
-        bmops.select_iter(bm, new_faces)
-        bmops.flush_selection(bm, em)  # also calls bmesh.update_edit_mesh
-
-        # force the overlay to re-collect and rebuild and drop cache keyed by the now-stale face indices
-        type(overlay).depsgraph_version = -42
-        overlay._curve_struct_cache.pop(cache_key, None)
-        overlay._handle_type_overrides.pop(cache_key, None)
-        context.area.tag_redraw()
-        return {'FINISHED'}
-
     def toggle(context):
-        found = _hovered_toggleable_knot()
-        if found is None:
-            return {'CANCELLED'}
-        overlay, chain, handle = found
-        cache_key, k = chain['cache_key'], handle['vert_index']
-        current = handle.get('handle_type', 'automatic')
-
-        if chain.get('coupled', True):
-            # Edge loops: the pure handle-type cycle. No vert ever moves, so the toggle is perfectly reversible.
-            overlay.toggle_handle_type(cache_key, k)
-            context.area.tag_redraw()
-            return {'CANCELLED'}
-
-        if current == 'aligned':
-            if handle.get('corner_eligible', False):
-                return _reroute_corner(context, overlay, chain, handle)  # -> vector (insert corner)
-            new_type = 'automatic'  # no corner possible here: skip Vector in the cycle
-        elif current == 'vector':
-            if handle.get('corner_eligible', False):
-                return _reroute_corner(context, overlay, chain, handle)  # -> automatic (remove corner)
-            return {'CANCELLED'}  # corner attached to existing geometry so leave unchanged
-        else:  # automatic
-            new_type = 'aligned'
-        overlay.set_handle_type(cache_key, k, new_type, reposition=True)
-        context.area.tag_redraw()
-        return {'CANCELLED'}
+        overlay_type = get_overlay()
+        return toggle_hovered_handle(context, overlay_type.instance if overlay_type else None)
 
     bl_idname = f'retopoflow.{idname}'
     return execute_operator(
@@ -1275,3 +1255,628 @@ def create_curve_toggle_handle_type_operator(
         fn_poll=can_toggle,
         keymaps=[(bl_idname, {'type': 'V', 'value': 'PRESS'}, None)],
     )(toggle)
+
+
+# =============================================================================
+# Edit as Curve: standalone modal, usable outside RF mode.
+# =============================================================================
+
+# (icons, label) rows for the status bar, rendered like SharedStatusbarKeymap._draw_icons.
+# The active constraint is named in the viewport header instead of highlighted here.
+EDIT_AS_CURVE_STATUS_KEYMAP = (
+    (('MOUSE_LMB_DRAG',), 'Edit Curve'),
+    (('EVENT_ALT', 'MOUSE_LMB_DRAG'), 'Scale Control Point'),
+    (('EVENT_ALT', 'EVENT_SHIFT', 'MOUSE_LMB_DRAG'), 'Rotate Control Point'),
+    (('EVENT_X', 'EVENT_Y', 'EVENT_Z'), 'Axis'),
+    (('EVENT_SHIFT', 'EVENT_X', 'EVENT_Y', 'EVENT_Z'), 'Plane'),
+    (('EVENT_V',), 'Toggle Handle Type'),
+    (('EVENT_CTRL', 'EVENT_Z'), 'Undo'),
+    (('EVENT_RETURN',), 'Confirm'),
+    (('EVENT_ESC',), 'Cancel'),
+)
+
+# icons that render wider than a single-key icon (at least on macOS), so the
+# following label needs breathing room
+EDIT_AS_CURVE_STATUS_ICON_EXTRA_SPACE = { 'EVENT_ESC': 1.0 }
+
+def draw_edit_as_curve_statusbar(header, context):
+    layout = header.layout
+    for icons, label in EDIT_AS_CURVE_STATUS_KEYMAP:
+        row = layout.row(align=True)
+        for icon in icons:
+            row.label(text='', icon=icon)
+            if (extra := EDIT_AS_CURVE_STATUS_ICON_EXTRA_SPACE.get(icon)):
+                row.separator(factor=extra)
+        row.label(text=label)
+        layout.separator()
+
+
+# ---------------------------------------------------------------- overlay
+
+EditAsCurveOverlayLogic = create_curve_overlay_logic(
+    'retopoflow.edit_as_curve', 'edit_as_curve_overlay', 'Edit as Curve',
+    # same provider list and order as the RF tools: faces win, so a selection
+    # containing quad strips shows only strip curves; loop curves appear only
+    # when the selection is edges-only
+    [QuadStripChainProvider(), LoopStripChainProvider(only_boundary=True)],
+)
+
+class EditAsCurve_Overlay(EditAsCurveOverlayLogic):
+    ''' Selection-driven curve handles, hosted by the Edit as Curve modal instead
+    of RFCore. A plain object owned by the host operator, never registered. '''
+
+    # the host must not pause rebuilds; the drag op deliberately DOES (it draws
+    # the live curve itself while update_data self-suppresses the idle overlay)
+    ignore_modal_bl_idnames : ClassVar[set[str]] = { _internal_bl_idname('retopoflow.edit_as_curve') }
+
+    def _curve_handles_enabled(self, context : Context) -> bool:
+        # no workspace-tool prop to consult outside RF: handles are the whole point
+        return True
+
+    def _own_tool_modal_running(self, context : Context) -> bool:
+        # the RF gate hides the control points while the owning tool's own insert
+        # modal is up; standalone, the always-running host modal IS the "own tool"
+        # operator, so that gate would hide the handles for the whole session
+        return False
+
+    def _dirty_version(self) -> int | None:
+        # class-level reads only: the host instance's attributes are unreadable
+        # once its operator RNA dies, and this can outlive an aborted host
+        host_cls = RFOperator_EditAsCurve
+        return host_cls.version if host_cls._is_running else None
+
+
+# ----------------------------------------------------------------- drag op
+
+class EditAsCurveDragBase(RFOperator_Invoke):
+    ''' Bridges the curve-edit mixin's RFOperator-style lifecycle (init/update/
+    finish/draw_postpixel) onto RFOperator_Invoke's plain invoke/modal/cancel.
+    No bl_idname, so this base itself never registers. '''
+
+    _draw_handle = None
+
+    def invoke(self, context, event):
+        host = RFOperator_EditAsCurve.active
+        if host is None or not type(self).can_start(context):
+            return {'CANCELLED'}
+        try:
+            self.init(context, event)
+        except Exception as e:
+            print(f'{type(self).__name__}: caught Exception in init: {e}')
+            self.finish(context)  # exception-safe; unpauses the overlay
+            return {'CANCELLED'}
+        host.record_drag_originals(self)
+        self._draw_handle = SpaceView3D.draw_handler_add(
+            self.draw_postpixel, (context,), 'WINDOW', 'POST_PIXEL'
+        )
+        context.window_manager.modal_handler_add(self)
+        return {'RUNNING_MODAL'}
+
+    def modal(self, context, event):
+        if context.mode != 'EDIT_MESH':
+            self._teardown(context)
+            return {'CANCELLED'}
+        ret = self.update(context, event)
+        if ret & {'FINISHED', 'CANCELLED'}:
+            host = RFOperator_EditAsCurve.active
+            if host is not None:
+                if 'FINISHED' in ret:
+                    # before _teardown: the commit diffs against the live bmesh
+                    host.commit_drag_undo(self)
+                else:
+                    host.discard_drag_undo()  # the drag restored itself already
+            self._teardown(context)
+        return ret
+
+    def cancel(self, context):
+        ''' Blender-forced end (the area closes, etc.). '''
+        host = RFOperator_EditAsCurve.active
+        if host is not None:
+            host.discard_drag_undo()
+        self._teardown(context)
+
+    def _teardown(self, context):
+        if self._draw_handle:
+            SpaceView3D.draw_handler_remove(self._draw_handle, 'WINDOW')
+            self._draw_handle = None
+        self.finish(context)  # cache sync + unpause_update; already exception-safe
+
+
+EditAsCurveDragLogic = create_curve_edit_logic(
+    'edit_as_curve_drag', 'Edit Curve Handle',
+    'Drag a curve control handle to reshape the selection',
+    get_overlay=lambda: EditAsCurve_Overlay,
+)
+
+class RFOperator_EditAsCurve_Drag(EditAsCurveDragLogic, EditAsCurveDragBase):
+    # the mixin declares REGISTER/UNDO for its RF composition; here the whole
+    # session commits as ONE undo step when the host finishes, so no per-drag undo
+    bl_options = { 'INTERNAL' }
+
+    # the X/Y/Z axis constraint belongs to the SESSION: the host resets it at
+    # invoke, toggles it while idle, and every drag picks it up as-is
+    constraint_persists = True
+
+    def init(self, context, event):
+        super().init(context, event)
+        host = RFOperator_EditAsCurve.active
+        if host and host.snap_to == 'NONE':
+            # NONE skips snapping entirely, source features included -- the mixin
+            # seeds feature_radius from SourceCache, which can persist from an
+            # earlier RF-mode run; zero disables snap_co_to_feature completely
+            self.feature_radius = 0.0
+
+    def _gather_sources(self, context):
+        host = RFOperator_EditAsCurve.active
+        return host.snap_sources if host else []
+
+    def _place_knot(self, context, new_screen, pt_orig):
+        host = RFOperator_EditAsCurve.active
+        if host is None:
+            return None
+        if host.snap_sources:
+            w = raycast_point_valid_sources(
+                context, new_screen,
+                sources=host.snap_sources, respect_clip_planes=True,
+            )
+            if w:
+                return self.Mi @ w
+            return None  # snapping requested but the cursor is off the surface
+        # no snap surface: move in the view plane at the knot's original depth
+        # (the same primitive tangent arms use), clamped to the island BVH when
+        # snapping to the original mesh shape
+        w = region_2d_to_location_3d_stable(
+            context.region, context.region_data, new_screen, self.M @ pt_orig,
+        )
+        if w is None:
+            return None
+        if host.snap_bvh:
+            hit, _, _, _ = host.snap_bvh.find_nearest(w)
+            if hit:
+                w = Vector(hit)
+        return self.Mi @ w
+
+    def _snap_deformed(self, context, pt_edit_new, pt_edit_orig):
+        host = RFOperator_EditAsCurve.active
+        if host is None:
+            return pt_edit_new
+        if host.snap_sources:
+            return super()._snap_deformed(context, pt_edit_new, pt_edit_orig)
+        if host.snap_bvh:
+            hit, _, _, _ = host.snap_bvh.find_nearest(self.M @ pt_edit_new)
+            return (self.Mi @ Vector(hit)) if hit else pt_edit_new
+        return pt_edit_new  # snap_to NONE: pure curve deform
+
+
+# -------------------------------------------------------------------- host
+
+# Module functions over class-level state, not bound methods: a dead
+# operator's bound method raises ReferenceError on any attribute access and
+# can never unregister itself, so a leaked registration would spam forever.
+
+def edit_as_curve_on_depsgraph_update(scene, depsgraph):
+    if not RFOperator_EditAsCurve._is_running:
+        return
+    # hover raycasts fire phantom depsgraph events with empty updates every
+    # mouse move, so gate the version bump on updates actually existing
+    if not depsgraph.updates:
+        return
+    RFOperator_EditAsCurve.version += 1
+
+def edit_as_curve_draw_overlay_handler():
+    if not RFOperator_EditAsCurve._is_running:
+        return
+    overlay = EditAsCurve_Overlay.instance
+    if overlay is None:
+        return
+    # runs for every 3D region and projects with that region's own matrices,
+    # same as the RF-mode overlay's draw handler; draw_overlay bails on its
+    # own when the drawing region has no region_data
+    overlay.draw_overlay(bpy.context)
+
+
+class RFOperator_EditAsCurve(RFOperator_Invoke):
+    bl_idname = 'retopoflow.edit_as_curve'
+    bl_label = 'Edit as Curve (Retopoflow)'
+    bl_description = 'Edit the selected edge loops and quad strips with Bezier curve handles until Enter confirms'
+    bl_space_type = 'VIEW_3d'
+    bl_region_type = 'TOOLS'
+    bl_options = { 'REGISTER', 'UNDO' }
+
+    active : ClassVar[RFOperator_EditAsCurve | None] = None
+    _is_running : ClassVar[bool] = False
+    # class-level so the module-level depsgraph handler and the overlay's
+    # _dirty_version never have to touch the operator instance
+    version : ClassVar[int] = 0
+    _draw_handle : ClassVar[object | None] = None
+
+    # Only used while RF is not running (poll blocks the operator inside RF,
+    # where the tools already provide live curve handles with RF's own sources).
+    snap_to: bpy.props.EnumProperty(
+        name='Snap To',
+        description='Surface to keep the curve-deformed vertices on',
+        items=SNAP_TO_ITEMS,
+        # NONE = pure curve deform, no surface or feature snapping at all; the
+        # other choices remain for scripting (ORIGINAL_MESH clamps edits back
+        # onto the pre-drag surface, which reads as "stuck", so never default it)
+        default='NONE',
+    )
+    snap_object: bpy.props.StringProperty(
+        name='Object',
+        description='Name of the object to snap vertices to',
+        default='',
+    )
+    snap_collection: bpy.props.StringProperty(
+        name='Collection',
+        description='Name of the collection to snap vertices to',
+        default='',
+    )
+
+    @classmethod
+    def register(cls):
+        # sweep out any handler an earlier load of this module left behind --
+        # see the note above edit_as_curve_on_depsgraph_update for why those can't self-remove
+        handlers = bpy.app.handlers.depsgraph_update_post
+        for h in list(handlers):
+            fn = getattr(h, '__func__', h)  # method attrs are safe; only the op's own attrs are RNA-routed
+            if getattr(fn, '__module__', None) == __name__ and h is not edit_as_curve_on_depsgraph_update:
+                handlers.remove(h)
+
+    @classmethod
+    def unregister(cls):
+        # disabling the addon mid-session must not leave the live handler behind
+        handlers = bpy.app.handlers.depsgraph_update_post
+        if edit_as_curve_on_depsgraph_update in handlers:
+            handlers.remove(edit_as_curve_on_depsgraph_update)
+        if cls._draw_handle:
+            SpaceView3D.draw_handler_remove(cls._draw_handle, 'WINDOW')
+            cls._draw_handle = None
+        cls._is_running = False
+        cls.active = None
+
+    @classmethod
+    def poll(cls, context):
+        if not super().poll(context): return False
+        if rf_is_running(): return False   # RF tools already provide curve handles
+        if cls._is_running: return False
+        # hover/drag math is screen-space, so this only means anything in a 3D view.
+        # space_data rather than region_data: menus draw in their own region, which has none.
+        if not context.space_data or context.space_data.type != 'VIEW_3D': return False
+        if not context.edit_object.data.total_vert_sel: return False
+        return True
+
+    def invoke(self, context, event):
+        if not context.region_data:
+            self.report({'ERROR'}, 'Edit as Curve: needs a 3D viewport')
+            return {'CANCELLED'}
+
+        # discrete pre-session baseline: the Esc topology-escalation path (below)
+        # undoes back to exactly this step
+        bpy.ops.ed.undo_push(message='Edit as Curve')
+
+        self.snap_sources = build_snap_sources(
+            context, self.snap_to,
+            snap_object=self.snap_object, snap_collection=self.snap_collection,
+        )
+        self.snap_bvh = None
+        type(self).version = 1
+        self._bvh_keys = None
+        self._orig_cos = {}
+        self._undo_stack = []
+        self._pending_undo = None
+        self._topology_dirty = False
+        self._ops_len = len(context.window_manager.operators)
+        self._hand_cursor = False
+
+        type(self).active = self
+        type(self)._is_running = True
+
+        # RFOverlay_Base.__init__ sets cls.instance; the chains build lazily on the
+        # first hover/draw (both call update_data), so nothing here can half-fail
+        self.overlay = EditAsCurve_Overlay()
+        type(self.overlay).paused_update = False
+        type(self.overlay).paused_overlay = False
+
+        if edit_as_curve_on_depsgraph_update not in bpy.app.handlers.depsgraph_update_post:
+            bpy.app.handlers.depsgraph_update_post.append(edit_as_curve_on_depsgraph_update)
+        type(self)._draw_handle = SpaceView3D.draw_handler_add(
+            edit_as_curve_draw_overlay_handler, (), 'WINDOW', 'POST_PIXEL'
+        )
+        reset_axis_constraint(RFOperator_EditAsCurve_Drag)  # constraints are per session
+        self._area = context.area
+        self._shown_label = None
+        if context.workspace:
+            context.workspace.status_text_set(draw_edit_as_curve_statusbar)
+        self._refresh_feedback(context)
+        context.window_manager.modal_handler_add(self)
+        return {'RUNNING_MODAL'}
+
+    def _refresh_feedback(self, context):
+        ''' Show the active constraint in the viewport header. '''
+        # a modal event can arrive from a different area (mouse over a side
+        # panel), so target the STORED invoking 3D view, never context.area
+        label = RFOperator_EditAsCurve_Drag.constraint_label
+        self._shown_label = label
+        area = self._area
+        if area:
+            try:
+                area.header_text_set('Edit as Curve' + (f'   |   along {label}' if label else ''))
+                area.tag_redraw()
+            except ReferenceError:
+                self._area = None
+
+    # ----------------------------------------------------------------- modal
+
+    def _hover(self, context, event):
+        ''' Recompute hover fresh from this event's mouse position. '''
+        # safe even right after a selection change: hovered_handle runs
+        # update_data itself, so stale chain indices can't leak through
+        self.overlay.hovering = self.overlay.hovered_handle(context, mouse_from_event(event))
+        return self.overlay.hovering
+
+    def _refresh_snap_bvh(self, context):
+        ''' Rebuild the ORIGINAL_MESH island BVH when the selection changed. '''
+        if self.snap_to != 'ORIGINAL_MESH':
+            return
+        # keyed on the chains' cache keys, not the version counter: a drag's
+        # own mesh edits bump the version every frame, but the BVH must stay
+        # on the ORIGINAL shape for as long as the same loops are being edited
+        keys = frozenset(chain['cache_key'] for chain in self.overlay.chains)
+        if keys == self._bvh_keys:
+            return
+        self._bvh_keys = keys
+        bm, _ = get_bmesh_emesh(context, ensure_lookup_tables=True)
+        seed = { bmv for bmv in bm.verts if bmv.select }
+        self.snap_bvh = build_island_bvh(context.edit_object.matrix_world, seed) if seed else None
+
+    def modal(self, context, event):
+        if context.mode != 'EDIT_MESH':
+            # can happen when something drops back to OBJECT mode; the bmesh is gone with it
+            self.release(context)
+            return {'CANCELLED'}
+
+        if event.type in {'RET', 'NUMPAD_ENTER'} and event.value == 'PRESS':
+            self.release(context)
+            return {'FINISHED'}  # the UNDO flag pushes the single session undo step
+
+        if event.type == 'ESC' and event.value == 'PRESS':
+            topology_dirty = self._topology_dirty
+            if not topology_dirty:
+                self._restore_original_cos(context)
+            # release first: the undo below rebuilds the mesh, so no handler or
+            # overlay may still be looking at it when that happens
+            self.release(context)
+            if topology_dirty:
+                self._revert_by_undo(context)
+            return {'CANCELLED'}
+
+        if event.type == 'Z' and (event.ctrl or event.oskey):
+            # system undo/redo mid-session would desync the revert ledger and the
+            # baseline, so it stays blocked; plain Ctrl/Cmd+Z instead pops the
+            # session's own stack of individual handle edits
+            if event.value == 'PRESS' and not event.shift:
+                self._undo_last(context)
+            return {'RUNNING_MODAL'}
+
+        if event.type in {'X', 'Y', 'Z'} and event.value == 'PRESS' \
+                and not (event.ctrl or event.alt or event.oskey):
+            # session-persistent constraint, toggleable before any drag; Shift+axis
+            # is the plane variant. Shadows delete/split/shading (and their Shift
+            # forms) for the session, same as Blender's own transform modals.
+            cycle_axis_constraint(RFOperator_EditAsCurve_Drag, context, event.type, plane=event.shift)
+            self._refresh_feedback(context)
+            return {'RUNNING_MODAL'}
+
+        if event.type == 'LEFTMOUSE' and event.value == 'PRESS':
+            if self._hover(context, event):
+                self._refresh_snap_bvh(context)
+                bpy.ops.retopoflow.edit_as_curve_drag('INVOKE_DEFAULT')
+                # press consumed: never doubles as a selection click; the drag op
+                # is stacked above this modal and takes every event until release
+                return {'RUNNING_MODAL'}
+            return {'PASS_THROUGH'}
+
+        if event.type == 'V' and event.value == 'PRESS':
+            if self._hover(context, event):
+                ret = toggle_hovered_handle(context, self.overlay)
+                if 'FINISHED' in ret:
+                    self._topology_dirty = True  # a real corner was inserted/removed
+                    self._undo_stack.clear()     # its vert indices died with it
+                # consume V even when nothing toggled, so Rip can't fire on a handle
+                return {'RUNNING_MODAL'}
+            return {'PASS_THROUGH'}
+
+        if event.type == 'MOUSEMOVE':
+            if RFOperator_EditAsCurve_Drag.constraint_label != self._shown_label:
+                # a mid-drag X/Y/Z toggle happened inside the drag operator, where
+                # this modal never saw the keypress; catch up on the next move
+                self._refresh_feedback(context)
+            was_hovering = bool(self.overlay.hovering)
+            hovering = bool(self._hover(context, event))
+            if hovering != was_hovering:
+                if hovering:
+                    Cursors.set('hand')
+                else:
+                    Cursors.restore()
+                self._hand_cursor = hovering
+                if context.area:
+                    context.area.tag_redraw()
+            return {'PASS_THROUGH'}
+
+        # click/box/lasso/loop select, grow/shrink, navigation, ... all work; a
+        # selection change fires the depsgraph handler, bumping version, and the
+        # next update_data re-collects the providers over the new selection
+        return {'PASS_THROUGH'}
+
+    # ------------------------------------------------------- session revert
+
+    UNDO_STACK_MAX = 100
+
+    @staticmethod
+    def _spline_points(spline):
+        return [
+            (Vector(cb.p0), Vector(cb.p1), Vector(cb.p2), Vector(cb.p3))
+            for cb in spline.cbs
+        ] if spline is not None else None
+
+    def _snapshot_struct(self, cache_key):
+        ''' Field-wise snapshot of the chain's cached curve baseline, or None. '''
+        cached = self.overlay._curve_struct_cache.get(cache_key)
+        if cached is None:
+            return None
+        # the entry holds the LIVE spline, which drags mutate in place and whose
+        # tessellation KDTree can't deepcopy -- keep the object by reference and
+        # snapshot its control-point VALUES instead, to write back on undo
+        spline = cached.get('spline')
+        return {
+            'knots': list(cached['knots']),
+            'corner_set': set(cached['corner_set']),
+            'tunables': cached.get('tunables'),
+            'handle_tunables': cached.get('handle_tunables'),
+            'cos': [Vector(co) for co in cached['cos']],
+            'spline': spline,
+            'spline_points': self._spline_points(spline),
+            'handles': cached.get('handles'),  # regenerates on the forced rebuild
+        }
+
+    def record_drag_originals(self, drag):
+        ''' Called by the drag operator at drag start: stages this drag's
+        pre-state for the Esc full revert and the session undo stack. '''
+        pre = {}
+        for idx, tup in drag.grab['data'].items():
+            co = Vector(tup[2])  # tup[2] = pre-drag co
+            self._orig_cos.setdefault(idx, co.copy())  # first writer wins, across any number of drags
+            pre[idx] = co
+        if drag.interior:
+            for idx, co in drag.interior['orig_co'].items():
+                v = Vector(co)
+                self._orig_cos.setdefault(idx, v.copy())
+                pre[idx] = v
+        # a drag can also re-aim arms or pin an Automatic knot to Aligned, so the
+        # undo entry needs the chain's curve structure and overrides too, not just cos
+        cache_key = drag.chain['cache_key']
+        self._pending_undo = {
+            'cache_key': cache_key,
+            'pre_cos': pre,
+            'struct': self._snapshot_struct(cache_key),
+            'overrides': dict(o) if (o := self.overlay._handle_type_overrides.get(cache_key)) else None,
+        }
+
+    def commit_drag_undo(self, drag):
+        ''' The drag finished: keep only what it actually changed, or nothing. '''
+        pending, self._pending_undo = self._pending_undo, None
+        if pending is None or self.overlay is None:
+            return
+        bm = drag.bm
+        if bm is None or not bm.is_valid:
+            return
+        nverts = len(bm.verts)
+        pending['pre_cos'] = {
+            idx: co for idx, co in pending['pre_cos'].items()
+            if idx < nverts and (bm.verts[idx].co - co).length_squared > 1e-18
+        }
+        key = pending['cache_key']
+        struct = pending['struct']
+        # the recorded spline object is the live one drags mutate in place, so
+        # comparing its current points against the snapshot detects curve changes
+        struct_changed = struct is not None and self._spline_points(struct['spline']) != struct['spline_points']
+        overrides_changed = (self.overlay._handle_type_overrides.get(key) or {}) != (pending['overrides'] or {})
+        if not pending['pre_cos'] and not struct_changed and not overrides_changed:
+            return  # a click without movement: nothing to undo
+        self._undo_stack.append(pending)
+        del self._undo_stack[:-self.UNDO_STACK_MAX]
+
+    def discard_drag_undo(self):
+        self._pending_undo = None
+
+    def _undo_last(self, context):
+        ''' Pop one handle edit off the session's own undo stack: restore the
+        verts it moved and the chain's cached curve baseline, then rebuild. '''
+        if not self._undo_stack:
+            return
+        entry = self._undo_stack.pop()
+        bm, em = get_bmesh_emesh(context, ensure_lookup_tables=True)
+        nverts = len(bm.verts)
+        for idx, co in entry['pre_cos'].items():
+            if idx < nverts:
+                bm.verts[idx].co = co
+        overlay = self.overlay
+        key = entry['cache_key']
+        struct = entry['struct']
+        if struct is None:
+            overlay._curve_struct_cache.pop(key, None)
+        else:
+            spline, points = struct.pop('spline'), struct.pop('spline_points')
+            if spline is not None and points is not None:
+                for cb, (p0, p1, p2, p3) in zip(spline.cbs, points):
+                    cb.p0, cb.p1, cb.p2, cb.p3 = p0, p1, p2, p3
+            struct['spline'] = spline
+            overlay._curve_struct_cache[key] = struct
+        if entry['overrides'] is None:
+            overlay._handle_type_overrides.pop(key, None)
+        else:
+            overlay._handle_type_overrides[key] = entry['overrides']
+        bmesh.update_edit_mesh(em)
+        overlay.hovering = None
+        type(overlay).depsgraph_version = -42  # rebuild from the restored baseline
+        if context.area:
+            context.area.tag_redraw()
+
+    def _restore_original_cos(self, context):
+        ''' Index-based restore; only valid while the session made no topology edits. '''
+        if not self._orig_cos:
+            return
+        bm, em = get_bmesh_emesh(context, ensure_lookup_tables=True)
+        nverts = len(bm.verts)
+        for idx, co in self._orig_cos.items():
+            if idx < nverts:
+                bm.verts[idx].co = co
+        bmesh.update_edit_mesh(em)
+
+    def _revert_by_undo(self, context):
+        ''' Step the undo stack back to the invoke-time baseline. Used when a
+        corner insert/remove killed vert indices, so the cos ledger can't revert. '''
+        self.unguard_modal()  # idempotent; drop the guards before the mesh rebuild
+        # also step past any undo steps that passed-through native ops pushed
+        wm_ops = context.window_manager.operators
+        external_pushes = sum(
+            1 for op in wm_ops[self._ops_len:]
+            if 'UNDO' in (getattr(op, 'bl_options', None) or set())
+        )
+        for _ in range(1 + external_pushes):
+            bpy.ops.ed.undo()
+
+    # --------------------------------------------------------------- teardown
+
+    def release(self, context):
+        cls = type(self)
+        cls._is_running = False
+        cls.active = None
+        if cls._draw_handle:
+            SpaceView3D.draw_handler_remove(cls._draw_handle, 'WINDOW')
+            cls._draw_handle = None
+        if edit_as_curve_on_depsgraph_update in bpy.app.handlers.depsgraph_update_post:
+            bpy.app.handlers.depsgraph_update_post.remove(edit_as_curve_on_depsgraph_update)
+        if context.workspace:
+            context.workspace.status_text_set(None)
+        area = getattr(self, '_area', None) or context.area
+        if area:
+            try:
+                area.header_text_set(None)
+                area.tag_redraw()
+            except ReferenceError:
+                pass
+        self._area = None
+        if self._hand_cursor:
+            Cursors.restore()
+            self._hand_cursor = False
+        if self.overlay:
+            type(self.overlay).instance = None
+            self.overlay = None
+        self._orig_cos = {}
+        self.snap_bvh = None
+        self.snap_sources = []
+
+    def cancel(self, context):
+        ''' Blender calls this when it ends the modal operator itself (ex: the window closes). '''
+        self.release(context)

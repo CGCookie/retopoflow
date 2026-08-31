@@ -36,9 +36,12 @@ def draw_edge_menu_items(self, context):
     self.layout.operator("retopoflow.insert_diamond_junction")
     self.layout.operator_context = 'INVOKE_REGION_WIN'
     self.layout.operator("retopoflow.twist_loop")
+    self.layout.operator("retopoflow.edit_as_curve")
 
 
 def draw_face_menu_items(self, context):
     self.layout.separator()
-    self.layout.operator_context = 'INVOKE_REGION_WIN'  # Topo Rotate is modal, so it must not run under EXEC
+    # Topo Rotate and Edit as Curve are modal, so they must not run under EXEC
+    self.layout.operator_context = 'INVOKE_REGION_WIN'
     self.layout.operator("retopoflow.toporotate")
+    self.layout.operator("retopoflow.edit_as_curve")
