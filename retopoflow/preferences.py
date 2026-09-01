@@ -19,8 +19,6 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-from __future__ import annotations
-
 import platform
 from typing import cast
 
@@ -40,7 +38,7 @@ class RF_Prefs(AddonPreferences):
     bl_idname : str = addon_name
 
     @staticmethod
-    def get_prefs(context : Context) -> RF_Prefs:
+    def get_prefs(context : Context) -> 'RF_Prefs':
         addon = context.preferences.addons[addon_name]
         addon_prefs = addon.preferences
         assert addon_prefs
