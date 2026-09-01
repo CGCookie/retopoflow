@@ -19,6 +19,8 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+import math
+
 import bmesh
 import bpy
 from bpy.types import Context
@@ -626,6 +628,8 @@ class RFOperator_Translate(SourceSnapMixin, RFOperator):
     def use_screen_space(self, context, bmvs):
         if len(bmvs) > 25:
             return False
+        screen_space_max_angle = 80  # degrees, anything past this uses face nearest snapping
+        min_facing = math.cos(math.radians(screen_space_max_angle))
         view_dir = context.region_data.view_rotation @ Vector((0, 0, -1))
         for v in bmvs:
             if is_bmvert_hidden(context, v):
@@ -633,8 +637,8 @@ class RFOperator_Translate(SourceSnapMixin, RFOperator):
             normal = context.active_object.matrix_world.to_3x3() @ v.normal
             if normal.length_squared < 1e-12:
                 continue  # wire vert, no surface to judge
-            # Toward or away from the camera is fine, sideways is not
             # Normalize! to_3x3() has obj scale
-            if abs(normal.normalized().dot(view_dir)) < 0.5:
+            facing_camera = normal.normalized().dot(-view_dir)
+            if facing_camera < min_facing:
                 return False
         return True
