@@ -46,7 +46,7 @@ from ..common.maths import (
     lerp, snap_plane_to_direction, map_range,
     arc_path_factors, path_facs_to_positions, project_to_path_fac,
     lerp_path_fac, curvature_rdp_scores, curvature_change_scores,
-    enforce_path_min_gap, sample_even, cyclic_even_phase,
+    enforce_path_min_gap, sample_even, cyclic_even_phase, snap_to_turn_apexes,
 )
 from ..common.accel import SourceMeshCache
 from ..common.raycast import raycast_ray_valid_sources, nearest_point_valid_sources, raycast_multiple_hits
@@ -65,6 +65,8 @@ DEBUG_SKIP_REDISTRIBUTE = False  # Snapping result before any redistribution
 DEBUG_PRINT_TIMINGS = False
 DEBUG_PRINT_SNAP_PATH  = False   # How each vert ends up snapping to the cut path
 DEBUG_PRINT_SPACING = False   # How the verts spread out from curvature and space evenly
+DEBUG_PRINT_SDF_PATH = False  # SDF chord/path/refine/final-vert dump
+SDF_DEBUG_OBJECT_NAMES = ('SDF_Debug_Grid', 'SDF_Debug_Path', 'SDF_Debug_Snapped', 'SDF_Debug_Chord', 'SDF_Debug_Refined', 'SDF_Debug_FinalVerts')
 
 
 def sample_curvature(points: list, cyclic: bool, vertex_count: int, path_length: float, curvature_bias: float = 0) -> list:
@@ -698,12 +700,20 @@ class Contours_Logic:
         if self.curvature_bias > 0:
             path_scores = curvature_rdp_scores(self.points, self.cyclic)
             threshold = CORNER_FLOOR_FLAT - self.curvature_bias * (CORNER_FLOOR_FLAT - CORNER_FLOOR_SHARP)
-            corner_list = [
-                (point_path_facs[j], path_scores[j])
-                for j in range(len(self.points)) if path_scores[j] >= threshold
-            ]
+            qualifying = [j for j in range(len(self.points)) if path_scores[j] >= threshold]
+            # Several samples can land near a corner but not actually on the corner, so collapse the
+            # candidates onto one turning apex per corner. Radius floored at a few samples so the re-aim
+            # window survives high span counts (the split-corner artifact spans 1-3 samples).
             half_slot = 0.5 / n
+            slot_radius = max(half_slot, 3.0 / len(self.points))
+            apex_map = snap_to_turn_apexes(self.points, self.cyclic, qualifying, point_path_facs, slot_radius)
+            apex_scores = {}
+            for j in qualifying:
+                apex = apex_map[j]
+                apex_scores[apex] = max(apex_scores.get(apex, 0.0), path_scores[j])
+            corner_list = [(point_path_facs[apex], score) for apex, score in apex_scores.items()]
             used_verts = set()
+            pin_corner_fac = {}
             for c_path_fac, cscore in sorted(corner_list, key=lambda x: -x[1]):  # sharpest first
                 best_i, best_d = None, float('inf')
                 for i, vf in enumerate(current_path_facs):
@@ -713,8 +723,32 @@ class Contours_Logic:
                     if d < half_slot and d < best_d:
                         best_d, best_i = d, i
                 if best_i is not None:
-                    pin_path_fac[best_i] = lerp_path_fac(current_path_facs[best_i], c_path_fac, self.curvature_bias, self.cyclic)
+                    pin_corner_fac[best_i] = c_path_fac
                     used_verts.add(best_i)
+
+            # The corner claim can mess up the path order, so re-deal the claimed corners to the claimed verts
+            pinned = sorted(pin_corner_fac)
+            if len(pinned) > 1:
+                corner_facs = sorted(pin_corner_fac.values())
+                if self.cyclic:
+                    if step < 0:
+                        corner_facs.reverse()
+                    def total_move(k):
+                        return sum(
+                            min((corner_facs[(j + k) % len(corner_facs)] - current_path_facs[i]) % 1.0,
+                                (current_path_facs[i] - corner_facs[(j + k) % len(corner_facs)]) % 1.0)
+                            for j, i in enumerate(pinned)
+                        )
+                    k0 = min(range(len(corner_facs)), key=total_move)
+                    for j, i in enumerate(pinned):
+                        pin_corner_fac[i] = corner_facs[(j + k0) % len(corner_facs)]
+                else:
+                    if current_path_facs[pinned[0]] > current_path_facs[pinned[-1]]:
+                        corner_facs.reverse()
+                    for j, i in enumerate(pinned):
+                        pin_corner_fac[i] = corner_facs[j]
+            for i, c_path_fac in pin_corner_fac.items():
+                pin_path_fac[i] = lerp_path_fac(current_path_facs[i], c_path_fac, self.curvature_bias, self.cyclic)
 
         post_curvature = [pin_path_fac[i] if pin_path_fac[i] is not None else current_path_facs[i] for i in range(n)]
 
@@ -1160,6 +1194,21 @@ class Contours_Logic:
         if self.points is None or M is None or Mi is None or path_length is None:
             return
 
+        if DEBUG_CREATE_OBJECTS:
+            _debug_saved_hide = {}
+            for _dname in SDF_DEBUG_OBJECT_NAMES:
+                _dobj = bpy.data.objects.get(_dname)
+                if _dobj is not None:
+                    _debug_saved_hide[_dname] = _dobj.hide_viewport
+                    _dobj.hide_viewport = True
+
+        def _debug_restore_hide():
+            if not DEBUG_CREATE_OBJECTS: return
+            for _dname, _hide in _debug_saved_hide.items():
+                _dobj = bpy.data.objects.get(_dname)
+                if _dobj is not None:
+                    _dobj.hide_viewport = _hide
+
         points : list[Vector] = []
         for pt in self.points:
             if points and (points[-1] - pt).length == 0: continue
@@ -1197,6 +1246,7 @@ class Contours_Logic:
         npts = sample_curvature(points, self.cyclic, vertex_count, path_length, self.curvature_bias)
         if not npts:
             print('CONTOURS: sample_curvature returned no points, skipping cut')
+            _debug_restore_hide()
             return
         if len(npts) < vertex_count:
             print(f'CONTOURS: only {len(npts)}/{vertex_count} sample points. Ring may have wrong count')
@@ -1237,6 +1287,35 @@ class Contours_Logic:
         # select newly created geometry
         bmops.deselect_all(self.bm)
         bmops.select_iter(self.bm, new_bmvs)
+
+        if DEBUG_PRINT_SDF_PATH:
+            print(f'CONTOURS DUMP: resulting vertices ({len(new_bmvs)} pts)')
+            for _i, _bmv in enumerate(new_bmvs):
+                _pw = M @ _bmv.co
+                _lp = self.plane.w2l_point(_pw)
+                print(f'  {_i:3d}  local=({_lp.x:.5f}, {_lp.y:.5f})  world=({_pw.x:.5f}, {_pw.y:.5f}, {_pw.z:.5f})')
+
+        if DEBUG_CREATE_OBJECTS:
+            # Final ring as committed to the mesh, after sample_curvature and redistribute_ring.
+            _fm = bpy.data.meshes.new('SDF_Debug_FinalVerts')
+            _bm_f = bmesh.new()
+            _fverts = [_bm_f.verts.new(M @ bmv.co) for bmv in new_bmvs]
+            _bm_f.verts.ensure_lookup_table()
+            _n_f = len(_fverts)
+            for _k in range(_n_f if self.cyclic else _n_f - 1):
+                _bm_f.edges.new([_fverts[_k], _fverts[(_k + 1) % _n_f]])
+            _bm_f.to_mesh(_fm)
+            _bm_f.free()
+            _fv_obj = bpy.data.objects.get('SDF_Debug_FinalVerts')
+            if _fv_obj is not None:
+                _old_fm = _fv_obj.data
+                _fv_obj.data = _fm
+                bpy.data.meshes.remove(_old_fm)
+            else:
+                # a fresh object defaults to visible; existing ones are restored below
+                _fv_obj = bpy.data.objects.new('SDF_Debug_FinalVerts', _fm)
+                bpy.context.scene.collection.objects.link(_fv_obj)
+            _debug_restore_hide()
 
 
     #######################################################
@@ -1705,7 +1784,7 @@ class Contours_Logic:
         if DEBUG_CREATE_OBJECTS:
             _raw_corners = list(corners)  # save full staircase before downsample for debug path
             _debug_saved_hide = {}
-            for _dname in ('SDF_Debug_Grid', 'SDF_Debug_Path', 'SDF_Debug_Snapped', 'SDF_Debug_Refined'):
+            for _dname in SDF_DEBUG_OBJECT_NAMES:
                 _dobj = bpy.data.objects.get(_dname)
                 if _dobj is not None:
                     _debug_saved_hide[_dname] = _dobj.hide_viewport
@@ -1759,6 +1838,28 @@ class Contours_Logic:
             return self.process_source_fast(context)
 
         if DEBUG_PRINT_TIMINGS: timers.append((f'snap ({len(points_world)} pts)', time.perf_counter()))
+
+        if DEBUG_CREATE_OBJECTS or DEBUG_PRINT_SDF_PATH:
+            # Initial RDP chord: the farthest-apart anchor pair before refining
+            _n_c = len(points_world)
+            if not touches_border and _n_c >= 2:
+                _centroid = Vector((0.0, 0.0, 0.0))
+                for _p in points_world: _centroid += Vector(_p)
+                _centroid /= _n_c
+                _i0 = max(range(_n_c), key=lambda i: (Vector(points_world[i]) - _centroid).length_squared)
+                _i1 = max(range(_n_c), key=lambda i: (Vector(points_world[i]) - Vector(points_world[_i0])).length_squared)
+            else:
+                _i0, _i1 = 0, _n_c - 1
+
+        if DEBUG_PRINT_SDF_PATH:
+            def _dump_points(label, pts):
+                print(f'CONTOURS SDF DUMP: {label} ({len(pts)} pts)')
+                for _i, _p in enumerate(pts):
+                    _lp = plane_cut.w2l_point(Vector(_p))
+                    print(f'  {_i:3d}  local=({_lp.x:.5f}, {_lp.y:.5f})  world=({_p[0]:.5f}, {_p[1]:.5f}, {_p[2]:.5f})')
+            _dump_points('initial path', points_world)
+            print(f'CONTOURS SDF DUMP: initial chord  i0={_i0}  i1={_i1}')
+
         if DEBUG_CREATE_OBJECTS:
             # Post-snap / pre-refinement path — every point here should lie exactly on the surface.
             _sm = bpy.data.meshes.new('SDF_Debug_Snapped')
@@ -1771,6 +1872,15 @@ class Contours_Logic:
             _bm_s.to_mesh(_sm)
             _bm_s.free()
             _update_debug_object('SDF_Debug_Snapped', _sm)
+
+            _cm = bpy.data.meshes.new('SDF_Debug_Chord')
+            _bm_c = bmesh.new()
+            _cv0 = _bm_c.verts.new(Vector(points_world[_i0]))
+            _cv1 = _bm_c.verts.new(Vector(points_world[_i1]))
+            _bm_c.edges.new([_cv0, _cv1])
+            _bm_c.to_mesh(_cm)
+            _bm_c.free()
+            _update_debug_object('SDF_Debug_Chord', _cm)
 
             _gm = bpy.data.meshes.new('SDF_Debug_Grid')
             _bm = bmesh.new()
@@ -1824,6 +1934,8 @@ class Contours_Logic:
             points_world = self.refine_loop(context, points_world, plane_normal_world, self.sdf_refine_steps)
 
         if DEBUG_PRINT_TIMINGS: timers.append((f'refinement ({self.sdf_refine_steps} steps)', time.perf_counter()))
+        if DEBUG_PRINT_SDF_PATH:
+            _dump_points('refined path', points_world)
         if DEBUG_CREATE_OBJECTS and len(points_world) >= 2:
             _rm = bpy.data.meshes.new('SDF_Debug_Refined')
             _bm_r = bmesh.new()
@@ -1835,6 +1947,11 @@ class Contours_Logic:
             _bm_r.to_mesh(_rm)
             _bm_r.free()
             _update_debug_object('SDF_Debug_Refined', _rm)
+        if DEBUG_CREATE_OBJECTS:
+            # FinalVerts isn't rebuilt in this pass, so _update_debug_object never unhides it
+            _fv = bpy.data.objects.get('SDF_Debug_FinalVerts')
+            if _fv is not None:
+                _fv.hide_viewport = _debug_saved_hide.get('SDF_Debug_FinalVerts', False)
 
         points = [ self.matrix_world_inv @ pt_world for pt_world in points_world if pt_world ]
         cyclic = not touches_border

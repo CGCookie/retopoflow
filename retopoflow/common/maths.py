@@ -587,6 +587,105 @@ def curvature_rdp_scores(points: list, cyclic: bool) -> list:
     return [min((max_finite if s >= float('inf') else s) / max_finite, 1.0) for s in scores]
 
 
+def snap_to_turn_apexes(points: list, cyclic: bool, indices: Sequence, point_path_facs: list, slot_radius: float) -> dict:
+    '''Map each path index to the turning-angle apex of the physical corner it sits on.
+    Candidates on one corner converge to one apex while candidates on different corners never merge.
+    `point_path_facs` and `slot_radius` are arc-length factors (0-1) along the path.
+    Returns {index: apex_index}.'''
+    n = len(points)
+    if n < 3:
+        return {i: i for i in indices}
+    n_segs = n if cyclic else n - 1
+    avg_len = sum((Vector(points[(i + 1) % n]) - Vector(points[i])).length for i in range(n_segs)) / max(1, n_segs)
+    # Near-coincident neighbors produce garbage directions, so step past them
+    eps = max(avg_len * 0.01, 1e-12)
+
+    turns = [0.0] * n
+    for i in range(n):
+        if not cyclic and (i == 0 or i == n - 1):
+            continue
+        p = Vector(points[i])
+        j = (i - 1) % n
+        while (p - Vector(points[j])).length < eps and j != i and (cyclic or j > 0):
+            j = (j - 1) % n
+        k = (i + 1) % n
+        while (Vector(points[k]) - p).length < eps and k != i and (cyclic or k < n - 1):
+            k = (k + 1) % n
+        d_in = p - Vector(points[j])
+        d_out = Vector(points[k]) - p
+        if d_in.length < eps or d_out.length < eps:
+            continue
+        turns[i] = math.acos(clamp(d_in.normalized().dot(d_out.normalized()), -1.0, 1.0))
+
+    # Vectors are float32, so acos noise reaches ~5e-4 rad on straight runs. Stay above that
+    # and below the per-sample turning steps of a corner worth pinning (sharp corners step 0.1+ rad).
+    TURN_NOISE = 1e-3
+
+    def walk_uphill(i):
+        for _ in range(n):
+            lo = (i - 1) % n if (cyclic or i > 0) else i
+            hi = (i + 1) % n if (cyclic or i < n - 1) else i
+            best = max((lo, hi), key=lambda t: turns[t])
+            if turns[best] <= turns[i] + TURN_NOISE:
+                return i
+            i = best
+        return i
+
+    def fac_dist(a, b):
+        d = abs(point_path_facs[a] - point_path_facs[b])
+        return min(d, 1.0 - d) if cyclic else d
+
+    # An oblique crossing of a source corner edge puts snapped samples on that edge, which
+    # projects onto the cut plane as one strong bend, a short straight run, and one weak bend.
+    # The straight run blocks the walk, so re-aim any apex at the nearest decisively stronger sample.
+    REAIM_RATIO = 2.0
+    apex = {}
+    for i in indices:
+        if not cyclic and (i == 0 or i == n - 1):
+            apex[i] = i  # open-path endpoints are anchors, never move them
+            continue
+        a = walk_uphill(i)
+        need = REAIM_RATIO * max(turns[a], TURN_NOISE)
+        stronger = [t for t in range(n) if turns[t] >= need and fac_dist(a, t) <= slot_radius]
+        apex[i] = min(stronger, key=lambda t: fac_dist(a, t)) if stronger else a
+
+    # A rounded edge resolves as a chain of small comparable bends, which the re-aim ratio doesn't merge.
+    # Group consecutive apexes while their cumulative path turning stays within one corner's worth.
+    TURN_GROUP_CAP = math.radians(100)
+
+    def turn_sum_fwd(i, j):
+        s, t = 0.0, i
+        while True:
+            s += turns[t]
+            if t == j: return s
+            t = (t + 1) % n
+
+    def is_endpoint(a):
+        return not cyclic and (a == 0 or a == n - 1)
+
+    reps = sorted(set(apex.values()), key=lambda a: point_path_facs[a])
+    groups = []
+    for a in reps:
+        if groups and not is_endpoint(a) and not is_endpoint(groups[-1][-1]):
+            first, last = groups[-1][0], groups[-1][-1]
+            if fac_dist(last, a) <= slot_radius and turn_sum_fwd(first, a) <= TURN_GROUP_CAP:
+                groups[-1].append(a)
+                continue
+        groups.append([a])
+    if cyclic and len(groups) > 1:
+        # the chain can continue across the path's start/end seam
+        first_g, last_g = groups[0], groups[-1]
+        if fac_dist(last_g[-1], first_g[0]) <= slot_radius and turn_sum_fwd(last_g[0], first_g[-1]) <= TURN_GROUP_CAP:
+            first_g[:0] = last_g
+            groups.pop()
+    rep_of = {}
+    for g in groups:
+        r = max(g, key=lambda a: turns[a])
+        for a in g:
+            rep_of[a] = r
+    return {i: rep_of[a] for i, a in apex.items()}
+
+
 def curvature_change_scores(points: list, cyclic: bool, point_path_facs: list) -> tuple:
     '''Turning angle magnitudes and rate of curvature change scores for each point.
     Returns (sin_angles, dk_norm):
