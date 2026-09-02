@@ -55,7 +55,7 @@ from ...addon_common.common.debug import debugger
 from ...addon_common.common.maths import Plane, Point
 from ...addon_common.common.resetter import Resetter
 
-from ..rfoperators.quickswitch import RFOperator_Relax_QuickSwitch, RFOperator_Tweak_QuickSwitch
+from ..rfoperators.quickswitch import RFOperator_Relax_QuickSwitch, RFOperator_Tweak_QuickSwitch, RFOperator_LegacyPatches_QuickSwitch
 from ..rfoperators.transform import RFOperator_Translate, sync_projection_from_blender
 from ..rfoperators.maximize_watcher import RFOperator_MaximizeWatcher
 from ..rfoperators.adjust_segment_count import adjust_selected_strip
@@ -762,6 +762,7 @@ class RFTool_Contours(RFTool_Base):
         RFOperator_Translate,
         RFOperator_Relax_QuickSwitch,
         RFOperator_Tweak_QuickSwitch,
+        RFOperator_LegacyPatches_QuickSwitch,
     )
 
     def draw_settings(context, layout, tool):

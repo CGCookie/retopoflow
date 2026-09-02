@@ -28,12 +28,13 @@ Created by Jonathan Denning, Jonathan Lampel
 # pyright: reportUnannotatedClassAttribute = false
 
 import math
-from dataclasses import dataclass
-from itertools import chain
+from dataclasses import dataclass, replace
+from itertools import chain, combinations
 from typing import ClassVar
 
 import bpy
 import bmesh
+import numpy as np
 from bmesh.types import BMVert
 from bpy.types import Context, Event
 from bpy_extras.view3d_utils import location_3d_to_region_2d
@@ -44,8 +45,8 @@ from ..rfoverlay_base import RFOverlay_Base
 from ..preferences import RF_Prefs
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.colors import Color4
-from ...addon_common.common.maths import sign_threshold
-from ..common.bmesh import get_bmesh_emesh, BMVertLayer_Int, mirror_threshold
+from ...addon_common.common.maths import sign_threshold, point_inside_face_2d
+from ..common.bmesh import get_bmesh_emesh, BMVertLayer_Int, mirror_threshold, is_bmvert_corner
 from ..common.bmesh_maths import orient_bmf_normals, fit_plane_of_verts, compute_n
 from ..common.drawing import Drawing, CC_2D_LINES, CC_2D_POINTS, CC_2D_TRIANGLES
 from ..common.operator import RFOperator
@@ -68,10 +69,22 @@ DEFAULT_SMOOTH = 0
 DEFAULT_SPAN_MODE = 'AVERAGE'
 DEFAULT_CROSSES = 0
 DEFAULT_SPAN_LENGTH = 0.1
+DEFAULT_STEPS = 1
+
+# How far a step may stretch a vert at a corner of the run to keep the new row parallel. The exact
+# factor is 1/sin of the half angle, which runs away as a corner doubles back; Split Angle caps a
+# bend at 135 degrees, needing 2.61, so this leaves room without letting a stray fold explode.
+MITER_LIMIT = 3.0
+
+# How little of its intended step a vert may actually travel before the row counts as stalled. Snapping
+# onto a curved source shortens a step a little; running out of source stops it dead, and nearest point
+# then holds every further row against the same edge, stacking rows of zero-area quads on top of it.
+STEP_STALL = 0.25
 
 
 PATCH_SETTING_NAMES = (
     'split_angle', 'smooth', 'span_insert_mode', 'crosses', 'span_length', 'solution', 'offset', 'twist',
+    'steps',
 )
 
 
@@ -86,6 +99,7 @@ class PatchSettings:
     solution    : int = 1     # grid fill: 1 is the best-scoring split, higher flips through the rest, wrapping
     offset      : int = 0     # grid fill: rotate the chosen corners this many verts
     twist       : int = 0     # loft: rotate the loop pairing this many verts
+    steps       : int = DEFAULT_STEPS   # offset: rows of quads to step outward
 
 
 MAX_SELECTED_EDGES = 1000   # same bail-out as the loop/strip selection overlay
@@ -120,6 +134,49 @@ CONCAVE_PULL = 0.5
 # two different walls read 1.03 and fully scattered ones 1.3 or more. 0.7 sits between the two.
 MAX_SNAP_NOISE = 0.7
 
+# NEAREST QUAD: with nothing selected, four verts near the cursor make a quad (Maya's Quad Draw).
+# How far from the cursor a vert may sit and still be a candidate, in ui-scaled pixels. This is
+# what "too far away" means: a screen radius rather than a world distance, so it behaves the same
+# at any zoom. Generous, because the cursor-inside test below is what actually picks the quad.
+NEAREST_RADIUS_PX = 250
+# Candidates whose four-subsets are tried, nearest first. 8 gives 70 combinations, each a handful
+# of dot products; more would start to cost something per mouse move for very little gain.
+NEAREST_K = 8
+# A corner angle outside this range is a thin diamond or a near-collinear sliver. Matches the
+# 45-90 / 90-135 "acceptable" band mesh-quality tools use, loosened because retopo quads on a
+# curved surface legitimately skew further than a finite-element mesh would.
+QUAD_MIN_ANGLE = 30.0
+QUAD_MAX_ANGLE = 150.0
+# Longest side over shortest. Aspect alone passes a sliver whose sides are all similar, which is
+# why the angle test above is there too; this one catches the long thin strip.
+QUAD_MAX_EDGE_RATIO = 4.0
+# Angle between the two triangle normals across either diagonal: how far the quad is folded out of
+# plane. 45 degrees is well past anything a surface-following quad needs and well short of a crease.
+QUAD_MAX_WARP = 45.0
+# How far outside the quad's screen outline the cursor may sit, as a fraction of the mean side
+# length in pixels. Strictly inside is fiddly to hit; this gives the border some thickness.
+QUAD_HOVER_SLOP = 0.25
+# A new side whose two ends already share a neighbour vertex runs over that vertex when the corner
+# there is this straight, i.e. the side is really two existing edges end to end. The quad should
+# have stopped at that vertex, so it is refused rather than drawn across it.
+SIDE_OVER_VERT_ANGLE = 120.0
+# How far shape may outweigh size when ranking the quads the cursor is in. Size alone kept offering
+# skewed quads and made the even ones fiddly to land on, so a quad's score is the screen area it
+# covers divided by how square it is, which lets a better shape earn the right to be bigger.
+# The two ways of not being square are weighted differently on purpose:
+#   SKEW is a rhombus, corners away from 90. Weighted hard, since this is the shape that kept
+#   winning when it should not, and a leaning quad is rarely what anyone wants.
+#   ASPECT is a rectangle, one pair of sides longer than the other. Weighted lightly: a 2:1 quad
+#   is ordinary retopo, and punishing it sends the pick back to reaching across the mesh for a
+#   distant square.
+# As set: a square wins over a 45 degree rhombus up to 4x its area, over a 2:1 rectangle up to
+# 1.7x, and never over another square (there, smallest still wins outright).
+SKEW_WEIGHT = 2.0
+ASPECT_WEIGHT = 0.75
+# Squareness cannot go below this, so a quad scraping past the angle and ratio gates cannot be
+# scored so badly that a far larger one wins on shape alone.
+MIN_SQUARENESS = 0.15
+
 
 # BMEdge helpers standing in for v3's RFEdge methods
 def _shared_vert(e0, e1):
@@ -133,6 +190,219 @@ def _nonshared_vert(e0, e1):
 
 def _angle_deg(d0, d1):
     return math.degrees(math.acos(max(-1.0, min(1.0, d0.dot(d1)))))
+
+def _side2d(pa, pb, p):
+    ''' Which side of the screen-space line pa->pb the point p is on: +1, -1, or 0 when degenerate. '''
+    c = (pb.x - pa.x) * (p.y - pa.y) - (pb.y - pa.y) * (p.x - pa.x)
+    return 0 if abs(c) < 1e-6 else (1 if c > 0 else -1)
+
+def _bmedge_between(bmv_a, bmv_b):
+    return next((e for e in bmv_a.link_edges if e.other_vert(bmv_a) is bmv_b), None)
+
+
+def _quad_is_placeable(bm, verts) -> bool:
+    ''' Whether a quad on these four verts, in this order, can legally be created.
+
+    The shape tests in _quad_from_points say the quad is a good one; this says the mesh will still
+    make sense afterwards. Refuses a third face on an edge, a face that is already there, a quad
+    laid across existing geometry, and a diagonal that is really an edge of the mesh.
+    '''
+    if len({ id(v) for v in verts }) != 4: return False
+    if bm.faces.get(verts): return False
+
+    centre = sum((v.co for v in verts), Vector()) / 4
+    for i in range(4):
+        va, vb = verts[i], verts[(i + 1) % 4]
+        bme = _bmedge_between(va, vb)
+        if bme is not None:
+            if len(bme.link_faces) >= 2: return False   # a third face here would be non-manifold
+            if bme.link_faces:
+                # This edge already has a face on one side. If the new quad falls on that same
+                # side it lies over the mesh instead of filling the empty side. One side saying so
+                # is enough: unlike a whole patch boundary, a single quad has no majority to take.
+                mid = (va.co + vb.co) / 2
+                along = (vb.co - va.co).normalized()
+                to_old = bme.link_faces[0].calc_center_median() - mid
+                to_new = centre - mid
+                to_old -= along * to_old.dot(along)
+                to_new -= along * to_new.dot(along)
+                if (to_old.length_squared > 1e-14 and to_new.length_squared > 1e-14
+                        and to_old.dot(to_new) > 0): return False
+            continue
+        # No edge here yet, so this side would be created. If the two ends already reach each other
+        # through one shared neighbour lying between them, the side runs straight over that vertex
+        # and the quad has skipped a whole row of the mesh. A shared neighbour off to the side is
+        # a different matter and is left alone, which is what the angle at it distinguishes.
+        for w in { bme.other_vert(va) for bme in va.link_edges } & { bme.other_vert(vb) for bme in vb.link_edges }:
+            if w in verts: continue
+            d0, d1 = va.co - w.co, vb.co - w.co
+            if d0.length_squared < 1e-14 or d1.length_squared < 1e-14: continue
+            if _angle_deg(d0.normalized(), d1.normalized()) >= SIDE_OVER_VERT_ANGLE: return False
+
+    # a diagonal that already exists as a faced edge means the quad straddles a fold in the mesh:
+    # the two triangles either side of that edge are the real surface here, not one quad
+    for a, b in ((0, 2), (1, 3)):
+        bme = _bmedge_between(verts[a], verts[b])
+        if bme is not None and bme.link_faces: return False
+
+    # Two of the quad's verts sitting on one existing face without an edge of that face joining
+    # them means the line between them cuts across the face, so the quad lies over it. This is the
+    # overlap the side test above cannot see: opposite corners of a face touch none of its edges.
+    for a, b in combinations(range(4), 2):
+        va, vb = verts[a], verts[b]
+        for bmf in set(va.link_faces) & set(vb.link_faces):
+            if not any(set(bme.verts) == {va, vb} for bme in bmf.edges): return False
+
+    # And the same question asked at each corner rather than along the sides: the wedge the quad
+    # would occupy at a vertex must not run into the faces that vertex already carries. A quad can
+    # clear every test above and still open out over existing geometry, because none of its own
+    # edges touch it.
+    for i in range(4):
+        if _corner_overlaps_faces(verts[i], verts[i - 1].co, verts[(i + 1) % 4].co): return False
+    return True
+
+
+def _dist2d_point_segment(p, a, b):
+    ''' Screen-space distance from p to the segment a-b. '''
+    d = b - a
+    dd = d.length_squared
+    if dd < 1e-12: return (p - a).length
+    t = max(0.0, min(1.0, (p - a).dot(d) / dd))
+    return (p - (a + d * t)).length
+
+
+def _quad_shape_ok(q):
+    ''' Squareness of a quad given its four corners in ring order, or None when the shape is one
+    not worth offering: a thin diamond, a long strip, or something folded over a crease.
+
+    1.0 is a perfect square. The two ways of falling short are kept separate because they are
+    weighted differently when ranking (see SKEW_WEIGHT). Measured in 3D, where the quad lives.
+    '''
+    sides = [q[(i + 1) % 4] - q[i] for i in range(4)]
+    lens = [s.length for s in sides]
+    if min(lens) < 1e-9: return None
+    if max(lens) / min(lens) > QUAD_MAX_EDGE_RATIO: return None
+
+    worst_corner = 0.0
+    for i in range(4):
+        ang = _angle_deg(-sides[i - 1].normalized(), sides[i].normalized())
+        if ang < QUAD_MIN_ANGLE or ang > QUAD_MAX_ANGLE: return None
+        worst_corner = max(worst_corner, abs(ang - 90.0))
+
+    # warp: split the quad along each diagonal and compare the two triangle normals. A quad bent
+    # over a crease reads high here, and bridging a crease with one quad is never what was meant.
+    for d in (0, 1):
+        n0 = (q[(d + 1) % 4] - q[d]).cross(q[(d + 2) % 4] - q[d])
+        n1 = (q[(d + 2) % 4] - q[d]).cross(q[(d + 3) % 4] - q[d])
+        if n0.length_squared < 1e-18 or n1.length_squared < 1e-18: return None
+        if _angle_deg(n0.normalized(), n1.normalized()) > QUAD_MAX_WARP: return None
+
+    return (1.0 - worst_corner / 90.0) ** SKEW_WEIGHT * (min(lens) / max(lens)) ** ASPECT_WEIGHT
+
+
+def _is_convex_2d(pts):
+    ''' Whether four screen points, in ring order, make a convex quad. Every turn the same way means
+    convex. A zero turn is three points in a line; one turn disagreeing means a point sits inside
+    the triangle of the other three, so the four have no convex quad between them, only a dart. '''
+    signs = []
+    for i in range(4):
+        s = _side2d(pts[i], pts[(i + 1) % 4], pts[(i + 2) % 4])
+        if s == 0: return False
+        signs.append(s)
+    return len(set(signs)) == 1
+
+
+def _corner_overlaps_faces(bmv, co_prev, co_next, *, tol_deg=5.0):
+    ''' Whether the wedge a new quad would occupy at `bmv` runs into the faces already there.
+
+    Every face around a vertex takes up a slice of the directions leaving it. A new quad takes up
+    the slice between its two sides. If those slices overlap, the quad is being built out over
+    geometry that exists, however its own edges happen to fall. Sharing an edge with a face is not
+    an overlap, which is what the tolerance allows for.
+    '''
+    faces = [ f for f in bmv.link_faces if not f.hide ]
+    if not faces: return False
+    n = sum((f.normal for f in faces), Vector())
+    if n.length_squared < 1e-18: return False
+    n.normalize()
+
+    # a frame on the surface at this vertex, so directions can be compared as angles round it
+    u = co_prev - bmv.co
+    u = u - n * u.dot(n)
+    if u.length_squared < 1e-18: return False
+    u.normalize()
+    w = n.cross(u)
+
+    def angle_of(co):
+        d = co - bmv.co
+        d = d - n * d.dot(n)
+        if d.length_squared < 1e-18: return None
+        return math.degrees(math.atan2(d.dot(w), d.dot(u)))
+
+    def wrap(a):
+        return (a + 180.0) % 360.0 - 180.0
+
+    def arc(co_a, co_b):
+        # the slice between two directions, taken the short way round: both a convex face corner
+        # and a convex quad corner span less than a half turn
+        a0, a1 = angle_of(co_a), angle_of(co_b)
+        if a0 is None or a1 is None: return None
+        span = wrap(a1 - a0)
+        return wrap(a0 + span / 2), abs(span)
+
+    new_arc = arc(co_prev, co_next)
+    if new_arc is None: return False
+    for f in faces:
+        nbrs = [ bme.other_vert(bmv) for bme in bmv.link_edges if bme in f.edges ]
+        if len(nbrs) != 2: continue
+        f_arc = arc(nbrs[0].co, nbrs[1].co)
+        if f_arc is None: continue
+        gap = abs(wrap(new_arc[0] - f_arc[0]))
+        if gap < (new_arc[1] + f_arc[1]) / 2 - tol_deg: return True
+    return False
+
+
+def _quad_from_points(pts2d, cos3d, mouse):
+    ''' Order four points into a quad and judge whether it is one worth offering.
+
+    `pts2d` are the verts' screen positions, `cos3d` their world positions, `mouse` the cursor.
+    Returns (order, score) with `order` indexing into the inputs, or None when the four cannot make
+    an acceptable quad. Lower score is better. Pure function, so it can be probed on its own.
+    '''
+    # Sorting by angle around the centroid is what makes the four points a simple (non
+    # self-intersecting) polygon: any other order crosses itself. For four points this is exact.
+    centre2d = sum(pts2d, Vector((0, 0))) / 4
+    order = sorted(range(4), key=lambda k: math.atan2(pts2d[k].y - centre2d.y, pts2d[k].x - centre2d.x))
+    p = [pts2d[k] for k in order]
+
+    if not _is_convex_2d(p): return None
+
+    # The cursor decides which quad the artist means: four points near each other can be paired up
+    # several ways, and Maya resolves the same ambiguity by which face the cursor is inside. The
+    # slop gives the outline some thickness so the edge of a quad is not a knife edge to hit.
+    mean_side = sum((p[(i + 1) % 4] - p[i]).length for i in range(4)) / 4
+    inside = point_inside_face_2d(mouse, p)
+    if not inside:
+        slop = QUAD_HOVER_SLOP * mean_side
+        if min(_dist2d_point_segment(mouse, p[i], p[(i + 1) % 4]) for i in range(4)) > slop:
+            return None
+
+    # shape in 3D, where the quad actually lives: a quad can look square on screen and be a sliver
+    # seen face-on, or look skewed and be square
+    squareness = _quad_shape_ok([cos3d[k] for k in order])
+    if squareness is None: return None
+
+    # Size and squareness together. Several quads can hold the cursor at once - the cell it is in,
+    # and every bigger one built around that - so the small one is usually the one meant, but size
+    # alone kept offering rhombuses and long rectangles and made the even quads hard to land on.
+    # See SKEW_WEIGHT for how the two are balanced. Squareness is measured in 3D, where the quad
+    # lives: a square on a surface seen at an angle is still a square. Ranking by shape ALONE was
+    # the first thing tried and it let a big well-proportioned quad reach clean across a row of
+    # the mesh, so size has to stay in the score.
+    area = abs(sum(p[i].x * p[(i + 1) % 4].y - p[(i + 1) % 4].x * p[i].y for i in range(4))) / 2
+    cost = area / max(squareness, MIN_SQUARENESS)
+    dist = sum((pt - mouse).length_squared for pt in p)
+    return order, (0 if inside else 1, cost, dist)
 
 def _fit_sphere_centre(p_a, n_a, p_b, n_b):
     ''' Centre of the sphere through two points with the given surface normals, or None when the
@@ -244,12 +514,15 @@ def _grid_snap_noise(cos, raws, l0, l1, *, cyclic_i=False):
 
 @dataclass
 class Previz:
-    kind     : str          # 'rect' | 'L' | 'C' | 'I' | 'loft' | 'grid' | 'bridge'
+    kind     : str          # 'rect' | 'L' | 'C' | 'I' | 'loft' | 'grid' | 'bridge' | 'offset' | 'corner' | 'nearest'
     vert_idx : list         # bm vert index for existing verts, None for verts Fill will create
     vert_co  : list         # local-space coords (copies for existing verts)
     edges    : list         # index pairs into vert_co (new edges only, for the dashed preview)
     faces    : list         # index tuples into vert_co
     open_idx : tuple = ()   # new verts sitting on the patch boundary, i.e. a side being created
+    row_idx  : tuple = ()   # offset step: the row to leave selected after Fill, so the next step is
+                            # offered straight away. Holds new verts and the existing verts the row
+                            # welds onto, which are not themselves selected when Fill runs
 
 
 class LegacyPatches_Logic:
@@ -266,29 +539,73 @@ class LegacyPatches_Logic:
     has_bridge     : ClassVar[bool] = False
     has_loft       : ClassVar[bool] = False
     has_grid       : ClassVar[bool] = False
+    has_offset     : ClassVar[bool] = False                # a step outward is previewed
     has_manual_corners : ClassVar[bool] = False            # any corner override on the selected boundary
+    wire_runs      : ClassVar[list] = []                   # (chord co0, chord co1, mouse side sign) per
+                                                           # previewed wire offset, for track_mouse
     grid_last      : ClassVar[tuple[int, int] | None] = None   # (span, offset) actually used
     grid_ranked    : ClassVar[list] = []                       # (span, offset) of every split, best first
     grid_sig       : ClassVar[tuple | None] = None             # selection the solutions were ranked for
     solution_pending : ClassVar[int | None] = None             # solution number to push into the tool property
     solution_stale   : ClassVar[int | None] = None             # what the property held when that push was scheduled
     loops_last     : ClassVar[int | None] = None               # loops the last bridge/loft used
+    sel_sig        : ClassVar[tuple | None] = None             # selection the last live rebuild ran on
+    steps_pending  : ClassVar[int | None] = None               # steps value written by a timer that has not landed yet
     filled_sig     : ClassVar[tuple | None] = None             # selection left behind by the last fill
-    filled_flags   : ClassVar[tuple] = (False, False, False)   # (bridge, grid, loft) of the last fill, for its redo panel
+    filled_flags   : ClassVar[tuple] = (False, False, False, False)   # (bridge, grid, loft, offset) of the last fill, for its redo panel
     filled_loops   : ClassVar[int] = 0                         # loops the last fill put across a bridge or loft
     filled_solutions : ClassVar[int] = 1                       # grid solutions the last fill's loop had, for wrapping
     error          : ClassVar[str | None] = None
+
+    # input, not a product of the rebuild: the offset of a wire run steps toward the mouse
+    mouse          : ClassVar[tuple[int, int] | None] = None    # window space, from the overlay's events
+    # Where the cursor was when the last fill was started. A wire run has nothing but the cursor to
+    # say which side it steps to, so once the patch is made that answer is settled: the redo panel
+    # re-runs the whole rebuild, and without this it would read wherever the mouse has since gone
+    # and quietly flip the patch over.
+    mouse_locked   : ClassVar[tuple[int, int] | None] = None
+
+    # Nearest-quad caches. Kept across recomputes (so NOT cleared by _clear_products): they only go
+    # stale when the mesh or the view changes, and rebuilding them per frame is exactly what this
+    # feature must not do. Indices and copied coords only, like every other product here.
+    cand_key       : ClassVar[tuple | None] = None       # (depsgraph_version, edit object name) the candidates belong to
+    cand_idx       : ClassVar[list[int]] = []            # candidate vert indices
+    cand_cos       : ClassVar[object] = None             # (N,3) array of their local coords
+    proj_key       : ClassVar[tuple | None] = None       # cand_key + view matrix + region size
+    proj_px        : ClassVar[object] = None             # (N,2) array of region pixels, NaN behind the camera
+    nearest_active : ClassVar[bool] = False              # nothing is selected, so the cursor picks a quad
+    nearest_sig    : ClassVar[frozenset | None] = None   # vert indices of the quad currently offered
+    # Ctrl held. The cursor pick only runs while it is, the way PolyPen only inserts under Ctrl:
+    # a quad appearing under the cursor whenever nothing is selected is too eager, and it would
+    # also fight plain clicking around the mesh.
+    ctrl           : ClassVar[bool] = False
+    # Ctrl at the moment the last fill was started, for the same reason mouse_locked exists: a redo
+    # panel edit re-runs the whole rebuild long after the key was let go, and the quad it is
+    # rebuilding only exists while Ctrl is down.
+    ctrl_locked    : ClassVar[bool | None] = None
 
     @staticmethod
     def reset_session():
         L = LegacyPatches_Logic
         L.depsgraph_version = -1
         L.last_settings = None
+        L.sel_sig = None
+        L.steps_pending = None
         L.filled_sig = None
-        L.filled_flags = (False, False, False)
+        L.filled_flags = (False, False, False, False)
         L.filled_loops, L.filled_solutions = 0, 1
         L.grid_sig = None
         L.solution_pending = L.solution_stale = None
+        L.mouse = L.mouse_locked = None
+        L.cand_key = None
+        L.cand_idx = []
+        L.cand_cos = None
+        L.proj_key = None
+        L.proj_px = None
+        L.nearest_active = False
+        L.nearest_sig = None
+        L.ctrl = False
+        L.ctrl_locked = None
         L.dirty = True
         L._clear_products()
 
@@ -302,16 +619,42 @@ class LegacyPatches_Logic:
         L.has_bridge = False
         L.has_loft = False
         L.has_grid = False
+        L.has_offset = False
         L.has_manual_corners = False
         L.grid_last = None
         L.grid_ranked = []
         L.loops_last = None
+        L.wire_runs = []
         L.error = None
 
     @staticmethod
     def selection_signature(bm, edges) -> tuple:
         # face count guards against unrelated edits that happen to leave the same edges selected
         return (len(bm.faces), frozenset(e.index for e in edges))
+
+    @staticmethod
+    def settled_steps(steps : int) -> int:
+        L = LegacyPatches_Logic
+        if L.steps_pending is not None:
+            if steps == L.steps_pending: L.steps_pending = None
+            else: return L.steps_pending
+        return max(1, steps)
+
+    @staticmethod
+    def push_steps(value : int):
+        # Same restriction as push_solution: the rebuild runs from a draw callback and cannot write
+        # properties, so the reset goes through a timer. Until it lands, read_settings reports the
+        # value being written, so a rebuild in between does not preview the old count for a frame.
+        LegacyPatches_Logic.steps_pending = value
+        def write():
+            try:
+                props = LegacyPatches_Logic.tool_props(bpy.context)
+                if props is not None and props.steps != value:
+                    props.steps = value
+            except Exception:
+                pass
+            return None
+        bpy.app.timers.register(write, first_interval=0.0)
 
     @staticmethod
     def push_solution(value : int, stale : int):
@@ -353,6 +696,7 @@ class LegacyPatches_Logic:
                 solution    = int(props.solution),
                 offset      = int(props.offset),
                 twist       = int(props.twist),
+                steps       = LegacyPatches_Logic.settled_steps(int(props.steps)),
             )
         except Exception:
             return PatchSettings()
@@ -376,6 +720,11 @@ class LegacyPatches_Logic:
             if not props: return False
             count = len(L.grid_ranked)
             props.solution = (props.solution - 1 + delta) % count + 1
+        elif L.has_offset:
+            # last, so a patch that is also on screen keeps the knob it has always had
+            props = L.tool_props(context)
+            if not props: return False
+            props.steps = max(1, props.steps + delta)
         else:
             return False
         L.dirty = True
@@ -399,8 +748,10 @@ class LegacyPatches_Logic:
     def foreign_operator_running() -> bool:
         # Transform, TopoRotate and the rest move geometry every frame. v3 deferred recomputing
         # while grabbing, and the cached previz is a frame behind for as long as they run, so it
-        # is neither rebuilt nor drawn until they finish.
-        return any(not isinstance(op, RFOverlay_Base) for op in RFOperator.active_operators)
+        # is neither rebuilt nor drawn until they finish. An operator that only holds a key down
+        # (the F quick switch) flags itself passive, so the preview it exists to show can rebuild.
+        return any(not isinstance(op, RFOverlay_Base) and not getattr(op, 'rf_patches_passive', False)
+                   for op in RFOperator.active_operators)
 
     @staticmethod
     def update(context : Context, *, force : bool = False):
@@ -421,18 +772,23 @@ class LegacyPatches_Logic:
         if not (L.dirty or force): return
         L.dirty = False
         try:
-            L._recompute(context, settings)
+            L._recompute(context, settings, live=True)
         except ReferenceError:
             # bmesh swapped out under us mid-frame; rebuild on the next one
             L._clear_products()
             L.dirty = True
 
     @staticmethod
-    def _recompute(context : Context, settings : PatchSettings):
+    def _recompute(context : Context, settings : PatchSettings, *, live : bool = False):
         L = LegacyPatches_Logic
         # v3 compared the interior angle against a threshold; Split Angle is the same test stated as a
         # deviation from straight, the way PolyStrips does it
         min_angle, smooth_iterations = 180.0 - math.degrees(settings.split_angle), settings.smooth
+        L.nearest_active = False
+        # A live rebuild follows the cursor; a fill and every redo of it use the cursor the fill was
+        # started with, so the side a wire run stepped to cannot change after the fact.
+        mouse_at = L.mouse if live else (L.mouse_locked if L.mouse_locked is not None else L.mouse)
+        ctrl_at = L.ctrl if live else (L.ctrl_locked if L.ctrl_locked is not None else L.ctrl)
         L._clear_products()
 
         edit_object = context.edit_object
@@ -448,7 +804,31 @@ class LegacyPatches_Logic:
         ##############################################
         # find edges that could be part of a strip
         edges = { e for e in bmops.get_all_selected_bmedges(bm) if len(e.link_faces) < 2 and not e.hide }
-        if not edges: return
+        lone_bmv = None
+        if not edges:
+            # nothing to fill or step, but a single vert with two open edges is a corner of a quad
+            found = []
+            for bmv in bm.verts:
+                if not bmv.select or bmv.hide: continue
+                found.append(bmv)
+                if len(found) > 1: break
+            if not found:
+                # Nothing selected at all: while Ctrl is held the cursor picks a quad out of the
+                # verts nearest it, so points dropped on the source can be joined up without
+                # selecting anything first. Without Ctrl there is nothing to offer here.
+                L.nearest_sig = None
+                if not ctrl_at: return
+                key = L._candidate_key(context)
+                if key is None: return
+                if key != L.cand_key: L._collect_candidates(bm, key)
+                pv = L.pick_nearest_quad(context, bm, M, mouse_at)
+                L.nearest_active = True
+                if pv is not None:
+                    L.previz.append(pv)
+                    L.nearest_sig = frozenset(pv.vert_idx)
+                return
+            if len(found) != 1: return
+            lone_bmv = found[0]
         sel_edges = frozenset(edges)    # `edges` is reused as a local name below; this one is the selection
         # the Clear Corners button only shows once there is something to clear
         L.has_manual_corners = layer is not None and any(
@@ -457,10 +837,18 @@ class LegacyPatches_Logic:
             L.error = f'Patches: too many selected boundary edges ({len(edges)})'
             return
 
-        if L.selection_signature(bm, edges) == L.filled_sig:
+        sig = L.selection_signature(bm, edges)
+        if sig == L.filled_sig:
             # the patch we just built is still what is selected; wait for a new selection rather
             # than stacking a second patch on top of it
             return
+        if live and sig != L.sel_sig:
+            # a different selection starts over at one step, so a count scrolled up for one run does
+            # not silently carry onto the next. fill() never takes this path: its settings are decided
+            L.sel_sig = sig
+            if settings.steps != 1:
+                L.push_steps(1)
+                settings = replace(settings, steps=1)   # never mutate: update() holds this same object
 
         L.boundary_verts = { v.index: v.co.copy() for e in edges for v in e.verts }
 
@@ -656,12 +1044,20 @@ class LegacyPatches_Logic:
         mirror_axes = active_mirror_axes(context)
         mt = mirror_threshold(context) or 0.0
 
-        def snap(co_local, normal_world=None, cap=None):
+        def snap(co_local, normal_world=None, cap=None, *, ray=True, missed=None):
             # v3 nearest_sources_Point. With a normal, cast along it both ways first so the point keeps
             # its in-surface position (nearest-point drags points sideways when they start off-surface);
             # the cap rejects hits on unrelated far surfaces. Nearest point is the fallback either way.
+            # A step passes ray=False: it moves along the surface, so it is barely off it to begin with
+            # and has nothing to gain from a ray, while a ray leaving the edge of the source carries on
+            # and lands on whatever is behind it. Nearest point cannot reach past the closest surface.
+            def refused():
+                # the caller asked to be told when nothing was found to snap to, so it can stop
+                # rather than leave a vert hanging in the air off the edge of the source
+                if missed is not None: missed.append(True)
+                return co_local.copy()
             co_world = M @ co_local
-            if normal_world is not None and cap:
+            if ray and normal_world is not None and cap:
                 origin = Vector((*co_world, 1.0))
                 best = None
                 for d in (normal_world, -normal_world):
@@ -676,13 +1072,13 @@ class LegacyPatches_Logic:
             # the lesser evil; the noise guard and Smooth deal with what is left.
             if normal_world is not None or cap:
                 r = nearest_point_normal_valid_sources(context, co_world)
-                if r is None: return co_local.copy()
+                if r is None: return refused()
                 hit, hit_n = r
-                if cap and (hit - co_world).length > cap: return co_local.copy()
-                if normal_world is not None and hit_n.dot(normal_world) < 0: return co_local.copy()
+                if cap and (hit - co_world).length > cap: return refused()
+                if normal_world is not None and hit_n.dot(normal_world) < 0: return refused()
                 return Mi @ hit
             co = nearest_point_valid_sources(context, co_world, world=False, sources=sources)
-            return Vector(co) if co else co_local.copy()
+            return Vector(co) if co else refused()
 
         def sym_axes(co):
             # v3 get_point_symmetry: mirror planes this point sits on
@@ -719,9 +1115,9 @@ class LegacyPatches_Logic:
             if not lens: return None
             return SNAP_CAP_EDGES * sum(lens) / len(lens)
 
-        def new_point(co_blend, side, normal_world=None, cap=None):
+        def new_point(co_blend, side, normal_world=None, cap=None, *, ray=True, missed=None):
             # v3 nearest_sources_Point + clamp_point_to_symmetry
-            co = snap(co_blend, normal_world, cap)
+            co = snap(co_blend, normal_world, cap, ray=ray, missed=missed)
             for a, s in side.items():
                 if not s: continue
                 sv = sign_threshold(getattr(co, a), mt)
@@ -829,7 +1225,7 @@ class LegacyPatches_Logic:
             if rev: bmvs.reverse()
             return bmvs
 
-        def add_previz(kind, verts, edges, faces, open_idx=()):
+        def add_previz(kind, verts, edges, faces, open_idx=(), row_idx=()):
             L.previz.append(Previz(
                 kind,
                 [ (v.index if isinstance(v, BMVert) else None) for v in verts ],
@@ -837,6 +1233,7 @@ class LegacyPatches_Logic:
                 edges,
                 faces,
                 tuple(open_idx),
+                tuple(row_idx),
             ))
 
         n_new = 0
@@ -887,6 +1284,22 @@ class LegacyPatches_Logic:
         def refuse_if_covered(kind, verts, faces, boundary):
             if not over_existing_faces(verts, faces): return False
             return True
+
+        def mouse_side(co_a, co_b, co_mid, out):
+            # Sign to give `out` so a wire run steps toward the mouse: +1 keeps it, -1 flips it.
+            # Also returns the side of the run's screen-space chord the mouse is on, which is what
+            # track_mouse watches for a flip. (1, 0) when the mouse or the view is unknown, so the
+            # run keeps whichever side its own geometry gave it.
+            rgn, r3d = context.region, context.region_data
+            if mouse_at is None or not rgn or not r3d: return 1, 0
+            mouse = Vector((mouse_at[0] - rgn.x, mouse_at[1] - rgn.y))
+            pa, pb = location_3d_to_region_2d(rgn, r3d, M @ co_a), location_3d_to_region_2d(rgn, r3d, M @ co_b)
+            pm = location_3d_to_region_2d(rgn, r3d, M @ co_mid)
+            po = location_3d_to_region_2d(rgn, r3d, M @ (co_mid + out))
+            if not (pa and pb and pm and po): return 1, 0
+            s_mouse, s_out = _side2d(pa, pb, mouse), _side2d(pa, pb, po - pm + pa)
+            if not s_mouse or not s_out: return 1, 0
+            return (1 if s_mouse == s_out else -1), s_mouse
 
         def emit_rect_grid(sv0, sv1, sv2, sv3, kind):
             # Coons-fill a four-sided region. sv0/sv2 run along i and must be equal length;
@@ -1078,6 +1491,414 @@ class LegacyPatches_Logic:
             sv3 = side_verts(off + half + span, half - span)[::-1]   # c00 -> c01
             return emit_rect_grid(sv0, sv1, sv2, sv3, kind)
 
+        def cycle_bmes(bmvs):
+            # the edges joining a closed run of verts, in the same order; None if any is missing
+            out = []
+            for a, b in zip(bmvs, bmvs[1:] + bmvs[:1]):
+                bme = next((e for e in a.link_edges if e.other_vert(a) is b), None)
+                if bme is None: return None
+                out.append(bme)
+            return out
+
+        def emit_offset(sv, bmes, *, cyclic=False):
+            # Rows of quads pushed out from a run of boundary edges that has nothing to fill: an open
+            # strip with no partner to bridge to, or a closed loop whose inside is already faces. Each
+            # vert steps the way the quads already on the run lean (their edge leaving the run there),
+            # or straight out across the run where there is no quad to follow. On an open run, an end
+            # that turns a corner onto an existing open edge is not extruded at all: the row welds onto
+            # the far vert of that edge, so stepping along a boundary knits into what is there already.
+            n = len(sv)
+            if n < 3 if cyclic else n < 2: return True
+            nseg = n if cyclic else n - 1      # bmes[k] joins sv[k] and sv[k+1]
+            steps = max(1, settings.steps)
+            run_verts, run_edges = set(sv), set(bmes)
+            cos = [ v.co for v in sv ]
+            nxt = lambda i: (i + 1) % n
+
+            # tangent of the run at every vert
+            along = []
+            for i in range(n):
+                a = cos[(i - 1) % n] if (cyclic or i > 0) else cos[i]
+                b = cos[nxt(i)] if (cyclic or i < n - 1) else cos[i]
+                t = b - a
+                if t.length_squared < 1e-14:
+                    t = cos[-1] - cos[0]
+                    if t.length_squared < 1e-14: return True
+                along.append(t.normalized())
+
+            d_mean = sum((cos[nxt(k)] - cos[k]).length for k in range(nseg)) / nseg
+            if d_mean < 1e-9: return True
+
+            # straight out across the run and in the surface, at every vert
+            nrm, _ = make_normal_fn(sv)
+            perps, prev_n = [], None
+            for i, v in enumerate(sv):
+                nv = nrm(v)
+                if nv is None:
+                    bmfs = [ bmf for bme in v.link_edges if bme in run_edges for bmf in bme.link_faces ]
+                    nv = next((f.normal for f in bmfs if f.normal.length_squared > 0), None)
+                if nv is None: return True     # no source and no face: nothing to lean on
+                # the normal is what can flip over, when two verts of the run find opposite faces of a
+                # thin surface. Keeping it continuous keeps the whole row on one side, while leaving a
+                # sharply turning run free to swing its perp round with the turn
+                if prev_n is not None and nv.dot(prev_n) < 0: nv = -nv
+                prev_n = nv
+                p = along[i].cross(nv)
+                if p.length_squared < 1e-12: return True
+                perps.append(p.normalized())
+
+            # Which side is out, settled one vert at a time: away from the faces that vert's own run
+            # edges carry. Every boundary vert knows this for itself. A single vote for the whole run
+            # instead trusts the perps to agree end to end, and around a form they need not: where a
+            # run crosses a crease the perp can come out the other way, and the losing half of the
+            # vote then steps back over the mesh it came from, inside out.
+            def face_sign(i):
+                acc = 0.0
+                for bme in (bmes[(i - 1) % n] if (cyclic or i > 0) else None,
+                            bmes[i] if (cyclic or i < n - 1) else None):
+                    if bme is None or len(bme.link_faces) != 1: continue
+                    va, vb = bme.verts
+                    al = vb.co - va.co
+                    if al.length_squared < 1e-14: continue
+                    al = al.normalized()
+                    to_old = bme.link_faces[0].calc_center_median() - (va.co + vb.co) / 2
+                    to_old -= al * to_old.dot(al)
+                    acc += to_old.dot(perps[i])
+                return -1 if acc > 0 else (1 if acc < 0 else 0)
+
+            signs = [ face_sign(i) for i in range(n) ]
+            if any(signs):
+                # a vert whose own edges carry no face takes the side of the nearest one that does
+                for order in (range(n), range(n - 1, -1, -1)):
+                    last = 0
+                    for i in order:
+                        if signs[i]: last = signs[i]
+                        elif last: signs[i] = last
+                perps = [ p * signs[i] for i, p in enumerate(perps) ]
+            else:
+                mid_i = n // 2
+                side_sign, s_mouse = mouse_side(cos[0], cos[mid_i if cyclic else -1], cos[mid_i],
+                                                perps[mid_i] * d_mean)
+                if s_mouse and not cyclic: L.wire_runs.append((cos[0].copy(), cos[-1].copy(), s_mouse))
+                if side_sign < 0: perps = [ -p for p in perps ]
+
+            # direction per vert: the quad's edge leaving the run there, averaged when two quads meet.
+            # A side edge running along the run, a non-quad, or a quad on the far side falls back to the perp
+            dirs = []
+            for i, v in enumerate(sv):
+                acc = Vector()
+                for bme in (bmes[(i - 1) % n] if (cyclic or i > 0) else None,
+                            bmes[i] if (cyclic or i < n - 1) else None):
+                    if bme is None: continue
+                    for bmf in bme.link_faces:
+                        if len(bmf.verts) != 4: continue
+                        side_e = next((fe for fe in bmf.edges if fe is not bme and v in fe.verts), None)
+                        if side_e is None: continue     # both of the quad's edges here are run edges
+                        d = v.co - side_e.other_vert(v).co
+                        if d.length_squared < 1e-14: continue
+                        d.normalize()
+                        if abs(d.dot(along[i])) > GUIDE_MAX_ALONG: continue
+                        if d.dot(perps[i]) <= 0: continue
+                        acc += d
+                dirs.append(acc.normalized() if acc.length_squared > 1e-12 else perps[i])
+
+            # a vert where the run itself turns has to reach further than one where it runs straight,
+            # or the new row pinches in at every corner instead of staying parallel
+            miter = []
+            for i in range(n):
+                u = (cos[(i - 1) % n] - cos[i]) if (cyclic or i > 0) else None
+                w = (cos[nxt(i)] - cos[i]) if (cyclic or i < n - 1) else None
+                if u is None or w is None or u.length_squared < 1e-14 or w.length_squared < 1e-14:
+                    miter.append(1.0)
+                    continue
+                c = max(-1.0, min(1.0, u.normalized().dot(w.normalized())))
+                sin_half = math.sqrt(max(0.0, (1.0 - c) / 2.0))
+                miter.append(MITER_LIMIT if sin_half < 1e-6 else min(MITER_LIMIT, 1.0 / sin_half))
+
+            def open_edges_at(bmv, skip_faces_of):
+                # candidate rails leaving a vert: unselected, still open, and not folding back into
+                # the face the run (or the rail so far) already occupies there
+                skip = { fe for bme in skip_faces_of for bmf in bme.link_faces for fe in bmf.edges }
+                for bme in bmv.link_edges:
+                    if bme in sel_edges or bme.hide or len(bme.link_faces) >= 2: continue
+                    if bme in skip: continue
+                    yield bme, bme.other_vert(bmv)
+
+            def weld_target(i_end, i_prev, used):
+                # An open edge leaving the end of the run whose far vert lies outward. It counts as a
+                # corner either topologically (a concave boundary vert) or by bending past Split Angle,
+                # which is the same test the strips themselves were split with.
+                v = sv[i_end]
+                arrive = v.co - sv[i_prev].co
+                if arrive.length_squared < 1e-14: return None
+                arrive.normalize()
+                topo = bool(v.link_faces) and is_bmvert_corner(v)
+                out = dirs[i_end]
+                best, best_dot = None, 0.0
+                for _bme, w in open_edges_at(v, (bmes[-1] if i_end == n - 1 else bmes[0],)):
+                    if w in run_verts or w in used: continue
+                    d = w.co - v.co
+                    if d.length_squared < 1e-14: continue
+                    d = d.normalized()
+                    if d.dot(out) <= 0: continue
+                    if not topo and _angle_deg(-arrive, d) >= min_angle: continue
+                    if d.dot(out) > best_dot: best, best_dot = w, d.dot(out)
+                return best
+
+            def rail_next(bmv, from_co, came_along, used):
+                # Once a row has welded onto a rail, the rows after it keep following that rail for as
+                # long as it runs, rather than stepping free of the mesh it just joined. Whether this
+                # was a corner was settled at the run; from here it is simply the straightest way on.
+                travel = bmv.co - from_co
+                if travel.length_squared < 1e-14: return None
+                travel.normalize()
+                best, best_dot = None, 0.0
+                for _bme, w in open_edges_at(bmv, (came_along,) if came_along else ()):
+                    if w in run_verts or w in used: continue
+                    d = w.co - bmv.co
+                    if d.length_squared < 1e-14: continue
+                    d = d.normalized()
+                    if d.dot(travel) > best_dot: best, best_dot = w, d.dot(travel)
+                return best
+
+            used_welds = set()
+            W0 = W1 = None
+            if not cyclic:
+                W0 = weld_target(0, 1, used_welds)
+                W1 = weld_target(n - 1, n - 2, used_welds)
+                if W0 is not None and W0 is W1: return True   # both ends fold onto one vert: not a row of quads
+            row0_welds = { i: w for i, w in ((0, W0), (n - 1, W1)) if w is not None }
+
+            def row_base(prev_cos, welds_k):
+                # How far and which way each vert of the previous row steps to make the next one. A
+                # welded end has to land exactly on its weld, so its own offset is used unmitered and
+                # the part its direction could not account for is carried across the run, fading out.
+                if not welds_k:
+                    return [ dirs[i] * (d_mean * miter[i]) for i in range(n) ]
+                fr = _cumulative_fracs(prev_cos)
+                scale = lambda i, l: dirs[i] * (l * (1.0 if i in welds_k else miter[i]))
+                if len(welds_k) == 1:
+                    i_w, w = next(iter(welds_k.items()))
+                    D = w.co - prev_cos[i_w]
+                    r = D - dirs[i_w] * D.length
+                    return [ scale(i, D.length) + r * (fr[i] if i_w else 1 - fr[i]) for i in range(n) ]
+                D0, D1 = welds_k[0].co - prev_cos[0], welds_k[n - 1].co - prev_cos[-1]
+                r0, r1 = D0 - dirs[0] * D0.length, D1 - dirs[-1] * D1.length
+                return [ scale(i, D0.length * (1 - fr[i]) + D1.length * fr[i]) + r0 * (1 - fr[i]) + r1 * fr[i]
+                         for i in range(n) ]
+
+            def trace_boundary_loop(limit):
+                # Walk the open boundary out from the far end of the run and round, looking for the
+                # near end. If it comes back, the run, its two rails and the far side are all pieces
+                # of one closed loop, and counting round it says exactly when a step arrives opposite.
+                loop, seen, came, cur = list(sv), set(sv), None, sv[-1]
+                while len(loop) < limit:
+                    step_to = [ w for bme, w in open_edges_at(cur, ())
+                                if bme not in run_edges and w is not came ]
+                    if len(step_to) != 1: return None      # a fork or a dead end: not a simple hole
+                    w = step_to[0]
+                    if w is sv[0]: return loop             # closed
+                    if w in seen: return None              # pinched: it met itself, not the far side
+                    loop.append(w); seen.add(w)
+                    came, cur = cur, w
+                return None
+
+            # Stepping across a hole runs out of hole. Beyond the row that lands opposite there is
+            # nothing left to fill, so stop there; when the far side has as many edges as the run, that
+            # row IS the far side and the whole thing welds shut rather than doubling it up.
+            far_row = None
+            if not cyclic:
+                loop = trace_boundary_loop(2 * nseg + 2 * steps)
+                if loop:
+                    ltot = len(loop)
+                    here = sum(cos, Vector()) / n
+                    ahead = sum(dirs, Vector())
+                    for k in range(1, steps + 1):
+                        rest = ltot - nseg - 2 * k        # edges of the loop still unaccounted for
+                        if rest > nseg: continue
+                        far = loop[n - 1 + k : ltot - k + 1]
+                        if not far: break
+                        # The walk goes round whatever boundary the run sits on, which for a strip is
+                        # its own other side with solid mesh in between. Only a far side lying the way
+                        # the run is stepping is one it is actually closing on.
+                        if (sum((v.co for v in far), Vector()) / len(far) - here).dot(ahead) <= 0: break
+                        if rest == nseg:
+                            far_row = list(reversed(far))
+                            steps = k
+                        else:
+                            # the two sides cannot meet in quads: stop short and leave the gap, which
+                            # is a patch the artist can select both sides of and fill
+                            steps = k - 1
+                        break
+            if steps < 1: return True
+
+            if not budget(steps * n): return False
+
+            side = shape_side(sv + list(row0_welds.values()))
+            # an axis the whole run lies in is the plane it steps away from, so it must not pin to it
+            run_axes = frozenset.intersection(*[ sym_axes(c) for c in cos ]) if mirror_axes else frozenset()
+            for a in run_axes: side[a] = 0
+            cos_w = [ M @ c for c in cos ]
+            span_w = sum((cos_w[nxt(k)] - cos_w[k]).length for k in range(nseg)) / nseg
+            M3 = M.to_3x3()
+
+            def folds_back(before, after):
+                return any((after[nxt(i)] - after[i]).dot(before[nxt(i)] - before[i]) <= 0
+                           for i in range(nseg))
+
+            def stalled(before, after, base):
+                return any((after[i] - before[i]).length < STEP_STALL * b
+                           for i in range(n) if (b := base[i].length) > 1e-9)
+
+            # Each row steps from the one before it and is snapped there, so a run of steps follows the
+            # source round a curve instead of shooting off along the first row's straight direction, and
+            # each row asks again whether its ends have a rail left to weld onto.
+            rows, prev_row, prev_cos, prev_prev_cos = [], list(sv), list(cos), None
+            for k in range(steps):
+                if k == 0:
+                    welds_k = dict(row0_welds)
+                else:
+                    welds_k = {}
+                    if not cyclic:
+                        for i_end in (0, n - 1):
+                            anchor = prev_row[i_end]
+                            if not isinstance(anchor, BMVert): continue   # this end stepped free already
+                            came = next((e for e in anchor.link_edges
+                                         if (e.other_vert(anchor).co - prev_prev_cos[i_end]).length_squared < 1e-12), None)
+                            w = rail_next(anchor, prev_prev_cos[i_end], came, used_welds)
+                            if w is not None: welds_k[i_end] = w
+                        if len(welds_k) == 2 and welds_k[0] is welds_k[n - 1]: welds_k = {}
+                used_welds |= set(welds_k.values())
+
+                base = row_base(prev_cos, welds_k)
+                if max(b.length for b in base) < 1e-9: return True
+                # A couple of this row's own steps, in world units: how far a new vert may be pulled
+                # onto the source before the hit counts as an unrelated surface. Averaged, not maxed:
+                # a mitered corner reaches three times as far as the rest of the row and would other-
+                # wise set the cap for all of it. Past the cap the vert stays where the step put it,
+                # which off the edge of the source is better than being dragged back onto it.
+                cap = SNAP_CAP_EDGES * max(span_w, sum((M3 @ b).length for b in base) / n)
+
+                if far_row is not None and k == steps - 1:
+                    row, missed = list(far_row), []   # the last row IS the far side of the hole
+                else:
+                    row, missed = [], []
+                    for i in range(n):
+                        if i in welds_k:
+                            row.append(welds_k[i])
+                            continue
+                        nb = source_normal(prev_row[i]) or nrm(sv[i])
+                        pt = new_point(prev_cos[i] + base[i], side, nb, cap, ray=False, missed=missed)
+                        if not cyclic and i in (0, n - 1): pt = to_planes(pt, sym_axes(cos[i]) - run_axes)
+                        row.append(pt)
+                row_cos = [ pco(pt) for pt in row ]
+                if far_row is None or k != steps - 1:
+                    # A row that found nothing to snap to has stepped off the end of the source and is
+                    # hanging in space. A concave run closes on itself as it steps. A run that has run
+                    # out of source stops advancing at all. Each leaves the quads from here on unusable:
+                    # keep what is good and stop. (With no source there is nothing to land on, so the
+                    # first of these cannot apply.)
+                    if ((sources and missed)
+                            or folds_back(prev_cos, row_cos) or stalled(prev_cos, row_cos, base)):
+                        steps = k
+                        break
+                rows.append(row)
+                prev_row, prev_prev_cos, prev_cos = row, prev_cos, row_cos
+
+            if not rows: return True        # the very first step already folded back on itself
+            # no refuse_if_covered here: the step is aimed away from the run's own faces by
+            # construction, so there is no side for it to land on the wrong one of
+            verts = list(sv) + [ pt for row in rows for pt in row ]
+            faces, edges = [], []
+            for k in range(1, steps + 1):
+                for i in range(nseg):
+                    j = nxt(i)
+                    faces.append(((k - 1) * n + i, (k - 1) * n + j, k * n + j, k * n + i))
+
+            def is_new_edge(a, b):
+                # a rung or row edge that already exists is drawn by Blender, not by the preview
+                va, vb = verts[a], verts[b]
+                if not (isinstance(va, BMVert) and isinstance(vb, BMVert)): return True
+                return not any(bme.other_vert(va) is vb for bme in va.link_edges)
+            for k in range(1, steps + 1):
+                edges += [ (k * n + i, k * n + nxt(i)) for i in range(nseg)
+                           if is_new_edge(k * n + i, k * n + nxt(i)) ]
+                edges += [ ((k - 1) * n + i, k * n + i) for i in range(n)
+                           if is_new_edge((k - 1) * n + i, k * n + i) ]
+
+            L.has_offset = True
+            outer = range(steps * n, (steps + 1) * n)
+            L.labels.append((str(steps), [ sum((pco(verts[k]) for k in outer), Vector()) / n ]))
+            add_previz('offset', verts, edges, faces,
+                       [ k for k in outer if not isinstance(verts[k], BMVert) ], outer)
+            return True
+
+        def emit_corner_quad(bmv):
+            # F2's quad from a vertex: two open edges leaving a corner are two sides of a quad, and the
+            # fourth corner is the parallelogram completion of them. Edges that are already two sides of
+            # one face have no gap between them to fill, so they are not a pair. The cursor picks when
+            # there is more than one way to pair them up, as F2 does.
+            opens = [ bme for bme in bmv.link_edges if len(bme.link_faces) < 2 and not bme.hide ]
+            if len(opens) < 2: return True
+            rgn, r3d = context.region, context.region_data
+            use_mouse = mouse_at is not None and rgn and r3d
+            mouse = Vector((mouse_at[0] - rgn.x, mouse_at[1] - rgn.y)) if use_mouse else None
+
+            best = None
+            for bme_a, bme_b in combinations(opens, 2):
+                if set(bme_a.link_faces) & set(bme_b.link_faces): continue
+                va, vb = bme_a.other_vert(bmv), bme_b.other_vert(bmv)
+                if va is vb: continue
+                da, db = va.co - bmv.co, vb.co - bmv.co
+                if da.length_squared < 1e-14 or db.length_squared < 1e-14: continue
+                co = va.co + vb.co - bmv.co
+                if use_mouse:
+                    pt = location_3d_to_region_2d(rgn, r3d, M @ co)
+                    if not pt: continue
+                    score = (pt - mouse).length
+                else:
+                    # with no cursor to choose by, the squarest corner makes the best quad
+                    score = abs(da.normalized().dot(db.normalized()))
+                if best is None or score < best[0]: best = (score, va, vb, co)
+            if best is None: return True
+            _, va, vb, co = best
+
+            # where two strips meet at this vert the fourth corner is already there; use it rather
+            # than laying a second vert on top of it
+            nbrs_b = { bme.other_vert(vb) for bme in vb.link_edges }
+            corner = next((w for bme in va.link_edges
+                           if (w := bme.other_vert(va)) is not bmv and w in nbrs_b), None)
+            if corner is None:
+                if not budget(1): return False
+                boundary = [va, bmv, vb]
+                nrm, _ = make_normal_fn(boundary)
+                cap = SNAP_CAP_EDGES * max((M @ va.co - M @ bmv.co).length,
+                                           (M @ vb.co - M @ bmv.co).length)
+                corner = new_point(co, shape_side(boundary), nrm(bmv), cap, ray=False)
+
+            verts = [va, bmv, vb, corner]
+            if len({ id(v) for v in verts }) != 4: return True
+
+            # Hold this to the same standard as a quad picked by the cursor: convex on screen, a
+            # shape worth having in 3D, and no corner opening out over faces that are already
+            # there. Without these a lone vert would happily offer a dart or a sliver.
+            q = [ M @ pco(v) for v in verts ]
+            if _quad_shape_ok(q) is None: return True
+            if rgn and r3d:
+                pts = [ location_3d_to_region_2d(rgn, r3d, co) for co in q ]
+                if all(pts) and not _is_convex_2d(pts): return True
+            for i in range(4):
+                v = verts[i]
+                if isinstance(v, BMVert) and _corner_overlaps_faces(v, pco(verts[i - 1]), pco(verts[(i + 1) % 4])):
+                    return True
+
+            new_corner = not isinstance(corner, BMVert)
+            edges_out = [ (i, 3) for i in (0, 2)
+                          if new_corner or not any(bme.other_vert(verts[i]) is corner
+                                                   for bme in verts[i].link_edges) ]
+            add_previz('corner', verts, edges_out, [(0, 1, 2, 3)], [3] if new_corner else [])
+            return True
+
         ###################
         # closed cycles: loft a matched pair, else fill each on its own
 
@@ -1105,6 +1926,8 @@ class LegacyPatches_Logic:
 
         if not lofted:
             for kind, shape, bmvs in cycles:
+                before = len(L.previz)
+                tried = False
                 if kind == 'rect':
                     c0, c1, c2, c3 = map(len, shape)
                     if c0 == c2 and c1 == c3:
@@ -1116,9 +1939,15 @@ class LegacyPatches_Logic:
                         if sv2[-1] not in sv1: sv2.reverse()
                         if sv3[-1] not in sv2: sv3.reverse()
                         if not emit_rect_grid(sv0, sv1, sv2, sv3, 'rect'): break
-                        continue
-                # unequal opposite sides, or a loop that isn't four-sided: fall back to a grid fill
-                if not emit_grid_fill(bmvs, 'grid'): break
+                        tried = True
+                if not tried:
+                    # unequal opposite sides, or a loop that isn't four-sided: fall back to a grid fill
+                    if not emit_grid_fill(bmvs, 'grid'): break
+                if len(L.previz) > before: continue
+                # Nothing to fill inside this loop, because the inside is already faces (or the loop
+                # cannot be gridded at all). Step it outward instead, growing the shape by a ring
+                bmes = cycle_bmes(bmvs)
+                if bmes and not emit_offset(bmvs, bmes, cyclic=True): break
 
         # L
         for shape in shapes['L']:
@@ -1296,10 +2125,11 @@ class LegacyPatches_Logic:
 
         # I: bridge pairs of parallel strips
         # TODO (from v3): check sides to make sure that we aren't creating geometry on a side that already has geometry!
+        bridged = set()
         for i0, shape0 in enumerate(shapes['I']):
             sv0 = get_verts(shape0[0])
             dir0 = (sv0[0].co - sv0[-1].co).normalized()
-            best_sv1, best_dist = None, 0
+            best_sv1, best_dist, best_i1 = None, 0, None
             for i1, shape1 in enumerate(shapes['I']):
                 if i1 <= i0: continue
                 sv1 = get_verts(shape1[0])
@@ -1314,7 +2144,11 @@ class LegacyPatches_Logic:
                 if best_sv1 and best_dist < dist: continue
                 best_sv1 = sv1
                 best_dist = dist
+                best_i1 = i1
             if not best_sv1: continue
+            # both strips are spoken for even if this bridge is refused below: the artist lined two
+            # strips up asking for a bridge, not for two of them to step outward on their own
+            bridged |= {i0, best_i1}
             sv1, dist = best_sv1, best_dist
             avg0 = (sv0[0].co - sv0[-1].co).length / max(1, len(sv0) - 1)
             avg1 = (sv1[0].co - sv1[-1].co).length / max(1, len(sv1) - 1)
@@ -1367,8 +2201,242 @@ class LegacyPatches_Logic:
             if refuse_if_covered('I', verts, faces, boundary): continue
             add_previz('I', verts, edges, faces)
 
+        # a strip with nothing to bridge to steps outward instead
+        for i0, shape0 in enumerate(shapes['I']):
+            if i0 in bridged: continue
+            if not emit_offset(get_verts(shape0[0]), shape0[0]): break
+
+        if lone_bmv is not None: emit_corner_quad(lone_bmv)
+
     ##############################################
     # interaction
+
+    @staticmethod
+    def track_ctrl(context : Context, event : Event) -> bool:
+        ''' Follow the Ctrl key, which is what turns the cursor pick on and off. True when the
+        preview changed and the caller should redraw. '''
+        L = LegacyPatches_Logic
+        held = bool(event.ctrl)
+        if held == L.ctrl: return False
+        L.ctrl = held
+        if held:
+            # a rebuild is what works out that nothing is selected and turns the pick on; it also
+            # only happens once per press, so the O(V) candidate scan is not on any hot path
+            L.dirty = True
+        elif L.nearest_active:
+            # let go: drop the offer. Only the cursor pick can be showing here, since it is the
+            # one thing that runs with nothing selected
+            L.previz = []
+            L.nearest_sig = None
+            L.nearest_active = False
+        return True
+
+    @staticmethod
+    def track_mouse(context : Context, event : Event) -> bool:
+        # A wire run steps toward the mouse, so its side is the one thing about the preview that
+        # follows the cursor. Rebuilding on every mouse move would cost a snap per vert per frame;
+        # instead remember each run's screen-space chord and the side the last rebuild used, and
+        # only go dirty when the mouse crosses one. True when it did, so the caller can redraw.
+        L = LegacyPatches_Logic
+        L.mouse = (event.mouse_x, event.mouse_y)
+        if not context.edit_object: return False
+        rgn, r3d = context.region, context.region_data
+        if not rgn or not r3d: return False
+        M = context.edit_object.matrix_world
+
+        if L.ctrl and L.nearest_active and L.cand_key is not None and L.cand_key == L._candidate_key(context):
+            # The nearest quad follows the cursor properly, so it is re-picked on every move rather
+            # than watched for a crossing. It is cheap: the candidates are already projected, and
+            # nothing here creates or snaps a vert. Deliberately does NOT set dirty - a full rebuild
+            # would re-scan the mesh for the same answer. A mesh edit fails the key test above and
+            # the next draw's update() rebuilds instead.
+            try:
+                bm = bmesh.from_edit_mesh(context.edit_object.data)
+                bm.verts.ensure_lookup_table()
+                pv = L.pick_nearest_quad(context, bm, M, L.mouse)
+            except (ReferenceError, RuntimeError):
+                pv = None
+            sig = frozenset(pv.vert_idx) if pv is not None else None
+            if sig != L.nearest_sig:
+                L.previz = [pv] if pv is not None else []
+                L.nearest_sig = sig
+                return True
+            return False
+
+        if not L.wire_runs: return False
+        mouse = Vector(mouse_from_event(event))
+        for co_a, co_b, sign in L.wire_runs:
+            pa, pb = location_3d_to_region_2d(rgn, r3d, M @ co_a), location_3d_to_region_2d(rgn, r3d, M @ co_b)
+            if not pa or not pb: continue
+            s = _side2d(pa, pb, mouse)
+            if s and s != sign:
+                L.dirty = True
+                return True
+        return False
+
+    @staticmethod
+    def _candidate_key(context : Context) -> tuple | None:
+        RFCore = RFGlobals.RFCore_None
+        obj = context.edit_object
+        if not RFCore or not obj: return None
+        return (RFCore.depsgraph_version, obj.name)
+
+    @staticmethod
+    def _collect_candidates(bm, key : tuple):
+        ''' Verts the nearest-quad search may use: the loose points the artist has dropped, and the
+        verts along an open border so a couple of points can close onto existing geometry. Interior
+        verts are excluded - a quad there would have to overlap the mesh. One O(V) pass, kept until
+        the mesh changes, which is what stops this costing anything per mouse move.
+        '''
+        L = LegacyPatches_Logic
+        flat, idx = [], []
+        for bmv in bm.verts:
+            if bmv.hide: continue
+            # An isolated vert has is_wire AND is_boundary both False, so the face test has to come
+            # first. is_manifold is no good here: a vert on an open border is manifold, and those
+            # are exactly the ones a quad should be able to close onto.
+            if bmv.link_faces and not bmv.is_boundary: continue
+            idx.append(bmv.index)
+            flat.extend(bmv.co)
+        L.cand_idx = idx
+        L.cand_cos = np.array(flat, dtype=np.float64).reshape(len(idx), 3) if idx else None
+        L.cand_key = key
+        L.proj_key = None
+
+    @staticmethod
+    def _project_candidates(context : Context, M : Matrix):
+        ''' Candidates in region pixels, NaN for anything behind the camera. This is
+        location_3d_to_region_2d done in one array op, cached until the view or the mesh moves.
+        '''
+        L = LegacyPatches_Logic
+        if L.cand_cos is None: return None
+        rgn, r3d = context.region, context.region_data
+        if not rgn or not r3d: return None
+        key = (L.cand_key, r3d.perspective_matrix.copy().freeze(), rgn.width, rgn.height)
+        if key == L.proj_key and L.proj_px is not None: return L.proj_px
+
+        M3 = np.array(M.to_3x3(), dtype=np.float64)
+        Mt = np.array(M.translation, dtype=np.float64)
+        world = L.cand_cos @ M3.T + Mt
+        P = np.array(r3d.perspective_matrix, dtype=np.float64)
+        clip = np.concatenate([world, np.ones((len(world), 1))], axis=1) @ P.T
+        w = clip[:, 3]
+        # perspective: w <= 0 is behind the eye. orthographic: w is always 1, so nothing is masked
+        ok = w > 1e-6
+        w = np.where(ok, w, 1.0)
+        px = (clip[:, :2] / w[:, None] + 1.0) * 0.5 * np.array([rgn.width, rgn.height])
+        px[~ok] = np.nan
+        L.proj_px, L.proj_key = px, key
+        return px
+
+    @staticmethod
+    def pick_nearest_quad(context : Context, bm, M : Matrix, mouse_win) -> Previz | None:
+        ''' The quad the cursor is sitting in, out of the candidate verts nearest it. Nothing is
+        created, so there is no snapping or mirror work to do: the four verts already exist and the
+        cursor only chooses between ways of joining them.
+        '''
+        L = LegacyPatches_Logic
+        rgn, r3d = context.region, context.region_data
+        if mouse_win is None or not rgn or not r3d: return None
+        px = L._project_candidates(context, M)
+        if px is None or len(px) < 4: return None
+        mouse = Vector((mouse_win[0] - rgn.x, mouse_win[1] - rgn.y))
+
+        d2 = np.nansum((px - np.array([mouse.x, mouse.y])) ** 2, axis=1)
+        d2 = np.where(np.isnan(px[:, 0]), np.inf, d2)
+        radius = Drawing.scale(NEAREST_RADIUS_PX) or NEAREST_RADIUS_PX
+        near = np.flatnonzero(d2 <= radius * radius)
+        if len(near) < 4: return None
+        if len(near) > NEAREST_K:
+            near = near[np.argpartition(d2[near], NEAREST_K)[:NEAREST_K]]
+        near = near[np.argsort(d2[near])]
+
+        # resolve the cached indices now: a coordinate that has moved means the cache predates an
+        # edit the rebuild has not caught up with, and offering a quad from it would be a lie
+        try:
+            bmvs, pts2d, cos3d = [], [], []
+            nverts = len(bm.verts)
+            for k in near:
+                vi = L.cand_idx[k]
+                if vi >= nverts: return None
+                bmv = bm.verts[vi]
+                cached = L.cand_cos[k]
+                # hidden since the scan: drop it and carry on, since hiding need not have bumped
+                # the version this cache is keyed on
+                if not bmv.is_valid: return None
+                if bmv.hide: continue
+                # moved since the scan: the whole cache predates an edit, so offer nothing until
+                # the next rebuild rather than a quad drawn at the wrong place
+                if (bmv.co - Vector(cached)).length_squared > 1e-8: return None
+                bmvs.append(bmv)
+                pts2d.append(Vector((px[k][0], px[k][1])))
+                cos3d.append(M @ bmv.co)
+        except ReferenceError:
+            return None
+
+        n = len(bmvs)
+        if n < 4: return None
+        ranked = []
+        for combo in combinations(range(n), 4):
+            r = _quad_from_points([pts2d[i] for i in combo], [cos3d[i] for i in combo], mouse)
+            if r is None: continue
+            order, score = r
+            ranked.append((score, tuple(combo[o] for o in order)))
+        if not ranked: return None
+        ranked.sort(key=lambda e: e[0])
+
+        for _score, quad in ranked:
+            verts = [bmvs[i] for i in quad]
+            if not _quad_is_placeable(bm, verts): continue
+            edges_out = [ (i, (i + 1) % 4) for i in range(4)
+                          if _bmedge_between(verts[i], verts[(i + 1) % 4]) is None ]
+            return Previz(
+                'nearest',
+                [ v.index for v in verts ],
+                [ v.co.copy() for v in verts ],
+                edges_out,
+                [(0, 1, 2, 3)],
+                (),
+                (),
+            )
+        return None
+
+    @staticmethod
+    def mouse_over_previz(context : Context, *, radius2d : float = 10) -> bool:
+        ''' True when the cursor is inside a previewed patch, and not on a vertex whose corner the
+        same click would toggle. Ctrl+click confirms the patch, but Ctrl+click also toggles a corner,
+        so the toggle keeps its verts: the radius is the one pick_selected_vert uses. Only the
+        selected boundary can have a corner toggled, which is why the rest of the preview is fair
+        game - on a fine patch every pixel is near some vertex of it.
+        '''
+        L = LegacyPatches_Logic
+        edit_object = context.edit_object
+        rgn, r3d = context.region, context.region_data
+        if not L.previz or not edit_object or not rgn or not r3d: return False
+        if L.mouse is None: return False
+        # The cursor pick only offers a quad when the cursor is on it in the first place, so there
+        # is nothing to measure again here - and with nothing selected there is no corner for the
+        # same click to toggle either. Measuring twice can only find a disagreement between the two
+        # tests and swallow the click.
+        if all(pv.kind == 'nearest' for pv in L.previz): return True
+
+        M = edit_object.matrix_world
+        mouse = Vector((L.mouse[0] - rgn.x, L.mouse[1] - rgn.y))
+        try:
+            r = (Drawing.scale(radius2d) or radius2d) ** 2
+            for co in L.boundary_verts.values():
+                p = location_3d_to_region_2d(rgn, r3d, M @ co)
+                if p and (p - mouse).length_squared < r: return False
+            # stops at the first face the cursor is in, so a big patch usually costs a few faces
+            for pv in L.previz:
+                pts = {}
+                for f in pv.faces:
+                    for i in f:
+                        if i not in pts: pts[i] = location_3d_to_region_2d(rgn, r3d, M @ pv.vert_co[i])
+                    if point_inside_face_2d(mouse, [pts[i] for i in f]): return True
+            return False
+        except ReferenceError:
+            return False
 
     @staticmethod
     def pick_selected_vert(context : Context, event : Event, *, radius2d : float = 10) -> int | None:
@@ -1448,7 +2516,7 @@ class LegacyPatches_Logic:
         if not L.previz: return False
         # the rebuild that follows a fill previews nothing, so the redo panel and the scroll
         # shortcuts that re-run the fill read these instead
-        L.filled_flags = (L.has_bridge, L.has_grid, L.has_loft)
+        L.filled_flags = (L.has_bridge, L.has_grid, L.has_loft, L.has_offset)
         L.filled_loops = L.loops_last or 0
         L.filled_solutions = max(1, len(L.grid_ranked))
 
@@ -1459,7 +2527,7 @@ class LegacyPatches_Logic:
         existing = []
         for pv in L.previz:
             row = []
-            for idx, co in zip(pv.vert_idx, pv.vert_co):
+            for k, (idx, co) in enumerate(zip(pv.vert_idx, pv.vert_co)):
                 if idx is None:
                     row.append(None)
                     continue
@@ -1467,7 +2535,11 @@ class LegacyPatches_Logic:
                     L.dirty = True
                     return False
                 bmv = bm.verts[idx]
-                if not bmv.is_valid or not bmv.select or (bmv.co - co).length_squared > 1e-8:
+                # A step welds onto existing verts past a corner and on along the rails, none of which
+                # are selected, so it cannot be held to that test; the coordinate check below still
+                # catches a stale one, and _recompute has just re-read the selection anyway.
+                selected = bmv.select or pv.kind in ('offset', 'corner', 'nearest')
+                if not bmv.is_valid or not selected or (bmv.co - co).length_squared > 1e-8:
                     # previz is stale; let the next frame rebuild it
                     L.dirty = True
                     return False
@@ -1475,7 +2547,7 @@ class LegacyPatches_Logic:
             existing.append(row)
 
         # pass 2: create verts and faces
-        new_bmvs, new_bmfs = [], []
+        new_bmvs, new_bmfs, built = [], [], []
         for pv, row in zip(L.previz, existing):
             bmvs = []
             for bmv, co in zip(row, pv.vert_co):
@@ -1483,6 +2555,7 @@ class LegacyPatches_Logic:
                     bmv = bm.verts.new(co)
                     new_bmvs.append(bmv)
                 bmvs.append(bmv)
+            built.append(bmvs)
             for f in pv.faces:
                 vs = [bmvs[i] for i in f]
                 if len(vs) < 3 or len(set(vs)) != len(vs): continue   # faces.new() rejects repeated verts
@@ -1492,17 +2565,35 @@ class LegacyPatches_Logic:
         pin_to_mirror_planes(context, new_bmvs, active_mirror_axes(context))
         orient_bmf_normals(context, new_bmfs, new_faces=True)
 
+        stepped = [ (pv, bmvs) for pv, bmvs in zip(L.previz, built) if pv.kind == 'offset' ]
+        # a quad picked by the cursor was built from nothing selected, and the next one is picked the
+        # same way: selecting its verts would switch the tool back to filling a selection
+        hovered = all(pv.kind == 'nearest' for pv in L.previz)
         bmops.deselect_all(bm)
-        bmops.select_iter(bm, new_bmvs)
-        bmops.select_iter(bm, new_bmfs)
+        if hovered:
+            pass
+        elif stepped:
+            # leave only the new row selected: it is an open strip in its own right, so the next
+            # rebuild offers the step after it and F walks outward. A step alongside some other
+            # patch is rare; the other patch's geometry simply ends up unselected
+            for pv, bmvs in stepped:
+                bmops.select_iter(bm, [ bmvs[k] for k in pv.row_idx ])
+        else:
+            bmops.select_iter(bm, new_bmvs)
+            bmops.select_iter(bm, new_bmfs)
         BMVertLayer_Int.remove(bm, CORNER_LAYER)    # overrides only applied to the boundary we just filled
         bmops.flush_selection(bm, em)
 
         # remember what this left selected: the new patch's own boundary is still selected and
-        # still qualifies, so without this the next rebuild would offer to fill it all over again
-        bm.edges.index_update()
-        left = [ e for e in bmops.get_all_selected_bmedges(bm) if len(e.link_faces) < 2 and not e.hide ]
-        L.filled_sig = L.selection_signature(bm, left)
+        # still qualifies, so without this the next rebuild would offer to fill it all over again.
+        # A step is the exception: its row is meant to be offered again straight away
+        if stepped or hovered:
+            L.filled_sig = None
+        else:
+            bm.edges.index_update()
+            left = [ e for e in bmops.get_all_selected_bmedges(bm) if len(e.link_faces) < 2 and not e.hide ]
+            L.filled_sig = L.selection_signature(bm, left)
+        L.nearest_sig = None    # the next hover picks afresh, over the mesh this fill just changed
         L.dirty = True
         return True
 

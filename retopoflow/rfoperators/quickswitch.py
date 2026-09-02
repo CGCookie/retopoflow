@@ -19,6 +19,7 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 import importlib
+import time
 from typing import cast
 
 import bpy
@@ -26,7 +27,7 @@ from bpy.types import Context, Event
 
 from ..rfglobals import RFGlobals
 from ..common.operator import RFOperator, RFKeyMaps
-from ..common.bpy_helper import BpyOperatorCallable
+from ..common.bpy_helper import BpyOperatorCallable, bpy_ops_retopoflow
 
 
 _op_prop_names_cache: dict[str, list[str]] = {}
@@ -126,6 +127,98 @@ class RFOperator_Relax_QuickSwitch(RFOperator):
         self.running = False
         RFCore.switch_to_tool(self.prev_tool)
         return {'FINISHED'}
+
+
+class RFOperator_LegacyPatches_QuickSwitch(RFOperator):
+    """Fill a patch when F is tapped and get the full interactive preview when it is held. """
+    bl_idname      : str = 'retopoflow.quickswitch_to_legacy_patches'
+    bl_label       : str = 'Retopoflow: Quick switch to Patches'
+    bl_description : str = 'Fill a patch from the selected boundary edges. Hold to preview it first'
+    bl_space_type  : str = 'VIEW_3D'
+    bl_region_type : str = 'TOOLS'
+    bl_options : set[str] = {'INTERNAL'}
+
+    # Patches rebuilds its preview from a draw callback and will not do so while it believes another
+    # operator is moving the mesh about. Tell it this op is harmless.
+    rf_patches_passive : bool = True
+
+    rf_keymaps : RFKeyMaps = [
+        (bl_idname, {'type': 'F', 'value': 'PRESS'}, {'km_label': 'Fill Patch'}),
+    ]
+
+    prev_tool : str | None # pyright: ignore[reportUninitializedInstanceVariable]
+    switched : bool # pyright: ignore[reportUninitializedInstanceVariable]
+    restored : bool # pyright: ignore[reportUninitializedInstanceVariable]
+    started : float # pyright: ignore[reportUninitializedInstanceVariable]
+
+    # How long F must be down before it counts as a hold rather than a tap
+    HOLD_TO_PREVIEW = 0.25
+
+    def init(self, context : Context, event : Event):
+        from ..rftool_legacy_patches.legacy_patches_logic import LegacyPatches_Logic
+        self.prev_tool = RFGlobals.RFCore.selected_RFTool_idname
+        self.switched = self.restored = False
+        self.started = time.time()
+        # the cursor picks which way a wire run steps and which edges a corner vert pairs up
+        LegacyPatches_Logic.mouse = (event.mouse_x, event.mouse_y)
+
+        # A hold with a still cursor and no key repeat sends no events at all, and the preview would
+        # never appear. Ask for one modal call once the threshold is past. The flag is a list rather
+        # than the operator itself, so a finished operator is not kept alive by the timer.
+        alive = [True]
+        self._alive = alive
+        def wake():
+            if alive[0]:
+                try:
+                    RFOperator.tickle(bpy.context)
+                except Exception:
+                    pass
+            return None
+        _ = bpy.app.timers.register(wake, first_interval=self.HOLD_TO_PREVIEW)
+
+    def update(self, context : Context, event : Event) -> set[str]:
+        if event.type == 'F' and event.value == 'RELEASE':
+            self._fill()
+            self._restore()
+            return {'FINISHED'}
+        # the key repeating is the clearest sign it is being held; the clock covers a platform that
+        # does not repeat, and the tickle above guarantees one event to read it on
+        repeat = event.type == 'F' and event.value == 'PRESS'
+        if repeat or time.time() - self.started >= self.HOLD_TO_PREVIEW:
+            self._switch()
+        # Swallow the repeats. Passed on, each one runs the fill again and steps the patch again,
+        # which is not what holding a key to look at something should do.
+        return {'RUNNING_MODAL'} if repeat else {'PASS_THROUGH'}
+
+    def _switch(self):
+        from ..rftool_legacy_patches.legacy_patches import RFTool_LegacyPatches
+        if self.switched: return
+        self.switched = True
+        # Skip the tool's usual switch to edge select mode on the way in. This is meant to be a look
+        # at the patch, not an edit of the selection, and changing select mode changes it.
+        RFTool_LegacyPatches.quick_switch = True
+        RFGlobals.RFCore.switch_to_tool(RFTool_LegacyPatches.bl_idname)
+
+    def _fill(self):
+        if 'FINISHED' in bpy_ops_retopoflow('legacy_patches_fill', 'INVOKE_DEFAULT'): return
+        # Patches had nothing to make of this selection, so the keypress belongs to Blender's own F,
+        # which is where it would have gone without us
+        try:
+            _ = bpy.ops.mesh.edge_face_add()
+        except RuntimeError:
+            pass
+
+    def finish(self, context : Context):
+        self._restore()     # also covers being cancelled out from under us
+
+    def _restore(self):
+        from ..rftool_legacy_patches.legacy_patches import RFTool_LegacyPatches
+        if self.restored: return
+        self.restored = True
+        self._alive[0] = False
+        RFTool_LegacyPatches.quick_switch = False
+        if self.switched: RFGlobals.RFCore.switch_to_tool(self.prev_tool)
+
 
 class RFOperator_Tweak_QuickSwitch(RFOperator):
     bl_idname      : str = 'retopoflow.quickswitch_to_tweak'
