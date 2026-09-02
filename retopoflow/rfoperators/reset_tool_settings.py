@@ -25,6 +25,7 @@ from ..rftool_polypen.polypen import RFOperator_PolyPen, RFTool_PolyPen
 from ..rftool_polystrips.polystrips import RFOperator_PolyStrips, RFTool_PolyStrips
 from ..rftool_strokes.strokes import RFOperator_Strokes, RFTool_Strokes
 from ..rftool_contours.contours import RFOperator_Contours, RFTool_Contours
+from ..rftool_legacy_patches.legacy_patches import LegacyPatches_Properties, RFTool_LegacyPatches
 from ..rftool_tweak.tweak import RFOperator_Tweak, RFTool_Tweak
 from ..rftool_relax.relax import RFOperator_Relax, RFTool_Relax
 from ..preferences import RF_Prefs
@@ -47,6 +48,10 @@ def reset_tool_settings(context):
         'Contours': {
             'RFTool': RFTool_Contours,
             'RFOperator': RFOperator_Contours
+        },
+        'Patches': {
+            'RFTool': RFTool_LegacyPatches,
+            'RFOperator': LegacyPatches_Properties # the settings live on a mixin shared with the fill operator
         },
         'Tweak': {
             'RFTool': RFTool_Tweak,

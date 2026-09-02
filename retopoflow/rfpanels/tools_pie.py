@@ -4,7 +4,6 @@ from bpy.utils import previews
 
 from ..rftool_polypen.polypen import PolyPen_Insert_Modes
 # from ..rftool_patches.patches import Patches_Orientations
-from ..common.operator import execute_operator
 
 
 
@@ -142,30 +141,15 @@ class RFMenu_MT_ToolPie(Menu):
             row.prop(scene_props, 'include_corners')
             row.prop(scene_props, 'include_pinned')
 
-        elif tool.idname == 'retopoflow.patches':
+        elif tool.idname == 'retopoflow.legacy_patches':
+            from ..rftool_legacy_patches.legacy_patches import draw_patches_props
             props = tool.operator_properties(tool.idname)
             row = back.row()
             row.emboss = pie_emboss
-            row.label(text='Patches Orientation')
+            row.label(text='Patches')
             section = back.box().column()
             section.ui_units_x = 8
-            grid = section.grid_flow(even_columns=True, even_rows=True)
-            row = grid.row(align=True)
-            col = row.column(align=True)
-            col.operator('retopoflow.patches_setorientation_raycast', text='Raycast')
-            col.operator('retopoflow.patches_setorientation_screen', text='Screen')
-            col = row.column(align=True)
-            col.operator('retopoflow.patches_setorientation_cut', text='Cut')
-            # col.operator('retopoflow.polypen_setinsertmode_quadonly', text='Quad')
-            # if Patches_Orientations.orientation == 4:
-            #     row = section.row()
-            #     row.emboss = pie_emboss
-            #     row.label(text='Quad Stability')
-            #     row = section.row(align=True)
-            #     row.operator('retopoflow.polypen_quad_stability_quarter', text='0.25')
-            #     row.operator('retopoflow.polypen_quad_stability_half', text='0.50')
-            #     row.operator('retopoflow.polypen_quad_stability_threequarters', text='0.75')
-            #     row.operator('retopoflow.polypen_quad_stability_full', text='1.00')
+            draw_patches_props(section, props, header=False)
 
 
 
@@ -211,10 +195,10 @@ class RFMenu_MT_ToolPie(Menu):
 
         # Northeast
         _ = pie.operator(
-            'retopoflow.switch_to_patches',
+            'retopoflow.switch_to_legacy_patches',
             text='Patches',
             icon_value=RF_icons['PATCHES'].icon_id,
-            depress=tool.idname=='retopoflow.patches',
+            depress=tool.idname=='retopoflow.legacy_patches',
         )
 
         # Southwest
@@ -233,16 +217,6 @@ class RFMenu_MT_ToolPie(Menu):
             depress=tool.idname=='retopoflow.relax'
         )
 
-
-
-@execute_operator(
-    'switch_to_patches',
-    'Switch to Patches',
-    description='Patches is not ready yet and cannot be selected',
-    fn_poll=lambda _context: False,
-)
-def switch_to_patches_disabled(_context):
-    return {'CANCELLED'}
 
 
 keymaps = []
