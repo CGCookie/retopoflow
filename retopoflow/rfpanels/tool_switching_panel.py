@@ -40,6 +40,7 @@ def draw_tool_switching_options(context, layout):
     col.prop(prefs, 'setup_selection_adjustments')
     col.prop(prefs, 'setup_selection_mode')
     col.prop(prefs, 'setup_snapping')
+    # col.prop(prefs, 'setup_suppress_conflicting_keymaps')
 
     if context.area.type == 'PREFERENCES':
         layout.separator(type='SPACE')

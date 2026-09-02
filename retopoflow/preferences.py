@@ -190,6 +190,11 @@ class RF_Prefs(AddonPreferences):
                     ),
         default=True,
     )
+    setup_suppress_conflicting_keymaps: bpy.props.BoolProperty(
+        name='Suppress Conflicting Hotkeys',
+        description=("Deactivates other add-ons' hotkeys that are known to conflict with Retopoflow "),
+        default=True,
+    )
     setup_pinning: bpy.props.BoolProperty(
         name='Pinning via Creases',
         description=("Hijacks Blender's vertex crease system so we can display pins without any performance overhead. "
