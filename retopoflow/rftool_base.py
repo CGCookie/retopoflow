@@ -42,6 +42,7 @@ class RFTool_Base(WorkSpaceTool):
     rf_brush : RFBrush_Base | None = None
     rf_overlay : type[RFOverlay_Base] | None = None
     rf_operator_idname : str | None = None  # bl_idname of main operator for this RFTool
+    rf_hide_from_toolbar : ClassVar[bool] = False  # imported (for its operators/keymaps) but not shown as its own toolbar entry
 
     resetter : ClassVar[Resetter | None] = None
 
@@ -92,14 +93,18 @@ class RFTool_Base(WorkSpaceTool):
     def register_all():
         prefs = RF_Prefs.get_prefs(bpy.context)
         after = "builtin.measure"
-        for i, rft in enumerate(RFTool_Base.get_all_RFTools()):
-            bpy.utils.register_tool(rft, separator=(i==0), after=after, group=(i==0 and not prefs.expand_tools))
-            after = rft.bl_idname
+        visible = 0
+        for rft in RFTool_Base.get_all_RFTools():
             rft.register()
-        print(f'RF registered {len(RFTool_Base.get_all_RFTools())} RFTools')
+            if rft.rf_hide_from_toolbar: continue
+            bpy.utils.register_tool(rft, separator=(visible==0), after=after, group=(visible==0 and not prefs.expand_tools))
+            after = rft.bl_idname
+            visible += 1
+        print(f'RF registered {visible} RFTools')
 
     @staticmethod
     def unregister_all():
         for rft in reversed(RFTool_Base.get_all_RFTools()):
             rft.unregister()
+            if rft.rf_hide_from_toolbar: continue
             bpy.utils.unregister_tool(rft)

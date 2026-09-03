@@ -63,11 +63,16 @@ from .rftool_polypen.polypen       import RFTool_PolyPen
 from .rftool_polystrips.polystrips import RFTool_PolyStrips
 from .rftool_strokes.strokes       import RFTool_Strokes
 from .rftool_contours.contours     import RFTool_Contours
-# from .rftool_patches.patches       import RFTool_Patches
+from .rftool_patches.patches       import RFTool_Patches, USE_NEW_PATCHES
 from .rftool_legacy_patches import legacy_patches
 from .rftool_legacy_patches.legacy_patches import RFTool_LegacyPatches
 from .rftool_tweak.tweak           import RFTool_Tweak
 from .rftool_relax.relax           import RFTool_Relax
+
+# Only one Patches tool occupies the toolbar/pie menu slot at a time
+# The legacy one stays imported for its operator, the standalone fill, but hidden in the UI
+RFTool_Patches.rf_hide_from_toolbar = not USE_NEW_PATCHES
+RFTool_LegacyPatches.rf_hide_from_toolbar = USE_NEW_PATCHES
 
 
 from .rfpanels import (

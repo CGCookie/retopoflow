@@ -54,8 +54,9 @@ class RFOperator_Launch_Help(RFRegisterClass, bpy.types.Operator):
                 'tweak', 'relax',
             ]
         }
-        # the legacy tool's page keeps the plain patches name
+        # both Patches tools share the same docs page
         tool_help_urls['retopoflow.legacy_patches'] = 'https://docs.retopoflow.com/v4/patches.html'
+        tool_help_urls['retopoflow.patches'] = 'https://docs.retopoflow.com/v4/patches.html'
 
         fallback_url = 'https://docs.retopoflow.com/index.html'
 

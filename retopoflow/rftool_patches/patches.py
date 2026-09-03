@@ -24,6 +24,8 @@ Created by Jonathan Denning, Jonathan Lampel
 # pyright: reportUnusedParameter = false
 # pyright: reportUnannotatedClassAttribute = false
 
+USE_NEW_PATCHES : bool = True
+
 from bpy.types import (
     Context,
     UILayout,
