@@ -215,11 +215,16 @@ class RFOperator_LegacyPatches_QuickSwitch(RFOperator):
         RFGlobals.RFCore.switch_to_tool(RFTool_LegacyPatches.bl_idname)
 
     def _fill(self):
-        if 'FINISHED' in bpy_ops_retopoflow('legacy_patches_fill', 'INVOKE_DEFAULT'): return
+        # `True` is the call's undo argument, and it is what makes the tap behave like the keypress it
+        # stands in for. Without it Blender treats the fill as an operator called from inside another
+        # one: no undo step of its own, and no entry in the operator history, which is where Adjust
+        # Last Operation reads the settings it offers. With it, a tap in PolyPen gets the same redo
+        # panel as F inside Patches.
+        if 'FINISHED' in bpy_ops_retopoflow('legacy_patches_fill', 'INVOKE_DEFAULT', True): return
         # Patches had nothing to make of this selection, so the keypress belongs to Blender's own F,
         # which is where it would have gone without us
         try:
-            _ = bpy.ops.mesh.edge_face_add()
+            _ = bpy.ops.mesh.edge_face_add('INVOKE_DEFAULT', True)
         except RuntimeError:
             pass
 

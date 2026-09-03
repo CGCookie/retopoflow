@@ -147,6 +147,16 @@ class LegacyPatches_Properties:
         max=256,
         default=PatchSettings.steps,
     )
+    step_scale: bpy.props.FloatProperty(
+        name='Distance',
+        description=('How far each stepped row reaches, against the spacing of the run it steps from. '
+                     'Only the rows that extrude are affected: one that lands on existing geometry still lands on it'),
+        min=0.05,
+        soft_min=0.25,
+        soft_max=4.0,
+        max=16.0,
+        default=PatchSettings.step_scale,
+    )
     twist: bpy.props.IntProperty(
         name='Twist',
         description='Rotate which vertex of one loop pairs with which vertex of the other when lofting',
@@ -261,6 +271,9 @@ class RFOperator_LegacyPatches_Fill(LegacyPatches_Properties, RFOperator_Execute
         if src:
             for name in PATCH_SETTING_NAMES:
                 setattr(self, name, getattr(src, name))
+        else:
+            self.steps = PatchSettings.steps
+            self.step_scale = PatchSettings.step_scale
         return self.execute(context)
 
     def execute(self, context : Context) -> set[str]:
@@ -293,9 +306,10 @@ class RFOperator_LegacyPatches_EdgeFaceAdd(RFOperator_Execute):
         return poll_retopoflow(context) and fill_patches_owns_f(context)
 
     def execute(self, context : Context) -> set[str]:
-        # mesh.edge_face_add registers itself, so its own redo panel is the one the artist gets
+        # `True` is the call's undo argument: this shim is INTERNAL and pushes nothing itself, so
+        # without it the face lands with no undo step and no redo panel at all
         try:
-            return bpy.ops.mesh.edge_face_add()
+            return bpy.ops.mesh.edge_face_add('INVOKE_DEFAULT', True)
         except RuntimeError:
             return { 'CANCELLED' }
 
@@ -385,6 +399,9 @@ def _scroll_offset(context : Context, sign : int):
             which = 'offset' if was_grid else 'twist'
             _refill_with(context, last, **{which: getattr(last, which) + sign})
             return
+        if L.filled_free_step:
+            _refill_with(context, last, step_scale=L.scaled_step(last.step_scale, sign))
+            return
     # nothing of ours to turn: topo-rotate the selection, when that can actually happen (it needs
     # selected faces with one closed perimeter, and raises or reports otherwise)
     if not bpy.ops.retopoflow.toporotate.poll(): return
@@ -444,11 +461,12 @@ class RFOperator_LegacyPatches_CountIncrease(RFOperator_Execute):
 class RFOperator_LegacyPatches_OffsetDecrease(RFOperator_Execute):
     bl_idname : str = 'retopoflow.legacy_patches_offset_decrease'
     bl_label : str = 'Decrease Offset'
-    bl_description : str = 'Rotate the loft pairing or grid fill corners one vertex back, or topo-rotate the selection'
+    bl_description : str = ('Rotate the loft pairing or grid fill corners one vertex back, shorten a stepped row '
+                            'that extrudes, or topo-rotate the selection')
     bl_options : BL_OPTIONS = { 'INTERNAL' }
 
     rf_keymaps : RFKeyMaps = [
-        ( bl_idname, { 'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'shift': 1 }, {'km_context': 'init', 'km_label': 'Offset / Topo Rotate'} ),
+        ( bl_idname, { 'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'shift': 1 }, {'km_context': 'init', 'km_label': 'Offset / Distance'} ),
     ]
 
     def execute(self, context : Context) -> set[str]:
@@ -460,7 +478,8 @@ class RFOperator_LegacyPatches_OffsetDecrease(RFOperator_Execute):
 class RFOperator_LegacyPatches_OffsetIncrease(RFOperator_Execute):
     bl_idname : str = 'retopoflow.legacy_patches_offset_increase'
     bl_label : str = 'Increase Offset'
-    bl_description : str = 'Rotate the loft pairing or grid fill corners one vertex forward, or topo-rotate the selection'
+    bl_description : str = ('Rotate the loft pairing or grid fill corners one vertex forward, lengthen a stepped row '
+                            'that extrudes, or topo-rotate the selection')
     bl_options : BL_OPTIONS = { 'INTERNAL' }
 
     rf_keymaps : RFKeyMaps = [
@@ -549,16 +568,29 @@ def draw_patches_props(layout : UILayout, props, *, header : bool, redo : bool =
                 layout.prop(props, 'crosses', text='Count')
     if not redo:
         layout.prop(props, 'split_angle', text='Split Angle')
-    layout.prop(props, 'smooth')
-    if has_quad:
-        layout.prop(props, 'crosses', text='Cuts')
-    if has_offset:
-        layout.prop(props, 'steps')
-    if has_grid:
-        layout.prop(props, 'solution', text='Solution')
-        layout.prop(props, 'offset', text='Offset')
-    if has_loft:
-        layout.prop(props, 'twist')
+    if not redo or L.filled_smoothing:
+        layout.prop(props, 'smooth')
+
+    has_options = has_quad or has_offset or has_grid or has_loft
+    if has_options:
+        if header:
+            layout.separator(type='LINE')
+        elif not redo:
+            layout.separator()
+        if has_quad:
+            layout.prop(props, 'crosses', text='Cuts')
+        if has_offset:
+            layout.prop(props, 'steps')
+        if (L.filled_free_step if redo else L.has_free_step):
+            layout.prop(props, 'step_scale')
+        if has_grid:
+            layout.prop(props, 'solution', text='Solution')
+            layout.prop(props, 'offset', text='Offset')
+        if has_loft:
+            layout.prop(props, 'twist')
+        if not header and not redo:
+            layout.separator()
+
     if not redo and L.has_manual_corners:
         layout.operator(RFOperator_LegacyPatches_ClearCorners.bl_idname, icon='X')
 
