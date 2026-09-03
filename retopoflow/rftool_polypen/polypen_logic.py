@@ -1792,7 +1792,7 @@ class PP_Logic:
         orient_bmfs = []         # freshly created faces to orient once the verts above have landed on the source
         select_now = []     # to be selected before move
         select_later = []   # to be selected after move
-        free_move = not self.constrain_edge_vert
+        free_move = self.state not in PP_KNIFE_SNAP_STATES or not self.constrain_edge_vert # only needed when knifing
 
         match self.state:
             case PP_Action.VERT:
