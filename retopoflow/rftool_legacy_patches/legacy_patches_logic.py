@@ -47,12 +47,13 @@ from ...addon_common.common.maths import sign_threshold, point_inside_face_2d
 from ...addon_common.common.blender_preferences import mouse_drag
 from ..common.bmesh import (
     get_bmesh_emesh, BMVertLayer_Int, mirror_threshold, is_bmvert_corner,
-    bmes_shared_bmv, bme_unshared_bmv, bmvs_shared_bme,
+    bmes_shared_bmv, bme_unshared_bmv, bmvs_shared_bme, wind_bmfs_to_match_neighbors,
 )
-from ..common.bmesh_maths import orient_bmf_normals, fit_plane_of_verts, compute_n
+from ..common.bmesh_maths import orient_bmf_normals, check_bmf_normals, fit_plane_of_verts, compute_n
 from ..common.bpy_helper import bpy_ops_retopoflow
 from ..common.drawing import Drawing, CC_2D_LINES, CC_2D_POINTS, CC_2D_TRIANGLES
-from ..common.operator import RFOperator
+from ..common.maths import view_forward_direction
+from ..common.operator import RFOperator, rf_is_running
 from ..common.raycast import (
     nearest_point_valid_sources, nearest_point_normal_valid_sources, raycast_ray_valid_sources,
     iter_all_valid_sources, mouse_from_event, is_point_occluded, raycast_point_valid_sources,
@@ -1349,11 +1350,13 @@ class LegacyPatches_Logic:
         # snapping and mirror helpers, set up once per rebuild
 
         Mi = M.inverted_safe()
-        sources = [ (o, o.matrix_world, o.matrix_world.inverted_safe()) for o in iter_all_valid_sources(context) ]
+        sources = ([ (o, o.matrix_world, o.matrix_world.inverted_safe()) for o in iter_all_valid_sources(context) ]
+                   if rf_is_running() else [])
         mirror_axes = active_mirror_axes(context)
         mirror_tol = mirror_threshold(context) or 0.0
 
         def snap(co_local, normal_world=None, cap=None, *, ray=True, missed=None):
+            if not sources: return co_local.copy()
             # With a normal, cast along it both ways first: nearest point drags an off-surface point
             # sideways, a ray keeps its in-surface position. The cap rejects hits on unrelated far
             # surfaces. A step passes ray=False: it is barely off the surface, and a ray leaving the
@@ -1430,6 +1433,7 @@ class LegacyPatches_Logic:
         # or flipped, and are blended like positions to give each new vert a casting direction
         normal_cache = stroke.normals if stroke is not None else {}    # the mesh cannot change while a stroke is down
         def source_normal(pt):
+            if not sources: return None
             key = ('v', pt.index) if isinstance(pt, BMVert) else ('c', tuple(round(c, 6) for c in pt))
             if key not in normal_cache:
                 r = nearest_point_normal_valid_sources(context, M @ _co(pt))
@@ -1564,7 +1568,7 @@ class LegacyPatches_Logic:
                     pt = new_point(co, side, n, cap)
                     if pin: pt = pin(i, j, pt)
                     verts.append(pt); normals.append(n); raws.append(co)
-            if checks and _grid_snap_noise([ _co(v) for v in verts ], raws, l0, l1, cyclic_i=cyclic_i) > MAX_SNAP_NOISE:
+            if checks and sources and _grid_snap_noise([ _co(v) for v in verts ], raws, l0, l1, cyclic_i=cyclic_i) > MAX_SNAP_NOISE:
                 return
             smooth_grid(verts, normals, l0, l1, side, cap, fixed, cyclic_i=cyclic_i)
             edges, faces = _grid_topology(verts, l0, l1, cyclic_i=cyclic_i)
@@ -1814,13 +1818,22 @@ class LegacyPatches_Logic:
 
             # straight out across the run and in the surface, at every vert
             nrm = normal_fn(sv)
+            # Last resort for a wire run with no source: the plane the run itself lies in,
+            # and the view direction when it is too straight to fit one.
+            run_plane_n = None
+            if not sources:
+                pn, _ = fit_plane_of_verts(sv)
+                if (pn is None or pn.length_squared < 1e-12) and context.region_data:
+                    pn = Mi.to_3x3() @ view_forward_direction(context)
+                run_plane_n = pn.normalized() if (pn is not None and pn.length_squared > 1e-12) else None
             perps, prev_n = [], None
             for i, v in enumerate(sv):
                 nv = nrm(v)
                 if nv is None:
                     bmfs = [ bmf for bme in v.link_edges if bme in run_edges for bmf in bme.link_faces ]
                     nv = next((f.normal for f in bmfs if f.normal.length_squared > 0), None)
-                if nv is None: return True     # no source and no face: nothing to lean on
+                if nv is None: nv = run_plane_n
+                if nv is None: return True     # no source, no face and no plane: nothing to lean on
                 # keep the normal continuous along the run, so two verts finding opposite faces of a
                 # thin surface do not put the row on both sides
                 if prev_n is not None and nv.dot(prev_n) < 0: nv = -nv
@@ -2840,8 +2853,10 @@ class LegacyPatches_Logic:
     @staticmethod
     def _visible(context : Context, k : int, bmv, M : Matrix) -> bool:
         ''' Whether candidate k is not behind the source from the view. One raycast per candidate per
-        view, cached against proj_key; only the few nearest candidates of a pick are ever asked. '''
+        view, cached against proj_key; only the few nearest candidates of a pick are ever asked.
+        Outside Retopoflow there is no source to be behind, so everything is visible. '''
         L = LegacyPatches_Logic
+        if not rf_is_running(): return True
         if L.vis_key != L.proj_key:
             L.vis_cache, L.vis_key = {}, L.proj_key
         vis = L.vis_cache.get(k)
@@ -2910,8 +2925,9 @@ class LegacyPatches_Logic:
         if not ranked: return None
         ranked.sort(key=lambda e: e[0])
 
-        # the surface point under the cursor anchors the 3D check; off the source the screen tests stand alone
-        anchor = raycast_point_valid_sources(context, mouse)
+        # the surface point under the cursor anchors the 3D check; off the source, and outside
+        # Retopoflow where there is none, the screen tests stand alone
+        anchor = raycast_point_valid_sources(context, mouse) if rf_is_running() else None
 
         for score, quad in ranked:
             verts = [bmvs[i] for i in quad]
@@ -2979,7 +2995,7 @@ class LegacyPatches_Logic:
             if pf is None: return True
             return _side2d(pa, pb, mouse_v) != _side2d(pa, pb, pf)
 
-        anchor = raycast_point_valid_sources(context, mouse_v)
+        anchor = raycast_point_valid_sources(context, mouse_v) if rf_is_running() else None
 
         def within_reach(bmv, scale):
             # a far element that is close only on screen is not what the cursor is beside
@@ -3230,6 +3246,7 @@ class LegacyPatches_Logic:
         ''' Turn a list of previews into real geometry. '''
         L = LegacyPatches_Logic
         bm, em = get_bmesh_emesh(context, ensure_lookup_tables=True)
+        Mi_build = context.edit_object.matrix_world.inverted_safe()
         nverts = len(bm.verts)
 
         # resolve every existing vert before creating any, since verts.new() dirties the lookup table
@@ -3268,7 +3285,14 @@ class LegacyPatches_Logic:
                 new_bmfs.append(bm.faces.new(vs))
 
         pin_to_mirror_planes(context, new_bmvs, active_mirror_axes(context))
-        orient_bmf_normals(context, new_bmfs, new_faces=True)
+        for bmf in new_bmfs: bmf.normal_update()
+        if rf_is_running():
+            orient_bmf_normals(context, new_bmfs, new_faces=True)
+        else:
+            # a wire run steps out with nothing attached to agree with, so what is left over faces the view
+            unsettled = wind_bmfs_to_match_neighbors(new_bmfs)
+            if unsettled and context.region_data:
+                check_bmf_normals(Mi_build.to_3x3() @ view_forward_direction(context), unsettled)
 
         stepped = [ (pv, bmvs) for pv, bmvs in zip(previz, built) if pv.kind == 'offset' ]
         hovered = all(pv.hover for pv in previz)
