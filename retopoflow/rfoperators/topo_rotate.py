@@ -40,7 +40,7 @@ from ..common.drawing import (
     CC_2D_LINES,
 )
 from ..common.maths import Point
-from ..common.operator import RFOperator_Invoke, RFKeyMaps, rf_is_running
+from ..common.operator import RFOperator_Invoke, RFKeyMaps, rf_is_running, hotkey_owns_context
 from ..common.raycast import nearest_point_valid_sources, vec_right
 from ..common.snapping import SNAP_TO_ITEMS, build_island_bvh, build_snap_sources, draw_snap_to_props
 
@@ -145,6 +145,14 @@ class RFOperator_TopoRotate(RFOperator_Invoke):
     # Inert: nothing reads rf_status unless the operator calls set_statusbar_override itself.
     # The modal header (see header_modal_text) carries this instead, in and out of RF.
     rf_status = ['LMB: Commit', 'MMB: (nothing)', 'RMB: Cancel']
+
+    # set on the standalone Mesh-keymap item only, so hotkey_owns_context governs the key
+    # and not the tool keymap above or the right-click menu entry
+    hotkey: bpy.props.BoolProperty(
+        name='From Hotkey',
+        default=False,
+        options={'HIDDEN', 'SKIP_SAVE'},
+    )
 
     _is_running = False  # only one drag at a time; a second rip would tear an already-ripped patch
 
@@ -304,6 +312,8 @@ class RFOperator_TopoRotate(RFOperator_Invoke):
         return True
 
     def invoke(self, context, event):
+        if self.hotkey and not hotkey_owns_context(context, 'toporotate_tool_context'):
+            return {'PASS_THROUGH'}
         if not context.region_data:
             self.report({'ERROR'}, 'Topo Rotate: needs a 3D viewport')
             return {'CANCELLED'}
@@ -538,3 +548,20 @@ class RFOperator_TopoRotate(RFOperator_Invoke):
         if not rf_is_running():
             # RF picks the sources itself when it is running, so this only applies outside it
             draw_snap_to_props(self, context, layout, self.draw_warning)
+
+
+# Global hotkey outside the tool-scoped one every RF tool already carries in its own bl_keymap
+keymaps = []
+
+def register():
+    keyconfigs = bpy.context.window_manager.keyconfigs.addon
+    if not keyconfigs: return
+    km = keyconfigs.keymaps.new(name='Mesh')
+    kmi = km.keymap_items.new(RFOperator_TopoRotate.bl_idname, 'R', 'PRESS', ctrl=False, shift=False, alt=True)
+    kmi.properties.hotkey = True
+    keymaps.append((km, kmi))
+
+def unregister():
+    for km, kmi in keymaps:
+        km.keymap_items.remove(kmi)
+    keymaps.clear()

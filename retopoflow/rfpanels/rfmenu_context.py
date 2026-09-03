@@ -30,8 +30,9 @@ class RF_MT_ContextMenu(Menu):
     def draw(self, context):
         layout = self.layout
         layout.operator_context = 'INVOKE_REGION_WIN' # So ops below can seed defaults from RF's scene settings
-        layout.operator("retopoflow.space_evenly", text="Even")
+        layout.operator("retopoflow.legacy_patches_fill", text="Auto Fill")
         layout.operator("retopoflow.relax_selected", text="Relax")
+        layout.operator("retopoflow.space_evenly", text="Even")
         layout.operator("retopoflow.twist_loop", text="Twist Loops")
         layout.operator("retopoflow.edit_as_curve", text="Edit as Curve")
         layout.operator("retopoflow.toporotate", text="Rotate Topology")

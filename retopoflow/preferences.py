@@ -153,6 +153,51 @@ class RF_Prefs(AddonPreferences):
         ),
         default='ANY_TOOL'
     )
+    toporotate_tool_context: bpy.props.EnumProperty(
+        name="Rotate Topology Tool Context",
+        description="The context in which the hotkey triggers Rotate Topology",
+        items=(
+            ('ANY_TOOL', "Any Tool", "Can trigger Rotate Topology from ANY tool"),
+            ('RF_TOOL', "Retopoflow Tools", "Can trigger Rotate Topology ONLY on Retopoflow tools"),
+        ),
+        default='ANY_TOOL'
+    )
+    twist_loop_tool_context: bpy.props.EnumProperty(
+        name="Twist Loops Tool Context",
+        description="The context in which the hotkey triggers Twist Loops",
+        items=(
+            ('ANY_TOOL', "Any Tool", "Can trigger Twist Loops from ANY tool"),
+            ('RF_TOOL', "Retopoflow Tools", "Can trigger Twist Loops ONLY on Retopoflow tools"),
+        ),
+        default='ANY_TOOL'
+    )
+    diamond_bevel_tool_context: bpy.props.EnumProperty(
+        name="Diamond Bevel Tool Context",
+        description="The context in which the hotkey triggers Diamond Bevel",
+        items=(
+            ('ANY_TOOL', "Any Tool", "Can trigger Diamond Bevel from ANY tool"),
+            ('RF_TOOL', "Retopoflow Tools", "Can trigger Diamond Bevel ONLY on Retopoflow tools"),
+        ),
+        default='ANY_TOOL'
+    )
+    relax_tool_context: bpy.props.EnumProperty(
+        name="Relax Tool Context",
+        description="The context in which the hotkey triggers Relax",
+        items=(
+            ('ANY_TOOL', "Any Tool", "Can trigger Relax from ANY tool"),
+            ('RF_TOOL', "Retopoflow Tools", "Can trigger Relax ONLY on Retopoflow tools"),
+        ),
+        default='ANY_TOOL'
+    )
+    even_tool_context: bpy.props.EnumProperty(
+        name="Even Tool Context",
+        description="The context in which the hotkey triggers Even",
+        items=(
+            ('ANY_TOOL', "Any Tool", "Can trigger Even from ANY tool"),
+            ('RF_TOOL', "Retopoflow Tools", "Can trigger Even ONLY on Retopoflow tools"),
+        ),
+        default='ANY_TOOL'
+    )
 
     """ Tool Switching """
     #region

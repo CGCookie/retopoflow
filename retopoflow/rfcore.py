@@ -87,7 +87,7 @@ from .rfprops import rfprops_scene, rfprops_object
 
 # Operator files need to be imported here in order to be registered, even if they are not used in this file
 from .rfoperators import (mesh_cleanup, mirror, pinning, reset_tool_settings, launch_browser, relax_selected, space_evenly,
-    insert_diamond_junction, twist, rebuild_sources, separate_feature_regions, curve_edit)
+    insert_diamond_junction, twist, rebuild_sources, separate_feature_regions, curve_edit, topo_rotate)
 from .rfoperators.apply_retopo_settings import RFOperator_ApplyRetopoSettings, RFOperator_RestoreRetopoSettings
 from .rfoperators.newtarget import RFCore_NewTarget_Cursor, RFCore_NewTarget_Active
 
@@ -185,6 +185,12 @@ class RFCore:
         rfpanel_stroke.register()
         launch_browser.register()
         legacy_patches.register()
+        topo_rotate.register()
+        twist.register()
+        curve_edit.register()
+        insert_diamond_junction.register()
+        relax_selected.register()
+        space_evenly.register()
         tools_pie.register()
 
         AutoSave.register()
@@ -299,6 +305,12 @@ class RFCore:
         pinning.unregister()
         launch_browser.unregister()
         legacy_patches.unregister()
+        topo_rotate.unregister()
+        twist.unregister()
+        curve_edit.unregister()
+        insert_diamond_junction.unregister()
+        relax_selected.unregister()
+        space_evenly.unregister()
         preferences.unregister()
         icons_module.unregister()
 

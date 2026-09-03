@@ -27,7 +27,7 @@ from bpy.props import IntProperty, FloatProperty, BoolProperty, EnumProperty, St
 from mathutils import Vector
 
 from ..rfglobals import RFGlobals
-from ..common.operator import RFRegisterClass
+from ..common.operator import RFRegisterClass, hotkey_owns_context
 from ..common.accel import SourceAccel
 from ..common.bmesh import get_bmv_avg_edge_len, get_bmv_next_loop_vert
 from ..common.bmesh_maths import is_bmvert_pinned
@@ -72,6 +72,14 @@ class RFOperator_SpaceEvenly(RFRegisterClass, bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     rf_label = "Space Selection Evenly"
+
+    # set on the standalone Mesh-keymap item only, so hotkey_owns_context governs the key
+    # and not the right-click menu entry
+    hotkey: BoolProperty(
+        name='From Hotkey',
+        default=False,
+        options={'HIDDEN', 'SKIP_SAVE'},
+    )
 
     factor: FloatProperty(
         name='Factor',
@@ -189,6 +197,8 @@ class RFOperator_SpaceEvenly(RFRegisterClass, bpy.types.Operator):
         return context.mode == 'EDIT_MESH'
 
     def invoke(self, context, event):
+        if self.hotkey and not hotkey_owns_context(context, 'even_tool_context'):
+            return {'PASS_THROUGH'}
         if rf_is_running():
             # Start from the tool's own snapping settings rather than this operator's defaults.
             # Redo keeps any tweaks and the next fresh run re-seeds.
@@ -667,3 +677,19 @@ class RFOperator_SpaceEvenly(RFRegisterClass, bpy.types.Operator):
             if straightest > self.sharp_threshold:
                 sharp.add(bmv)
         return sharp
+
+
+keymaps = []
+
+def register():
+    keyconfigs = bpy.context.window_manager.keyconfigs.addon
+    if not keyconfigs: return
+    km = keyconfigs.keymaps.new(name='Mesh')
+    kmi = km.keymap_items.new(RFOperator_SpaceEvenly.bl_idname, 'R', 'PRESS', ctrl=False, shift=True, alt=True)
+    kmi.properties.hotkey = True
+    keymaps.append((km, kmi))
+
+def unregister():
+    for km, kmi in keymaps:
+        km.keymap_items.remove(kmi)
+    keymaps.clear()

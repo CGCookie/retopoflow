@@ -26,7 +26,7 @@ from bpy.props import IntProperty, BoolProperty, EnumProperty, FloatProperty
 from mathutils import Vector
 
 from ..rfglobals import RFGlobals
-from ..common.operator import RFRegisterClass
+from ..common.operator import RFRegisterClass, hotkey_owns_context
 from ..common.interface import draw_expandable_enum
 from ..common.accel import SourceAccel
 from ..common.bmesh import get_falloff_verts
@@ -48,6 +48,14 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     rf_label = "Relax Selected Vertices"
+
+    # set on the standalone Mesh-keymap item only, so hotkey_owns_context governs the key
+    # and not the right-click menu entry
+    hotkey: BoolProperty(
+        name='From Hotkey',
+        default=False,
+        options={'HIDDEN', 'SKIP_SAVE'},
+    )
 
     # -------------------------------------------------------------------------
     # Algorithm settings
@@ -299,6 +307,8 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
         return context.mode == 'EDIT_MESH'
 
     def invoke(self, context, event):
+        if self.hotkey and not hotkey_owns_context(context, 'relax_tool_context'):
+            return {'PASS_THROUGH'}
         ts = context.tool_settings
         self.use_proportional_edit  = ts.use_proportional_edit
         self.proportional_distance  = ts.proportional_size
@@ -482,3 +492,19 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
         bmesh.update_edit_mesh(logic.em, loop_triangles=False)
 
         return {'FINISHED'}
+
+
+keymaps = []
+
+def register():
+    keyconfigs = bpy.context.window_manager.keyconfigs.addon
+    if not keyconfigs: return
+    km = keyconfigs.keymaps.new(name='Mesh')
+    kmi = km.keymap_items.new(RFOperator_RelaxSelected.bl_idname, 'R', 'PRESS', ctrl=False, shift=True, alt=False)
+    kmi.properties.hotkey = True
+    keymaps.append((km, kmi))
+
+def unregister():
+    for km, kmi in keymaps:
+        km.keymap_items.remove(kmi)
+    keymaps.clear()
