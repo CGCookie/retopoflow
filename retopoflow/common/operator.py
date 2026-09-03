@@ -64,6 +64,16 @@ def rf_is_running() -> bool:
     return bool(RFCore and RFCore.is_running)
 
 
+def hotkey_owns_context(context : Context, tool_context_attr : str) -> bool:
+    ''' Whether a standalone hotkey belongs here, decided by the user's preferences '''
+    if context.mode != 'EDIT_MESH': return False
+    from ..preferences import RF_Prefs   # deferred: preferences.py imports from this module
+    prefs = RF_Prefs.get_prefs(context)
+    if getattr(prefs, tool_context_attr) == 'ANY_TOOL': return True
+    tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
+    return tool is not None and tool.idname.split('.')[0] == 'retopoflow'
+
+
 class RFRegisterClass:
     _subclasses : ClassVar[list[type[RFRegisterClass]]] = []
     _registered_classes : ClassVar[set[type[RFRegisterClass]]] = set()

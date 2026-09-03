@@ -25,7 +25,7 @@ from bpy.props import BoolProperty, EnumProperty, FloatProperty
 from mathutils import Vector
 from mathutils.geometry import intersect_line_line
 
-from ..common.operator import RFRegisterClass
+from ..common.operator import RFRegisterClass, hotkey_owns_context
 from ..common.raycast import iter_all_valid_sources, nearest_point_valid_sources
 from ..rfglobals import RFGlobals
 
@@ -74,6 +74,14 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
         default='LOOPS',
     )
 
+    # set on the standalone Mesh-keymap item only, so hotkey_owns_context governs the key
+    # and not the right-click menu entry
+    hotkey: BoolProperty(
+        name='From Hotkey',
+        default=False,
+        options={'HIDDEN', 'SKIP_SAVE'},
+    )
+
     @classmethod
     def poll(cls, context):
         # total_edge_sel lags a beat behind edit-mode changes, which is the same
@@ -83,6 +91,11 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
             and context.edit_object is not None
             and context.edit_object.data.total_edge_sel > 2
         )
+
+    def invoke(self, context, event):
+        if self.hotkey and not hotkey_owns_context(context, 'diamond_bevel_tool_context'):
+            return {'PASS_THROUGH'}
+        return self.execute(context)
 
     def draw(self, context):
         layout = self.layout
@@ -642,3 +655,19 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
                     make_face([verts_a[inner], tip, verts_b[inner], inner], side_a[m - 1])
 
         return touched
+
+
+keymaps = []
+
+def register():
+    keyconfigs = bpy.context.window_manager.keyconfigs.addon
+    if not keyconfigs: return
+    km = keyconfigs.keymaps.new(name='Mesh')
+    kmi = km.keymap_items.new(RFOperator_InsertDiamondJunction.bl_idname, 'B', 'PRESS', ctrl=True, shift=False, alt=True)
+    kmi.properties.hotkey = True
+    keymaps.append((km, kmi))
+
+def unregister():
+    for km, kmi in keymaps:
+        km.keymap_items.remove(kmi)
+    keymaps.clear()

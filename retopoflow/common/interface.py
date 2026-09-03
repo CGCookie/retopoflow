@@ -1,19 +1,33 @@
 import bpy
 from bpy.types import Context, UILayout, OperatorProperties, KeyMapItem
 
-def draw_keymap_options(layout : UILayout, keymap_item : KeyMapItem | None):
+def draw_keymap_options(self, layout : UILayout, keymap_item : KeyMapItem | None, title: str, in_RF_tools: str, trigger_prop: str = 'pie_tool_context'):
+    ''' in_RF_tools: 'optional' shows the artist's own Triggers-From dropdown (trigger_prop);
+    'only' or 'never' means the hotkey's tool context is fixed, so show a greyed-out label instead. '''
     if not keymap_item:
         return
-    row = layout.row(align=True)
+    split = layout.split(factor=0.25)
+    label = split.row()
+    label.alignment = 'RIGHT'
+    label.label(text=title)
+    row = split.row(align=True)
     row.prop(keymap_item, 'active', text='', icon_only=False, toggle=False)
-    split = row.split()
-    split.enabled = keymap_item.active
-    key = split.row(align=True)
+    sub_split = row.split()
+    sub_split.enabled = keymap_item.active
+    options = sub_split.split(factor=0.33)
+    key = options.row(align=True)
     key.prop(keymap_item, 'type', text='', event=True)
-    modifiers = split.row(align=True)
+    modifiers = options.row(align=True)
     modifiers.prop(keymap_item, 'shift_ui', toggle=True)
     modifiers.prop(keymap_item, 'ctrl_ui', toggle=True)
     modifiers.prop(keymap_item, 'alt_ui', toggle=True)
+    trigger = sub_split.row()
+    if in_RF_tools == 'optional':
+        trigger.enabled = keymap_item and keymap_item.active
+        trigger.prop(self, trigger_prop, text='', expand=False)
+    else:
+        trigger.enabled = False
+        trigger.label(text='Retopoflow Tools' if in_RF_tools == 'only' else 'Non-Retopoflow Tools')
 
 
 def draw_expandable_enum(context : Context, layout : UILayout, props : OperatorProperties, prop_name:str, breakpoint:int=600, text:str|None=None):

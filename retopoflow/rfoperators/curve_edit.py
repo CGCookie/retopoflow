@@ -1977,3 +1977,18 @@ class RFOperator_EditAsCurve(RFOperator_Invoke):
     def cancel(self, context):
         ''' Blender calls this when it ends the modal operator itself (ex: the window closes). '''
         self.release(context)
+
+
+keymaps = []
+
+def register():
+    keyconfigs = bpy.context.window_manager.keyconfigs.addon
+    if not keyconfigs: return
+    km = keyconfigs.keymaps.new(name='Mesh')
+    kmi = km.keymap_items.new(RFOperator_EditAsCurve.bl_idname, 'C', 'PRESS', ctrl=False, shift=False, alt=True)
+    keymaps.append((km, kmi))
+
+def unregister():
+    for km, kmi in keymaps:
+        km.keymap_items.remove(kmi)
+    keymaps.clear()

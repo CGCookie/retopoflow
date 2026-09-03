@@ -25,36 +25,43 @@ from ...config.keymaps import get_user_keymap_item
 
 
 def draw_hotkeys(self, context, layout):
-    layout.use_property_split = True
+    layout.use_property_split = False
     layout.use_property_decorate = False
 
-    row = layout.row(heading='Retopoflow Pie Menu')
     pie_kmi = get_user_keymap_item(context, 'RF_MT_Tools')
-    draw_keymap_options(row, pie_kmi)
-    row = layout.row()
-    row.enabled = pie_kmi and pie_kmi.active
-    row.prop(self, 'pie_tool_context', text='Triggers From', expand=False)
+    draw_keymap_options(self, layout, pie_kmi, 'Retopoflow Pie Menu', in_RF_tools='optional')
     layout.separator()
 
-    # the tool keymap binds the same operator, so narrow the lookup to the general one
-    row = layout.row(heading='Fill Patches')
+    # each of these also binds inside individual RF tools' own keymaps, so narrow to the general one
     fill_kmi = get_user_keymap_item(context, 'retopoflow.legacy_patches_fill', km_name='Mesh')
-    draw_keymap_options(row, fill_kmi)
-    row = layout.row()
-    row.enabled = bool(fill_kmi and fill_kmi.active)
-    row.prop(self, 'fill_tool_context', text='Triggers From', expand=False)
+    draw_keymap_options(self, layout, fill_kmi, 'Auto Fill', in_RF_tools='optional', trigger_prop='fill_tool_context')
+    topo_rotate_kmi = get_user_keymap_item(context, 'retopoflow.toporotate', km_name='Mesh')
+    draw_keymap_options(self, layout, topo_rotate_kmi, 'Rotate Topology', in_RF_tools='optional', trigger_prop='toporotate_tool_context')
+    twist_loop_kmi = get_user_keymap_item(context, 'retopoflow.twist_loop', km_name='Mesh')
+    draw_keymap_options(self, layout, twist_loop_kmi, 'Twist Loops', in_RF_tools='optional', trigger_prop='twist_loop_tool_context')
+    diamond_bevel_kmi = get_user_keymap_item(context, 'retopoflow.insert_diamond_junction', km_name='Mesh')
+    draw_keymap_options(self, layout, diamond_bevel_kmi, 'Diamond Bevel', in_RF_tools='optional', trigger_prop='diamond_bevel_tool_context')
+    relax_kmi = get_user_keymap_item(context, 'retopoflow.relax_selected', km_name='Mesh')
+    draw_keymap_options(self, layout, relax_kmi, 'Relax', in_RF_tools='optional', trigger_prop='relax_tool_context')
+    even_kmi = get_user_keymap_item(context, 'retopoflow.space_evenly', km_name='Mesh')
+    draw_keymap_options(self, layout, even_kmi, 'Even', in_RF_tools='optional', trigger_prop='even_tool_context')
+    # poll blocks it whenever RF is running, so it only ever fires outside a Retopoflow tool
+    edit_as_curve_kmi = get_user_keymap_item(context, 'retopoflow.edit_as_curve', km_name='Mesh')
+    draw_keymap_options(self, layout, edit_as_curve_kmi, 'Edit as Curve', in_RF_tools='never')
     layout.separator()
 
-    row = layout.row(heading='Pin Verts')
-    draw_keymap_options(row, get_user_keymap_item(context, 'retopoflow.pinverts'))
-    row = layout.row(heading='Unpin Verts')
-    draw_keymap_options(row, get_user_keymap_item(context, 'retopoflow.unpinverts'))
+    # poll requires RFCore to be running, so these only ever fire inside a Retopoflow tool
+    pinverts_kmi = get_user_keymap_item(context, 'retopoflow.pinverts')
+    draw_keymap_options(self, layout, pinverts_kmi, 'Pin Verts', in_RF_tools='only')
+    unpinverts_kmi = get_user_keymap_item(context, 'retopoflow.unpinverts')
+    draw_keymap_options(self, layout, unpinverts_kmi, 'Unpin Verts', in_RF_tools='only')
     layout.separator()
 
-    row = layout.row(heading='Open Docs')
-    draw_keymap_options(row, get_user_keymap_item(context, 'retopoflow.launch_help'))
-    row = layout.row(heading='Report Issue')
-    draw_keymap_options(row, get_user_keymap_item(context, 'retopoflow.launch_newissue'))
+    # poll requires RFCore to be running, so these only ever fire inside a Retopoflow tool
+    launch_help_kmi = get_user_keymap_item(context, 'retopoflow.launch_help')
+    draw_keymap_options(self, layout, launch_help_kmi, 'Open Docs', in_RF_tools='only')
+    launch_newissue_kmi = get_user_keymap_item(context, 'retopoflow.launch_newissue')
+    draw_keymap_options(self, layout, launch_newissue_kmi, 'Report Issue', in_RF_tools='only')
     layout.separator()
 
     layout.separator(type='LINE', factor=1)
