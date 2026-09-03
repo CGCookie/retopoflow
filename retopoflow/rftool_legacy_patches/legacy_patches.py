@@ -196,11 +196,22 @@ class RFOperator_LegacyPatches_ToggleCorner(RFOperator_Invoke):
         return { 'FINISHED' } if result else { 'CANCELLED' }
 
 
+def fill_patches_owns_f(context : Context) -> bool:
+    ''' Whether F belongs to Patches here. Inside a Retopoflow tool it always does; anywhere else it
+    is the artist's choice, the same one the pie menu offers. '''
+    if context.mode != 'EDIT_MESH': return False
+    prefs = RF_Prefs.get_prefs(context)
+    if prefs.fill_tool_context == 'ANY_TOOL': return True
+    tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
+    return tool is not None and tool.idname.split('.')[0] == 'retopoflow'
+
+
 class RFOperator_LegacyPatches_Fill(LegacyPatches_Properties, RFOperator_Execute):
     bl_idname : str = 'retopoflow.legacy_patches_fill'
-    bl_label : str = 'Fill Patch'
-    bl_description : str = 'Create the previewed patch geometry'
-    bl_options : BL_OPTIONS = { 'INTERNAL', 'UNDO', 'REGISTER' }
+    bl_label : str = 'Fill Patches'
+    bl_description : str = ('Fill the holes bounded by the selected boundary edges. '
+                            'Whatever this cannot fill falls through to Blender\'s own New Edge/Face')
+    bl_options : BL_OPTIONS = { 'UNDO', 'REGISTER' }
 
     # An unspecified modifier in a tool keymap means "not held", so keys that must work while Ctrl is
     # down for the cursor pick need a Ctrl twin. F has none: Ctrl+F is Blender's Face menu. Ctrl+LMB
@@ -214,7 +225,19 @@ class RFOperator_LegacyPatches_Fill(LegacyPatches_Properties, RFOperator_Execute
         ( bl_idname, { 'type': 'NUMPAD_ENTER', 'value': 'PRESS', 'ctrl': 1 }, None ),
     ]
 
+    # set on the keymap item only, so fill_patches_owns_f governs the key and not the menu entry
+    hotkey: bpy.props.BoolProperty(
+        name='From Hotkey',
+        default=False,
+        options={'HIDDEN', 'SKIP_SAVE'},
+    )
+
     def invoke(self, context : Context, event : Event) -> set[str]:
+        # Outside a Retopoflow tool the key is the artist's unless they have said otherwise. The tool
+        # keymaps, the menu entry and Enter carry no hotkey flag, so this never stands in their way.
+        if self.hotkey and not fill_patches_owns_f(context):
+            return { 'PASS_THROUGH' }
+
         # A fresh fill settles where the cursor was and whether Ctrl was down; a redo skips invoke and
         # keeps both, so changing Smooth or Steps after the fact cannot flip a wire run to its other side.
         # Once a quad is previewed it stays fillable, so Enter and the redo panel also count as Ctrl.
@@ -253,6 +276,28 @@ class RFOperator_LegacyPatches_Fill(LegacyPatches_Properties, RFOperator_Execute
         layout.use_property_split = True
         layout.use_property_decorate = False
         draw_patches_props(layout, self, header=False, redo=True)
+
+
+class RFOperator_LegacyPatches_EdgeFaceAdd(RFOperator_Execute):
+    ''' Blender's own F, moved to Alt+F wherever Patches has taken F. Poll-gated on the same test, so
+    where Patches does not own F this falls through to whatever Alt+F normally does. '''
+    bl_idname : str = 'retopoflow.legacy_patches_edge_face_add'
+    bl_label : str = 'New Edge/Face from Vertices'
+    bl_description : str = 'Add an edge or face to the selected vertices'
+    bl_options : BL_OPTIONS = { 'INTERNAL' }
+
+    rf_keymaps : RFKeyMaps = []     # its keymap item is registered with the fill's, in the Mesh keymap
+
+    @classmethod
+    def poll(cls, context : Context) -> bool:
+        return poll_retopoflow(context) and fill_patches_owns_f(context)
+
+    def execute(self, context : Context) -> set[str]:
+        # mesh.edge_face_add registers itself, so its own redo panel is the one the artist gets
+        try:
+            return bpy.ops.mesh.edge_face_add()
+        except RuntimeError:
+            return { 'CANCELLED' }
 
 
 class RFOperator_LegacyPatches_Draw(RFOperator):
@@ -600,3 +645,25 @@ class RFTool_LegacyPatches(RFTool_Base):
 @execute_operator('switch_to_legacy_patches', 'RetopoFlow: Switch to Patches', fn_poll=poll_retopoflow)
 def switch_rftool(context : Context):
     RFTool_LegacyPatches.activate_tool(context)
+
+
+# F outside a Patches tool keymap: addon items in the Mesh keymap, which Blender checks before its
+# own F. Both items stay put whatever the preference says; each hands the key back when it is not
+# theirs, so it falls through to Blender's own F as if these were never here.
+keymaps = []
+
+def register():
+    keyconfigs = bpy.context.window_manager.keyconfigs.addon
+    if not keyconfigs: return
+    km = keyconfigs.keymaps.new(name='Mesh')
+    kmi = km.keymap_items.new(RFOperator_LegacyPatches_Fill.bl_idname, 'F', 'PRESS', ctrl=False, shift=False, alt=False)
+    kmi.properties.hotkey = True
+    keymaps.append((km, kmi))
+    # Blender puts Fill on Alt+F, but with F taken there is nowhere else for New Edge/Face to go
+    kmi = km.keymap_items.new(RFOperator_LegacyPatches_EdgeFaceAdd.bl_idname, 'F', 'PRESS', ctrl=False, shift=False, alt=True)
+    keymaps.append((km, kmi))
+
+def unregister():
+    for km, kmi in keymaps:
+        km.keymap_items.remove(kmi)
+    keymaps.clear()

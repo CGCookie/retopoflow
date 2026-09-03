@@ -111,13 +111,16 @@ suppressed_keymap_items : list[KMI_SUPPRESS_RECORD] = []
 
 # Returns the first matching keymap item. There could be multiple!
 # Add arguments to further filter if needed
-def get_user_keymap_item(context : Context, idname : str) -> KeyMapItem | None:
+# km_name narrows the search to one keymap, for operators that RF also binds in a tool keymap
+def get_user_keymap_item(context : Context, idname : str, km_name : str | None = None) -> KeyMapItem | None:
     user = context.window_manager.keyconfigs.user
     if not user:
         return None
     is_menu = '_MT_' in idname
     menu_idnames = ['wm.call_menu', 'wm.call_menu_pie']
     for keymap in user.keymaps:
+        if km_name is not None and keymap.name != km_name:
+            continue
         for km_item in keymap.keymap_items:
             if is_menu:
                 if km_item.idname in menu_idnames and km_item.properties and km_item.properties.get('name', None) == idname:

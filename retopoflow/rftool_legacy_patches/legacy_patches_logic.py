@@ -167,6 +167,15 @@ def _quad_squareness(q):
 
     return (1.0 - worst_corner / 90.0) ** SKEW_WEIGHT * (min(lens) / max(lens)) ** ASPECT_WEIGHT
 
+def _tri_shape_ok(cos):
+    ''' Whether three points make a triangle worth filling rather than a sliver. Verts taken from a
+    run along a strip are nearly straight, and the triangle across them is all sliver; stepping the
+    strip is what was wanted there, so this refuses them. '''
+    MIN_ANGLE = 20.0    # a triangle this pointed is a sliver whatever its longest side does
+    sides = [cos[(i + 1) % 3] - cos[i] for i in range(3)]
+    if min(s.length for s in sides) < 1e-9: return False
+    return all(_angle_deg(-sides[i - 1].normalized(), sides[i].normalized()) >= MIN_ANGLE for i in range(3))
+
 def _quad_from_points(pts2d, cos3d, mouse):
     ''' Order four points into a quad and score it. pts2d are screen positions, cos3d world
     positions. Returns (order, score) with order indexing the inputs, lower score better; None
@@ -238,18 +247,20 @@ def _corner_overlaps_faces(bmv, co_prev, co_next, *, tol_deg=5.0):
         if gap < (new_arc[1] + f_arc[1]) / 2 - tol_deg: return True
     return False
 
-def _mesh_juts_into_quad(verts, cos, is_existing, *, depth=3):
-    ''' Whether an existing vert lies inside the quad or an existing edge crosses one of its sides,
-    judged in the quad's plane. Looks a few edges out from the quad's existing corners, plus any
+def _mesh_juts_into_face(verts, cos, is_existing, *, depth=3):
+    ''' Whether an existing vert lies inside the face or an existing edge crosses one of its sides,
+    judged in the face's plane. Looks a few edges out from the face's existing corners, plus any
     loose points the candidate cache knows about nearby. '''
-    centre = sum(cos, Vector()) / 4
-    n = (cos[2] - cos[0]).cross(cos[3] - cos[1])
+    n_pts = len(cos)
+    centre = sum(cos, Vector()) / n_pts
+    # crossing a quad's diagonals averages out its warp; a triangle is flat, so two of its sides do
+    n = (cos[2] - cos[0]).cross(cos[3] - cos[1]) if n_pts == 4 else (cos[1] - cos[0]).cross(cos[2] - cos[0])
     if n.length_squared < 1e-18: return False
     n.normalize()
     frame = _plane_frame(n, cos[1] - cos[0])
     if frame is None: return False
     u, w = frame
-    mean_side = sum((cos[(i + 1) % 4] - cos[i]).length for i in range(4)) / 4
+    mean_side = sum((cos[(i + 1) % n_pts] - cos[i]).length for i in range(n_pts)) / n_pts
     thick = 0.5 * mean_side    # how far off the plane a vert may be and still count as in it
     eps = 0.02 * mean_side     # verts sitting on a side are the side test's business
 
@@ -260,11 +271,11 @@ def _mesh_juts_into_quad(verts, cos, is_existing, *, depth=3):
 
     def inside(p):
         if not point_inside_face_2d(p, poly): return False
-        return min(_dist2d_point_segment(p, poly[i], poly[(i + 1) % 4]) for i in range(4)) > eps
+        return min(_dist2d_point_segment(p, poly[i], poly[(i + 1) % n_pts]) for i in range(n_pts)) > eps
 
     def crosses(pa, pb):
-        for i in range(4):
-            qa, qb = poly[i], poly[(i + 1) % 4]
+        for i in range(n_pts):
+            qa, qb = poly[i], poly[(i + 1) % n_pts]
             s1, s2 = _side2d(pa, pb, qa), _side2d(pa, pb, qb)
             s3, s4 = _side2d(qa, qb, pa), _side2d(qa, qb, pb)
             if s1 and s2 and s3 and s4 and s1 != s2 and s3 != s4: return True
@@ -306,21 +317,22 @@ def _mesh_juts_into_quad(verts, cos, is_existing, *, depth=3):
             if h <= thick and inside(p): return True
     return False
 
-def _quad_is_placeable(bm, verts):
-    ''' Whether a quad on these four corners, in this order, leaves the mesh making sense: no third
-    face on an edge, no face already there, no quad laid over existing geometry, no diagonal that
-    is really an edge of the mesh. A corner may be a plain Vector for a vert the fill will create;
-    it has no history, so only the tests about existing corners apply to it. '''
+def _face_is_placeable(bm, verts):
+    ''' Whether a face on these corners, in this order, leaves the mesh making sense: no third face
+    on an edge, no face already there, none laid over existing geometry, no diagonal that is really
+    an edge of the mesh. A corner may be a plain Vector for a vert the fill will create; it has no
+    history, so only the tests about existing corners apply to it. Triangles and quads. '''
     SIDE_OVER_VERT_ANGLE = 120.0    # a new side whose ends share a neighbour this straight runs over that neighbour
 
-    if len({ id(v) for v in verts }) != 4: return False
+    n = len(verts)
+    if len({ id(v) for v in verts }) != n: return False
     is_existing = [ isinstance(v, BMVert) for v in verts ]
     if all(is_existing) and bm.faces.get(verts): return False
 
     cos = [ _co(v) for v in verts ]
-    centre = sum(cos, Vector()) / 4
-    for i in range(4):
-        j = (i + 1) % 4
+    centre = sum(cos, Vector()) / n
+    for i in range(n):
+        j = (i + 1) % n
         if not (is_existing[i] and is_existing[j]): continue
         va, vb = verts[i], verts[j]
         bme = bmvs_shared_bme(va, vb)
@@ -329,30 +341,31 @@ def _quad_is_placeable(bm, verts):
             if bme.link_faces and _on_faced_side(bme, centre): return False
             continue
         # this side would be created: refuse it when it runs straight over a shared neighbour, which
-        # means the quad skipped a row of the mesh
+        # means the face skipped a row of the mesh
         for w in { e.other_vert(va) for e in va.link_edges } & { e.other_vert(vb) for e in vb.link_edges }:
             if w in verts: continue
             d0, d1 = va.co - w.co, vb.co - w.co
             if d0.length_squared < 1e-14 or d1.length_squared < 1e-14: continue
             if _angle_deg(d0.normalized(), d1.normalized()) >= SIDE_OVER_VERT_ANGLE: return False
 
-    # a faced diagonal means the quad straddles a fold: the two triangles are the real surface
-    for a, b in ((0, 2), (1, 3)):
+    # a faced diagonal means the face straddles a fold: the pieces either side are the real surface
+    for a, b in combinations(range(n), 2):
+        if (b - a) % n in (1, n - 1): continue      # a side, not a diagonal (a triangle has none)
         if is_existing[a] and is_existing[b]:
             bme = bmvs_shared_bme(verts[a], verts[b])
             if bme is not None and bme.link_faces: return False
 
-    # two corners on one face without an edge of that face joining them means the quad cuts across it
-    for a, b in combinations(range(4), 2):
+    # two corners on one face without an edge of that face joining them means the face cuts across it
+    for a, b in combinations(range(n), 2):
         if not (is_existing[a] and is_existing[b]): continue
         va, vb = verts[a], verts[b]
         for bmf in set(va.link_faces) & set(vb.link_faces):
             if not any(set(bme.verts) == {va, vb} for bme in bmf.edges): return False
 
-    for i in range(4):
-        if is_existing[i] and _corner_overlaps_faces(verts[i], cos[i - 1], cos[(i + 1) % 4]): return False
+    for i in range(n):
+        if is_existing[i] and _corner_overlaps_faces(verts[i], cos[i - 1], cos[(i + 1) % n]): return False
 
-    return not _mesh_juts_into_quad(verts, cos, is_existing)
+    return not _mesh_juts_into_face(verts, cos, is_existing)
 
 def _complete_quad(bm, known, slots, *, min_squareness):
     ''' Finish a quad from existing verts. `known` are the corners already decided, in ring order;
@@ -367,7 +380,7 @@ def _complete_quad(bm, known, slots, *, min_squareness):
         cos = [ _co(v) for v in verts ]
         squareness = _quad_squareness(cos)
         if squareness is None or squareness < min_squareness: return
-        if not _quad_is_placeable(bm, verts): return
+        if not _face_is_placeable(bm, verts): return
         cost = _quad_area3d(cos) / squareness
         if best is None or cost < best[1]: best = (list(verts), cost)
 
@@ -513,7 +526,7 @@ def _grid_snap_noise(cos, raws, l0, l1, *, cyclic_i=False):
 
 @dataclass
 class Previz:
-    kind     : str          # 'rect' | 'L' | 'C' | 'I' | 'loft' | 'grid' | 'bridge' | 'offset' | 'corner' | 'nearest' | 'quad'
+    kind     : str          # 'rect' | 'L' | 'C' | 'I' | 'loft' | 'grid' | 'bridge' | 'offset' | 'corner' | 'nearest' | 'quad' | 'triangle'
     vert_idx : list         # bm vert index for existing verts, None for verts Fill will create
     vert_co  : list         # local-space coords (copies for existing verts)
     edges    : list         # index pairs into vert_co, new edges only (the dashed preview)
@@ -803,13 +816,13 @@ class LegacyPatches_Logic:
         # read the selection
 
         edges = { e for e in bmops.get_all_selected_bmedges(bm) if len(e.link_faces) < 2 and not e.hide }
-        # only as many selected verts as it takes to tell none, one, four and more apart
+        # only as many selected verts as it takes to tell none, one, three, four and more apart
         sel_verts = []
         for bmv in bm.verts:
             if not bmv.select or bmv.hide: continue
             sel_verts.append(bmv)
             if len(sel_verts) > 4: break
-        lone_bmv = sel_quad = None
+        lone_bmv = sel_quad = sel_tri = None
 
         # Four selected verts with at least one on no selected edge are a picked quad. Every vert of
         # an L or C is on a selected edge, and two separate edges are a bridge with its count knob.
@@ -817,6 +830,13 @@ class LegacyPatches_Logic:
             sel_quad = L._selected_quad(bm, sel_verts, context.region, context.region_data, M)
             if sel_quad is not None:
                 edges = set()   # the quad is the whole fill; a selected edge among the four must not also step
+        # Three selected verts are a triangle whenever they make a real one, connected or not: an edge
+        # and a vert off to its side, three loose verts, or a run bent sharply enough to be a corner.
+        # Only the shape decides, so a gentle run stays a strip to step and a sharp one does not.
+        if sel_quad is None and len(sel_verts) == 3:
+            sel_tri = L._selected_tri(bm, sel_verts, M)
+            if sel_tri is not None:
+                edges = set()   # the triangle wins over stepping or cornering the edges it was picked with
         if not edges and sel_quad is None and len(sel_verts) == 1:
             lone_bmv = sel_verts[0]     # a lone vert with two open edges is a corner of a quad
         # anything else that gives no preview falls through to the cursor pick at the end
@@ -1430,6 +1450,7 @@ class LegacyPatches_Logic:
             instead of extruding, so stepping along a boundary knits into what is already there. '''
             MITER_LIMIT = 3.0   # cap on the corner stretch 1/sin(half angle); Split Angle's 135 degree cap needs 2.61
             STEP_STALL = 0.25   # a vert travelling less than this fraction of its step means the row has run out of source
+            WELD_MAX_ANGLE = 150.0  # a weld rung this far round from the run darts the first quad; matches _quad_squareness
             n = len(sv)
             if n < 3 if cyclic else n < 2: return True
             nseg = n if cyclic else n - 1      # bmes[k] joins sv[k] and sv[k+1]
@@ -1503,14 +1524,18 @@ class LegacyPatches_Logic:
                 if s_mouse and not cyclic: L.wire_runs.append((cos[0].copy(), cos[-1].copy(), s_mouse))
                 if side_sign < 0: perps = [ -p for p in perps ]
 
-            # step direction per vert: the quad's edge leaving the run there, averaged where two quads
-            # meet; a side edge running along the run, a non-quad, or a quad on the far side falls back to the perp
+            # Step direction per vert: the quad's edge leaving the run there. Each of the vert's two run
+            # edges gets one vote and the two are averaged, so where the run turns between two poles the
+            # rail between them lands between what each side wants. A side edge running along the run, a
+            # non-quad, or a quad on the far side leaves that side with nothing to say; it then votes for
+            # the perp rather than standing aside, which would hand the whole direction to the other side.
             dirs = []
             for i, v in enumerate(sv):
                 acc = Vector()
                 for bme in (bmes[(i - 1) % n] if (cyclic or i > 0) else None,
                             bmes[i] if (cyclic or i < n - 1) else None):
-                    if bme is None: continue
+                    if bme is None: continue    # the end of an open run has only the one side
+                    lean = Vector()
                     for bmf in bme.link_faces:
                         if len(bmf.verts) != 4: continue
                         side_e = next((fe for fe in bmf.edges if fe is not bme and v in fe.verts), None)
@@ -1520,7 +1545,8 @@ class LegacyPatches_Logic:
                         d.normalize()
                         if abs(d.dot(along[i])) > GUIDE_MAX_ALONG: continue
                         if d.dot(perps[i]) <= 0: continue
-                        acc += d
+                        lean += d
+                    acc += lean.normalized() if lean.length_squared > 1e-12 else perps[i]
                 dirs.append(acc.normalized() if acc.length_squared > 1e-12 else perps[i])
 
             # a vert where the run turns has to reach further than one where it runs straight, or the
@@ -1561,7 +1587,17 @@ class LegacyPatches_Logic:
                     if d.length_squared < 1e-14: continue
                     d = d.normalized()
                     if d.dot(out) <= 0: continue
-                    if not topo_corner and _angle_deg(-arrive, d) >= min_angle: continue
+                    # The rung has to lie outward of the run, not merely the way the mesh flows. A
+                    # rung on the inward side puts the first quad's corner here past 180 degrees, and
+                    # the quad comes out concave; `out` alone lets that through wherever a pole tilts
+                    # the flow round far enough to still agree with it.
+                    if d.dot(perps[i_end]) <= 0: continue
+                    # the same corner, still convex but opened out until the quad is a dart
+                    ang = _angle_deg(-arrive, d)
+                    if ang >= WELD_MAX_ANGLE: continue
+                    # without topology to say corner, the boundary itself has to turn, or w is nothing
+                    # but the run carrying on and there is no corner here to weld round
+                    if not topo_corner and ang >= min_angle: continue
                     if d.dot(out) > best_dot: best, best_dot = w, d.dot(out)
                 return best
 
@@ -1705,7 +1741,7 @@ class LegacyPatches_Logic:
                     def corner(i):
                         return chosen[i] if i in chosen else welds[i] if i in welds else intended[i]
                     q = [sv[a], sv[b], corner(b), corner(a)]
-                    if _quad_squareness([ _co(c) for c in q ]) is None or not _quad_is_placeable(bm, q):
+                    if _quad_squareness([ _co(c) for c in q ]) is None or not _face_is_placeable(bm, q):
                         chosen.pop(a, None)
                         chosen.pop(b, None)
                 for i, w in chosen.items():
@@ -1801,6 +1837,13 @@ class LegacyPatches_Logic:
             L.has_quad = True
             return True
 
+        def emit_tri(verts):
+            ''' Three selected verts as one triangle. Nothing new is created but the face and whichever
+            of its three sides are not already edges. '''
+            new_edges = [ (a, b) for a, b in ((0, 1), (1, 2), (2, 0))
+                          if bmvs_shared_bme(verts[a], verts[b]) is None ]
+            add_previz('triangle', verts, new_edges, [(0, 1, 2)])
+
         def emit_corner_quad(bmv):
             ''' F2's quad from a vertex: two open edges leaving a corner are two sides of a quad and the
             fourth corner is their parallelogram completion. Edges already sharing a face have no gap
@@ -1857,7 +1900,7 @@ class LegacyPatches_Logic:
             if rgn and r3d:
                 pts = [ location_3d_to_region_2d(rgn, r3d, co) for co in q ]
                 if all(pts) and not _is_convex_2d(pts): return True
-            if not _quad_is_placeable(bm, verts): return True
+            if not _face_is_placeable(bm, verts): return True
 
             return emit_quad_strip(verts, 'corner')
 
@@ -2112,6 +2155,7 @@ class LegacyPatches_Logic:
             if not emit_offset(get_verts(shape0[0]), shape0[0]): break
 
         if sel_quad is not None: emit_quad_strip(sel_quad, 'quad')
+        if sel_tri is not None: emit_tri(sel_tri)
         if lone_bmv is not None: emit_corner_quad(lone_bmv)
 
         ##############################################
@@ -2122,6 +2166,10 @@ class LegacyPatches_Logic:
 
         L.nearest_sig = L.hover_sig = None
         if L.previz or not ctrl_at or L.error: return
+        # Two or more selected verts are a selection Blender's own F can act on, so with nothing to
+        # fill the key belongs to it, not to a quad guessed from whatever the cursor is near. One
+        # stray vert is not enough for Blender's F, so the pick still runs there.
+        if len(sel_verts) >= 2: return
         key = L._candidate_key(context)
         if key is None: return
         if key != L.cand_key: L._collect_candidates(bm, key)
@@ -2395,7 +2443,7 @@ class LegacyPatches_Logic:
                 # the cursor is inside an existing face; what is left in the running are wide quads
                 # reached through the outline slop from the cell next door, so offer nothing
                 return None
-            if not _quad_is_placeable(bm, verts): continue
+            if not _face_is_placeable(bm, verts): continue
             if anchor is not None:
                 q = [cos3d[i] for i in quad]
                 mean_side = sum((q[(i + 1) % 4] - q[i]).length for i in range(4)) / 4
@@ -2518,8 +2566,16 @@ class LegacyPatches_Logic:
             order = sorted(range(4), key=lambda k: math.atan2((cos[k] - c).dot(w), (cos[k] - c).dot(u)))
         verts = [ sel_verts[k] for k in order ]
         if _quad_squareness([ M @ v.co for v in verts ]) is None: return None
-        if not _quad_is_placeable(bm, verts): return None
+        if not _face_is_placeable(bm, verts): return None
         return verts
+
+    @staticmethod
+    def _selected_tri(bm, sel_verts, M : Matrix) -> list | None:
+        ''' Three selected verts as one triangle, when they make a real one and the mesh has room for
+        it. No ordering to work out: every pair of a triangle's corners is a side of it. '''
+        if not _tri_shape_ok([ M @ v.co for v in sel_verts ]): return None
+        if not _face_is_placeable(bm, sel_verts): return None
+        return list(sel_verts)
 
     ##############################################
     # clicks

@@ -37,11 +37,14 @@ def draw_edge_menu_items(self, context):
     self.layout.operator_context = 'INVOKE_REGION_WIN'
     self.layout.operator("retopoflow.twist_loop")
     self.layout.operator("retopoflow.edit_as_curve")
+    # the fill reads the cursor in invoke(), so it must not run under EXEC either
+    self.layout.operator("retopoflow.legacy_patches_fill")
 
 
 def draw_face_menu_items(self, context):
     self.layout.separator()
-    # Topo Rotate and Edit as Curve are modal, so they must not run under EXEC
+    # Topo Rotate, Edit as Curve and Fill Patches all read state in invoke(), so they must not run under EXEC
     self.layout.operator_context = 'INVOKE_REGION_WIN'
     self.layout.operator("retopoflow.toporotate")
     self.layout.operator("retopoflow.edit_as_curve")
+    self.layout.operator("retopoflow.legacy_patches_fill")

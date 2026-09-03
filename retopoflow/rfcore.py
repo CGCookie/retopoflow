@@ -64,6 +64,7 @@ from .rftool_polystrips.polystrips import RFTool_PolyStrips
 from .rftool_strokes.strokes       import RFTool_Strokes
 from .rftool_contours.contours     import RFTool_Contours
 # from .rftool_patches.patches       import RFTool_Patches
+from .rftool_legacy_patches import legacy_patches
 from .rftool_legacy_patches.legacy_patches import RFTool_LegacyPatches
 from .rftool_tweak.tweak           import RFTool_Tweak
 from .rftool_relax.relax           import RFTool_Relax
@@ -178,6 +179,7 @@ class RFCore:
         rfpanel_countours_method.register()
         rfpanel_stroke.register()
         launch_browser.register()
+        legacy_patches.register()
         tools_pie.register()
 
         AutoSave.register()
@@ -291,6 +293,7 @@ class RFCore:
         rfprops_object.unregister()
         pinning.unregister()
         launch_browser.unregister()
+        legacy_patches.unregister()
         preferences.unregister()
         icons_module.unregister()
 

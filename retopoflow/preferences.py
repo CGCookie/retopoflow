@@ -144,6 +144,15 @@ class RF_Prefs(AddonPreferences):
         ),
         default='ANY_TOOL'
     )
+    fill_tool_context: bpy.props.EnumProperty(
+        name="Fill Tool Context",
+        description="The context in which F fills a patch. Whatever Patches cannot fill still falls through to Blender's own New Edge/Face",
+        items=(
+            ('ANY_TOOL', "Any Tool", "F can fill a patch from ANY tool"),
+            ('RF_TOOL', "Retopoflow Tools", "F can fill a patch ONLY on Retopoflow tools"),
+        ),
+        default='ANY_TOOL'
+    )
 
     """ Tool Switching """
     #region
