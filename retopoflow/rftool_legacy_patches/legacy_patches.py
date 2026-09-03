@@ -38,6 +38,7 @@ from ..rfoverlay_base import RFOverlay_Base
 from ..rfoverlays.overlays import overlay_names
 
 from ...addon_common.common import bmesh_ops as bmops
+from ...addon_common.common.blender import event_modifier_check
 from ...addon_common.common.resetter import Resetter
 
 from ..common.bpy_helper import bpy_ops_retopoflow, BL_OPTIONS
@@ -69,7 +70,7 @@ from ..rfpanels.help_panel import draw_help_panel
 from ..preferences import RF_Prefs
 
 from .legacy_patches_logic import (
-    LegacyPatches_Logic, PatchSettings, MAIN_OP_IDNAME, PATCH_SETTING_NAMES,
+    LegacyPatches_Logic, DrawGesture, PatchSettings, MAIN_OP_IDNAME, PATCH_SETTING_NAMES,
     DEFAULT_SPLIT_ANGLE, DEFAULT_SMOOTH, DEFAULT_SPAN_MODE, DEFAULT_CROSSES, DEFAULT_SPAN_LENGTH,
     DEFAULT_STEPS,
 )
@@ -195,11 +196,9 @@ class RFOperator_LegacyPatches_ToggleCorner(RFOperator_Invoke):
     bl_description : str = 'Toggle whether the hovered selected vertex is treated as a corner between strips'
     bl_options : BL_OPTIONS = { 'INTERNAL', 'UNDO', 'DEPENDS_ON_CURSOR' }
 
-    rf_keymaps : RFKeyMaps = [
-        (bl_idname, { 'type': 'LEFTMOUSE', 'value': 'CLICK', 'ctrl': 1, 'shift': 0 }, {'km_context': 'init', 'km_label': 'Toggle Corner'}),
-        # keeps a fast double Ctrl+click from falling through to object selection
-        (bl_idname, { 'type': 'LEFTMOUSE', 'value': 'DOUBLE_CLICK', 'ctrl': 1, 'shift': 0 }, None),
-    ]
+    # No keymap of its own: Ctrl+LMB belongs to RFOperator_LegacyPatches_Draw, which invokes this
+    # when the click lands on a selected boundary vert
+    rf_keymaps : RFKeyMaps = []
 
     def invoke(self, context : Context, event : Event) -> set[str]:
         result = LegacyPatches_Logic.toggle_corner(context, event)
@@ -215,9 +214,9 @@ class RFOperator_LegacyPatches_Fill(LegacyPatches_Properties, RFOperator_Execute
 
     # An unspecified modifier in a tool keymap means "not held", so the keys that have to work while
     # Ctrl is down for the cursor pick need a Ctrl twin of their own. F deliberately has none: Ctrl+F
-    # is Blender's Face menu.
-    # Ctrl+LMB is the other way to confirm, and it lives here rather than in an operator of its own
-    # so that the click runs the very same fill the keys do, with one undo step and one redo panel.
+    # is Blender's Face menu. Ctrl+LMB also fills, but it is not bound here: Blender only makes a
+    # CLICK when nothing took the press, so the click lives in RFOperator_LegacyPatches_Draw, the
+    # modal that owns the mouse while Ctrl is held, and that invokes this operator.
     rf_keymaps : RFKeyMaps = [
         ( bl_idname, { 'type': 'F',            'value': 'PRESS' },
           {'km_context': 'init', 'km_label': 'Fill', 'km_poll': lambda _context: bool(LegacyPatches_Logic.previz)} ),
@@ -225,18 +224,9 @@ class RFOperator_LegacyPatches_Fill(LegacyPatches_Properties, RFOperator_Execute
         ( bl_idname, { 'type': 'RET',          'value': 'PRESS', 'ctrl': 1 }, None ),
         ( bl_idname, { 'type': 'NUMPAD_ENTER', 'value': 'PRESS' }, None ),
         ( bl_idname, { 'type': 'NUMPAD_ENTER', 'value': 'PRESS', 'ctrl': 1 }, None ),
-        ( bl_idname, { 'type': 'LEFTMOUSE',    'value': 'CLICK', 'ctrl': 1, 'shift': 0 },
-          {'km_context': 'init', 'km_label': 'Confirm',
-           'km_poll': lambda _context: bool(LegacyPatches_Logic.previz)} ),
     ]
 
     def invoke(self, context : Context, event : Event) -> set[str]:
-        # Clicking is only a fill when the cursor is on the previewed patch; anywhere else the click
-        # belongs to Toggle Corner, and after that to Blender's own selection. PASS_THROUGH hands it
-        # on, the same way an empty preview hands the F key back below.
-        if event.type == 'LEFTMOUSE' and not LegacyPatches_Logic.mouse_over_previz(context):
-            return { 'PASS_THROUGH' }
-
         # A fresh fill settles where the cursor was; a redo comes straight to execute and keeps that,
         # so changing Smooth or Steps after the fact cannot flip a wire run over to its other side.
         # Window space, to match what the overlay records.
@@ -244,7 +234,8 @@ class RFOperator_LegacyPatches_Fill(LegacyPatches_Properties, RFOperator_Execute
         # `or nearest_active`: the Ctrl gate is about searching, not about filling. Once a quad is
         # previewed it stays fillable, so Enter (which cannot carry Ctrl on its own entry) and the
         # redo panel long afterwards both still rebuild it.
-        LegacyPatches_Logic.ctrl_locked = bool(event.ctrl) or LegacyPatches_Logic.nearest_active
+        LegacyPatches_Logic.ctrl_locked = (bool(event.ctrl) or LegacyPatches_Logic.nearest_active
+                                           or LegacyPatches_Logic.ctrl_forced)
 
         # With nothing previewed, hand the key on so Blender's own fill gets it. This has to be
         # PASS_THROUGH from invoke, not a failing poll: Blender re-checks poll before repeating an
@@ -280,7 +271,7 @@ class RFOperator_LegacyPatches_Fill(LegacyPatches_Properties, RFOperator_Execute
             steps       = self.steps,
         )
         if not LegacyPatches_Logic.fill(context, settings):
-            self.report({'WARNING'}, 'Patches: nothing to fill. Select boundary edges forming a rectangle, L, C, two parallel strips, or a single strip to step outward, or hover between four nearby vertices')
+            self.report({'WARNING'}, 'Patches: nothing to fill. Select boundary edges forming a rectangle, L, C, two parallel strips, a single strip to step outward, or four vertices, or hold Ctrl and hover between four nearby vertices')
             return { 'CANCELLED' }
         context.area.tag_redraw()
         return { 'FINISHED' }
@@ -290,6 +281,55 @@ class RFOperator_LegacyPatches_Fill(LegacyPatches_Properties, RFOperator_Execute
         layout.use_property_split = True
         layout.use_property_decorate = False
         draw_patches_props(layout, self, header=False, redo=True)
+
+
+class RFOperator_LegacyPatches_Draw(RFOperator):
+    ''' Owns the mouse while Ctrl is held: a click fills the previewed patch or toggles a corner, a
+    drag draws a path and creates whatever the cursor passes over.
+
+    Why a modal and not a Ctrl+LMB keymap item: Blender puts every Ctrl+LMB action of its own on
+    CLICK and only synthesizes a CLICK when nothing took the PRESS, which made a plain CLICK binding
+    here unreliable. PolyPen, Strokes, Contours and PolyStrips all take Ctrl+LMB the same way this
+    does - a modal started by Ctrl PRESS that consumes the LMB PRESS and swallows the later CLICK
+    so Blender's shortest-path select cannot fire on it.
+    '''
+    bl_idname : str = 'retopoflow.legacy_patches_draw'
+    bl_label : str = 'Patches Draw'
+    bl_description : str = 'Ctrl+LMB fills the previewed patch; Ctrl+LMB drag creates every patch the cursor passes over'
+    bl_space_type : str = 'VIEW_3D'
+    bl_region_type : str = 'TOOLS'
+    bl_options : BL_OPTIONS = { 'INTERNAL' }
+
+    # Patches rebuilds its preview from a draw callback and will not do so while it believes another
+    # operator is moving the mesh about. This one only reads the mouse.
+    rf_patches_passive : bool = True
+
+    rf_keymaps : RFKeyMaps = [
+        (bl_idname, {'type': 'LEFT_CTRL',  'value': 'PRESS'}, {'km_context': 'init', 'km_label': 'Pick / Draw'}),
+        (bl_idname, {'type': 'RIGHT_CTRL', 'value': 'PRESS'}, None),
+        # Ctrl already down when the cursor enters the area
+        (bl_idname, {'type': 'MOUSEMOVE',  'value': 'ANY', 'ctrl': True}, None),
+    ]
+
+    gesture : DrawGesture | None = None
+
+    @classmethod
+    def can_start(cls, context : Context) -> bool:
+        return not cls.is_running()
+
+    def init(self, context : Context, event : Event):
+        self.gesture = DrawGesture()
+
+    def finish(self, context : Context):
+        if self.gesture: self.gesture.finish(context)
+
+    def update(self, context : Context, event : Event) -> set[str]:
+        if not event.ctrl:
+            return {'FINISHED'}     # finish() closes any drag in progress
+        ctrl_only = event_modifier_check(event, ctrl=True, shift=False, alt=False, oskey=False)
+        assert self.gesture
+        ret = self.gesture.handle(context, event, accept_press=ctrl_only)
+        return ret if ret is not None else {'PASS_THROUGH'}
 
 
 # Ctrl+Scroll is the count knob and Shift+Scroll the offset knob, the same split Contours uses.
@@ -353,12 +393,14 @@ def _ctrl_scroll(context : Context, sign : int):
     last = ops[-1] if ops else None
     if last is None or last.name != RFOperator_LegacyPatches_Fill.bl_label:
         return
-    was_bridge, was_grid, _, was_offset = L.filled_flags
+    was_bridge, was_grid, _, was_offset, was_quad = L.filled_flags
     if was_bridge:
         # scrolling is an explicit count, so the re-run stops deriving one over the top of it
         _redo_fill_with(context, last, span_insert_mode='FIXED', crosses=max(0, L.filled_loops + sign))
     elif was_grid:
         _redo_fill_with(context, last, solution=(last.solution - 1 + sign) % L.filled_solutions + 1)
+    elif was_quad:
+        _redo_fill_with(context, last, crosses=max(0, last.crosses + sign))
     elif was_offset:
         # a step normally leaves its next step previewed, so this only runs when that one was refused
         _redo_fill_with(context, last, steps=max(1, last.steps + sign))
@@ -378,7 +420,7 @@ def _shift_scroll(context : Context, sign : int):
     last = ops[-1] if ops else None
 
     if last is not None and last.name == RFOperator_LegacyPatches_Fill.bl_label:
-        _, was_grid, was_loft, _ = L.filled_flags
+        _, was_grid, was_loft, _, _ = L.filled_flags
         if was_grid or was_loft:
             which = 'offset' if was_grid else 'twist'
             _redo_fill_with(context, last, **{which: getattr(last, which) + sign})
@@ -493,8 +535,8 @@ overlay_names.add(RFOperator_LegacyPatches_Overlay.bl_label)
 
 def draw_patches_props(layout : UILayout, props, *, header : bool, redo : bool = False):
     L = LegacyPatches_Logic
-    has_bridge, has_grid, has_loft, has_offset = (
-        L.filled_flags if redo else (L.has_bridge, L.has_grid, L.has_loft, L.has_offset))
+    has_bridge, has_grid, has_loft, has_offset, has_quad = (
+        L.filled_flags if redo else (L.has_bridge, L.has_grid, L.has_loft, L.has_offset, L.has_quad))
 
     if header and not redo:
         row = layout.row(align=True)
@@ -505,6 +547,8 @@ def draw_patches_props(layout : UILayout, props, *, header : bool, redo : bool =
             row.prop(props, 'crosses', text='')
         layout.prop(props, 'split_angle', text='Split Angle')
         layout.prop(props, 'smooth')
+        if has_quad:
+            layout.prop(props, 'crosses', text='Cuts')
         if has_offset:
             layout.prop(props, 'steps')
         if has_grid:
@@ -526,6 +570,8 @@ def draw_patches_props(layout : UILayout, props, *, header : bool, redo : bool =
         if not redo:
             layout.prop(props, 'split_angle', text='Split Angle')
         layout.prop(props, 'smooth')
+        if has_quad:
+            layout.prop(props, 'crosses', text='Cuts')
         if has_offset:
             layout.prop(props, 'steps')
         if has_grid:
@@ -555,10 +601,8 @@ class RFTool_LegacyPatches(RFTool_Base):
 
     bl_keymap : BLKeyMaps = chain_rf_keymaps(
         RFOperator_LegacyPatches,
-        # Fill first: it and Toggle Corner share Ctrl+LMB, and Fill is the one that hands the click
-        # on when the cursor is not on a patch
+        RFOperator_LegacyPatches_Draw,
         RFOperator_LegacyPatches_Fill,
-        RFOperator_LegacyPatches_ToggleCorner,
         RFOperator_LegacyPatches_CountDecrease,
         RFOperator_LegacyPatches_CountIncrease,
         RFOperator_LegacyPatches_OffsetDecrease,
@@ -611,7 +655,7 @@ class RFTool_LegacyPatches(RFTool_Base):
         cls.resetter = Resetter('LegacyPatches')
         if prefs.setup_selection_mode and not cls.quick_switch:
             # v3 Patches worked on edge selections
-            cls.resetter['context.tool_settings.mesh_select_mode'] = [False, True, False]
+            cls.resetter['context.tool_settings.mesh_select_mode'] = [True, True, False]
         LegacyPatches_Logic.reset_session()
 
     @classmethod

@@ -130,10 +130,11 @@ class RFOperator_Relax_QuickSwitch(RFOperator):
 
 
 class RFOperator_LegacyPatches_QuickSwitch(RFOperator):
-    """Fill a patch when F is tapped and get the full interactive preview when it is held. """
+    """Fill a patch when F is tapped. Hold F for the full interactive preview instead: click a patch,
+    drag through points, or press Enter to fill; letting go of F only puts the tool back. """
     bl_idname      : str = 'retopoflow.quickswitch_to_legacy_patches'
     bl_label       : str = 'Retopoflow: Quick switch to Patches'
-    bl_description : str = 'Fill a patch from the selected boundary edges. Hold to preview it first'
+    bl_description : str = 'Fill a patch from the selected boundary edges. Hold to preview instead, then click or press Enter to fill'
     bl_space_type  : str = 'VIEW_3D'
     bl_region_type : str = 'TOOLS'
     bl_options : set[str] = {'INTERNAL'}
@@ -155,12 +156,16 @@ class RFOperator_LegacyPatches_QuickSwitch(RFOperator):
     HOLD_TO_PREVIEW = 0.25
 
     def init(self, context : Context, event : Event):
-        from ..rftool_legacy_patches.legacy_patches_logic import LegacyPatches_Logic
+        from ..rftool_legacy_patches.legacy_patches_logic import LegacyPatches_Logic, DrawGesture
         self.prev_tool = RFGlobals.RFCore.selected_RFTool_idname
         self.switched = self.restored = False
         self.started = time.time()
+        # LMB while F is held is the same click / drag gesture Ctrl+LMB is inside Patches
+        self.gesture = DrawGesture()
         # the cursor picks which way a wire run steps and which edges a corner vert pairs up
         LegacyPatches_Logic.mouse = (event.mouse_x, event.mouse_y)
+        # F is already a held key, so it stands in for the Ctrl the cursor pick otherwise wants
+        LegacyPatches_Logic.ctrl_forced = True
 
         # A hold with a still cursor and no key repeat sends no events at all, and the preview would
         # never appear. Ask for one modal call once the threshold is past. The flag is a list rather
@@ -178,9 +183,19 @@ class RFOperator_LegacyPatches_QuickSwitch(RFOperator):
 
     def update(self, context : Context, event : Event) -> set[str]:
         if event.type == 'F' and event.value == 'RELEASE':
-            self._fill()
+            self.gesture.finish(context)
+            # A tap fills. A hold was a look at the preview, filled from there by a click, a drag or
+            # Enter if at all; letting go of the key confirms nothing and just puts the tool back.
+            if not self.switched and not self.gesture.used: self._fill()
             self._restore()
             return {'FINISHED'}
+        # pressing the mouse is as clear a sign of intent as holding the key
+        if event.type == 'LEFTMOUSE' and event.value == 'PRESS' and not event.ctrl:
+            self._switch()
+        if self.switched:
+            # with Ctrl down as well, Patches' own Draw modal has the mouse
+            ret = self.gesture.handle(context, event, accept_press=not event.ctrl)
+            if ret is not None: return ret
         # the key repeating is the clearest sign it is being held; the clock covers a platform that
         # does not repeat, and the tickle above guarantees one event to read it on
         repeat = event.type == 'F' and event.value == 'PRESS'
@@ -213,8 +228,10 @@ class RFOperator_LegacyPatches_QuickSwitch(RFOperator):
 
     def _restore(self):
         from ..rftool_legacy_patches.legacy_patches import RFTool_LegacyPatches
+        from ..rftool_legacy_patches.legacy_patches_logic import LegacyPatches_Logic
         if self.restored: return
         self.restored = True
+        LegacyPatches_Logic.ctrl_forced = False
         self._alive[0] = False
         RFTool_LegacyPatches.quick_switch = False
         if self.switched: RFGlobals.RFCore.switch_to_tool(self.prev_tool)
