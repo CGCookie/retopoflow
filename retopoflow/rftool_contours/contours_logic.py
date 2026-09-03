@@ -43,10 +43,8 @@ from ..common.bmesh import (
 from ..common.maths import (
     bvec_to_point, point_to_bvec3,
     pt_x0, pt_y0, pt_z0,
-    lerp, snap_plane_to_direction, map_range,
-    arc_path_factors, path_facs_to_positions, project_to_path_fac,
-    lerp_path_fac, curvature_rdp_scores, curvature_change_scores,
-    enforce_path_min_gap, sample_even, cyclic_even_phase,
+    lerp, snap_plane_to_direction,
+    arc_path_factors, path_facs_to_positions, project_to_path_fac, enforce_path_min_gap,
 )
 from ..common.accel import SourceMeshCache
 from ..common.raycast import raycast_ray_valid_sources, nearest_point_valid_sources, raycast_multiple_hits
@@ -56,7 +54,7 @@ from ...addon_common.terminal import term_printer
 from ...addon_common.common.maths import Point, Plane
 from ...addon_common.common.utils import iter_pairs
 from ...addon_common.ext.circle_fit import hyperLSQ
-
+from .path_placement import sample_curvature, place_ring_facs, SHARP_ANGLE
 
 DEBUG_CREATE_OBJECTS = False     # For inspecting the cut path and plane. Currently only used for SDF method
 DEBUG_SKIP_BRIDGE_SNAP = False   # Initial transform result before snapping
@@ -65,223 +63,8 @@ DEBUG_SKIP_REDISTRIBUTE = False  # Snapping result before any redistribution
 DEBUG_PRINT_TIMINGS = False
 DEBUG_PRINT_SNAP_PATH  = False   # How each vert ends up snapping to the cut path
 DEBUG_PRINT_SPACING = False   # How the verts spread out from curvature and space evenly
-
-
-def sample_curvature(points: list, cyclic: bool, vertex_count: int, path_length: float, curvature_bias: float = 0) -> list:
-    '''Simplify the cut path with Ramer-Douglas-Peucker to choose vert positions that best preserve the shape.'''
-    n = len(points)
-    if n < 3 or vertex_count <= 0 or path_length < 1e-10:
-        return sample_even(points, cyclic, vertex_count, path_length) or []
-    if vertex_count >= n:
-        if vertex_count == n:
-            return [Vector(p) for p in points]
-        # More verts requested than source points — arc-length interpolation fills the gap.
-        result = sample_even(points, cyclic, vertex_count, path_length)
-        return result if result and len(result) >= vertex_count else [Vector(p) for p in points]
-
-    scores = [0.0] * n
-
-    def rdp_score(i0: int, i1: int) -> None:
-        '''Assign each point a score based on how far it is from the line between its loop neighbors.'''
-        stack = [(i0, i1)]
-        while stack:
-            a, b = stack.pop()
-            if b - a <= 1:
-                continue
-            p0 = Vector(points[a % n])
-            p1 = Vector(points[b % n])
-            seg = p1 - p0
-            seg_len2 = seg.length_squared
-            max_dist, max_k = -1.0, a + 1
-            for k in range(a + 1, b):
-                p = Vector(points[k % n])
-                if seg_len2 < 1e-20:
-                    d = (p - p0).length
-                else:
-                    t = max(0.0, min(1.0, (p - p0).dot(seg) / seg_len2))
-                    d = (p - p0.lerp(p1, t)).length
-                if d > max_dist:
-                    max_dist, max_k = d, k
-            if max_dist > 0:
-                scores[max_k % n] = max_dist
-            stack.append((a, max_k))
-            stack.append((max_k, b))
-
-    if cyclic:
-        # Find two farthest-apart points as virtual endpoints and score both arcs separately.
-        # Setting scores to inf makes sure those points are always selected as anchors
-        centroid = Vector((0.0, 0.0, 0.0))
-        for p in points:
-            centroid += Vector(p)
-        centroid /= n
-        i0 = max(range(n), key=lambda i: (Vector(points[i]) - centroid).length_squared)
-        i1 = max(range(n), key=lambda i: (Vector(points[i]) - Vector(points[i0])).length_squared)
-        if i1 < i0:
-            i0, i1 = i1, i0
-        scores[i0] = float('inf')
-        scores[i1] = float('inf')
-        rdp_score(i0, i1)
-        rdp_score(i1, i0 + n)  # second arc wraps and interior indices accessed as k % n
-    else:
-        scores[0] = float('inf')
-        scores[n - 1] = float('inf')
-        rdp_score(0, n - 1)
-
-    pt_factors = arc_path_factors(points, cyclic)
-
-    # Step 1: Pick points on cut by importance to shape and bias toward even spread on ties
-    if cyclic:
-        rdp_selected = sorted([i0, i1])
-        rdp_candidates = [i for i in range(n) if i != i0 and i != i1]
-    else:
-        rdp_selected = [0, n - 1]
-        rdp_candidates = list(range(1, n - 1))
-
-    # Normalise the anchor verts so they participate in scoring
-    max_score = max((s for s in scores if s < float('inf')), default=1.0)
-    for i in range(n):
-        if scores[i] >= float('inf'): scores[i] = max_score
-
-    # Augment RDP scores with dk/ds rate of curvature change
-    # Boosts points at flat to smooth bevel transitions so they're chosen even when their RDP score is low.
-    # Suppressed near sharp corners and only used for soft transitions so verts don't cluster around corners.
-    sin_angles, dk = curvature_change_scores(points, cyclic, pt_factors)
-    TRANSITION_WEIGHT = 0.15  # 0 is pure RDP, 1 is equal weight with dk/ds. Scales with curvature_bias so it has no effect at bias=0.
-    TRANSITION_WINDOW = 3  # check this many input-path indices around each candidate
-    TRANSITION_ANGLE_GATE = 0.50  # sin(30°). Suppress dκ if any nearby point turns more than about 30°
-    pre_selected = set(rdp_selected)
-    dk_weight = max_score * TRANSITION_WEIGHT
-    for i in range(n):
-        if i not in pre_selected:
-            window = (
-                [(i + d) % n for d in range(-TRANSITION_WINDOW, TRANSITION_WINDOW + 1)]
-                if cyclic else
-                [max(0, min(n - 1, i + d)) for d in range(-TRANSITION_WINDOW, TRANSITION_WINDOW + 1)]
-            )
-            if max(sin_angles[j] for j in window) < TRANSITION_ANGLE_GATE:
-                scores[i] += dk[i] * dk_weight
-    max_score = max((s for s in scores), default=1.0) or 1.0
-
-    # When two candidates are on a flat region, the one farthest from already selected verts wins
-    TIEBREAKER_WEIGHT = 0.1 # Fraction of max_score so it only comes into play in flat areas
-    tiebreak_scale = max(max_score * TIEBREAKER_WEIGHT, 1e-9)
-    selected_fracs_rdp = [pt_factors[i] for i in rdp_selected]
-
-    while len(rdp_selected) < vertex_count and rdp_candidates:
-        def rdp_key(i):
-            f = pt_factors[i]
-            if selected_fracs_rdp:
-                if cyclic:
-                    dist = min(min(abs(f - sf), 1.0 - abs(f - sf)) for sf in selected_fracs_rdp)
-                else:
-                    dist = min(abs(f - sf) for sf in selected_fracs_rdp)
-            else:
-                dist = 1.0
-            norm_even = min(dist * vertex_count, 1.0)
-            return scores[i] + norm_even * tiebreak_scale
-
-        best_i = max(rdp_candidates, key=rdp_key)
-        rdp_selected.append(best_i)
-        selected_fracs_rdp.append(pt_factors[best_i])
-        rdp_candidates.remove(best_i)
-
-    rdp_selected.sort()
-    rdp_path_factors = [pt_factors[i] for i in rdp_selected]
-    rdp_norm_scores = [min(scores[i] / max_score, 1.0) for i in rdp_selected]
-
-    N = len(rdp_selected)
-    if N < 1:
-        return []
-
-    if curvature_bias <= 0.0:
-        even_path_factors = [k / N for k in range(N)] if cyclic else ([k / (N - 1) for k in range(N)] if N > 1 else [0.0])
-        return path_facs_to_positions(points, even_path_factors, cyclic)
-
-    # Step 2: Classify verts as pinned or free
-    FLAT_THRESHOLD = 0.01 # Verts with scores below this can be influenced by even spacing even when curvature bias is 1
-    pin_threshold = map_range(curvature_bias, 0, 1, 0.5, FLAT_THRESHOLD)
-    is_pinned = [s >= pin_threshold for s in rdp_norm_scores]
-    if not cyclic:
-        is_pinned[0] = True  # path endpoints are always anchors on open strips
-        is_pinned[-1] = True
-
-    final_path_factors = list(rdp_path_factors)
-    pinned_indices = [k for k in range(N) if is_pinned[k]]
-
-    if not pinned_indices:
-        even_path_factors = [k / N for k in range(N)] if cyclic else ([k / (N - 1) for k in range(N)] if N > 1 else [0.0])
-        return path_facs_to_positions(points, even_path_factors, cyclic)
-
-    # Redistribute free verts evenly within each gap between consecutive pinned verts.
-    if cyclic:
-        n_pins = len(pinned_indices)
-        for seg in range(n_pins):
-            pa = pinned_indices[seg]
-            pb = pinned_indices[(seg + 1) % n_pins]
-            free_in_gap = []
-            k = (pa + 1) % N
-            while k != pb:
-                if not is_pinned[k]:
-                    free_in_gap.append(k)
-                k = (k + 1) % N
-            if not free_in_gap:
-                continue
-            fa, fb = rdp_path_factors[pa], rdp_path_factors[pb]
-            # A lone pin wraps the whole path, so its gap is the full loop rather than 0
-            gap = 1.0 if n_pins == 1 else (fb - fa) % 1.0
-            n_free = len(free_in_gap)
-            for j, k in enumerate(free_in_gap):
-                final_path_factors[k] = (fa + gap * (j + 1) / (n_free + 1)) % 1.0
-    else:
-        for seg in range(len(pinned_indices) - 1):
-            pa = pinned_indices[seg]
-            pb = pinned_indices[seg + 1]
-            free_in_gap = [k for k in range(pa + 1, pb) if not is_pinned[k]]
-            if not free_in_gap:
-                continue
-            fa, fb = rdp_path_factors[pa], rdp_path_factors[pb]
-            gap = fb - fa
-            n_free = len(free_in_gap)
-            for j, k in enumerate(free_in_gap):
-                final_path_factors[k] = fa + gap * (j + 1) / (n_free + 1)
-
-    # Step 3: Blend in the curvature result
-    lerp_range = 0.5 # Fade in between curvature bias 0 and this value
-    if curvature_bias < lerp_range:
-        t = curvature_bias / lerp_range
-        if cyclic:
-            even_path_factors = [k / N for k in range(N)]
-        else:
-            even_path_factors = [k / (N - 1) for k in range(N)] if N > 1 else [0.0]
-
-        if cyclic:
-            # Align even_path_factors rotation to final_path_factors so lerp pairs the right verts
-            best_rot, best_cost = 0, float('inf')
-            for rot in range(N):
-                cost = sum(
-                    min(abs(final_path_factors[k] - even_path_factors[(k + rot) % N]),
-                        1.0 - abs(final_path_factors[k] - even_path_factors[(k + rot) % N])) ** 2
-                    for k in range(N)
-                )
-                if cost < best_cost:
-                    best_cost, best_rot = cost, rot
-            even_path_factors = even_path_factors[best_rot:] + even_path_factors[:best_rot]
-
-        blended = []
-        for e, f in zip(even_path_factors, final_path_factors):
-            if cyclic:
-                d = f - e
-                if d >  0.5: d -= 1.0
-                elif d < -0.5: d += 1.0
-                blended.append((e + d * t) % 1.0)
-            else:
-                blended.append(e + (f - e) * t)
-        final_path_factors = blended
-
-    # Prevent clusering around sharp features
-    MIN_EDGE_LEN = 0.3 # What % of the average edge length can the shortest edge be
-    final_path_factors = enforce_path_min_gap(final_path_factors, cyclic, MIN_EDGE_LEN / vertex_count)
-    return path_facs_to_positions(points, final_path_factors, cyclic)
+DEBUG_PRINT_SDF_PATH = False  # SDF chord/path/refine/final-vert dump
+SDF_DEBUG_OBJECT_NAMES = ('SDF_Debug_Grid', 'SDF_Debug_Path', 'SDF_Debug_Snapped', 'SDF_Debug_Chord', 'SDF_Debug_Refined', 'SDF_Debug_FinalVerts')
 
 
 SPAN_COUNT_RANGE = (3, 500)  # Mirrors the min/max on the matching bpy props in contours.py
@@ -368,7 +151,7 @@ class Contours_Logic:
                  process_source_method:str, hits:list[dict[str, ...]], cut_orientation:str='stroke', fast_depth:int=1,
                  sample_points:int=50, fast_refine_steps:int=5, sdf_refine_steps:int=3, skip_step_size:float=0.5, sample_width:float=0.25,
                  sdf_grid_size:float=0.25, sdf_subdivisions:int=0, sdf_extent_scale:float=1.5,
-                 curvature_bias:float=0.7, space_evenly:float=1.0,
+                 curvature_bias:float=0.7, space_evenly:float=0.0,
                  span_insert_mode:str='FIXED', span_length:float=0.1,
                  sdf_stroke_world_len:float=0.0):
         self.hit = hit
@@ -436,6 +219,7 @@ class Contours_Logic:
         self.circle_fit = None
         self.path_length = None
         self.mirror_clipped_loop = None
+        self.ring_sharp_verts = set()
         self.mirror_threshold = 1e-4
 
     def update(self, context:Context):
@@ -667,16 +451,14 @@ class Contours_Logic:
         return ordered
 
     def redistribute_ring(self, context: Context, new_bmvs: Sequence[BMVert]):
-        CORNER_FLOOR_SHARP = 0.10
-        CORNER_FLOOR_FLAT  = 0.75
-
-        if not (self.points and self.path_length and (self.curvature_bias > 0 or self.space_evenly > 0)):
+        '''Move ring verts along the cut path per the Contours settings. '''
+        if not (self.points and self.path_length):
+            return
+        ordered_nbmvs = self.order_ring_verts(set(new_bmvs))
+        n = len(ordered_nbmvs)
+        if n < 2:
             return
         point_path_facs = arc_path_factors(self.points, self.cyclic)
-        ordered_nbmvs = self.order_ring_verts(set(new_bmvs))
-        if not ordered_nbmvs:
-            return
-        n = len(ordered_nbmvs)
         mx, my, mz = has_mirror_x(context), has_mirror_y(context), has_mirror_z(context)
         sym_verts = {
             bmv for bmv in ordered_nbmvs
@@ -684,92 +466,36 @@ class Contours_Logic:
             or (my and abs(bmv.co.y) < self.mirror_threshold)
             or (mz and abs(bmv.co.z) < self.mirror_threshold)
         }
-        # Path factors of ring verts after the cut snap are the baseline each vert starts from.
-        current_path_facs = [
-            project_to_path_fac(Vector(v.co), self.points, self.cyclic, point_path_facs)
-            for v in ordered_nbmvs
-        ]
+
+        base = [project_to_path_fac(Vector(v.co), self.points, self.cyclic, point_path_facs) for v in ordered_nbmvs]
+        # Orient the ring forward along the path so base factors increase with ring index
         if self.cyclic:
-            fwd_total = sum((current_path_facs[(i+1) % n] - current_path_facs[i]) % 1.0 for i in range(n))
-            step = (1.0 / n) if fwd_total <= n / 2 else (-1.0 / n)
-
-        # Curvature bias: pin verts to shape features
-        pin_path_fac = [None] * n
-        if self.curvature_bias > 0:
-            path_scores = curvature_rdp_scores(self.points, self.cyclic)
-            threshold = CORNER_FLOOR_FLAT - self.curvature_bias * (CORNER_FLOOR_FLAT - CORNER_FLOOR_SHARP)
-            corner_list = [
-                (point_path_facs[j], path_scores[j])
-                for j in range(len(self.points)) if path_scores[j] >= threshold
-            ]
-            half_slot = 0.5 / n
-            used_verts = set()
-            for c_path_fac, cscore in sorted(corner_list, key=lambda x: -x[1]):  # sharpest first
-                best_i, best_d = None, float('inf')
-                for i, vf in enumerate(current_path_facs):
-                    if i in used_verts:
-                        continue
-                    d = min((vf - c_path_fac) % 1.0, (c_path_fac - vf) % 1.0) if self.cyclic else abs(vf - c_path_fac)
-                    if d < half_slot and d < best_d:
-                        best_d, best_i = d, i
-                if best_i is not None:
-                    pin_path_fac[best_i] = lerp_path_fac(current_path_facs[best_i], c_path_fac, self.curvature_bias, self.cyclic)
-                    used_verts.add(best_i)
-
-        post_curvature = [pin_path_fac[i] if pin_path_fac[i] is not None else current_path_facs[i] for i in range(n)]
-
-        # Space evenly: equalize edge lengths between pins
-        w = max(0.0, min(1.0, self.space_evenly))
-        if w > 0:
-            if self.cyclic:
-                # compute span-by-span with direction-aware step
-                pins_list = sorted([(i, pin_path_fac[i]) for i in range(n) if pin_path_fac[i] is not None])
-                even_path_facs = [None] * n
-                if not pins_list:
-                    # Phase the ring so the connections are stable on adjusting redo
-                    phase = cyclic_even_phase(current_path_facs, step)
-                    even_path_facs = [(phase + i * step) % 1.0 for i in range(n)]
-                else:
-                    P_ev = len(pins_list)
-                    for s in range(P_ev):
-                        ai, af = pins_list[s]
-                        bi, bf = pins_list[(s + 1) % P_ev]
-                        free_verts = []
-                        k = (ai + 1) % n
-                        while k != bi:
-                            free_verts.append(k)
-                            k = (k + 1) % n
-                        nf = len(free_verts)
-                        if not nf: continue
-                        span = 1.0 if P_ev == 1 else ((bf - af) % 1.0 if step > 0 else (af - bf) % 1.0)
-                        for j, idx in enumerate(free_verts):
-                            t = (j + 1) / (nf + 1)
-                            even_path_facs[idx] = (af + span * t * (1 if step > 0 else -1)) % 1.0
-            else:
-                anchors = sorted({0, n - 1} | {i for i in range(n) if pin_path_fac[i] is not None})
-                even_path_facs = list(post_curvature)
-                for s in range(len(anchors) - 1):
-                    a, b = anchors[s], anchors[s + 1]
-                    fa = pin_path_fac[a] if pin_path_fac[a] is not None else post_curvature[a]
-                    fb = pin_path_fac[b] if pin_path_fac[b] is not None else post_curvature[b]
-                    free = [k for k in range(a + 1, b)]
-                    for j, k in enumerate(free):
-                        even_path_facs[k] = fa + (fb - fa) * (j + 1) / (len(free) + 1)
-            final_path_facs = []
-            for i in range(n):
-                if pin_path_fac[i] is not None:
-                    final_path_facs.append(pin_path_fac[i])
-                else:
-                    even = even_path_facs[i] if even_path_facs[i] is not None else post_curvature[i]
-                    final_path_facs.append(lerp_path_fac(post_curvature[i], even, w, self.cyclic))
+            forward = sum((base[(i + 1) % n] - base[i]) % 1.0 for i in range(n)) <= n / 2
         else:
-            final_path_facs = post_curvature
+            forward = base[0] <= base[-1]
+        if not forward:
+            ordered_nbmvs.reverse()
+            base.reverse()
+        # The projection can occasionally land two verts out of order; nudge them apart so the gap logic holds
+        base = enforce_path_min_gap(base, self.cyclic, 0.05 / n)
 
-        target_pts = path_facs_to_positions(self.points, final_path_facs, self.cyclic)
+        sharp = {i for i, bmv in enumerate(ordered_nbmvs) if bmv in self.ring_sharp_verts}
+        final = place_ring_facs(self.points, self.cyclic, base, self.path_length, self.curvature_bias, self.space_evenly,
+                                sharp_verts=sharp)
+        def moved(i):
+            d = final[i] - base[i]
+            if self.cyclic:
+                d = (d + 0.5) % 1.0 - 0.5
+            return abs(d) > 1e-9
+        moved_idx = [i for i in range(n) if moved(i)]
+        if not moved_idx:
+            return
+        target_pts = path_facs_to_positions(self.points, [final[i] for i in moved_idx], self.cyclic)
 
-        # Move vert to target position and snap to source
+        # Move vert to target position and snap to source. Unmoved verts keep their projected coordinates.
         new_cos = {}
-        for bmv, co in zip(ordered_nbmvs, target_pts[:n]):
+        for i, co in zip(moved_idx, target_pts):
+            bmv = ordered_nbmvs[i]
             npt_world = point_to_bvec3(self.matrix_world @ bvec_to_point(Vector(co)))
             snapped = nearest_point_valid_sources(context, npt_world, world=True, respect_clip_planes=True)
             new_cos[bmv] = self.matrix_world_inv @ snapped if snapped is not None else Vector(co)
@@ -1015,6 +741,20 @@ class Contours_Logic:
         for bmv in new_bmvs:
             bmv.co = xform @ bmv.co
 
+        # Corners of the loop being extruded, measured before the projection flattens the ring onto the cut, so
+        # redistribute_ring can pair them with the cut's corners even when the source shape is twisted
+        self.ring_sharp_verts = set()
+        for bmv in new_bmvs:
+            nbrs = [e.other_vert(bmv) for e in bmv.link_edges if e.other_vert(bmv) in nbmvs_set_snap]
+            if len(nbrs) != 2:
+                continue
+            a = bmv.co - nbrs[0].co
+            b = nbrs[1].co - bmv.co
+            if a.length < 1e-12 or b.length < 1e-12:
+                continue
+            if math.atan2(a.cross(b).length, a.dot(b)) >= math.radians(SHARP_ANGLE):
+                self.ring_sharp_verts.add(bmv)
+
         if DEBUG_PRINT_SPACING:
             self.debug_print_bridge(center_new, center_src, plane_fit, ring_perimeter, dot_n1_n2, cross)
 
@@ -1160,6 +900,21 @@ class Contours_Logic:
         if self.points is None or M is None or Mi is None or path_length is None:
             return
 
+        if DEBUG_CREATE_OBJECTS:
+            _debug_saved_hide = {}
+            for _dname in SDF_DEBUG_OBJECT_NAMES:
+                _dobj = bpy.data.objects.get(_dname)
+                if _dobj is not None:
+                    _debug_saved_hide[_dname] = _dobj.hide_viewport
+                    _dobj.hide_viewport = True
+
+        def _debug_restore_hide():
+            if not DEBUG_CREATE_OBJECTS: return
+            for _dname, _hide in _debug_saved_hide.items():
+                _dobj = bpy.data.objects.get(_dname)
+                if _dobj is not None:
+                    _dobj.hide_viewport = _hide
+
         points : list[Vector] = []
         for pt in self.points:
             if points and (points[-1] - pt).length == 0: continue
@@ -1194,9 +949,10 @@ class Contours_Logic:
         if self.mirror_clipped_loop:
             vertex_count = vertex_count // 2 + 1 # update vert count when loop crosses mirror
 
-        npts = sample_curvature(points, self.cyclic, vertex_count, path_length, self.curvature_bias)
+        npts = sample_curvature(points, self.cyclic, vertex_count, path_length, self.curvature_bias, self.space_evenly)
         if not npts:
             print('CONTOURS: sample_curvature returned no points, skipping cut')
+            _debug_restore_hide()
             return
         if len(npts) < vertex_count:
             print(f'CONTOURS: only {len(npts)}/{vertex_count} sample points. Ring may have wrong count')
@@ -1224,9 +980,6 @@ class Contours_Logic:
                 else:
                     bmv0.co, bmv1.co = pt1, pt0
 
-        if not DEBUG_SKIP_REDISTRIBUTE:
-            self.redistribute_ring(context, new_bmvs)
-
         if self.cyclic:
             self.action = 'New Loop'
         else:
@@ -1237,6 +990,35 @@ class Contours_Logic:
         # select newly created geometry
         bmops.deselect_all(self.bm)
         bmops.select_iter(self.bm, new_bmvs)
+
+        if DEBUG_PRINT_SDF_PATH:
+            print(f'CONTOURS DUMP: resulting vertices ({len(new_bmvs)} pts)')
+            for _i, _bmv in enumerate(new_bmvs):
+                _pw = M @ _bmv.co
+                _lp = self.plane.w2l_point(_pw)
+                print(f'  {_i:3d}  local=({_lp.x:.5f}, {_lp.y:.5f})  world=({_pw.x:.5f}, {_pw.y:.5f}, {_pw.z:.5f})')
+
+        if DEBUG_CREATE_OBJECTS:
+            # Final ring as committed to the mesh, after sample_curvature.
+            _fm = bpy.data.meshes.new('SDF_Debug_FinalVerts')
+            _bm_f = bmesh.new()
+            _fverts = [_bm_f.verts.new(M @ bmv.co) for bmv in new_bmvs]
+            _bm_f.verts.ensure_lookup_table()
+            _n_f = len(_fverts)
+            for _k in range(_n_f if self.cyclic else _n_f - 1):
+                _bm_f.edges.new([_fverts[_k], _fverts[(_k + 1) % _n_f]])
+            _bm_f.to_mesh(_fm)
+            _bm_f.free()
+            _fv_obj = bpy.data.objects.get('SDF_Debug_FinalVerts')
+            if _fv_obj is not None:
+                _old_fm = _fv_obj.data
+                _fv_obj.data = _fm
+                bpy.data.meshes.remove(_old_fm)
+            else:
+                # a fresh object defaults to visible; existing ones are restored below
+                _fv_obj = bpy.data.objects.new('SDF_Debug_FinalVerts', _fm)
+                bpy.context.scene.collection.objects.link(_fv_obj)
+            _debug_restore_hide()
 
 
     #######################################################
@@ -1705,7 +1487,7 @@ class Contours_Logic:
         if DEBUG_CREATE_OBJECTS:
             _raw_corners = list(corners)  # save full staircase before downsample for debug path
             _debug_saved_hide = {}
-            for _dname in ('SDF_Debug_Grid', 'SDF_Debug_Path', 'SDF_Debug_Snapped', 'SDF_Debug_Refined'):
+            for _dname in SDF_DEBUG_OBJECT_NAMES:
                 _dobj = bpy.data.objects.get(_dname)
                 if _dobj is not None:
                     _debug_saved_hide[_dname] = _dobj.hide_viewport
@@ -1759,6 +1541,28 @@ class Contours_Logic:
             return self.process_source_fast(context)
 
         if DEBUG_PRINT_TIMINGS: timers.append((f'snap ({len(points_world)} pts)', time.perf_counter()))
+
+        if DEBUG_CREATE_OBJECTS or DEBUG_PRINT_SDF_PATH:
+            # Initial RDP chord: the farthest-apart anchor pair before refining
+            _n_c = len(points_world)
+            if not touches_border and _n_c >= 2:
+                _centroid = Vector((0.0, 0.0, 0.0))
+                for _p in points_world: _centroid += Vector(_p)
+                _centroid /= _n_c
+                _i0 = max(range(_n_c), key=lambda i: (Vector(points_world[i]) - _centroid).length_squared)
+                _i1 = max(range(_n_c), key=lambda i: (Vector(points_world[i]) - Vector(points_world[_i0])).length_squared)
+            else:
+                _i0, _i1 = 0, _n_c - 1
+
+        if DEBUG_PRINT_SDF_PATH:
+            def _dump_points(label, pts):
+                print(f'CONTOURS SDF DUMP: {label} ({len(pts)} pts)')
+                for _i, _p in enumerate(pts):
+                    _lp = plane_cut.w2l_point(Vector(_p))
+                    print(f'  {_i:3d}  local=({_lp.x:.5f}, {_lp.y:.5f})  world=({_p[0]:.5f}, {_p[1]:.5f}, {_p[2]:.5f})')
+            _dump_points('initial path', points_world)
+            print(f'CONTOURS SDF DUMP: initial chord  i0={_i0}  i1={_i1}')
+
         if DEBUG_CREATE_OBJECTS:
             # Post-snap / pre-refinement path — every point here should lie exactly on the surface.
             _sm = bpy.data.meshes.new('SDF_Debug_Snapped')
@@ -1771,6 +1575,15 @@ class Contours_Logic:
             _bm_s.to_mesh(_sm)
             _bm_s.free()
             _update_debug_object('SDF_Debug_Snapped', _sm)
+
+            _cm = bpy.data.meshes.new('SDF_Debug_Chord')
+            _bm_c = bmesh.new()
+            _cv0 = _bm_c.verts.new(Vector(points_world[_i0]))
+            _cv1 = _bm_c.verts.new(Vector(points_world[_i1]))
+            _bm_c.edges.new([_cv0, _cv1])
+            _bm_c.to_mesh(_cm)
+            _bm_c.free()
+            _update_debug_object('SDF_Debug_Chord', _cm)
 
             _gm = bpy.data.meshes.new('SDF_Debug_Grid')
             _bm = bmesh.new()
@@ -1824,6 +1637,8 @@ class Contours_Logic:
             points_world = self.refine_loop(context, points_world, plane_normal_world, self.sdf_refine_steps)
 
         if DEBUG_PRINT_TIMINGS: timers.append((f'refinement ({self.sdf_refine_steps} steps)', time.perf_counter()))
+        if DEBUG_PRINT_SDF_PATH:
+            _dump_points('refined path', points_world)
         if DEBUG_CREATE_OBJECTS and len(points_world) >= 2:
             _rm = bpy.data.meshes.new('SDF_Debug_Refined')
             _bm_r = bmesh.new()
@@ -1835,6 +1650,11 @@ class Contours_Logic:
             _bm_r.to_mesh(_rm)
             _bm_r.free()
             _update_debug_object('SDF_Debug_Refined', _rm)
+        if DEBUG_CREATE_OBJECTS:
+            # FinalVerts isn't rebuilt in this pass, so _update_debug_object never unhides it
+            _fv = bpy.data.objects.get('SDF_Debug_FinalVerts')
+            if _fv is not None:
+                _fv.hide_viewport = _debug_saved_hide.get('SDF_Debug_FinalVerts', False)
 
         points = [ self.matrix_world_inv @ pt_world for pt_world in points_world if pt_world ]
         cyclic = not touches_border

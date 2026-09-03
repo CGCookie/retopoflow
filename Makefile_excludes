@@ -15,6 +15,7 @@ tmp/
 /help/web/
 /help/web_config/
 /devnotes/
+/dev
 /issues/
 
 updater_tmp/*.json

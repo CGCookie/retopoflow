@@ -55,7 +55,7 @@ from ...addon_common.common.debug import debugger
 from ...addon_common.common.maths import Plane, Point
 from ...addon_common.common.resetter import Resetter
 
-from ..rfoperators.quickswitch import RFOperator_Relax_QuickSwitch, RFOperator_Tweak_QuickSwitch
+from ..rfoperators.quickswitch import RFOperator_Relax_QuickSwitch, RFOperator_Tweak_QuickSwitch, RFOperator_LegacyPatches_QuickSwitch
 from ..rfoperators.transform import RFOperator_Translate, sync_projection_from_blender
 from ..rfoperators.maximize_watcher import RFOperator_MaximizeWatcher
 from ..rfoperators.adjust_segment_count import adjust_selected_strip
@@ -294,15 +294,14 @@ class RFOperator_Contours_Insert_Properties:
     )
     curvature_bias: bpy.props.FloatProperty(             # pyright: ignore [reportUninitializedInstanceVariable]
         name='Curvature Bias',
-        description='Blend between even spacing (0.0) and pure curvature/RDP placement (1.0). '
-                    'At 0.5, high-deviation points are placed by shape and low-deviation points spread evenly',
+        description='Snap the new vertices to surface features.',
         default=0,
         min=0.0,
         max=1.0,
     )
     space_evenly: bpy.props.FloatProperty(       # pyright: ignore [reportUninitializedInstanceVariable]
         name='Space Evenly',
-        description='0.0 = keep bridge snap result as-is, 1.0 = space verts evenly around the path',
+        description='Evenly distribute the new vertices rather than keeping the spacing of their connected loops.',
         default=0.0,
         min=0.0,
         max=1.0,
@@ -407,7 +406,7 @@ class RFOperator_Contours_Insert(
     def insert(context, hit, plane, circle_points, span_count, process_source_method, hits, cut_orientation,
                fast_depth=1, sample_points=50, fast_refine_steps=5, sdf_refine_steps=3, skip_step_size=1.0,
                sample_width=0.25, sdf_grid_size=0.25, sdf_subdivisions=0, sdf_extent_scale=1.5,
-               curvature_bias=0.7, space_evenly=1.0, span_insert_mode='FIXED', span_length=0.1,
+               curvature_bias=0.7, space_evenly=0.0, span_insert_mode='FIXED', span_length=0.1,
                sdf_stroke_world_len=0.0):
         RFOperator_Contours_Insert.logic = Contours_Logic(
             context,
@@ -486,7 +485,7 @@ class RFOperator_Contours_Insert(
         logic.loop_count            = self.loop_count
         logic.cut_orientation       = self.cut_orientation
         logic.curvature_bias        = self.curvature_bias
-        logic.space_evenly  = self.space_evenly
+        logic.space_evenly          = self.space_evenly
         logic.span_insert_mode      = self.span_insert_mode
         logic.span_length           = self.span_length
 
@@ -519,7 +518,7 @@ class RFOperator_Contours_Insert(
         self.flip_normals          = logic.flip_normals
         self.loop_count            = logic.loop_count
         self.curvature_bias        = logic.curvature_bias
-        self.space_evenly  = logic.space_evenly
+        self.space_evenly          = logic.space_evenly
         self.span_insert_mode      = logic.span_insert_mode
         self.span_length           = logic.span_length
 
@@ -763,6 +762,7 @@ class RFTool_Contours(RFTool_Base):
         RFOperator_Translate,
         RFOperator_Relax_QuickSwitch,
         RFOperator_Tweak_QuickSwitch,
+        RFOperator_LegacyPatches_QuickSwitch,
     )
 
     def draw_settings(context, layout, tool):

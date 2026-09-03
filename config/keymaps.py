@@ -62,6 +62,10 @@ KMI_PROP_UNSET = object()
 # (keymap name, space_type, region_type, kmi id, operator idname, delete_keys, reset_vals)
 KMI_RESET_RECORD : TypeAlias = tuple[str, str, str, int, str, set[str], dict[str, ...]]
 
+# Identifies a keymap item RF deactivated
+# (keymap name, space_type, region_type, kmi id, operator idname)
+KMI_SUPPRESS_RECORD : TypeAlias = tuple[str, str, str, int, str]
+
 
 retopoflow_keymap_overrides : KMI_OVERRIDES = [  # pyright: ignore[reportUnknownVariableType]
 
@@ -88,18 +92,35 @@ retopoflow_keymap_overrides : KMI_OVERRIDES = [  # pyright: ignore[reportUnknown
 ]
 
 
+# Other add-ons' operators that bind keys directly in Blender's keymaps.
+# Deactivated while RF runs, restored on stop. Add a line per known conflict.
+conflicting_keymap_operators : tuple[str, ...] = (
+    # X-Ray Selection Tools: binds B / C / L in the Mesh keymap by default
+    'mesh.select_box_xray',
+    'mesh.select_circle_xray',
+    'mesh.select_lasso_xray',
+    'mesh.select_tools_xray_toggle_select_through',
+    'mesh.select_tools_xray_toggle_mesh_behavior',
+    'mesh.select_tools_xray_toggle_select_backfacing',
+)
+
+
 reset_keymap_items : list[KMI_RESET_RECORD] = []
+suppressed_keymap_items : list[KMI_SUPPRESS_RECORD] = []
 
 
 # Returns the first matching keymap item. There could be multiple!
 # Add arguments to further filter if needed
-def get_user_keymap_item(context : Context, idname : str) -> KeyMapItem | None:
+# km_name narrows the search to one keymap, for operators that RF also binds in a tool keymap
+def get_user_keymap_item(context : Context, idname : str, km_name : str | None = None) -> KeyMapItem | None:
     user = context.window_manager.keyconfigs.user
     if not user:
         return None
     is_menu = '_MT_' in idname
     menu_idnames = ['wm.call_menu', 'wm.call_menu_pie']
     for keymap in user.keymaps:
+        if km_name is not None and keymap.name != km_name:
+            continue
         for km_item in keymap.keymap_items:
             if is_menu:
                 if km_item.idname in menu_idnames and km_item.properties and km_item.properties.get('name', None) == idname:
@@ -232,3 +253,33 @@ def restore_user_keymaps(context : Context):
             continue # Item was removed or rebuilt beyond recognition, nothing safe to restore.
         _reset_kmi_properties(km_item, delete_keys, reset_vals)
     reset_keymap_items.clear()
+
+
+def suppress_conflicting_keymaps(context : Context):
+    user_keyconfigs = context.window_manager.keyconfigs.user
+    if not user_keyconfigs:
+        return
+
+    for keymap in user_keyconfigs.keymaps:
+        if not hasattr(keymap, 'keymap_items'):
+            continue
+        for km_item in keymap.keymap_items:
+            if km_item.idname not in conflicting_keymap_operators:
+                continue
+            if not km_item.active:
+                continue # Already off. Recording it would turn it on for the artist at stop.
+            km_item.active = False
+            suppressed_keymap_items.append((
+                keymap.name, keymap.space_type, keymap.region_type,
+                km_item.id, km_item.idname,
+            ))
+
+
+def restore_conflicting_keymaps(context : Context):
+    for (km_name, space_type, region_type, kmi_id, idname) in suppressed_keymap_items:
+        # Resolve the item fresh rather than trusting a reference captured at suppress time.
+        km_item = _find_user_kmi(context, km_name, space_type, region_type, kmi_id, idname)
+        if km_item is None:
+            continue # Item was removed or rebuilt beyond recognition, nothing safe to restore.
+        km_item.active = True
+    suppressed_keymap_items.clear()

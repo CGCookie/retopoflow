@@ -36,6 +36,15 @@ def draw_hotkeys(self, context, layout):
     row.prop(self, 'pie_tool_context', text='Triggers From', expand=False)
     layout.separator()
 
+    # the tool keymap binds the same operator, so narrow the lookup to the general one
+    row = layout.row(heading='Fill Patches')
+    fill_kmi = get_user_keymap_item(context, 'retopoflow.legacy_patches_fill', km_name='Mesh')
+    draw_keymap_options(row, fill_kmi)
+    row = layout.row()
+    row.enabled = bool(fill_kmi and fill_kmi.active)
+    row.prop(self, 'fill_tool_context', text='Triggers From', expand=False)
+    layout.separator()
+
     row = layout.row(heading='Pin Verts')
     draw_keymap_options(row, get_user_keymap_item(context, 'retopoflow.pinverts'))
     row = layout.row(heading='Unpin Verts')

@@ -19,8 +19,6 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-from __future__ import annotations
-
 import platform
 from typing import cast
 
@@ -40,7 +38,7 @@ class RF_Prefs(AddonPreferences):
     bl_idname : str = addon_name
 
     @staticmethod
-    def get_prefs(context : Context) -> RF_Prefs:
+    def get_prefs(context : Context) -> 'RF_Prefs':
         addon = context.preferences.addons[addon_name]
         addon_prefs = addon.preferences
         assert addon_prefs
@@ -146,6 +144,15 @@ class RF_Prefs(AddonPreferences):
         ),
         default='ANY_TOOL'
     )
+    fill_tool_context: bpy.props.EnumProperty(
+        name="Fill Tool Context",
+        description="The context in which F fills a patch. Whatever Patches cannot fill still falls through to Blender's own New Edge/Face",
+        items=(
+            ('ANY_TOOL', "Any Tool", "F can fill a patch from ANY tool"),
+            ('RF_TOOL', "Retopoflow Tools", "F can fill a patch ONLY on Retopoflow tools"),
+        ),
+        default='ANY_TOOL'
+    )
 
     """ Tool Switching """
     #region
@@ -190,6 +197,11 @@ class RF_Prefs(AddonPreferences):
                     " - Loop selection gets stopped at inner corners for better use with Strokes. \n"
                     " - Pick Shortest Path with Shift has Fill Region disabled"
                     ),
+        default=True,
+    )
+    setup_suppress_conflicting_keymaps: bpy.props.BoolProperty(
+        name='Suppress Conflicting Hotkeys',
+        description=("Deactivates other add-ons' hotkeys that are known to conflict with Retopoflow "),
         default=True,
     )
     setup_pinning: bpy.props.BoolProperty(

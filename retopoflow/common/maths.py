@@ -503,16 +503,6 @@ def project_to_path_fac(co, points: list, cyclic: bool, point_path_facs: list) -
     return best_path_fac
 
 
-def lerp_path_fac(a: float, b: float, t: float, cyclic: bool) -> float:
-    '''Interpolate between two arc-length factors, taking the short way around for cyclic paths.'''
-    if cyclic:
-        d = b - a
-        if d >  0.5: d -= 1.0
-        elif d < -0.5: d += 1.0
-        return (a + t * d) % 1.0
-    return a + t * (b - a)
-
-
 def cyclic_even_phase(path_facs: list, step: float) -> float:
     '''Starting phase for an evenly spaced cyclic ring (`phase + i * step`)
     that moves the given path factors the least.'''
@@ -529,102 +519,6 @@ def cyclic_even_phase(path_facs: list, step: float) -> float:
         first = min(range(n), key=lambda k: path_facs[k])
         return (path_facs[first] - first * step) % 1.0
     return (math.atan2(sy, sx) / math.tau) % 1.0
-
-
-def curvature_rdp_scores(points: list, cyclic: bool) -> list:
-    '''Normalised Ramer-Douglas-Peucker corner score for each point. 1 = sharp, 0 = flat.'''
-    n = len(points)
-    if n < 3:
-        return [0.0] * n
-    scores = [0.0] * n
-
-    def rdp_score(i0: int, i1: int) -> None:
-        stack = [(i0, i1)]
-        while stack:
-            a, b = stack.pop()
-            if b - a <= 1:
-                continue
-            p0 = Vector(points[a % n])
-            p1 = Vector(points[b % n])
-            seg = p1 - p0
-            seg_len2 = seg.length_squared
-            max_dist, max_k = -1.0, a + 1
-            for k in range(a + 1, b):
-                p = Vector(points[k % n])
-                if seg_len2 < 1e-20:
-                    d = (p - p0).length
-                else:
-                    t = max(0.0, min(1.0, (p - p0).dot(seg) / seg_len2))
-                    d = (p - p0.lerp(p1, t)).length
-                if d > max_dist:
-                    max_dist, max_k = d, k
-            if max_dist > 0:
-                scores[max_k % n] = max_dist
-            stack.append((a, max_k))
-            stack.append((max_k, b))
-
-    if cyclic:
-        centroid = Vector((0.0, 0.0, 0.0))
-        for p in points:
-            centroid += Vector(p)
-        centroid /= n
-        i0 = max(range(n), key=lambda i: (Vector(points[i]) - centroid).length_squared)
-        i1 = max(range(n), key=lambda i: (Vector(points[i]) - Vector(points[i0])).length_squared)
-        if i1 < i0:
-            i0, i1 = i1, i0
-        scores[i0] = float('inf')
-        scores[i1] = float('inf')
-        rdp_score(i0, i1)
-        rdp_score(i1, i0 + n)
-    else:
-        scores[0] = float('inf')
-        scores[n - 1] = float('inf')
-        rdp_score(0, n - 1)
-
-    max_finite = max((s for s in scores if s < float('inf')), default=1.0)
-    if max_finite < 1e-12:
-        max_finite = 1.0
-    return [min((max_finite if s >= float('inf') else s) / max_finite, 1.0) for s in scores]
-
-
-def curvature_change_scores(points: list, cyclic: bool, point_path_facs: list) -> tuple:
-    '''Turning angle magnitudes and rate of curvature change scores for each point.
-    Returns (sin_angles, dk_norm):
-    - sin_angles[i]: sin of the turning angle at point i (0 = flat, 1 = 90°).
-    - dk_norm[i]: 0-1 dκ/ds score which peaks at flat to smooth bevel transitions.
-    '''
-    n = len(points)
-    if n < 3:
-        return [0.0] * n, [0.0] * n
-
-    sin_angles = [0.0] * n
-    kappa      = [0.0] * n
-    for i in range(n):
-        if not cyclic and (i == 0 or i == n - 1):
-            continue
-        im1, ip1 = (i - 1) % n, (i + 1) % n
-        t1 = Vector(points[i]) - Vector(points[im1])
-        t2 = Vector(points[ip1]) - Vector(points[i])
-        l1, l2 = t1.length, t2.length
-        if l1 < 1e-10 or l2 < 1e-10:
-            continue
-        cross_mag      = t1.cross(t2).length / (l1 * l2)
-        sin_angles[i]  = cross_mag
-        mean_len       = (l1 + l2) * 0.5
-        kappa[i]       = cross_mag / mean_len if mean_len > 1e-10 else 0.0
-
-    dk = [0.0] * n
-    for i in range(n):
-        if not cyclic and (i == 0 or i == n - 1):
-            continue
-        im1, ip1 = (i - 1) % n, (i + 1) % n
-        ds    = (point_path_facs[ip1] - point_path_facs[im1]) % 1.0 if cyclic else (point_path_facs[ip1] - point_path_facs[im1])
-        dk[i] = abs(kappa[ip1] - kappa[im1]) / ds if ds > 1e-10 else 0.0
-
-    max_dk = max(dk, default=0.0)
-    if max_dk < 1e-12:
-        return sin_angles, [0.0] * n
-    return sin_angles, [d / max_dk for d in dk]
 
 
 def enforce_path_min_gap(path_facs: list, cyclic: bool, min_gap: float) -> list:

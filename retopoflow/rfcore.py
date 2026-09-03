@@ -37,7 +37,10 @@ from ..addon_common.common.blender import iter_all_view3d_areas, iter_all_view3d
 from ..addon_common.common.debug import debugger
 from ..addon_common.common.resetter import Resetter
 from ..config.theme import Theme
-from ..config.keymaps import alter_user_keymaps, restore_user_keymaps
+from ..config.keymaps import (
+    alter_user_keymaps, restore_user_keymaps,
+    suppress_conflicting_keymaps, restore_conflicting_keymaps,
+)
 from .common.bmesh import get_object_bmesh, get_bmesh_emesh, clear_object_bmesh, free_object_bmeshes
 from .common.bpy_helper import bpy_ops_retopoflow, BL_SPACE_TYPES
 from .common.operator import RFOperator_Base, RFOperator, RFOperator_Execute, RFRegisterClass, RFAssetShelf
@@ -60,7 +63,9 @@ from .rftool_polypen.polypen       import RFTool_PolyPen
 from .rftool_polystrips.polystrips import RFTool_PolyStrips
 from .rftool_strokes.strokes       import RFTool_Strokes
 from .rftool_contours.contours     import RFTool_Contours
-from .rftool_patches.patches       import RFTool_Patches
+# from .rftool_patches.patches       import RFTool_Patches
+from .rftool_legacy_patches import legacy_patches
+from .rftool_legacy_patches.legacy_patches import RFTool_LegacyPatches
 from .rftool_tweak.tweak           import RFTool_Tweak
 from .rftool_relax.relax           import RFTool_Relax
 
@@ -174,6 +179,7 @@ class RFCore:
         rfpanel_countours_method.register()
         rfpanel_stroke.register()
         launch_browser.register()
+        legacy_patches.register()
         tools_pie.register()
 
         AutoSave.register()
@@ -287,6 +293,7 @@ class RFCore:
         rfprops_object.unregister()
         pinning.unregister()
         launch_browser.unregister()
+        legacy_patches.unregister()
         preferences.unregister()
         icons_module.unregister()
 
@@ -434,6 +441,11 @@ class RFCore:
         # print(f'tool_changed(context, {_space_type=}, {idname=}, {as_fallback=})')
 
         if RFCore.is_paused or RFCore.is_exiting:
+            return
+
+        if not isinstance(context, Context):
+            # Other add-ons can call activate_by_id with a stand-in object to set a tool
+            # for a specific workspace/mode without touching the live one.
             return
 
         prev_selected_RFTool_idname = RFCore.selected_RFTool_idname
@@ -604,6 +616,8 @@ class RFCore:
         mirror.setup_mirror(context)
         if prefs.setup_selection_adjustments:
             alter_user_keymaps(context)
+        if prefs.setup_suppress_conflicting_keymaps:
+            suppress_conflicting_keymaps(context)
 
         pinning.setup_pinning(context)
 
@@ -748,6 +762,7 @@ class RFCore:
             attempt('restore pinning', lambda: pinning.restore_pinning(bpy.context))
             attempt('clean up the mirror', lambda: mirror.cleanup_mirror(bpy.context))
             attempt('restore user keymaps', lambda: restore_user_keymaps(bpy.context))
+            attempt('restore conflicting keymaps', lambda: restore_conflicting_keymaps(bpy.context))
         finally:
             attempt('restore the Blender settings', RFCore.resetter.reset)
 

@@ -695,7 +695,10 @@ class PP_Logic:
             # an interior vert may only knife, otherwise it would overlap existing geometry.
             interior = bmv_is_interior(self.bmv)
             if self.nearest.bmv:
-                if check_split_face(self.bmv, self.nearest.bmv) is not None:
+                if self.nearest.bmv == self.bmv:
+                    # hovering the selected vert, there is no second vert to connect to
+                    self.state = PP_Action.NONE
+                elif check_split_face(self.bmv, self.nearest.bmv) is not None:
                     self.state = PP_Action.WIRE_VERT_SPLIT_FACE
                 elif interior:
                     self.state = PP_Action.NONE
@@ -766,8 +769,8 @@ class PP_Logic:
                         self.state = PP_Action.NONE if bme_is_interior(sel_bme) else PP_Action.EDGE_TRI
                         return
 
-                    if self.bme.is_boundary and self.bme_hovered.is_boundary:
-                        # selected and hovered BMEdges are boundary, so let's assume artist wishes to bridge
+                    if not bme_is_interior(self.bme) and not bme_is_interior(self.bme_hovered):
+                        # Neither edge has a face on both sides
                         self.state = PP_Action.EDGE_BRIDGE
                         self.bme_hovered_bmvs = [bmv2, bmv3]
                         return
@@ -1789,7 +1792,7 @@ class PP_Logic:
         orient_bmfs = []         # freshly created faces to orient once the verts above have landed on the source
         select_now = []     # to be selected before move
         select_later = []   # to be selected after move
-        free_move = not self.constrain_edge_vert
+        free_move = self.state not in PP_KNIFE_SNAP_STATES or not self.constrain_edge_vert # only needed when knifing
 
         match self.state:
             case PP_Action.VERT:

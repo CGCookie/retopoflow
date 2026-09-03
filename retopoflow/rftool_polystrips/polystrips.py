@@ -48,7 +48,7 @@ from ...addon_common.common.utils import iter_pairs
 
 from .polystrips_logic import PolyStrips_Logic
 
-from ..rfoperators.quickswitch import RFOperator_Relax_QuickSwitch, RFOperator_Tweak_QuickSwitch
+from ..rfoperators.quickswitch import RFOperator_Relax_QuickSwitch, RFOperator_Tweak_QuickSwitch, RFOperator_LegacyPatches_QuickSwitch
 from ..rfoperators.transform import RFOperator_Translate, sync_projection_from_blender
 from ..rfoperators.maximize_watcher import RFOperator_MaximizeWatcher
 from ..rfoperators.topo_rotate import RFOperator_TopoRotate
@@ -705,6 +705,7 @@ class RFTool_PolyStrips(RFTool_Base):
         RFOperator_Translate,
         RFOperator_Relax_QuickSwitch,
         RFOperator_Tweak_QuickSwitch,
+        RFOperator_LegacyPatches_QuickSwitch,
         RFOperator_TopoRotate,
     )
 

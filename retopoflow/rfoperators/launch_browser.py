@@ -54,6 +54,9 @@ class RFOperator_Launch_Help(RFRegisterClass, bpy.types.Operator):
                 'tweak', 'relax',
             ]
         }
+        # the legacy tool's page keeps the plain patches name
+        tool_help_urls['retopoflow.legacy_patches'] = 'https://docs.retopoflow.com/v4/patches.html'
+
         fallback_url = 'https://docs.retopoflow.com/index.html'
 
         _ = bpy.ops.wm.url_open(
@@ -99,5 +102,3 @@ def unregister():
     for km, kmi in keymaps:
         km.keymap_items.remove(kmi)
     keymaps.clear()
-
-
