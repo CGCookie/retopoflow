@@ -69,27 +69,21 @@ from ..rfpanels.help_panel import draw_help_panel
 
 from ..preferences import RF_Prefs
 
-from .legacy_patches_logic import (
-    LegacyPatches_Logic, DrawGesture, PatchSettings, MAIN_OP_IDNAME, PATCH_SETTING_NAMES,
-    DEFAULT_SPLIT_ANGLE, DEFAULT_SMOOTH, DEFAULT_SPAN_MODE, DEFAULT_CROSSES, DEFAULT_SPAN_LENGTH,
-    DEFAULT_STEPS,
-)
+from .legacy_patches_logic import LegacyPatches_Logic, DrawGesture, PatchSettings, MAIN_OP_IDNAME, PATCH_SETTING_NAMES
 
 
-# The main operator never runs (there is no stroke or brush), so RFCore.km_context stays 'init'
-# and every keymap entry that should show in the status bar needs km_context 'init'.
+# The main operator never runs (there is no stroke or brush), so RFCore.km_context stays 'init' and
+# every keymap entry that should show in the status bar needs km_context 'init'.
 
 class LegacyPatches_Properties:
-    '''
-    Settings shared between the tool (where they are edited) and the fill operator (where the
-    redo panel edits them again after the fact). Kept in one place so the two cannot drift.
-    '''
+    ''' Settings shared by the tool, where they are edited, and the fill operator, where the redo
+    panel edits them again. '''
 
     split_angle: bpy.props.FloatProperty(
         name='Split Angle',
         description='How far the boundary must bend at a vertex for it to count as a corner between two strips',
         subtype='ANGLE',
-        default=DEFAULT_SPLIT_ANGLE,
+        default=PatchSettings.split_angle,
         min=0.17453293,     # 10 degrees
         max=2.35619449,     # 135 degrees
     )
@@ -99,11 +93,10 @@ class LegacyPatches_Properties:
         min=0,
         soft_max=10,
         max=50,
-        default=DEFAULT_SMOOTH,
+        default=PatchSettings.smooth,
     )
 
-    # how densely a two-sided patch (a bridge between parallel strips, or a loft between two
-    # loops) is filled across the gap. Mirrors the span methods in Contours.
+    # how densely a two-sided patch (a bridge or a loft) is filled across the gap; mirrors Contours
     span_insert_mode: bpy.props.EnumProperty(
         name='Span Count Method',
         description='Controls how many loops are created across a two-sided patch',
@@ -112,7 +105,7 @@ class LegacyPatches_Properties:
             ('AVERAGE', 'Average', 'Matches the average edge length of the two sides so the new quads stay even', 1),
             ('LENGTH',  'Length',  'Sizes each loop to match a world space distance', 2),
         ],
-        default=DEFAULT_SPAN_MODE,
+        default=PatchSettings.span_insert_mode,
     )
     crosses: bpy.props.IntProperty(
         name='Crosses',
@@ -120,53 +113,51 @@ class LegacyPatches_Properties:
         min=0,
         soft_max=32,
         max=256,
-        default=DEFAULT_CROSSES,
+        default=PatchSettings.crosses,
     )
     span_length: bpy.props.FloatProperty(
         name='Segment Length',
         description='World space distance for each loop across a two-sided patch',
-        default=DEFAULT_SPAN_LENGTH,
+        default=PatchSettings.span_length,
         min=0.001,
         soft_max=10.0,
         subtype='DISTANCE',
     )
 
-    # a loop whose sides are uneven, or that does not have four corners, is filled the way
-    # Blender's Grid Fill does it: as a rectangle of quads, with the corners placed around the loop
+    # a loop with uneven sides or without four corners is filled like Blender's Grid Fill
     solution: bpy.props.IntProperty(
         name='Solution',
         description='Which way to divide a grid filled loop into quads. 1 is the automatic choice; higher values flip through the alternatives and wrap round',
         min=1,
         soft_max=16,
-        default=1,
+        default=PatchSettings.solution,
     )
     offset: bpy.props.IntProperty(
         name='Offset',
         description='Rotate the four corners of a grid filled patch around its loop',
         soft_min=-32,
         soft_max=32,
-        default=0,
+        default=PatchSettings.offset,
     )
-    # a run of boundary edges with nothing to fill steps outward instead, by this many rows
     steps: bpy.props.IntProperty(
         name='Steps',
         description='Rows of quads to step outward from a boundary run that has nothing to fill',
         min=1,
         soft_max=16,
         max=256,
-        default=DEFAULT_STEPS,
+        default=PatchSettings.steps,
     )
     twist: bpy.props.IntProperty(
         name='Twist',
         description='Rotate which vertex of one loop pairs with which vertex of the other when lofting',
         soft_min=-32,
         soft_max=32,
-        default=0,
+        default=PatchSettings.twist,
     )
 
 
 class RFOperator_LegacyPatches(LegacyPatches_Properties, RFOperator):
-    # holds the tool's settings; the modal itself never runs
+    ''' Holds the tool's settings; the modal itself never runs. '''
     bl_idname = MAIN_OP_IDNAME
     bl_label = 'Patches'
     bl_description = 'Fill holes bounded by selected boundary edge strips'
@@ -196,8 +187,7 @@ class RFOperator_LegacyPatches_ToggleCorner(RFOperator_Invoke):
     bl_description : str = 'Toggle whether the hovered selected vertex is treated as a corner between strips'
     bl_options : BL_OPTIONS = { 'INTERNAL', 'UNDO', 'DEPENDS_ON_CURSOR' }
 
-    # No keymap of its own: Ctrl+LMB belongs to RFOperator_LegacyPatches_Draw, which invokes this
-    # when the click lands on a selected boundary vert
+    # no keymap of its own: RFOperator_LegacyPatches_Draw invokes this when a Ctrl+LMB click lands on a selected boundary vert
     rf_keymaps : RFKeyMaps = []
 
     def invoke(self, context : Context, event : Event) -> set[str]:
@@ -212,11 +202,9 @@ class RFOperator_LegacyPatches_Fill(LegacyPatches_Properties, RFOperator_Execute
     bl_description : str = 'Create the previewed patch geometry'
     bl_options : BL_OPTIONS = { 'INTERNAL', 'UNDO', 'REGISTER' }
 
-    # An unspecified modifier in a tool keymap means "not held", so the keys that have to work while
-    # Ctrl is down for the cursor pick need a Ctrl twin of their own. F deliberately has none: Ctrl+F
-    # is Blender's Face menu. Ctrl+LMB also fills, but it is not bound here: Blender only makes a
-    # CLICK when nothing took the press, so the click lives in RFOperator_LegacyPatches_Draw, the
-    # modal that owns the mouse while Ctrl is held, and that invokes this operator.
+    # An unspecified modifier in a tool keymap means "not held", so keys that must work while Ctrl is
+    # down for the cursor pick need a Ctrl twin. F has none: Ctrl+F is Blender's Face menu. Ctrl+LMB
+    # also fills, but lives in RFOperator_LegacyPatches_Draw, which owns the mouse while Ctrl is held.
     rf_keymaps : RFKeyMaps = [
         ( bl_idname, { 'type': 'F',            'value': 'PRESS' },
           {'km_context': 'init', 'km_label': 'Fill', 'km_poll': lambda _context: bool(LegacyPatches_Logic.previz)} ),
@@ -227,31 +215,25 @@ class RFOperator_LegacyPatches_Fill(LegacyPatches_Properties, RFOperator_Execute
     ]
 
     def invoke(self, context : Context, event : Event) -> set[str]:
-        # A fresh fill settles where the cursor was; a redo comes straight to execute and keeps that,
-        # so changing Smooth or Steps after the fact cannot flip a wire run over to its other side.
-        # Window space, to match what the overlay records.
+        # A fresh fill settles where the cursor was and whether Ctrl was down; a redo skips invoke and
+        # keeps both, so changing Smooth or Steps after the fact cannot flip a wire run to its other side.
+        # Once a quad is previewed it stays fillable, so Enter and the redo panel also count as Ctrl.
         LegacyPatches_Logic.mouse_locked = (event.mouse_x, event.mouse_y)
-        # `or nearest_active`: the Ctrl gate is about searching, not about filling. Once a quad is
-        # previewed it stays fillable, so Enter (which cannot carry Ctrl on its own entry) and the
-        # redo panel long afterwards both still rebuild it.
         LegacyPatches_Logic.ctrl_locked = (bool(event.ctrl) or LegacyPatches_Logic.nearest_active
                                            or LegacyPatches_Logic.ctrl_forced)
 
-        # With nothing previewed, hand the key on so Blender's own fill gets it. This has to be
-        # PASS_THROUGH from invoke, not a failing poll: Blender re-checks poll before repeating an
-        # operator, and after a fill the preview is empty, so a poll would refuse every redo.
+        # With nothing previewed, rebuild here: outside the tool no overlay keeps a preview alive, and
+        # inside it the overlay may not have drawn yet.
         if not LegacyPatches_Logic.previz or LegacyPatches_Logic.tool_props(context) is None:
-            # Work out the patch now. Outside the Patches tool there is no overlay keeping a preview
-            # alive, so whatever is cached is stale; inside it, an empty preview may simply mean the
-            # overlay has not drawn yet. Either way the fill does not need a preview to do its job.
             try:
                 LegacyPatches_Logic._recompute(context, LegacyPatches_Logic.read_settings(context))
             except ReferenceError:
                 LegacyPatches_Logic._clear_products()
+        # Still nothing: hand the key on so Blender's own fill gets it. This must be PASS_THROUGH from
+        # invoke, not a failing poll: Blender re-checks poll before a redo, when the preview is empty.
         if not LegacyPatches_Logic.previz:
             return { 'PASS_THROUGH' }
-        # a fresh fill starts from whatever the tool is set to; a redo skips invoke and comes
-        # straight to execute with the values the redo panel is showing
+        # a fresh fill starts from the tool's settings; a redo comes straight to execute with the redo panel's
         src = LegacyPatches_Logic.tool_props(context)
         if src:
             for name in PATCH_SETTING_NAMES:
@@ -259,17 +241,7 @@ class RFOperator_LegacyPatches_Fill(LegacyPatches_Properties, RFOperator_Execute
         return self.execute(context)
 
     def execute(self, context : Context) -> set[str]:
-        settings = PatchSettings(
-            split_angle = self.split_angle,
-            smooth      = self.smooth,
-            span_mode   = self.span_insert_mode,
-            crosses     = self.crosses,
-            span_length = self.span_length,
-            solution    = self.solution,
-            offset      = self.offset,
-            twist       = self.twist,
-            steps       = self.steps,
-        )
+        settings = PatchSettings(**{ name: getattr(self, name) for name in PATCH_SETTING_NAMES })
         if not LegacyPatches_Logic.fill(context, settings):
             self.report({'WARNING'}, 'Patches: nothing to fill. Select boundary edges forming a rectangle, L, C, two parallel strips, a single strip to step outward, or four vertices, or hold Ctrl and hover between four nearby vertices')
             return { 'CANCELLED' }
@@ -287,12 +259,10 @@ class RFOperator_LegacyPatches_Draw(RFOperator):
     ''' Owns the mouse while Ctrl is held: a click fills the previewed patch or toggles a corner, a
     drag draws a path and creates whatever the cursor passes over.
 
-    Why a modal and not a Ctrl+LMB keymap item: Blender puts every Ctrl+LMB action of its own on
-    CLICK and only synthesizes a CLICK when nothing took the PRESS, which made a plain CLICK binding
-    here unreliable. PolyPen, Strokes, Contours and PolyStrips all take Ctrl+LMB the same way this
-    does - a modal started by Ctrl PRESS that consumes the LMB PRESS and swallows the later CLICK
-    so Blender's shortest-path select cannot fire on it.
-    '''
+    A modal rather than a Ctrl+LMB keymap item because Blender only synthesizes a CLICK when nothing
+    took the PRESS, which made a CLICK binding unreliable. PolyPen, Strokes, Contours and PolyStrips
+    take Ctrl+LMB the same way: a modal started by Ctrl PRESS that consumes the LMB PRESS and
+    swallows the later CLICK so shortest-path select cannot fire on it. '''
     bl_idname : str = 'retopoflow.legacy_patches_draw'
     bl_label : str = 'Patches Draw'
     bl_description : str = 'Ctrl+LMB fills the previewed patch; Ctrl+LMB drag creates every patch the cursor passes over'
@@ -300,15 +270,12 @@ class RFOperator_LegacyPatches_Draw(RFOperator):
     bl_region_type : str = 'TOOLS'
     bl_options : BL_OPTIONS = { 'INTERNAL' }
 
-    # Patches rebuilds its preview from a draw callback and will not do so while it believes another
-    # operator is moving the mesh about. This one only reads the mouse.
-    rf_patches_passive : bool = True
+    rf_patches_passive : bool = True    # only reads the mouse, so the preview may keep rebuilding while this runs
 
     rf_keymaps : RFKeyMaps = [
         (bl_idname, {'type': 'LEFT_CTRL',  'value': 'PRESS'}, {'km_context': 'init', 'km_label': 'Pick / Draw'}),
         (bl_idname, {'type': 'RIGHT_CTRL', 'value': 'PRESS'}, None),
-        # Ctrl already down when the cursor enters the area
-        (bl_idname, {'type': 'MOUSEMOVE',  'value': 'ANY', 'ctrl': True}, None),
+        (bl_idname, {'type': 'MOUSEMOVE',  'value': 'ANY', 'ctrl': True}, None),    # Ctrl already down when the cursor enters the area
     ]
 
     gesture : DrawGesture | None = None
@@ -321,20 +288,75 @@ class RFOperator_LegacyPatches_Draw(RFOperator):
         self.gesture = DrawGesture()
 
     def finish(self, context : Context):
-        if self.gesture: self.gesture.finish(context)
+        if self.gesture: self.gesture.finish(context)    # closes any drag in progress
 
     def update(self, context : Context, event : Event) -> set[str]:
         if not event.ctrl:
-            return {'FINISHED'}     # finish() closes any drag in progress
+            return {'FINISHED'}
         ctrl_only = event_modifier_check(event, ctrl=True, shift=False, alt=False, oskey=False)
         assert self.gesture
         ret = self.gesture.handle(context, event, accept_press=ctrl_only)
         return ret if ret is not None else {'PASS_THROUGH'}
 
 
-# Ctrl+Scroll is the count knob and Shift+Scroll the offset knob, the same split Contours uses.
-# What each one drives depends on the selection: crosses and twist for a bridge or loft, span and
-# corner offset for a grid fill.
+# Ctrl+Scroll is the count knob and Shift+Scroll the offset knob, the same split Contours uses. What
+# each drives depends on the preview: crosses and twist for a bridge or loft, solution and corner
+# offset for a grid fill, steps for an offset. With nothing previewed, the fill just committed is
+# re-run with the changed value instead, collapsing onto one undo step so its redo panel stays live.
+
+def _refill_with(context : Context, last, **changes) -> bool:
+    props = { name: getattr(last, name) for name in PATCH_SETTING_NAMES }
+    props.update(changes)
+    bpy.ops.ed.undo()
+    return bpy.ops.retopoflow.legacy_patches_fill('EXEC_DEFAULT', True, **props) == {'FINISHED'}
+
+def _last_fill(context : Context):
+    ops = context.window_manager.operators
+    last = ops[-1] if ops else None
+    return last if last is not None and last.name == RFOperator_LegacyPatches_Fill.bl_label else None
+
+def _scroll_count(context : Context, sign : int):
+    L = LegacyPatches_Logic
+    if L.adjust_count(context, sign): return
+    last = _last_fill(context)
+    if last is None: return
+    was_bridge, was_grid, _, was_offset, was_quad = L.filled_flags
+    if was_bridge:
+        _refill_with(context, last, span_insert_mode='FIXED', crosses=max(0, L.filled_loops + sign))    # an explicit count stops deriving one
+    elif was_grid:
+        _refill_with(context, last, solution=(last.solution - 1 + sign) % L.filled_solutions + 1)
+    elif was_quad:
+        _refill_with(context, last, crosses=max(0, last.crosses + sign))
+    elif was_offset:
+        _refill_with(context, last, steps=max(1, last.steps + sign))   # a step normally leaves its next step previewed, so this only runs when that was refused
+
+def _scroll_offset(context : Context, sign : int):
+    L = LegacyPatches_Logic
+    if L.adjust_offset(context, sign): return
+    last = _last_fill(context)
+    if last is not None:
+        _, was_grid, was_loft, _, _ = L.filled_flags
+        if was_grid or was_loft:
+            which = 'offset' if was_grid else 'twist'
+            _refill_with(context, last, **{which: getattr(last, which) + sign})
+            return
+    # nothing of ours to turn: topo-rotate the selection, when that can actually happen (it needs
+    # selected faces with one closed perimeter, and raises or reports otherwise)
+    if not bpy.ops.retopoflow.toporotate.poll(): return
+    bm, _ = get_bmesh_emesh(context)
+    bmfs = bmops.get_all_selected_bmfaces(bm)
+    if not bmfs or not get_perimeter_bmedges(bmfs): return
+    offset = sign
+    ops = context.window_manager.operators
+    last = ops[-1] if ops else None
+    if last is not None and last.name == RFOperator_TopoRotate.bl_label:
+        offset = last.offset + sign          # consecutive scrolls collapse onto one undo step
+        bpy.ops.ed.undo()
+    try:
+        bpy.ops.retopoflow.toporotate('EXEC_DEFAULT', True, offset=offset)
+    except RuntimeError:
+        pass
+
 
 class RFOperator_LegacyPatches_CountDecrease(RFOperator_Execute):
     bl_idname : str = 'retopoflow.legacy_patches_count_decrease'
@@ -342,8 +364,8 @@ class RFOperator_LegacyPatches_CountDecrease(RFOperator_Execute):
     bl_description : str = 'Fill with one fewer segment across'
     bl_options : BL_OPTIONS = { 'INTERNAL' }
 
-    # The status bar shows one "Adjust Count" entry, so only this half of the pair is labeled.
-    # The arrows do the same job with one hand, which is what F held down leaves you.
+    # only this half of the pair is labeled, so the status bar shows one "Adjust Count" entry. The
+    # arrows do the same job with one hand, which is what holding F leaves you.
     rf_keymaps : RFKeyMaps = [
         ( bl_idname, { 'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'ctrl': 1 },
           {'km_context': 'init', 'km_label': 'Adjust Count',
@@ -352,7 +374,7 @@ class RFOperator_LegacyPatches_CountDecrease(RFOperator_Execute):
     ]
 
     def execute(self, context : Context) -> set[str]:
-        _ctrl_scroll(context, -1)
+        _scroll_count(context, -1)
         context.area.tag_redraw()
         return { 'FINISHED' }
 
@@ -369,80 +391,9 @@ class RFOperator_LegacyPatches_CountIncrease(RFOperator_Execute):
     ]
 
     def execute(self, context : Context) -> set[str]:
-        _ctrl_scroll(context, +1)
+        _scroll_count(context, +1)
         context.area.tag_redraw()
         return { 'FINISHED' }
-
-
-def _redo_fill_with(context : Context, last, **changes) -> bool:
-    ''' Re-run the fill just committed with some of its settings changed, collapsing onto one undo
-    step so the redo panel stays live and consecutive scrolls do not pile up undo history. '''
-    props = { name: getattr(last, name) for name in PATCH_SETTING_NAMES }
-    props.update(changes)
-    bpy.ops.ed.undo()
-    return bpy.ops.retopoflow.legacy_patches_fill('EXEC_DEFAULT', True, **props) == {'FINISHED'}
-
-
-def _ctrl_scroll(context : Context, sign : int):
-    ''' Ctrl+Scroll changes the count that applies: the previewed patch's crosses, solution or steps;
-    failing that, the same count on the fill just committed, while its redo panel is reachable. '''
-    L = LegacyPatches_Logic
-    if L.adjust_count(context, sign):
-        return
-    ops = context.window_manager.operators
-    last = ops[-1] if ops else None
-    if last is None or last.name != RFOperator_LegacyPatches_Fill.bl_label:
-        return
-    was_bridge, was_grid, _, was_offset, was_quad = L.filled_flags
-    if was_bridge:
-        # scrolling is an explicit count, so the re-run stops deriving one over the top of it
-        _redo_fill_with(context, last, span_insert_mode='FIXED', crosses=max(0, L.filled_loops + sign))
-    elif was_grid:
-        _redo_fill_with(context, last, solution=(last.solution - 1 + sign) % L.filled_solutions + 1)
-    elif was_quad:
-        _redo_fill_with(context, last, crosses=max(0, last.crosses + sign))
-    elif was_offset:
-        # a step normally leaves its next step previewed, so this only runs when that one was refused
-        _redo_fill_with(context, last, steps=max(1, last.steps + sign))
-
-
-def _shift_scroll(context : Context, sign : int):
-    ''' Shift+Scroll does the most useful rotation available, the way Contours' twist does:
-    turn the previewed patch's offset or twist; failing that, re-run the fill just committed with
-    its offset or twist changed, collapsing onto one undo step while the redo panel is still
-    reachable; failing that, topo-rotate the selection.
-    '''
-    L = LegacyPatches_Logic
-    if L.adjust_offset(context, sign):
-        return
-
-    ops = context.window_manager.operators
-    last = ops[-1] if ops else None
-
-    if last is not None and last.name == RFOperator_LegacyPatches_Fill.bl_label:
-        _, was_grid, was_loft, _, _ = L.filled_flags
-        if was_grid or was_loft:
-            which = 'offset' if was_grid else 'twist'
-            _redo_fill_with(context, last, **{which: getattr(last, which) + sign})
-            return
-
-    # Nothing of ours to turn: rotate the topology of whatever is selected instead, and only when
-    # that can actually happen. Topo Rotate needs selected faces with one closed perimeter; asking
-    # it otherwise raises or reports an error, and a scroll that applies to nothing should do nothing.
-    if not bpy.ops.retopoflow.toporotate.poll():
-        return
-    bm, _ = get_bmesh_emesh(context)
-    bmfs = bmops.get_all_selected_bmfaces(bm)
-    if not bmfs or not get_perimeter_bmedges(bmfs):
-        return
-    offset = sign
-    if last is not None and last.name == RFOperator_TopoRotate.bl_label:
-        offset = last.offset + sign          # consecutive scrolls collapse onto one undo step
-        bpy.ops.ed.undo()
-    try:
-        bpy.ops.retopoflow.toporotate('EXEC_DEFAULT', True, offset=offset)
-    except RuntimeError:
-        pass
 
 
 class RFOperator_LegacyPatches_OffsetDecrease(RFOperator_Execute):
@@ -456,7 +407,7 @@ class RFOperator_LegacyPatches_OffsetDecrease(RFOperator_Execute):
     ]
 
     def execute(self, context : Context) -> set[str]:
-        _shift_scroll(context, -1)
+        _scroll_offset(context, -1)
         context.area.tag_redraw()
         return { 'FINISHED' }
 
@@ -472,7 +423,7 @@ class RFOperator_LegacyPatches_OffsetIncrease(RFOperator_Execute):
     ]
 
     def execute(self, context : Context) -> set[str]:
-        _shift_scroll(context, +1)
+        _scroll_offset(context, +1)
         context.area.tag_redraw()
         return { 'FINISHED' }
 
@@ -509,18 +460,15 @@ class RFOperator_LegacyPatches_Overlay(RFOverlay_Base, RFOperator):
 
     def init(self, _context : Context, event : Event):
         LegacyPatches_Logic.reset_session()
-        # so a wire run can step toward the cursor before it has moved
-        LegacyPatches_Logic.mouse = (event.mouse_x, event.mouse_y)
+        LegacyPatches_Logic.mouse = (event.mouse_x, event.mouse_y)    # so a wire run can step toward the cursor before it moves
 
     def update(self, context : Context, event : Event) -> set[str]:
         if self.is_done(): return {'CANCELLED'}
-        # every event carries the modifier state, so Ctrl is picked up even when the mouse is still
-        redraw = LegacyPatches_Logic.track_ctrl(context, event)
+        redraw = LegacyPatches_Logic.track_ctrl(context, event)    # every event carries the modifier state
         if event.type in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE'}:
-            # passing an event through does not redraw, so a step that changed sides has to ask
             if LegacyPatches_Logic.track_mouse(context, event): redraw = True
         if redraw and context.area:
-            context.area.tag_redraw()
+            context.area.tag_redraw()    # passing an event through does not redraw on its own
         return {'PASS_THROUGH'}
 
     def draw_postpixel_overlay(self):
@@ -538,26 +486,13 @@ def draw_patches_props(layout : UILayout, props, *, header : bool, redo : bool =
     has_bridge, has_grid, has_loft, has_offset, has_quad = (
         L.filled_flags if redo else (L.has_bridge, L.has_grid, L.has_loft, L.has_offset, L.has_quad))
 
-    if header and not redo:
+    if header:
         row = layout.row(align=True)
         row.prop(props, 'span_insert_mode', text='')
         if props.span_insert_mode == 'LENGTH':
             row.prop(props, 'span_length', text='')
         elif props.span_insert_mode == 'FIXED':
             row.prop(props, 'crosses', text='')
-        layout.prop(props, 'split_angle', text='Split Angle')
-        layout.prop(props, 'smooth')
-        if has_quad:
-            layout.prop(props, 'crosses', text='Cuts')
-        if has_offset:
-            layout.prop(props, 'steps')
-        if has_grid:
-            layout.prop(props, 'solution', text='Solution')
-            layout.prop(props, 'offset', text='Offset')
-        if has_loft:
-            layout.prop(props, 'twist')
-        if LegacyPatches_Logic.has_manual_corners:
-            layout.operator(RFOperator_LegacyPatches_ClearCorners.bl_idname, icon='X')
     else:
         layout.use_property_decorate = False
         layout.use_property_split = True
@@ -567,21 +502,20 @@ def draw_patches_props(layout : UILayout, props, *, header : bool, redo : bool =
                 layout.prop(props, 'span_length', text='Distance')
             elif props.span_insert_mode == 'FIXED':
                 layout.prop(props, 'crosses', text='Count')
-        if not redo:
-            layout.prop(props, 'split_angle', text='Split Angle')
-        layout.prop(props, 'smooth')
-        if has_quad:
-            layout.prop(props, 'crosses', text='Cuts')
-        if has_offset:
-            layout.prop(props, 'steps')
-        if has_grid:
-            layout.prop(props, 'solution', text='Solution')
-            layout.prop(props, 'offset', text='Offset')
-        if has_loft:
-            layout.prop(props, 'twist')
-        if not redo:
-            if LegacyPatches_Logic.has_manual_corners:
-                layout.operator(RFOperator_LegacyPatches_ClearCorners.bl_idname, icon='X')
+    if not redo:
+        layout.prop(props, 'split_angle', text='Split Angle')
+    layout.prop(props, 'smooth')
+    if has_quad:
+        layout.prop(props, 'crosses', text='Cuts')
+    if has_offset:
+        layout.prop(props, 'steps')
+    if has_grid:
+        layout.prop(props, 'solution', text='Solution')
+        layout.prop(props, 'offset', text='Offset')
+    if has_loft:
+        layout.prop(props, 'twist')
+    if not redo and L.has_manual_corners:
+        layout.operator(RFOperator_LegacyPatches_ClearCorners.bl_idname, icon='X')
 
 
 class RFTool_LegacyPatches(RFTool_Base):
@@ -592,11 +526,11 @@ class RFTool_LegacyPatches(RFTool_Base):
     bl_widget : None = None
 
     rf_operator_idname : str | None = MAIN_OP_IDNAME
+    rf_overlay : type[RFOverlay_Base] | None = RFOperator_LegacyPatches_Overlay
 
     props = None  # needed to reset properties
 
-    # set while F is held from another tool: the artist is looking at a preview, not switching tools,
-    # so the select mode is left exactly as they had it
+    # set while F is held from another tool: a look at a preview, not a tool switch, so the select mode is left alone
     quick_switch : bool = False
 
     bl_keymap : BLKeyMaps = chain_rf_keymaps(
@@ -614,8 +548,6 @@ class RFTool_LegacyPatches(RFTool_Base):
         RFOperator_Relax_QuickSwitch,
         RFOperator_Tweak_QuickSwitch,
     )
-
-    rf_overlay : type[RFOverlay_Base] | None = RFOperator_LegacyPatches_Overlay
 
     @staticmethod
     def draw_settings(context : Context, layout : UILayout, tool : WorkSpaceTool):
@@ -654,14 +586,12 @@ class RFTool_LegacyPatches(RFTool_Base):
         prefs = RF_Prefs.get_prefs(context)
         cls.resetter = Resetter('LegacyPatches')
         if prefs.setup_selection_mode and not cls.quick_switch:
-            # v3 Patches worked on edge selections
-            cls.resetter['context.tool_settings.mesh_select_mode'] = [True, True, False]
+            cls.resetter['context.tool_settings.mesh_select_mode'] = [True, True, False]    # v3 Patches worked on edge selections
         LegacyPatches_Logic.reset_session()
 
     @classmethod
     def deactivate(cls, context : Context):
-        # don't leave the corner-override attribute behind in the user's mesh
-        LegacyPatches_Logic.clear_corners(context)
+        LegacyPatches_Logic.clear_corners(context)    # don't leave the corner-override layer in the user's mesh
         LegacyPatches_Logic.reset_session()
         if cls.resetter:
             cls.resetter.reset()
