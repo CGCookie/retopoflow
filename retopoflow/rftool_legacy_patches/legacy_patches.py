@@ -218,7 +218,7 @@ def fill_patches_owns_f(context : Context) -> bool:
 
 class RFOperator_LegacyPatches_Fill(LegacyPatches_Properties, RFOperator_Execute):
     bl_idname : str = 'retopoflow.legacy_patches_fill'
-    bl_label : str = 'Fill Patches'
+    bl_label : str = 'Auto Fill (Retopoflow)'
     bl_description : str = ('Fill the holes bounded by the selected boundary edges. '
                             'Whatever this cannot fill falls through to Blender\'s own New Edge/Face')
     bl_options : BL_OPTIONS = { 'UNDO', 'REGISTER' }
