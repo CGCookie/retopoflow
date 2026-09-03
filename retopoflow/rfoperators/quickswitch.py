@@ -147,6 +147,13 @@ class RFOperator_LegacyPatches_QuickSwitch(RFOperator):
         (bl_idname, {'type': 'F', 'value': 'PRESS'}, {'km_label': 'Fill Patch'}),
     ]
 
+    @classmethod
+    def can_start(cls, _context : Context) -> bool:
+        # Imported lazily. A module-level import here would run rftool_patches.patches as a
+        # side effect of importing this file, jumping Patches to the top of the toolbar.
+        from ..rftool_patches.patches import USE_NEW_PATCHES
+        return not USE_NEW_PATCHES
+
     prev_tool : str | None # pyright: ignore[reportUninitializedInstanceVariable]
     switched : bool # pyright: ignore[reportUninitializedInstanceVariable]
     restored : bool # pyright: ignore[reportUninitializedInstanceVariable]

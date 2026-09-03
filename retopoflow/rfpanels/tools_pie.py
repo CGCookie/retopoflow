@@ -3,7 +3,10 @@ from bpy.types import Menu
 from bpy.utils import previews
 
 from ..rftool_polypen.polypen import PolyPen_Insert_Modes
-# from ..rftool_patches.patches import Patches_Orientations
+from ..rftool_patches.patches import USE_NEW_PATCHES
+
+PATCHES_IDNAME = 'retopoflow.patches' if USE_NEW_PATCHES else 'retopoflow.legacy_patches'
+PATCHES_SWITCH_IDNAME = 'retopoflow.switch_to_patches' if USE_NEW_PATCHES else 'retopoflow.switch_to_legacy_patches'
 
 
 
@@ -141,15 +144,16 @@ class RFMenu_MT_ToolPie(Menu):
             row.prop(scene_props, 'include_corners')
             row.prop(scene_props, 'include_pinned')
 
-        elif tool.idname == 'retopoflow.legacy_patches':
-            from ..rftool_legacy_patches.legacy_patches import draw_patches_props
-            props = tool.operator_properties(tool.idname)
+        elif tool.idname == PATCHES_IDNAME:
             row = back.row()
             row.emboss = pie_emboss
             row.label(text='Patches')
-            section = back.box().column()
-            section.ui_units_x = 8
-            draw_patches_props(section, props, header=False)
+            if not USE_NEW_PATCHES:
+                from ..rftool_legacy_patches.legacy_patches import draw_patches_props
+                props = tool.operator_properties(tool.idname)
+                section = back.box().column()
+                section.ui_units_x = 8
+                draw_patches_props(section, props, header=False)
 
 
 
@@ -195,10 +199,10 @@ class RFMenu_MT_ToolPie(Menu):
 
         # Northeast
         _ = pie.operator(
-            'retopoflow.switch_to_legacy_patches',
+            PATCHES_SWITCH_IDNAME,
             text='Patches',
             icon_value=RF_icons['PATCHES'].icon_id,
-            depress=tool.idname=='retopoflow.legacy_patches',
+            depress=tool.idname==PATCHES_IDNAME,
         )
 
         # Southwest
