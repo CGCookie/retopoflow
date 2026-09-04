@@ -685,7 +685,7 @@ class Tweak_Logic(SourceSnapMixin):
             run_id = self.vert_feature_run.get(bmv)
             if run_id is None or run_id in exclude_runs: continue
             for bme in bmv.link_edges:
-                if self.vert_feature_run.get(bme.other_vert(bmv)) == run_id:
+                if self.neighbor_shares_run(bmv, bme.other_vert(bmv)):
                     run_edges.setdefault(run_id, set()).add(bme)
         return run_edges
 

@@ -27,7 +27,11 @@ from mathutils.bvhtree import BVHTree
 from bmesh.types import BMesh, BMVert, BMEdge
 
 import math
+import os
 import time
+import cProfile
+import pstats
+import io
 import numpy as np
 from math import isnan, inf, acos, tan
 from typing import Callable
@@ -72,6 +76,8 @@ from ..common.drawing import (
 from ...addon_common.terminal import term_printer
 from ...addon_common.common.maths import Point, sign_threshold, clamp_int, clamp
 from ...addon_common.common.colors import Color4
+
+PROFILE_RELAX = False
 
 
 @dataclass
@@ -415,6 +421,7 @@ class Relax_Logic(FeatureRunsMixin):
         self.vert_seed_seg = {}
         self.verts_near_source_edge = {}
         self.snapped_verts = set()
+        self.corner_occupants = {}  # source corner kd index -> BMVert sitting on it, re-validated on use
 
     @classmethod
     def for_options(cls, context:Context, relax, rf_options=None) -> 'Relax_Logic':
@@ -503,10 +510,13 @@ class Relax_Logic(FeatureRunsMixin):
             # A loop must never be elected onto a feature on the far side of a thin source.
             if bme.verts[0] not in self.verts_near_source_edge: continue
             if bme.verts[1] not in self.verts_near_source_edge: continue
-            r0 = self.vert_feature_run.get(bme.verts[0])
-            if r0 is None or r0 in exclude_runs: continue
-            if self.vert_feature_run.get(bme.verts[1]) != r0: continue
-            run_edges.setdefault(r0, []).append(bme)
+            # Try both endpoints as the anchor so a corner-labeled vert can still seed its partner's run.
+            for va, vb in ((bme.verts[0], bme.verts[1]), (bme.verts[1], bme.verts[0])):
+                ra = self.vert_feature_run.get(va)
+                if ra is None or ra in exclude_runs: continue
+                if not self.neighbor_shares_run(va, vb): continue
+                run_edges.setdefault(ra, []).append(bme)
+                break
         return run_edges
 
     def guide_anchor_co_local(self):
@@ -562,6 +572,9 @@ class Relax_Logic(FeatureRunsMixin):
         if not verts: return
         vert_strength = { bmv: self.brush.get_strength_Point(M @ bmv.co) for bmv in verts }
 
+        if PROFILE_RELAX:
+            if self._profiler is None: self._profiler = cProfile.Profile()
+            self._profiler.enable()
         self.relax_verts(
             context, verts, vert_strength,
             brush_center_world = brush_center_world,
@@ -571,6 +584,7 @@ class Relax_Logic(FeatureRunsMixin):
             time_delta         = time_delta,
             debug_print        = debug_print,
         )
+        if PROFILE_RELAX: self._profiler.disable()
 
     def relax_verts(self, context:Context, verts:'set[BMVert]', vert_strength:'dict[BMVert, float]', *,
                     iterations:'int|None'=None,
@@ -731,11 +745,10 @@ class Relax_Logic(FeatureRunsMixin):
 
         def edge_constrained_neighbors(bmv):
             ''' Neighbors riding the same feature run as bmv. '''
-            bmv_run = self.vert_feature_run.get(bmv)
             return [
                 other for bme in bmv.link_edges
                 if (other := bme.other_vert(bmv)) in self.verts_near_source_edge
-                and (bmv_run is None or self.vert_feature_run.get(other) == bmv_run)
+                and self.neighbor_shares_run(bmv, other)
             ]
 
         def get_edge_proj_dir(bmv):
@@ -801,11 +814,9 @@ class Relax_Logic(FeatureRunsMixin):
             edge_proj_dir = None # slide snapped vertices along source edges
             if self.verts_near_source_edge and bmv in self.verts_near_source_edge:
                 # A perpendicular neighbor on its own parallel feature must not contribute to this vert's along-edge direction.
-                bmv_run = self.vert_feature_run.get(bmv)
                 edge_nbrs = [
                     nb for nb in neighbors
-                    if nb in self.verts_near_source_edge
-                    and (bmv_run is None or self.vert_feature_run.get(nb) == bmv_run)
+                    if nb in self.verts_near_source_edge and self.neighbor_shares_run(bmv, nb)
                 ]
                 if len(edge_nbrs) >= 2:
                     v = edge_nbrs[-1].co - edge_nbrs[0].co
@@ -1468,6 +1479,8 @@ class Relax_Logic(FeatureRunsMixin):
                     dist = to_target.length
                     if dist < 1e-8:
                         continue
+                    if dist > self.bmv_avg_edge_len(bmv):
+                        continue
                     add_force(bmv, to_target * pull_strength)
 
                 elif bmv in self.demoted_verts:
@@ -1733,7 +1746,9 @@ class Relax_Logic(FeatureRunsMixin):
         # single_source below combines both with M/Mi so the snap loop never needs to build them per vert.
         source_xforms = [(obj_s, Mi_s @ M, M_s) for (obj_s, M_s, Mi_s, _) in self.sources]
         single_source = None
-        if len(self.sources) == 1 and not clip_active and not stickiness_active and snap_bvh is None:
+        # Feature snapping does not disable this. The feature block above runs first and the one
+        # later reader of co_world_snapped already falls back to M @ co_local_snapped.
+        if len(self.sources) == 1 and not clip_active and snap_bvh is None:
             obj_s, M_s, Mi_s, _ = self.sources[0]
             single_source = (obj_s, Mi_s @ M, Mi @ M_s)
 
@@ -1793,7 +1808,10 @@ class Relax_Logic(FeatureRunsMixin):
 
         for i in range(steps):
             self.avg_edge_len_cache.clear()
-            update_source_context()
+            # A brush frame re-derives the source context once. Non-brush callers run many
+            # steps with no frame in between, so they still refresh every step.
+            if i == 0 or not is_brush_call:
+                update_source_context()
             if relax.algorithm_method == 'RK4':
                 orig_flat : list[float] = []
                 for bmv in verts_list: orig_flat.extend(bmv.co)
@@ -1901,14 +1919,35 @@ class Relax_Logic(FeatureRunsMixin):
                     self.warned_limiting = True
                 break
 
-            # Pre-compute which verts occupy each source corner.
-            # Keyed by kd-tree index so two verts at the same corner share an id.
-            # Prevents snapping to a corner that a direct neighbor is already on.
-            vert_to_corner_idx = {}
+            # Which vert sits on each source corner, keyed by kd-tree index. Persisted across steps and
+            # frames so a vert that snapped to a corner mid-frame blocks every other vert right away,
+            # not just its direct neighbors, and re-validated on use since occupants can slide off.
+            corner_occupants = self.corner_occupants
             if self.source_edge_accel and self.verts_near_source_edge:
                 for corner_bmv in self.verts_near_source_edge:
                     if cr := source_corner_of_vert(corner_bmv, 0.05): # Tight fixed margin, 5% of local edge length
-                        vert_to_corner_idx[corner_bmv] = cr[1]
+                        corner_occupants[cr[1]] = corner_bmv
+
+            def corner_is_free(corner_idx, bmv):
+                occupant = corner_occupants.get(corner_idx)
+                if occupant is not None and occupant != bmv:
+                    if occupant.is_valid and (cr := source_corner_of_vert(occupant, 0.05)) and cr[1] == corner_idx:
+                        return False
+                    del corner_occupants[corner_idx]
+                # Verts excluded from relaxing never enter the near set, and a masked mesh corner is the
+                # usual corner occupant. Face-mates and edge neighbors cover every vert within the corner
+                # capture radius, so scan those too. Only runs when a corner is within reach.
+                for bmf in bmv.link_faces:
+                    for fv in bmf.verts:
+                        if fv != bmv and (cr := source_corner_of_vert(fv, 0.05)) and cr[1] == corner_idx:
+                            corner_occupants[corner_idx] = fv
+                            return False
+                for bme in bmv.link_edges:
+                    fv = bme.other_vert(bmv)
+                    if (cr := source_corner_of_vert(fv, 0.05)) and cr[1] == corner_idx:
+                        corner_occupants[corner_idx] = fv
+                        return False
+                return True
 
             local_norms = np.linalg.norm(disp_arr, axis=1)
             dists = local_norms * mult
@@ -2028,7 +2067,7 @@ class Relax_Logic(FeatureRunsMixin):
 
                 if co_world_snapped is None:
                     if single_source is not None:
-                        # Fast path. One source, no clipping, no feature snapping.
+                        # Fast path. One source, no clipping, and the vert did not feature-snap above.
                         # One combined transform in, the guarded C query, one combined transform out.
                         src_obj, to_src, to_edit = single_source
                         ok, hit_co, _n, _i = source_closest_point_on_mesh(src_obj, to_src @ co)
@@ -2099,15 +2138,12 @@ class Relax_Logic(FeatureRunsMixin):
                             # A vert with a known feature run may only be captured by corners on that run
                             # A corner of a parallel feature must not grab it.
                             if dist_corner < corner_threshold and self.corner_allowed_for_vert(bmv, co_corner):
-                                # Only snap to the corner if no direct neighbor is already there.
-                                neighbor_at_corner = any(
-                                    vert_to_corner_idx.get(bme.other_vert(bmv)) == corner_idx
-                                    for bme in bmv.link_edges
-                                )
-                                if not neighbor_at_corner:
+                                # Only snap to the corner if no other vert is already there.
+                                if corner_is_free(corner_idx, bmv):
                                     co_local_snapped  = Mi @ Vector(co_corner)
                                     snapped_to_corner = True
                                     self.snapped_verts.add(bmv)
+                                    corner_occupants[corner_idx] = bmv
                         if apply_edge_snap and not snapped_to_corner:
                             if closest_result := self.closest_on_own_run(bmv, co_world_pt):
                                 closest_p = Vector(closest_result[0])
@@ -2287,11 +2323,25 @@ class Relax_Logic(FeatureRunsMixin):
                     draw.vertex(pt1)
 
 
+    _profiler = None
+
+    def dump_profile(self):
+        if not self._profiler: return
+        for sort_key in ('cumulative', 'tottime'):
+            out = io.StringIO()
+            stats = pstats.Stats(self._profiler, stream=out).sort_stats(sort_key)
+            stats.print_stats(35)
+            print(f'\n===== Relax profile by {sort_key} =====')
+            print(out.getvalue())
+        self._profiler = None
+
     def finish(self, context):
+        self.dump_profile()
         bmesh.update_edit_mesh(self.em, loop_triangles=False)
         # context.area.tag_redraw()
 
     def cancel(self, context):
+        self.dump_profile()
         for (bmv, co) in self.prev_position.items():
             bmv.co = co
         bmesh.update_edit_mesh(self.em, loop_triangles=False)

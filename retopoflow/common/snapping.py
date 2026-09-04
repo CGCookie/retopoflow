@@ -276,6 +276,7 @@ class FeatureRunsMixin:
     guide_loop_seeds       : list  = []    # [(v0, v1)] persisted seed edges, one loop each
     verts_near_source_edge : dict  = {}    # BMVert -> local diff to nearest feature
     vert_seed_seg         : dict  = {}    # BMVert -> nearest source segment index (proximity-only)
+    _corner_memo           : dict  = {}    # BMVert -> is_on_source_corner, valid for one refresh_feature_runs pass
 
     # ------------------------------------------------------------------ knobs
 
@@ -338,7 +339,8 @@ class FeatureRunsMixin:
             if dist * self.scale_avg <= self.snap_proximity_world(bmv):
                 # Seeds feed the run labeling and deliberately skip the normal-facing gate below
                 self.vert_seed_seg[bmv] = seg_idx
-                if dist < 1e-8 or (diff / dist).dot(bmv.normal) > 0.3:
+                on_feature = dist * self.scale_avg <= self.corner_snap_threshold_world(bmv, 0.05)
+                if on_feature or (diff / dist).dot(bmv.normal) > 0.3:
                     result[bmv] = diff
         return result
 
@@ -349,6 +351,7 @@ class FeatureRunsMixin:
         self.vert_feature_run = {}
         self.run_segments = {}
         self.run_of_seg = {}
+        self._corner_memo = {}
         if not self.source_edge_accel or not self.vert_seed_seg:
             return
         avg_lens = [self.bmv_avg_edge_len(v) for v in self.vert_seed_seg if v.link_edges]
@@ -418,7 +421,12 @@ class FeatureRunsMixin:
         return None
 
     def is_on_source_corner(self, v) -> bool:
-        return self.source_corner_of_vert(v, self.corner_snap_threshold_world(v, 0.05)) is not None
+        # Loop election asks this for the same verts many times per pass (walks, terminal set, demotion).
+        on_corner = self._corner_memo.get(v)
+        if on_corner is None:
+            on_corner = self.source_corner_of_vert(v, self.corner_snap_threshold_world(v, 0.05)) is not None
+            self._corner_memo[v] = on_corner
+        return on_corner
 
     def is_on_source_edge(self, v) -> bool:
         # True if v currently lies on (within snap proximity of) a source feature edge.
@@ -445,6 +453,17 @@ class FeatureRunsMixin:
             for rid, other in self.run_segments.items() if rid != run_id
         )
 
+    def neighbor_shares_run(self, bmv, nb) -> bool:
+        ''' Whether nb counts as an along-feature neighbor of bmv. Runs stop at junctions, so a vert
+        sitting on a source corner is labeled with whichever adjoining run the BVH happened to return.
+        Such a vert belongs to every run meeting at its corner, otherwise a vert spanning two corners
+        (the middle of a short box edge) has no run-mates and never relaxes. '''
+        bmv_run = self.vert_feature_run.get(bmv)
+        if bmv_run is None or self.vert_feature_run.get(nb) == bmv_run:
+            return True
+        cr = self.source_corner_of_vert(nb, self.corner_snap_threshold_world(nb, 0.05))
+        return cr is not None and self.corner_allowed_for_vert(bmv, cr[0])
+
     # -------------------------------------------------------- loop election
 
     def is_loop_continuation(self, v) -> bool:
@@ -465,6 +484,21 @@ class FeatureRunsMixin:
             # On some feature with the loop's run unknown: spare, don't risk pushing it off.
             return run_id is None or v_run != run_id
 
+        def leaves_run(v):
+            ''' True when v is not riding the loop's run: it sits on a different run, or farther from
+            the run's segments than its own edge length. The walk is otherwise topological, so without
+            this a boundary loop follows the mesh around a source corner onto the next face and every
+            vert there gets pulled back to the corner. '''
+            if run_id is None: return False
+            v_run = self.feature_run_at(v)
+            if v_run is not None: return v_run != run_id
+            segs = self.run_segments.get(run_id)
+            if not segs: return False
+            v_world = local_to_world(v.co, self.matrix_world)
+            result = self.source_edge_accel.closest_point_in_segments(v_world, segs)
+            if not result: return False
+            return (Vector(result[0]) - v_world).length > self.bmv_avg_edge_len(v) * self.scale_avg
+
         promoted = set()
         limit = 100
         def walk_from(cur, prev):
@@ -473,7 +507,7 @@ class FeatureRunsMixin:
                 promoted.add(cur)
                 if not self.is_loop_continuation(cur): break
                 nxt = get_bmv_next_loop_vert(prev, cur)
-                if nxt is None: break
+                if nxt is None or leaves_run(nxt): break
                 prev, cur = cur, nxt
 
         walk_from(v0, v1)
