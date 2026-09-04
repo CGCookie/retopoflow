@@ -593,6 +593,11 @@ def draw_patches_props(layout : UILayout, props, *, header : bool, redo : bool =
     has_bridge, has_grid, has_loft, has_offset, has_quad = (
         L.filled_flags if redo else (L.has_bridge, L.has_grid, L.has_loft, L.has_offset, L.has_quad))
 
+    if not header:
+        layout = layout.column()
+        layout.use_property_split = True
+        layout.use_property_decorate = False
+
     if header:
         row = layout.row(align=True)
         row.prop(props, 'span_insert_mode', text='')
@@ -601,8 +606,6 @@ def draw_patches_props(layout : UILayout, props, *, header : bool, redo : bool =
         elif props.span_insert_mode == 'FIXED':
             row.prop(props, 'crosses', text='')
     else:
-        layout.use_property_decorate = False
-        layout.use_property_split = True
         if not redo or has_bridge:
             layout.prop(props, 'span_insert_mode', text='Method')
             if props.span_insert_mode == 'LENGTH':

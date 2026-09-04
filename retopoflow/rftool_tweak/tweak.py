@@ -281,6 +281,20 @@ def switch_rftool(context):
     RFTool_Tweak.activate_tool(context)
 
 
+def draw_tweak_options(context, layout, props):
+    layout = layout.column()
+    layout.use_property_split = True
+    layout.use_property_decorate = False
+    layout.prop(props, 'brush_radius')
+    layout.prop(props, 'brush_strength', slider=True)
+    layout.prop(props, 'brush_falloff', slider=True)
+    layout.prop(props, 'brush_type', expand=True)
+    if props.brush_type == 'NUDGE':
+        layout.row().prop(props, 'nudge_loops', toggle=False)
+    if props.brush_type == 'PINCH_MAGNIFY':
+        layout.row().prop(props, 'pinch_magnify_mode', expand=True, text=' ')
+
+
 class RFTool_Tweak(RFTool_Base):
     bl_idname : str = "retopoflow.tweak"
     bl_label : str = "Tweak"
@@ -325,14 +339,7 @@ class RFTool_Tweak(RFTool_Base):
             header, panel = layout.panel(idname='tweak_brush_panel', default_closed=False)
             header.label(text="Brush")
             if panel:
-                panel.prop(props_tweak, 'brush_radius')
-                panel.prop(props_tweak, 'brush_strength', slider=True)
-                panel.prop(props_tweak, 'brush_falloff', slider=True)
-                panel.prop(props_tweak, 'brush_type', expand=True)
-                if props_tweak.brush_type == 'NUDGE':
-                    panel.row().prop(props_tweak, 'nudge_loops', toggle=False)
-                if props_tweak.brush_type == 'PINCH_MAGNIFY':
-                    panel.row().prop(props_tweak, 'pinch_magnify_mode', expand=True, text=' ')
+                draw_tweak_options(context, panel, props_tweak)
             draw_tool_panels(context, layout, tweaking=False, guide_loops=True)
 
         else:

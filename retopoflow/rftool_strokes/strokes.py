@@ -591,6 +591,26 @@ def switch_rftool(context):
 
 
 
+def draw_strokes_options(context, layout, props):
+    layout = layout.column()
+    layout.use_property_split = True
+    layout.use_property_decorate = False
+    layout.prop(props, 'span_insert_mode', text='Method')
+    if props.span_insert_mode == 'FIXED':
+        layout.prop(props, 'cut_count', text="Count")
+    elif props.span_insert_mode == 'LENGTH':
+        layout.prop(props, 'span_length', text="Length")
+    else:
+        layout.prop(props, 'brush_radius', text="Radius")
+    layout.prop(props, 'snap_radius', text="Snap")
+    layout.prop(props, 'stroke_smoothing', text='Stabilize', slider=True)
+    col = layout.column(align=True)
+    col.prop(props, 'smooth_density0', text='Spacing Start', slider=True)
+    col.prop(props, 'smooth_density1', text='End', slider=True)
+    layout.prop(props, 'smooth_angle', text='Blending', slider=True)
+    layout.prop(props, 'extrapolate_mode', text='Extrusions')
+
+
 class RFTool_Strokes(RFTool_Base):
     bl_idname = "retopoflow.strokes"
     bl_label = "Strokes"
@@ -643,20 +663,7 @@ class RFTool_Strokes(RFTool_Base):
             header, panel = layout.panel(idname='strokes_spans_panel', default_closed=False)
             header.label(text="Insert")
             if panel:
-                panel.prop(props_strokes, 'span_insert_mode', text='Method')
-                if props_strokes.span_insert_mode == 'FIXED':
-                    panel.prop(props_strokes, 'cut_count', text="Count")
-                elif props_strokes.span_insert_mode == 'LENGTH':
-                    panel.prop(props_strokes, 'span_length', text="Length")
-                else:
-                    panel.prop(props_strokes, 'brush_radius', text="Radius")
-                panel.prop(props_strokes, 'snap_radius', text="Snap")
-                panel.prop(props_strokes, 'stroke_smoothing', text='Stabilize', slider=True)
-                col = panel.column(align=True)
-                col.prop(props_strokes, 'smooth_density0', text='Spacing Start', slider=True)
-                col.prop(props_strokes, 'smooth_density1', text='End', slider=True)
-                panel.prop(props_strokes, 'smooth_angle', text='Blending', slider=True)
-                panel.prop(props_strokes, 'extrapolate_mode', text='Extrusions')
+                draw_strokes_options(context, panel, props_strokes)
             draw_tool_panels(context, layout)
 
     @classmethod
