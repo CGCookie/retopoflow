@@ -79,7 +79,7 @@ from .rfpanels import (
     # MUST IMPORT THIS _AFTER_ THE RFTOOLS ABOVE TO MAINTAIN ORDER!
     general_panel, help_panel, menu_mesh, mesh_cleanup_panel, masking_panel, mirror_panel,
     relax_algorithm_panel, tweaking_panel, rfpanel_snapping, tools_pie, rfmenu_context,
-    rfpanel_countours_method, rfpanel_stroke,
+    rfpanel_countours_method, rfpanel_stroke, tool_options_panel,
 )
 
 from . import preferences
@@ -173,6 +173,7 @@ class RFCore:
         RFRegisterClass.register_all()
         RFAssetShelf.register_all()
         mesh_cleanup_panel.register()
+        tool_options_panel.register()
         tweaking_panel.register()
         masking_panel.register()
         general_panel.register()
@@ -289,6 +290,7 @@ class RFCore:
         RFRegisterClass.unregister_all()
         RFOperator_Base.unregister_all()
         RFTool_Base.unregister_all()
+        tool_options_panel.unregister()
         mesh_cleanup_panel.unregister()
         tweaking_panel.unregister()
         masking_panel.unregister()

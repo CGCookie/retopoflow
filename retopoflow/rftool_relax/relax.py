@@ -264,6 +264,15 @@ def switch_rftool(context):
     RFTool_Relax.activate_tool(context)
 
 
+def draw_relax_options(context, layout, props):
+    layout = layout.column()
+    layout.use_property_split = True
+    layout.use_property_decorate = False
+    layout.prop(props, 'brush_radius')
+    layout.prop(props, 'brush_strength', slider=True)
+    layout.prop(props, 'brush_falloff', slider=True)
+
+
 class RFTool_Relax(RFTool_Base):
     bl_idname = "retopoflow.relax"
     bl_label = "Relax"
@@ -303,9 +312,7 @@ class RFTool_Relax(RFTool_Base):
             header, panel = layout.panel(idname='relax_brush_panel', default_closed=False)
             header.label(text="Brush")
             if panel:
-                panel.prop(props_relax, 'brush_radius')
-                panel.prop(props_relax, 'brush_strength', slider=True)
-                panel.prop(props_relax, 'brush_falloff', slider=True)
+                draw_relax_options(context, panel, props_relax)
             draw_relax_algo_panel(context, layout)
             draw_tool_panels(context, layout, tweaking=False, guide_loops=True)
 

@@ -337,6 +337,7 @@ def draw_contours_method_options(context, layout, props, redo=None):
 
 
 def draw_contours_props(context, layout, props, redo):
+    layout = layout.column()
     layout.use_property_split = True
     layout.use_property_decorate = False
     if redo and redo.action not in ['Loop Cut', 'Strip Cut']:

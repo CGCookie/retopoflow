@@ -681,6 +681,21 @@ RFOperator_PolyStrips_ToggleHandleType = create_curve_toggle_handle_type_operato
 )
 
 
+def draw_polystrips_options(context, layout, props):
+    layout = layout.column()
+    layout.use_property_split = True
+    layout.use_property_decorate = False
+    layout.prop(props, 'size_mode', text='Method')
+    if props.size_mode == 'FIXED':
+        layout.prop(props, 'fixed_count', text="Count")
+    elif props.size_mode == 'LENGTH':
+        layout.prop(props, 'span_length', text="Length")
+    else:
+        layout.prop(props, 'brush_radius', text="Radius")
+    layout.prop(props, 'stroke_smoothing', slider=True)
+    layout.prop(props, 'split_angle')
+
+
 class RFTool_PolyStrips(RFTool_Base):
     bl_idname : str = "retopoflow.polystrips"
     bl_label : str = "PolyStrips"
@@ -731,15 +746,7 @@ class RFTool_PolyStrips(RFTool_Base):
             header, panel = layout.panel(idname='polystrips_spans_panel', default_closed=False)
             header.label(text="Insert")
             if panel:
-                panel.prop(props_polystrips, 'size_mode', text='Method')
-                if props_polystrips.size_mode == 'FIXED':
-                    panel.prop(props_polystrips, 'fixed_count', text="Count")
-                elif props_polystrips.size_mode == 'LENGTH':
-                    panel.prop(props_polystrips, 'span_length', text="Length")
-                else:
-                    panel.prop(props_polystrips, 'brush_radius', text="Radius")
-                panel.prop(props_polystrips, 'stroke_smoothing', slider=True)
-                panel.prop(props_polystrips, 'split_angle')
+                draw_polystrips_options(context, panel, props_polystrips)
             draw_tool_panels(context, layout)
 
     @classmethod

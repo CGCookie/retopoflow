@@ -116,35 +116,6 @@ class PolyPen_Quad_Stability:
     quad_stability : float = 1
 
     @staticmethod
-    def generate_operators():
-        ops_insert : list[tuple[str,str]] = []
-
-        def gen_quad_stability(idname : str, value : float):
-            nonlocal ops_insert
-
-            rf_idname = f'retopoflow.polypen_quad_stability_{idname.lower()}'
-            rf_label = f'{value}'
-
-            class RFTool_OT_PolyPen_SetQuadStability:
-                bl_idname : str = rf_idname
-                bl_label : str = rf_label
-                bl_description : str = f'Set PolyPen Quad Stability to {value}'
-
-                def execute(self, context : Context) -> set[str]:
-                    PolyPen_Quad_Stability.set_quad_stability(value)
-                    context.area.tag_redraw()
-                    return {'FINISHED'}
-
-            opname = f'RFTool_OT_PolyPen_SetQuadStability_{idname}'
-            op = type(opname, (RFTool_OT_PolyPen_SetQuadStability, RFRegisterClass, bpy.types.Operator), {})
-            ops_insert += [(rf_idname, rf_label)]
-
-        gen_quad_stability('quarter', 0.25)
-        gen_quad_stability('half', 0.5)
-        gen_quad_stability('threequarters', 0.75)
-        gen_quad_stability('full', 1.0)
-
-    @staticmethod
     def get_quad_stability():
         return PolyPen_Quad_Stability.quad_stability
 
@@ -156,7 +127,6 @@ class PolyPen_Quad_Stability:
 # TODO: DO NOT CALL THIS HERE!  SHOULD ONLY GET CALLED ONCE
 #       COULD POTENTIALLY CREATE MULTIPLE OPERATORS WITH SAME NAME
 PolyPen_Insert_Modes.generate_operators()
-PolyPen_Quad_Stability.generate_operators()
 
 
 class RFOperator_PolyPen(RFOperator):
@@ -369,6 +339,21 @@ RFOperator_PolyPen_ToggleHandleType = create_curve_toggle_handle_type_operator(
 )
 
 
+def draw_polypen_options(context, layout, props):
+    """PolyPen's own insert settings, shared by its sidebar panel and its pie popover."""
+    layout = layout.column()
+    layout.use_property_split = True
+    layout.use_property_decorate = False
+    layout.prop(props, 'insert_mode', text='Method', expand=True)
+    if props.insert_mode == 'QUAD-ONLY':
+        layout.prop(props, 'quad_stability', slider=True)
+    col = layout.column(align=True)
+    col.row(heading='Knife').prop(props, 'constrain_edge_vert', text='Constrain')
+    col.prop(props, 'use_loop_cuts', text='Loop Cuts')
+    if props.insert_mode in ('TRI/QUAD', 'QUAD-ONLY'):
+        col.prop(props, 'quad_preserve', text='Junctions')
+
+
 class RFTool_PolyPen(RFTool_Base):
     bl_idname : str = "retopoflow.polypen"
     bl_label : str = "PolyPen"
@@ -419,14 +404,7 @@ class RFTool_PolyPen(RFTool_Base):
             header, panel = layout.panel(idname='polypen_insert_panel', default_closed=False)
             header.label(text="Insert")
             if panel:
-                panel.prop(props_polypen, 'insert_mode', text='Method', expand=True)
-                if props_polypen.insert_mode == 'QUAD-ONLY':
-                    panel.prop(props_polypen, 'quad_stability', slider=True)
-                col = panel.column(align=True)
-                col.row(heading='Knife').prop(props_polypen, 'constrain_edge_vert', text='Constrain')
-                col.prop(props_polypen, 'use_loop_cuts', text='Loop Cuts')
-                if props_polypen.insert_mode in ('TRI/QUAD', 'QUAD-ONLY'):
-                    col.prop(props_polypen, 'quad_preserve', text='Junctions')
+                draw_polypen_options(context, panel, props_polypen)
             draw_tool_panels(context, layout)
 
     @classmethod

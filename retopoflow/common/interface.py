@@ -107,11 +107,19 @@ def draw_tool_panels(context : Context, layout : UILayout, *, tweaking : bool = 
     draw_help_panel(context, layout)
 
 
+def _region_width_is_layout_width(context : Context) -> bool:
+    """ Whether context.region.width describes the space the layout actually gets. """
+    region, space = context.region, context.space_data
+    if not region: return False
+    if region.type == 'UI': return True
+    return region.type == 'WINDOW' and space is not None and space.type == 'PROPERTIES'
+
+
 def draw_expandable_enum(context : Context, layout : UILayout, props : OperatorProperties, prop_name:str, breakpoint:int=750, text:str|None=None):
     if text == None:
         text = props.bl_rna.properties[prop_name].name
 
-    if context.region.width < breakpoint or context.region.type == 'TOOL_HEADER':
+    if not _region_width_is_layout_width(context) or context.region.width < breakpoint:
         layout.prop(props, prop_name, text=text)
     else:
         layout.row().prop(props, prop_name, text=text, expand=True)

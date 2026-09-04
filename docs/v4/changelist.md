@@ -85,6 +85,7 @@ This document contains details about what has changed in Retopoflow in version 4
 - Tools statusbar now shows the result of Blender operations such as Merge by Distance
 - Added new custom icon for Loops tweaking in tool header
 - Cleaned up tool header UI
+- Added more tool options to the pie menu (default `W`)
 - Improved extrude vs. knife decision tree in PolyPen
 - Improved automatically switching between screen space and world space snapping
 - Improved normal calculations when transforming or creating new geo
