@@ -71,14 +71,8 @@ from ..rfoperators.transform import sync_projection_from_blender
 from ..rfoperators.topo_rotate import RFOperator_TopoRotate
 from ..rfbrushes.falloff_brush import create_falloff_brush
 
-from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
-from ..rfpanels.masking_panel import draw_masking_panel
 from ..rfpanels.relax_algorithm_panel import draw_relax_algo_panel
-from ..rfpanels.general_panel import draw_general_panel
-from ..rfpanels.mirror_panel import draw_mirror_panel, draw_mirror_popover
-from ..rfpanels.help_panel import draw_help_panel
-from ..rfpanels.rfpanel_snapping import draw_snapping_panel
-from ..common.interface import draw_line_separator
+from ..common.interface import draw_tool_settings, draw_tool_panels
 
 from ..preferences import RF_Prefs
 
@@ -294,8 +288,6 @@ class RFTool_Relax(RFTool_Base):
     def draw_settings(context:Context, layout:UILayout, tool:WorkSpaceTool):
         props_relax = tool.operator_properties(RFOperator_Relax.bl_idname)
         RFTool_Relax.props = props_relax
-        props_scene = context.scene.retopoflow
-        prefs = RF_Prefs.get_prefs(context)
 
         # TOOL_HEADER: 3d view > toolbar
         # UI: 3d view > n-panel
@@ -305,34 +297,7 @@ class RFTool_Relax(RFTool_Base):
             layout.prop(props_relax, 'brush_radius')
             layout.prop(props_relax, 'brush_strength', slider=True)
             layout.popover('RF_PT_RelaxAlgorithm')
-
-            if prefs.expand_masking:
-                draw_line_separator(layout)
-                layout.row(heading='Selected:', align=True).prop(props_scene, 'mask_selected', expand=True, icon_only=True)
-                layout.separator()
-                layout.row(heading='Boundary:', align=True).prop(props_scene, 'mask_boundary', expand=True, icon_only=True)
-                # layout.prop(props_scene, 'mask_symmetry', text="Symmetry")  # TODO: Implement
-                layout.separator()
-                if prefs.setup_pinning:
-                    row = layout.row(align=True)
-                    row.operator('retopoflow.pinverts', text='', icon='PINNED')
-                    row.operator('retopoflow.unpinverts', text='', icon='UNPINNED')
-                    row.popover('RF_PT_Pinning', text='Masking')
-                else:
-                    layout.popover('RF_PT_Pinning', text='Masking')
-            else:
-                layout.popover('RF_PT_Masking')
-
-            draw_line_separator(layout)
-            layout.popover('RF_PT_Snapping', text='Snapping')
-            row = layout.row(align=True)
-            row.popover('RF_PT_MeshCleanup', text='Clean Up')
-            row.operator("retopoflow.meshcleanup", text='', icon='PLAY').affect_all=False
-            draw_mirror_popover(context, layout)
-            if prefs.expand_offset:
-                layout.prop(context.scene.retopoflow, 'retopo_offset', text='Overlay Offset')
-            layout.popover('RF_PT_General', text='', icon='OPTIONS')
-            layout.popover('RF_PT_Help', text='', icon='INFO_LARGE' if bpy.app.version >= (4,3,0) else 'INFO')
+            draw_tool_settings(context, layout, masking=True)
 
         elif context.region.type in {'UI', 'WINDOW'}:
             header, panel = layout.panel(idname='relax_brush_panel', default_closed=False)
@@ -342,12 +307,7 @@ class RFTool_Relax(RFTool_Base):
                 panel.prop(props_relax, 'brush_strength', slider=True)
                 panel.prop(props_relax, 'brush_falloff', slider=True)
             draw_relax_algo_panel(context, layout)
-            draw_masking_panel(context, layout)
-            draw_snapping_panel(context, layout, idname='relax_snapping_panel', guide_loops=True)
-            draw_cleanup_panel(context, layout)
-            draw_mirror_panel(context, layout)
-            draw_general_panel(context, layout)
-            draw_help_panel(context, layout)
+            draw_tool_panels(context, layout, tweaking=False, guide_loops=True)
 
         else:
             print(f'RFTool_Relax.draw_settings: {context.region.type=}')

@@ -45,7 +45,6 @@ def draw_pinning_options(context, layout):
     if prefs.setup_pinning:
         layout.prop(props, 'include_pinned')
 
-    prefs = RF_Prefs.get_prefs(context)
     if prefs.setup_pinning:
         layout.separator()
         row = layout.row()
@@ -75,8 +74,17 @@ def draw_masking_options(context, layout):
     draw_pinning_options(context, layout)
 
 def draw_masking_panel(context, layout):
-    header, panel = layout.panel(idname='tweak_panel_common', default_closed=False)
-    header.label(text="Masking")
+    header, panel = layout.panel(idname='masking_panel', default_closed=False)
+    # outside the brush tools these settings only affect Tweak and Relax, so say so
+    tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
+    is_brush_tool = tool and tool.idname in {'retopoflow.tweak', 'retopoflow.relax'}
+    header.label(text="Masking" if is_brush_tool else "Brush Masking")
+    # pin/unpin only in the header while collapsed; the open panel has its own pair
+    if not panel and RF_Prefs.get_prefs(context).setup_pinning:
+        sub = header.row(align=True)
+        sub.alignment = 'RIGHT'
+        sub.operator('retopoflow.pinverts', text='', icon='PINNED')
+        sub.operator('retopoflow.unpinverts', text='', icon='UNPINNED')
     if panel:
         draw_masking_options(context, panel)
 

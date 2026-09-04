@@ -58,7 +58,7 @@ def draw_active_tool_options(context, layout):
     if loops:
         col = layout.column()
         draw_section_header(context, col, tool_props.bl_rna.name)
-        col.prop(tool_props, 'select_loops', text='Loops Mode')
+        col.prop(tool_props, 'select_loops', text='Loops Mode') # icon_value=Icon.LOOP.icon_id
         col.separator()
 
 
@@ -92,7 +92,7 @@ def draw_tweaking_options(context : Context, layout : UILayout):
         header, panel = layout.panel(idname='RF_curve_handles', default_closed=False)
         curve_props = context.scene.retopoflow.curve_handles
         header.use_property_split = False
-        header.prop(tool_props, 'show_curve_handles', text='Curve Handles')
+        header.prop(tool_props, 'show_curve_handles', text='Curve Handles', toggle=False) # icon='IPO_BEZIER',
         if panel:
             sub = panel.column()
             sub.enabled = tool_props.show_curve_handles
@@ -113,6 +113,16 @@ def draw_tweaking_options(context : Context, layout : UILayout):
 def draw_tweaking_panel(context : Context, layout : UILayout):
     header, panel = layout.panel(idname='tweak_panel_common', default_closed=True)
     header.label(text="Tweaking")
+    # toggles only in the header while collapsed; the open panel draws them itself
+    if not panel:
+        _, tool_props = _active_rftool(context)
+        loops = hasattr(tool_props, 'select_loops')
+        curves = hasattr(tool_props, 'show_curve_handles')
+        if loops or curves:
+            sub = header.row(align=True)
+            sub.alignment = 'RIGHT'
+            if loops: sub.prop(tool_props, 'select_loops', text='', toggle=True, icon_value=Icon.LOOP.icon_id)
+            if curves: sub.prop(tool_props, 'show_curve_handles', text='', toggle=True, icon='IPO_BEZIER')
     if panel:
         draw_tweaking_options(context, panel)
 

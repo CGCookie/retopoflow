@@ -287,10 +287,17 @@ class RFOperator_Translate(SourceSnapMixin, RFOperator):
             if snapping.snap_face_center and bpy.app.version >= (5, 1, 0):
                 new_base.add('FACE_MIDPOINT')
 
-            if self.snap_method == 'PROJECTED':
-                bpy.ops.transform.translate('INVOKE_DEFAULT', use_snap_project=True, snap_elements=new_base)
-            elif self.snap_method == 'NEAREST':
-                bpy.ops.transform.translate('INVOKE_DEFAULT', use_snap_project=False, snap_elements=new_base)
+            if self.tweaking_projection == 'FOLLOW_BLENDER':
+                bpy.ops.transform.translate('INVOKE_DEFAULT')
+            else:
+                projected = (self.snap_method == 'PROJECTED')
+                snap_elements = new_base | {'FACE_PROJECT' if projected else 'FACE_NEAREST'}
+                bpy.ops.transform.translate(
+                    'INVOKE_DEFAULT',
+                    snap=True,
+                    snap_elements=snap_elements,
+                    use_snap_project=projected,
+                )
 
         # gather neighboring geo
         if self.bmvs and context.tool_settings.use_proportional_edit:
@@ -326,11 +333,12 @@ class RFOperator_Translate(SourceSnapMixin, RFOperator):
         # Source feature snapping
         self.scale_avg = sum(self.matrix_world.to_scale()) / 3
         snapping = context.scene.retopoflow.snapping
-        self.source_edge_accel = SourceCache.get(context)
+        # Skip while native transform is true, it can't use it
+        self.source_edge_accel = SourceCache.get(context) if self.use_native != 'TRUE' else None
         self.source_use_fixed, self.source_fixed_distance, self.source_sharp_proximity = source_snap_settings(context)
         self.stickiness = getattr(snapping, 'source_edge_stickiness', 0.5) if self.source_edge_accel else 0.0
         self.snap_init_state()
-        grabbed_bmvs = [bmv for bmv in self.bmvs if bmv in self.data and self.data[bmv] == 0.0]
+        grabbed_bmvs = [bmv for bmv in self.bmvs if bmv in self.data and self.data[bmv] == 0.0] if self.source_edge_accel else []
         if self.source_edge_accel and grabbed_bmvs:
             avg_lens = [get_bmv_avg_edge_len(bmv) for bmv in grabbed_bmvs if bmv.link_edges]
             stroke_avg = (sum(avg_lens) / len(avg_lens)) if avg_lens else 1.0

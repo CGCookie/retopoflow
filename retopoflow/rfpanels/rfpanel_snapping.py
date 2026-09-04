@@ -52,11 +52,11 @@ def draw_source_cache_controls(context, layout):
         header.separator()
     if panel:
         panel.prop(snapping, 'source_feature_auto_rebuild', text='Auto Rebuild')
-        panel.prop(snapping, 'source_feature_batch_power', text='Chunk Size')
-        row = panel.row()
-        row.alignment = 'RIGHT'
-        power = int(getattr(snapping, 'source_feature_batch_power', 3))
-        row.label(text=f'{12 ** power:,} verts per frame')
+        # panel.prop(snapping, 'source_feature_batch_power', text='Chunk Size')
+        # row = panel.row()
+        # row.alignment = 'RIGHT'
+        # power = int(getattr(snapping, 'source_feature_batch_power', 3))
+        # row.label(text=f'{12 ** power:,} verts per frame')
 
         panel.separator()
         draw_source_build_button(panel, all_names)
@@ -124,28 +124,8 @@ def draw_hard_surface_snapping(layout, context, props, guide_loops:bool=False, s
     draw_source_cache_controls(context, layout)
 
 
-def draw_snapping_options(context, layout, *, guide_loops: bool = False):
-    layout.use_property_split = True
-    layout.use_property_decorate = False
+def draw_native_snapping_options(context, layout):
     snapping = context.scene.retopoflow.snapping
-
-    layout.prop(snapping, 'snap_object', text='Only Include')
-    col = layout.column()
-    col.enabled = snapping.snap_object is None
-    col.prop(snapping, 'snap_collection', text=' ')
-    col.prop(snapping, 'snap_only_selected', text='Selected')
-    col.prop(context.tool_settings, 'use_snap_selectable', text='Selectable')
-    layout.separator(factor=0.5)
-
-    layout.column().prop(snapping, 'projection', text='Projection', expand=True)
-    # show_steps = snapping.projection != 'SCREEN_SPACE'
-    # if show_steps:
-    row = layout.row()
-    row.enabled = snapping.projection != 'SCREEN_SPACE' or 'FACE_NEAREST' in context.scene.tool_settings.snap_elements_individual
-    row.prop(context.scene.tool_settings, 'snap_face_nearest_steps', text='Steps')
-
-    layout.row(heading='Normals').prop(snapping, 'correct_face_normals', text='Correct')
-
     layout.use_property_split = False
     split = layout.split(factor=0.4)
     col = split.column()
@@ -174,17 +154,54 @@ def draw_snapping_options(context, layout, *, guide_loops: bool = False):
     ):
         layout.column().prop(context.scene.tool_settings, 'snap_target', text='From', expand=True)
 
-    # tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
-    # if tool.idname not in ['retopoflow.relax', 'retopoflow.tweak']:
-    #     return
-    layout.separator()
-    feat_header, feat_panel = layout.panel(idname='RF_feature_detection', default_closed=True)
-    feat_header.label(text='Source Feature Detection (Experimental)')
-    if feat_panel:
-        props = context.scene.retopoflow.snapping
-        feat_panel.use_property_split = True
-        feat_panel.use_property_decorate = False
-        draw_hard_surface_snapping(feat_panel, context, props, guide_loops, show_cache_controls=True)
+
+def draw_snapping_options(context, layout, *, guide_loops: bool = False):
+    layout.use_property_split = True
+    layout.use_property_decorate = False
+    snapping = context.scene.retopoflow.snapping
+
+    layout.column().prop(snapping, 'projection', text='Projection', expand=True)
+    # show_steps = snapping.projection != 'SCREEN_SPACE'
+    # if show_steps:
+    row = layout.row()
+    row.enabled = snapping.projection != 'SCREEN_SPACE' or 'FACE_NEAREST' in context.scene.tool_settings.snap_elements_individual
+    row.prop(context.scene.tool_settings, 'snap_face_nearest_steps', text='Steps')
+
+    draw_native_snapping_options(context, layout)
+    use_native = (
+        snapping.snap_vertex or snapping.snap_edge or snapping.snap_edge_center
+        or snapping.snap_edge_perpendicular or snapping.snap_face_center
+    )
+    # layout.separator(factor=0.5)
+
+    if not use_native:
+        layout.prop(snapping, 'snap_object', text='Only Include')
+        col = layout.column()
+        col.enabled = snapping.snap_object is None
+        col.prop(snapping, 'snap_collection', text=' ')
+        col.prop(snapping, 'snap_only_selected', text='Selected')
+        col.prop(context.tool_settings, 'use_snap_selectable', text='Selectable')
+        layout.row(heading='Normals').prop(snapping, 'correct_face_normals', text='Correct')
+    else:
+        layout.row(heading='Only Include').prop(context.tool_settings, 'use_snap_selectable', text='Selectable')
+    layout.separator(factor=0.5)
+
+    if not use_native:
+        # tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
+        # if tool.idname not in ['retopoflow.relax', 'retopoflow.tweak']:
+        #     return
+        layout.separator()
+        feat_header, feat_panel = layout.panel(idname='RF_feature_detection', default_closed=True)
+        feat_header.label(text='Source Feature Detection (Experimental)')
+        if feat_panel:
+            props = context.scene.retopoflow.snapping
+            row = feat_panel.row()
+            row.use_property_split = False
+            row.alignment = 'CENTER'
+            row.label(text='Enabling in heavy scenes is very slow', icon='ERROR')
+            feat_panel.use_property_split = True
+            feat_panel.use_property_decorate = False
+            draw_hard_surface_snapping(feat_panel, context, props, guide_loops, show_cache_controls=True)
 
 
 def draw_snapping_panel(context, layout, *, idname: str, guide_loops: bool = False):

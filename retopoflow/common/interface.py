@@ -30,6 +30,83 @@ def draw_keymap_options(self, layout : UILayout, keymap_item : KeyMapItem | None
         trigger.label(text='Retopoflow Tools' if in_RF_tools == 'only' else 'Non-Retopoflow Tools')
 
 
+def draw_tool_settings(context : Context, layout : UILayout, *, tool_props=None, masking : bool = False, snapping : bool = True):
+    '''
+    tool_props: the tool's operator properties, drawn as the Tweaking popover. Pass None for the
+                brush tools, which are the tweaking tools and so have nothing to hand off to.
+    masking:    draw the masking controls inline instead of leaving them to Tweaking. Brush tools.
+    snapping:   draw the Snapping popover.
+    '''
+    # deferred: rfpanels imports back out of this module
+    from ..preferences import RF_Prefs
+    from ..rfpanels.mirror_panel import draw_mirror_popover
+    from ..rfpanels.tweaking_panel import draw_tweaking_popover
+
+    prefs = RF_Prefs.get_prefs(context)
+    props_scene = context.scene.retopoflow
+
+    if masking:
+        if prefs.expand_masking:
+            draw_line_separator(layout)
+            layout.row(heading='Selected:', align=True).prop(props_scene, 'mask_selected', expand=True, icon_only=True)
+            layout.separator()
+            layout.row(heading='Boundary:', align=True).prop(props_scene, 'mask_boundary', expand=True, icon_only=True)
+            # layout.prop(props_scene, 'mask_symmetry', text="Symmetry")  # TODO: Implement
+            layout.separator()
+            if prefs.setup_pinning:
+                row = layout.row(align=True)
+                row.operator('retopoflow.pinverts', text='', icon='PINNED')
+                row.operator('retopoflow.unpinverts', text='', icon='UNPINNED')
+                row.popover('RF_PT_Pinning', text='Masking')
+            else:
+                layout.popover('RF_PT_Pinning', text='Masking')
+        else:
+            layout.popover('RF_PT_Masking')
+
+    draw_line_separator(layout)
+
+    if tool_props is not None:
+        draw_tweaking_popover(context, layout, tool_props)
+    row = layout.row(align=True)
+    row.popover('RF_PT_MeshCleanup', text='Clean Up')
+    row.operator('retopoflow.meshcleanup', text='', icon='TRIA_RIGHT').affect_all = False
+    draw_mirror_popover(context, layout)
+    if snapping:
+        layout.popover('RF_PT_Snapping', text='Snapping')
+    if prefs.expand_offset:
+        layout.prop(props_scene, 'retopo_offset', text='Overlay Offset')
+    layout.popover('RF_PT_General', text='', icon='OPTIONS')
+    layout.popover('RF_PT_Help', text='', icon='INFO_LARGE' if bpy.app.version >= (4,3,0) else 'INFO')
+
+
+def draw_tool_panels(context : Context, layout : UILayout, *, tweaking : bool = True, snapping : bool = True, guide_loops : bool = False):
+    '''
+    tweaking:    draw the Tweaking panel. Off for the brush tools, same as tool_props above.
+    snapping:    draw the Snapping panel.
+    guide_loops: include the guide loops setting inside Snapping. Brush tools only.
+    '''
+    # deferred: rfpanels imports back out of this module
+    from ..rfpanels.general_panel import draw_general_panel
+    from ..rfpanels.help_panel import draw_help_panel
+    from ..rfpanels.masking_panel import draw_masking_panel
+    from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
+    from ..rfpanels.mirror_panel import draw_mirror_panel
+    from ..rfpanels.rfpanel_snapping import draw_snapping_panel
+    from ..rfpanels.tweaking_panel import draw_tweaking_panel
+
+    if tweaking:
+        draw_tweaking_panel(context, layout)
+    draw_masking_panel(context, layout)
+    draw_cleanup_panel(context, layout)
+    draw_mirror_panel(context, layout)
+    if snapping:
+        # One idname across every tool, matching the other shared panels, so open/closed state
+        # survives a tool switch. The tools used to each pass their own.
+        draw_snapping_panel(context, layout, idname='snapping_panel', guide_loops=guide_loops)
+    draw_general_panel(context, layout)
+    draw_help_panel(context, layout)
+
+
 def draw_expandable_enum(context : Context, layout : UILayout, props : OperatorProperties, prop_name:str, breakpoint:int=600, text:str|None=None):
     if text == None:
         text = props.bl_rna.properties[prop_name].name
