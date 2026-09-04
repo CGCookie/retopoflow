@@ -107,7 +107,7 @@ def draw_tool_panels(context : Context, layout : UILayout, *, tweaking : bool = 
     draw_help_panel(context, layout)
 
 
-def draw_expandable_enum(context : Context, layout : UILayout, props : OperatorProperties, prop_name:str, breakpoint:int=600, text:str|None=None):
+def draw_expandable_enum(context : Context, layout : UILayout, props : OperatorProperties, prop_name:str, breakpoint:int=750, text:str|None=None):
     if text == None:
         text = props.bl_rna.properties[prop_name].name
 
