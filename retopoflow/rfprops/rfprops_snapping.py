@@ -30,6 +30,20 @@ def on_source_obj_changed(self, context):
 def on_source_feature_changed(self, context):
     SourceCache.mark_dirty_settings_changed(context)
 
+def on_snap_element_changed(prop_name, element):
+    ''' Update callback for one snap element toggle. Returns the callback, so each property
+    supplies its own RF property name and matching Blender snap_elements_base flag. '''
+    def update(self, context):
+        ts = context.scene.tool_settings
+        base = ts.snap_elements_base
+        ts.snap_elements_base = (base | {element}) if getattr(self, prop_name) else (base - {element})
+        # The native transform path never touches SourceCache. So the cache can sit stale while native is on.
+        # Now that RF's translate is back in play, kick a rebuild if needed.
+        from ..rfoperators.transform import translate_uses_native
+        if not translate_uses_native(context):
+            SourceCache.get(context)
+    return update
+
 
 class RFProps_Snapping(bpy.types.PropertyGroup):
 
@@ -185,33 +199,23 @@ class RFProps_Snapping(bpy.types.PropertyGroup):
     """ Snap Elements """
     snap_vertex: bpy.props.BoolProperty(
         name='Vertex', description='Snap to vertices', default=False,
-        update=lambda self, ctx: setattr(ctx.scene.tool_settings, 'snap_elements_base',
-            (ctx.scene.tool_settings.snap_elements_base | {'VERTEX'}) if self.snap_vertex
-            else (ctx.scene.tool_settings.snap_elements_base - {'VERTEX'})),
+        update=on_snap_element_changed('snap_vertex', 'VERTEX'),
     )
     snap_edge: bpy.props.BoolProperty(
         name='Edge', description='Snap to edges', default=False,
-        update=lambda self, ctx: setattr(ctx.scene.tool_settings, 'snap_elements_base',
-            (ctx.scene.tool_settings.snap_elements_base | {'EDGE'}) if self.snap_edge
-            else (ctx.scene.tool_settings.snap_elements_base - {'EDGE'})),
+        update=on_snap_element_changed('snap_edge', 'EDGE'),
     )
     snap_edge_center: bpy.props.BoolProperty(
         name='Edge Center', description='Snap to edge midpoints', default=False,
-        update=lambda self, ctx: setattr(ctx.scene.tool_settings, 'snap_elements_base',
-            (ctx.scene.tool_settings.snap_elements_base | {'EDGE_MIDPOINT'}) if self.snap_edge_center
-            else (ctx.scene.tool_settings.snap_elements_base - {'EDGE_MIDPOINT'})),
+        update=on_snap_element_changed('snap_edge_center', 'EDGE_MIDPOINT'),
     )
     snap_edge_perpendicular: bpy.props.BoolProperty(
         name='Edge Perpendicular', description='Snap to perpendicular points on edges', default=False,
-        update=lambda self, ctx: setattr(ctx.scene.tool_settings, 'snap_elements_base',
-            (ctx.scene.tool_settings.snap_elements_base | {'EDGE_PERPENDICULAR'}) if self.snap_edge_perpendicular
-            else (ctx.scene.tool_settings.snap_elements_base - {'EDGE_PERPENDICULAR'})),
+        update=on_snap_element_changed('snap_edge_perpendicular', 'EDGE_PERPENDICULAR'),
     )
     snap_face_center: bpy.props.BoolProperty(
         name='Face Center', description='Snap to face centers', default=False,
-        update=lambda self, ctx: setattr(ctx.scene.tool_settings, 'snap_elements_base',
-            (ctx.scene.tool_settings.snap_elements_base | {'FACE_MIDPOINT'}) if self.snap_face_center
-            else (ctx.scene.tool_settings.snap_elements_base - {'FACE_MIDPOINT'})),
+        update=on_snap_element_changed('snap_face_center', 'FACE_MIDPOINT'),
     )
 
 

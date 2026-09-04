@@ -49,13 +49,7 @@ from ..rfoperators.maximize_watcher import RFOperator_MaximizeWatcher
 from ..rfoperators.topo_rotate import RFOperator_TopoRotate
 from ..rfoperators.adjust_segment_count import adjust_selected_strip
 
-from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
-from ..rfpanels.tweaking_panel import draw_tweaking_panel, draw_tweaking_popover
-from ..rfpanels.rfpanel_snapping import draw_snapping_panel
-from ..rfpanels.mirror_panel import draw_mirror_panel, draw_mirror_popover
-from ..rfpanels.general_panel import draw_general_panel
-from ..rfpanels.help_panel import draw_help_panel
-from ..common.interface import draw_line_separator
+from ..common.interface import draw_tool_settings, draw_tool_panels
 
 from ..preferences import RF_Prefs
 
@@ -625,7 +619,6 @@ class RFTool_Strokes(RFTool_Base):
     )
 
     def draw_settings(context, layout, tool):
-        prefs = RF_Prefs.get_prefs(context)
         props_strokes = tool.operator_properties(RFOperator_Strokes.bl_idname)
         RFTool_Strokes.props = props_strokes
 
@@ -644,18 +637,7 @@ class RFTool_Strokes(RFTool_Base):
             row.prop(props_strokes, 'extrapolate_mode', expand=True)
             row.popover('RF_PT_StrokeOptions', text='', icon='STROKE')
 
-            draw_line_separator(layout)
-
-            draw_tweaking_popover(context, layout, props_strokes)
-            layout.popover('RF_PT_Snapping', text='Snapping')
-            row = layout.row(align=True)
-            row.popover('RF_PT_MeshCleanup', text='Clean Up')
-            row.operator("retopoflow.meshcleanup", text='', icon='PLAY').affect_all=False
-            draw_mirror_popover(context, layout)
-            if prefs.expand_offset:
-                layout.prop(context.scene.retopoflow, 'retopo_offset', text='Overlay Offset')
-            layout.popover('RF_PT_General', text='', icon='OPTIONS')
-            layout.popover('RF_PT_Help', text='', icon='INFO_LARGE' if bpy.app.version >= (4,3,0) else 'INFO')
+            draw_tool_settings(context, layout, tool_props=props_strokes)
 
         else:
             header, panel = layout.panel(idname='strokes_spans_panel', default_closed=False)
@@ -675,12 +657,7 @@ class RFTool_Strokes(RFTool_Base):
                 col.prop(props_strokes, 'smooth_density1', text='End', slider=True)
                 panel.prop(props_strokes, 'smooth_angle', text='Blending', slider=True)
                 panel.prop(props_strokes, 'extrapolate_mode', text='Extrusions')
-            draw_tweaking_panel(context, layout)
-            draw_snapping_panel(context, layout, idname='strokes_snapping_panel')
-            draw_cleanup_panel(context, layout)
-            draw_mirror_panel(context, layout)
-            draw_general_panel(context, layout)
-            draw_help_panel(context, layout)
+            draw_tool_panels(context, layout)
 
     @classmethod
     def activate(cls, context):

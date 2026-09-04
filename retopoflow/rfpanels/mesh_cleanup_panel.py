@@ -91,6 +91,10 @@ def draw_cleanup_options(context : Context, layout : UILayout, draw_operators : 
 def draw_cleanup_panel(context : Context, layout : UILayout):
     header, panel = layout.panel(idname='retopoflow_cleanup_panel', default_closed=True)
     header.label(text="Clean Up")
+    if not panel:
+        sub = header.row(align=True)
+        sub.alignment = 'RIGHT'
+        sub.operator('retopoflow.meshcleanup', text='', icon='TRIA_RIGHT').affect_all = False
     if panel:
         draw_cleanup_options(context, panel)
 

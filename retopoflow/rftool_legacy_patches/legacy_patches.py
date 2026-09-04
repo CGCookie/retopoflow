@@ -36,15 +36,18 @@ from ..rfglobals import RFGlobals
 from ..rftool_base import RFTool_Base
 from ..rfoverlay_base import RFOverlay_Base
 from ..rfoverlays.overlays import overlay_names
+from ..rfoverlays.curve_overlay import create_curve_overlay_logic, _internal_bl_idname
+from ..common.curves import QuadStripChainProvider, LoopStripChainProvider
+from ..rfoperators.curve_edit import create_curve_edit_operator, create_curve_toggle_handle_type_operator
 
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.blender import event_modifier_check
 from ...addon_common.common.resetter import Resetter
 
-from ..common.bpy_helper import bpy_ops_retopoflow, BL_OPTIONS
+from ..common.bpy_helper import BL_OPTIONS
 from ..common.bmesh import get_bmesh_emesh
 from ..common.icons import get_path_to_blender_icon
-from ..common.interface import draw_line_separator
+from ..common.interface import draw_tool_settings, draw_tool_panels
 from ..common.operator import (
     execute_operator,
     RFOperator,
@@ -60,12 +63,6 @@ from ..rfoperators.quickswitch import RFOperator_Relax_QuickSwitch, RFOperator_T
 from ..rfoperators.topo_rotate import RFOperator_TopoRotate, get_perimeter_bmedges
 from ..rfoperators.transform import RFOperator_Translate
 
-from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
-from ..rfpanels.tweaking_panel import draw_tweaking_panel, draw_tweaking_popover
-from ..rfpanels.rfpanel_snapping import draw_snapping_panel
-from ..rfpanels.mirror_panel import draw_mirror_panel, draw_mirror_popover
-from ..rfpanels.general_panel import draw_general_panel
-from ..rfpanels.help_panel import draw_help_panel
 
 from ..preferences import RF_Prefs
 
@@ -163,6 +160,20 @@ class LegacyPatches_Properties:
         soft_min=-32,
         soft_max=32,
         default=PatchSettings.twist,
+    )
+
+    # Not a patch setting, so it is absent from PATCH_SETTING_NAMES and the Fill redo panel. It lives
+    # on the mixin anyway because that is the class Reset Tool Settings reads for this tool, and
+    # __annotations__ does not inherit.
+    select_loops: bpy.props.BoolProperty(
+        name = 'Tweak Loops',
+        description = 'Select and transform loops while tweaking edges with the mouse',
+        default = False
+    )
+    show_curve_handles: bpy.props.BoolProperty(
+        name = 'Curve Handles',
+        description = 'Show Bézier curve control handles on selected edge strips and loops',
+        default = False
     )
 
 
@@ -508,26 +519,41 @@ class RFOperator_LegacyPatches_ClearCorners(RFOperator_Execute):
         return { 'FINISHED' }
 
 
-class RFOperator_LegacyPatches_Overlay(RFOverlay_Base, RFOperator):
-    bl_idname : str = 'retopoflow.legacy_patches_overlay'
-    bl_label : str = 'Legacy Patches Overlay'
-    bl_description : str = 'Previews the patches that Fill will create from the selected boundary edges'
-    bl_options : BL_OPTIONS = { 'INTERNAL' }
+# The curve handle overlay, as the logic class rather than the finished operator that
+# create_curve_overlay would hand back. A tool only gets one rf_overlay slot, so the patch preview
+# subclasses this instead of running alongside it.
+_LegacyPatches_Curve_Overlay = create_curve_overlay_logic(
+    MAIN_OP_IDNAME,
+    'legacy_patches_overlay',
+    'Legacy Patches Overlay',
+    # same providers in the same order as PolyPen, PolyStrips and Strokes: faces win, so loop
+    # curves only appear when the selection is edges-only
+    [QuadStripChainProvider(), LoopStripChainProvider(only_boundary=True)],
+)
+
+
+class RFOperator_LegacyPatches_Overlay(_LegacyPatches_Curve_Overlay, RFOperator):
+    ''' The patch preview and the shared curve handle overlay in one modal. '''
+    bl_description : str = 'Previews the patches that Fill will create, and the curve handles of the selection'
+
+    # The Ctrl modal only reads the mouse, the same reason it carries rf_patches_passive. Without
+    # this the curve rebuild treats it as a foreign op and the handles blink out while Ctrl is held.
+    ignore_modal_bl_idnames = _LegacyPatches_Curve_Overlay.ignore_modal_bl_idnames | {
+        _internal_bl_idname(RFOperator_LegacyPatches_Draw.bl_idname),
+    }
 
     def is_done(self):
         RFCore = RFGlobals.RFCore_None
         return RFCore.selected_RFTool_idname != RFTool_LegacyPatches.bl_idname if RFCore else True
 
-    @classmethod
-    def activate(cls):
-        _ = bpy_ops_retopoflow('legacy_patches_overlay', 'INVOKE_DEFAULT')
-
-    def init(self, _context : Context, event : Event):
+    def init(self, context : Context, event : Event):
+        super().init(context, event)
         LegacyPatches_Logic.reset_session()
         LegacyPatches_Logic.mouse = (event.mouse_x, event.mouse_y)    # so a wire run can step toward the cursor before it moves
 
     def update(self, context : Context, event : Event) -> set[str]:
-        if self.is_done(): return {'CANCELLED'}
+        result = super().update(context, event)    # curve handle hover tracking and cursor
+        if result != {'PASS_THROUGH'}: return result    # already covers the tool having changed
         redraw = LegacyPatches_Logic.track_ctrl(context, event)    # every event carries the modifier state
         if event.type in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE'}:
             if LegacyPatches_Logic.track_mouse(context, event): redraw = True
@@ -536,6 +562,7 @@ class RFOperator_LegacyPatches_Overlay(RFOverlay_Base, RFOperator):
         return {'PASS_THROUGH'}
 
     def draw_postpixel_overlay(self):
+        super().draw_postpixel_overlay()    # curve handles, no-ops while show_curve_handles is off
         if self.is_done(): return
         context = bpy.context
         LegacyPatches_Logic.update(context)
@@ -543,6 +570,22 @@ class RFOperator_LegacyPatches_Overlay(RFOverlay_Base, RFOperator):
 
 # AutoSave skips saving while a modal operator is top-most unless it is a known overlay (keyed by label)
 overlay_names.add(RFOperator_LegacyPatches_Overlay.bl_label)
+
+
+RFOperator_LegacyPatches_Edit = create_curve_edit_operator(
+    'RFOperator_LegacyPatches_CurveEdit',
+    'legacy_patches_edit',
+    'Edit Patches Curve',
+    'Drag curve control handles to reshape a selected quad strip or edge loop',
+    get_overlay=lambda: RFTool_LegacyPatches.rf_overlay,
+)
+
+RFOperator_LegacyPatches_ToggleHandleType = create_curve_toggle_handle_type_operator(
+    'legacy_patches_toggle_handle_type',
+    'Toggle Curve Handle Type',
+    'Cycle the hovered curve control point between Aligned, Vector, and Automatic',
+    get_overlay=lambda: RFTool_LegacyPatches.rf_overlay,
+)
 
 
 def draw_patches_props(layout : UILayout, props, *, header : bool, redo : bool = False):
@@ -619,6 +662,9 @@ class RFTool_LegacyPatches(RFTool_Base):
         RFOperator_LegacyPatches_OffsetDecrease,
         RFOperator_LegacyPatches_OffsetIncrease,
         RFOperator_LegacyPatches_ClearCorners,
+        # before Translate: curve edit's LMB PRESS only claims the event while a handle is hovered
+        RFOperator_LegacyPatches_Edit,
+        RFOperator_LegacyPatches_ToggleHandleType,
         RFOperator_MaximizeWatcher,
         RFOperator_Translate,
         RFOperator_TopoRotate,
@@ -628,35 +674,19 @@ class RFTool_LegacyPatches(RFTool_Base):
 
     @staticmethod
     def draw_settings(context : Context, layout : UILayout, tool : WorkSpaceTool):
-        prefs = RF_Prefs.get_prefs(context)
         props = tool.operator_properties(RFOperator_LegacyPatches.bl_idname)
         RFTool_LegacyPatches.props = props
 
         if context.region.type == 'TOOL_HEADER':
             draw_patches_props(layout, props, header=True)
-            draw_line_separator(layout)
-            draw_tweaking_popover(context, layout, props)
-            layout.popover('RF_PT_Snapping', text='Snapping')
-            row = layout.row(align=True)
-            row.popover('RF_PT_MeshCleanup', text='Clean Up')
-            row.operator("retopoflow.meshcleanup", text='', icon='PLAY').affect_all=False
-            draw_mirror_popover(context, layout)
-            if prefs.expand_offset:
-                layout.prop(context.scene.retopoflow, 'retopo_offset', text='Overlay Offset')
-            layout.popover('RF_PT_General', text='', icon='OPTIONS')
-            layout.popover('RF_PT_Help', text='', icon='INFO_LARGE' if bpy.app.version >= (4,3,0) else 'INFO')
+            draw_tool_settings(context, layout, tool_props=props)
         else:
             header, panel = layout.panel(idname='legacy_patches_panel', default_closed=False)
             header.label(text="Insert")
             if panel:
                 draw_patches_props(panel, props, header=False)
 
-            draw_tweaking_panel(context, layout)
-            draw_snapping_panel(context, layout, idname='legacy_patches_snapping_panel')
-            draw_cleanup_panel(context, layout)
-            draw_mirror_panel(context, layout)
-            draw_general_panel(context, layout)
-            draw_help_panel(context, layout)
+            draw_tool_panels(context, layout)
 
     @classmethod
     def activate(cls, context : Context):

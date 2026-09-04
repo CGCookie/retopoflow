@@ -28,7 +28,11 @@ from bpy.types import Context
 
 from ..rfglobals import RFGlobals
 from ..rfbrushes.cut_brush import RFBrush_Cut
-from ..rfoverlays.loopstrip_selection_overlay import create_loopstrip_selection_overlay
+from ..rfoverlays.loopstrip_selection_overlay import draw_loopstrip_selection_labels
+from ..rfoverlays.curve_overlay import create_curve_overlay_logic
+from ..rfoverlays.overlays import overlay_names
+from ..common.curves import QuadStripChainProvider, LoopStripChainProvider
+from ..rfoperators.curve_edit import create_curve_edit_operator, create_curve_toggle_handle_type_operator
 
 from ..rftool_base import RFTool_Base
 from ..common.accel import SourceAccel
@@ -62,14 +66,8 @@ from ..rfoperators.adjust_segment_count import adjust_selected_strip
 from ..rfoperators.twist import RFOperator_TwistLoop
 from ..rfoverlays.proportional_edit_overlay import flash_proportional_edit_circle
 
-from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
-from ..rfpanels.tweaking_panel import draw_tweaking_panel, draw_tweaking_popover
-from ..rfpanels.rfpanel_snapping import draw_snapping_panel
-from ..rfpanels.mirror_panel import draw_mirror_panel, draw_mirror_popover
-from ..rfpanels.general_panel import draw_general_panel
-from ..rfpanels.help_panel import draw_help_panel
 from ..rfpanels.rfpanel_snapping import draw_source_cache_controls
-from ..common.interface import draw_line_separator
+from ..common.interface import draw_tool_settings, draw_tool_panels
 
 from ..preferences import RF_Prefs
 
@@ -622,6 +620,11 @@ class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
         description = 'Select and transform loops while tweaking edges with the mouse',
         default = True
     )
+    show_curve_handles: bpy.props.BoolProperty(
+        name = 'Curve Handles',
+        description = 'Show Bézier curve control handles on selected edge strips and loops',
+        default = False
+    )
 
     def init(self, context, event):
         self.km_context = 'ready'
@@ -729,12 +732,61 @@ class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
         return {'PASS_THROUGH'} # allow other operators, such as UNDO!!!
 
 
-RFOperator_Contours_Overlay = create_loopstrip_selection_overlay(
-    'RFOperator_Contours_Selection_Overlay',
+# The curve handle overlay, as the logic class rather than the finished operator that
+# create_curve_overlay would hand back. A tool only gets one rf_overlay slot, so the selection
+# count labels subclass this instead of running alongside it.
+_Contours_Curve_Overlay = create_curve_overlay_logic(
     'retopoflow.contours',  # must match RFTool_base.bl_idname
     'contours_overlay',
     'Contours Selected Overlay',
-    False,
+    # same providers in the same order as PolyPen, PolyStrips and Strokes: faces win, so loop
+    # curves only appear when the selection is edges-only
+    [QuadStripChainProvider(), LoopStripChainProvider(only_boundary=True)],
+)
+
+
+class RFOperator_Contours_Overlay(_Contours_Curve_Overlay, RFOperator):
+    ''' The selection count labels and the shared curve handle overlay in one modal. '''
+    bl_description : str = 'Overlay info about selected loops and strips, and their curve handles'
+
+    # cache for draw_loopstrip_selection_labels; named apart from the curve overlay's own
+    # depsgraph_version, which is a different counter with a different sentinel
+    loopstrip_depsgraph_version : int | None = None
+    loopstrip_boundaries : tuple = ([], [])
+
+    def is_done(self):
+        RFCore = RFGlobals.RFCore_None
+        return RFCore.selected_RFTool_idname != RFTool_Contours.bl_idname if RFCore else True
+
+    def init(self, context, event):
+        super().init(context, event)
+        self.loopstrip_depsgraph_version = None
+
+    def draw_postpixel_overlay(self):
+        super().draw_postpixel_overlay()    # curve handles, no-ops while show_curve_handles is off
+        if self.is_done(): return
+        # the curve overlay draws its own Strip/Loop counts from the same selection, so only one
+        # of the two label sets is ever on screen
+        if self._curve_handles_enabled(bpy.context): return
+        draw_loopstrip_selection_labels(self, only_boundary=False)
+
+# AutoSave skips saving while a modal operator is top-most unless it is a known overlay (keyed by label)
+overlay_names.add(RFOperator_Contours_Overlay.bl_label)
+
+
+RFOperator_Contours_Edit = create_curve_edit_operator(
+    'RFOperator_Contours_CurveEdit',
+    'contours_edit',
+    'Edit Contours Curve',
+    'Drag curve control handles to reshape a selected quad strip or edge loop',
+    get_overlay=lambda: RFTool_Contours.rf_overlay,
+)
+
+RFOperator_Contours_ToggleHandleType = create_curve_toggle_handle_type_operator(
+    'contours_toggle_handle_type',
+    'Toggle Curve Handle Type',
+    'Cycle the hovered curve control point between Aligned, Vector, and Automatic',
+    get_overlay=lambda: RFTool_Contours.rf_overlay,
 )
 
 @execute_operator('switch_to_contours', 'RetopoFlow: Switch to Contours', fn_poll=poll_retopoflow)
@@ -758,6 +810,9 @@ class RFTool_Contours(RFTool_Base):
     bl_keymap : BLKeyMaps = chain_rf_keymaps(
         RFOperator_Contours,
         RFOperator_Contours_Insert,
+        # before Translate: curve edit's LMB PRESS only claims the event while a handle is hovered
+        RFOperator_Contours_Edit,
+        RFOperator_Contours_ToggleHandleType,
         RFOperator_MaximizeWatcher,
         RFOperator_Translate,
         RFOperator_Relax_QuickSwitch,
@@ -766,7 +821,6 @@ class RFTool_Contours(RFTool_Base):
     )
 
     def draw_settings(context, layout, tool):
-        prefs = RF_Prefs.get_prefs(context)
         props_contours = tool.operator_properties(RFOperator_Contours.bl_idname)
         RFTool_Contours.props = props_contours
 
@@ -785,30 +839,14 @@ class RFTool_Contours(RFTool_Base):
             layout.prop(props_contours, 'space_evenly', text='Space Evenly', slider=True)
             method_name = props_contours.bl_rna.properties['process_source_method'].enum_items[props_contours.process_source_method].name
             layout.popover('RF_PT_ContoursMethod', text=method_name)
-            draw_line_separator(layout)
-
-            draw_tweaking_popover(context, layout, props_contours)
-            layout.popover('RF_PT_Snapping', text='Snapping')
-            row = layout.row(align=True)
-            row.popover('RF_PT_MeshCleanup', text='Clean Up')
-            row.operator("retopoflow.meshcleanup", text='', icon='PLAY').affect_all=False
-            draw_mirror_popover(context, layout)
-            if prefs.expand_offset:
-                layout.prop(context.scene.retopoflow, 'retopo_offset', text='Overlay Offset')
-            layout.popover('RF_PT_General', text='', icon='OPTIONS')
-            layout.popover('RF_PT_Help', text='', icon='INFO_LARGE' if bpy.app.version >= (4,3,0) else 'INFO')
+            draw_tool_settings(context, layout, tool_props=props_contours)
         else:
             header, panel = layout.panel(idname='contours_cut_panel', default_closed=False)
             header.label(text="Insert")
             if panel:
                 draw_contours_props(context, panel, props_contours, None)
 
-            draw_tweaking_panel(context, layout)
-            draw_snapping_panel(context, layout, idname='contours_snapping_panel')
-            draw_cleanup_panel(context, layout)
-            draw_mirror_panel(context, layout)
-            draw_general_panel(context, layout)
-            draw_help_panel(context, layout)
+            draw_tool_panels(context, layout)
 
     @classmethod
     def activate(cls, context):

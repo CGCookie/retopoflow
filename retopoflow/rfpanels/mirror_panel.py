@@ -117,6 +117,20 @@ def draw_mirror_options(context, layout):
 def draw_mirror_panel(context : Context, layout : UILayout):
     header, panel = layout.panel(idname='retopoflow_mirror_panel', default_closed=True)
     header.label(text="Mirror")
+    obj = context.active_object
+    if not panel and obj:
+        mod = get_mirror_mod(obj)
+        sub = header.row(align=True)
+        sub.alignment = 'RIGHT'
+        sub.scale_x = 0.85
+        if mod:
+            sub.prop(mod, 'use_axis', index=0, text='X', toggle=True)
+            sub.prop(mod, 'use_axis', index=1, text='Y', toggle=True)
+            sub.prop(mod, 'use_axis', index=2, text='Z', toggle=True)
+        else:
+            sub.prop(obj.retopoflow, 'mirror_axis', index=0, text='X', toggle=True)
+            sub.prop(obj.retopoflow, 'mirror_axis', index=1, text='Y', toggle=True)
+            sub.prop(obj.retopoflow, 'mirror_axis', index=2, text='Z', toggle=True)
     if panel:
         draw_mirror_options(context, panel)
 

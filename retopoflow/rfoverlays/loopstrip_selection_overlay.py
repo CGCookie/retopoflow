@@ -22,17 +22,11 @@ Created by Jonathan Denning, Jonathan Lampel
 import bpy
 from mathutils import Vector
 from bpy_extras.view3d_utils import location_3d_to_region_2d
-from bpy.types import Context, Event
+from bpy.types import Context
 
-from typing import ClassVar
 from collections.abc import Sequence
 
-from .overlays import overlay_names
-
-from ..common.bpy_helper import bpy_ops_retopoflow
 from ..rfglobals import RFGlobals
-from ..rfoverlay_base import RFOverlay_Base
-from ..common.operator import RFOperator
 from ..common.bmesh import get_bmesh_emesh, bme_midpoint, get_boundary_strips_cycles
 from ..common.drawing import Drawing
 from ..common.raycast import is_point_hidden
@@ -66,91 +60,57 @@ def get_label_pos(context : Context, label : str, mids : Sequence[Vector], corne
             assert False, f'Unhandled {label=}'
 
 
-def create_loopstrip_selection_overlay(
-    opname : str,
-    rftool_idname : str,
-    idname : str,
-    label : str,
-    only_boundary : bool
-) -> type[RFOverlay_Base]:
+def draw_loopstrip_selection_labels(host, *, only_boundary : bool):
+    ''' Count labels for each selected strip and loop, called from a host overlay's
+    draw_postpixel_overlay. The host holds the cache in loopstrip_depsgraph_version and
+    loopstrip_boundaries so it does not have to inherit an overlay class to get these labels,
+    which matters when it already inherits one. '''
+    RFCore = RFGlobals.RFCore_None
+    if not RFCore:
+        return
 
-    overlay_names.add(label)
+    if host.loopstrip_depsgraph_version != RFCore.depsgraph_version:
+        # depsgraph changed, so recollect boundary details
 
-    class RFOperator_LoopStrip_Selection_Overlay(RFOverlay_Base):
-        bl_idname : ClassVar[str] = f'retopoflow.{idname}'
-        bl_label : ClassVar[str] = label
-        bl_description : ClassVar[str] = 'Overlay info about selected loops and strips'
-        bl_options : ClassVar[set[str]] = { 'INTERNAL' }
+        host.loopstrip_depsgraph_version = RFCore.depsgraph_version
 
-        depsgraph_version : None | int = None
-        selected_boundaries : tuple[list[tuple[list[Vector], list[Vector]]], list[tuple[list[Vector], list[Vector]]]] = ([],[])
+        # find selected boundary strips
+        bm, _ = get_bmesh_emesh(bpy.context)
+        sel_bmes = [ bme for bme in bmops.get_all_selected_bmedges(bm) ]
+        if only_boundary or any(bme.is_wire or bme.is_boundary for bme in sel_bmes):
+            # filter selected edges to only boundaries
+            sel_bmes = [ bme for bme in sel_bmes if bme.is_wire or bme.is_boundary ]
+        if len(sel_bmes) < 1000:
+            bmes_strips, bmes_cycles = get_boundary_strips_cycles(sel_bmes)
+            # copy makes sure this cache doesn't hold a stale pointer to a vert
+            strips = [
+                ([bme_midpoint(bme) for bme in strip], [bmv.co.copy() for bme in strip for bmv in bme.verts])
+                for strip in bmes_strips
+            ]
+            cycles = [
+                ([bme_midpoint(bme) for bme in cycle], [bmv.co.copy() for bme in cycle for bmv in bme.verts])
+                for cycle in bmes_cycles
+            ]
+            if len(strips) + len(cycles) <= 5:
+                host.loopstrip_boundaries = (strips, cycles)
+            else:
+                host.loopstrip_boundaries = ([], [])
+        else:
+            host.loopstrip_boundaries = ([], [])
 
-        def is_done(self):
-            RFCore = RFGlobals.RFCore_None
-            return RFCore.selected_RFTool_idname != rftool_idname if RFCore else True
-
-        @classmethod
-        def activate(cls):
-            _ = bpy_ops_retopoflow(idname, 'INVOKE_DEFAULT')
-
-        def init(self, _context : Context, _event : Event):
-            self.depsgraph_version = None
-
-        def update(self, _context : Context, _event : Event) -> set[str]:
-            return {'CANCELLED'} if self.is_done() else {'PASS_THROUGH'}
-
-        def draw_postpixel_overlay(self):
-            RFCore = RFGlobals.RFCore_None
-            if not RFCore:
-                return
-
-            if self.is_done():
-                return
-
-            if self.depsgraph_version != RFCore.depsgraph_version:
-                # depsgraph changed, so recollect boundary details
-
-                self.depsgraph_version = RFCore.depsgraph_version
-
-                # find selected boundary strips
-                bm, _ = get_bmesh_emesh(bpy.context)
-                sel_bmes = [ bme for bme in bmops.get_all_selected_bmedges(bm) ]
-                if only_boundary or any(bme.is_wire or bme.is_boundary for bme in sel_bmes):
-                    # filter selected edges to only boundaries
-                    sel_bmes = [ bme for bme in sel_bmes if bme.is_wire or bme.is_boundary ]
-                if len(sel_bmes) < 1000:
-                    bmes_strips, bmes_cycles = get_boundary_strips_cycles(sel_bmes)
-                    # copy makes sure this cache doesn't hold a stale pointer to a vert
-                    strips = [
-                        ([bme_midpoint(bme) for bme in strip], [bmv.co.copy() for bme in strip for bmv in bme.verts])
-                        for strip in bmes_strips
-                    ]
-                    cycles = [
-                        ([bme_midpoint(bme) for bme in cycle], [bmv.co.copy() for bme in cycle for bmv in bme.verts])
-                        for cycle in bmes_cycles
-                    ]
-                    if len(strips) + len(cycles) <= 5:
-                        self.selected_boundaries = (strips, cycles)
-                    else:
-                        self.selected_boundaries = ([], [])
-                else:
-                    self.selected_boundaries = ([], [])
-
-            # draw info about each selected boundary strip
-            is_vertex_select = bpy.context.tool_settings.mesh_select_mode[0]
-            for (lbl, boundaries) in zip(['Strip', 'Loop'], self.selected_boundaries):
-                for (mids, corners) in boundaries:
-                    lbl_pos = get_label_pos(bpy.context, lbl, mids, corners)
-                    if not lbl_pos:
-                        continue
-                    count = len(mids)
-                    if is_vertex_select and lbl != 'Loop':
-                        count += 1
-                    if count == 1:
-                        continue
-                    text = f'{lbl}: {count}' if lbl == 'Loop' else str(count)
-                    tw, th = Drawing.get_text_width(text), Drawing.get_text_height(text)
-                    lbl_pos -= Vector((tw / 2, -th / 2))
-                    Drawing.text_draw2D(text, lbl_pos.xy, color=(1,1,0,1), dropshadow=(0,0,0,0.75))
-
-    return type(opname, (RFOperator_LoopStrip_Selection_Overlay, RFOperator), {})
+    # draw info about each selected boundary strip
+    is_vertex_select = bpy.context.tool_settings.mesh_select_mode[0]
+    for (lbl, boundaries) in zip(['Strip', 'Loop'], host.loopstrip_boundaries):
+        for (mids, corners) in boundaries:
+            lbl_pos = get_label_pos(bpy.context, lbl, mids, corners)
+            if not lbl_pos:
+                continue
+            count = len(mids)
+            if is_vertex_select and lbl != 'Loop':
+                count += 1
+            if count == 1:
+                continue
+            text = f'{lbl}: {count}' if lbl == 'Loop' else str(count)
+            tw, th = Drawing.get_text_width(text), Drawing.get_text_height(text)
+            lbl_pos -= Vector((tw / 2, -th / 2))
+            Drawing.text_draw2D(text, lbl_pos.xy, color=(1,1,0,1), dropshadow=(0,0,0,0.75))
