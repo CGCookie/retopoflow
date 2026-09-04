@@ -55,13 +55,18 @@ class RFMenu_MT_ToolPie(Menu):
             section = back.box().column()
             section.ui_units_x = 8
             grid = section.grid_flow(even_columns=True, even_rows=True)
-            row = grid.row(align=True)
-            col = row.column(align=True)
-            col.operator('retopoflow.polypen_setinsertmode_edgeonly', text='Edge')
-            col.operator('retopoflow.polypen_setinsertmode_triquad', text='Tri/Quad')
-            col = row.column(align=True)
-            col.operator('retopoflow.polypen_setinsertmode_trionly', text='Triangle')
-            col.operator('retopoflow.polypen_setinsertmode_quadonly', text='Quad')
+            row = grid.split(align=True)
+            row.operator('retopoflow.polypen_setinsertmode_vertonly', text='', icon='OUTLINER_OB_POINTCLOUD', depress=props.insert_mode=='VERT-ONLY')
+            row.operator('retopoflow.polypen_setinsertmode_edgeonly', text='', icon='SNAP_EDGE', depress=props.insert_mode=='EDGE-ONLY')
+            row.operator('retopoflow.polypen_setinsertmode_trionly', text='', icon='OUTLINER_OB_MESH', depress=props.insert_mode=='TRI-ONLY')
+            row.operator('retopoflow.polypen_setinsertmode_triquad', text='', icon='MOD_TRIANGULATE', depress=props.insert_mode=='TRI/QUAD')
+            row.operator('retopoflow.polypen_setinsertmode_quadonly', text='', icon='SNAP_FACE', depress=props.insert_mode=='QUAD-ONLY')
+            # col = row.column(align=True)
+            # col.operator('retopoflow.polypen_setinsertmode_edgeonly', text='Edge')
+            # col.operator('retopoflow.polypen_setinsertmode_triquad', text='Tri/Quad')
+            # col = row.column(align=True)
+            # col.operator('retopoflow.polypen_setinsertmode_trionly', text='Triangle')
+            # col.operator('retopoflow.polypen_setinsertmode_quadonly', text='Quad')
             if PolyPen_Insert_Modes.insert_mode == 4:
                 row = section.row()
                 row.emboss = pie_emboss
@@ -112,8 +117,7 @@ class RFMenu_MT_ToolPie(Menu):
             section.ui_units_x = 8
             col = section.column(align=False)
             col.prop(props, 'span_count')
-            col = section.column(align=True)
-            col.prop(props, 'process_source_method', expand=True)
+            section.row(align=True).prop(props, 'process_source_method', expand=True)
 
         elif tool.idname == 'retopoflow.tweak' or tool.idname == 'retopoflow.relax':
             tool_name = 'Tweak' if tool.idname == 'retopoflow.tweak' else 'Relax'

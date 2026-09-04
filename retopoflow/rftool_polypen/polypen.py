@@ -60,15 +60,15 @@ from .polypen_logic import PP_Logic
 
 
 class PolyPen_Insert_Modes:
-    insert_modes : list[tuple[str, str, str, int]] = [
+    insert_modes : list[tuple[str, str, str, str, int]] = [
         # (identifier, name, description, icon, number)  or  (identifier, name, description, number)
         # must have number?
         # None is a separator
-        ("VERT-ONLY", "Vertex", "Insert vertices only",           1),
-        ("EDGE-ONLY", "Edge", "Insert edges only",                2),
-        ("TRI-ONLY",  "Triangle",  "Insert triangles only",       3),  # 'MESH_DATA'
-        ("TRI/QUAD",  "Tri/Quad",  "Insert triangles then quads", 0),
-        ("QUAD-ONLY", "Quad", "Insert quads only",                4),
+        ("VERT-ONLY", "Vertex",    "Insert vertices only",        'OUTLINER_OB_POINTCLOUD', 1),
+        ("EDGE-ONLY", "Edge",      "Insert edges only",           'SNAP_EDGE', 2),
+        ("TRI-ONLY",  "Triangle",  "Insert triangles only",       'OUTLINER_OB_MESH', 3),  # 'MESH_DATA'
+        ("TRI/QUAD",  "Tri/Quad",  "Insert triangles then quads", 'MOD_TRIANGULATE', 0),
+        ("QUAD-ONLY", "Quad",      "Insert quads only",           'SNAP_FACE',  4),
     ]
     insert_mode : int = 0
 
@@ -419,7 +419,7 @@ class RFTool_PolyPen(RFTool_Base):
             header, panel = layout.panel(idname='polypen_insert_panel', default_closed=False)
             header.label(text="Insert")
             if panel:
-                panel.prop(props_polypen, 'insert_mode', text='Method')
+                panel.prop(props_polypen, 'insert_mode', text='Method', expand=True)
                 if props_polypen.insert_mode == 'QUAD-ONLY':
                     panel.prop(props_polypen, 'quad_stability', slider=True)
                 col = panel.column(align=True)
