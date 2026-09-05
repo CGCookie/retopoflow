@@ -38,7 +38,7 @@ from bpy.types import (
     Property,
     AssetShelf,
 )
-from bpy.props import EnumProperty, StringProperty, IntProperty, FloatProperty
+from bpy.props import EnumProperty, StringProperty, IntProperty, FloatProperty, BoolProperty
 
 from ..rfglobals import RFGlobals
 from ..rfoverlay_base import RFOverlay_Base
@@ -1029,6 +1029,22 @@ class OperatorPropertyWrapper:
         def setter(_self : bpy_struct, v : int):
             setattr(wrap_cls, propname, v)
         return IntProperty(
+            get=getter,
+            set=setter,
+            **kwargs # pyright: ignore[reportAny]
+        )
+
+    @staticmethod
+    def bool(
+        wrap_cls : type,
+        propname : str,
+        **kwargs : ... # pyright: ignore[reportAny]
+    ) -> Property:
+        def getter(_self : bpy_struct) -> bool:
+            return bool(getattr(wrap_cls, propname)) # pyright: ignore[reportAny]
+        def setter(_self : bpy_struct, v : bool):
+            setattr(wrap_cls, propname, v)
+        return BoolProperty(
             get=getter,
             set=setter,
             **kwargs # pyright: ignore[reportAny]

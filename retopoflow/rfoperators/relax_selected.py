@@ -26,7 +26,7 @@ from bpy.props import IntProperty, BoolProperty, EnumProperty, FloatProperty
 from mathutils import Vector
 
 from ..rfglobals import RFGlobals
-from ..common.operator import RFRegisterClass, hotkey_owns_context
+from ..common.operator import OperatorPropertyWrapper, RFRegisterClass, hotkey_owns_context
 from ..common.interface import draw_expandable_enum
 from ..common.accel import SourceAccel
 from ..common.bmesh import get_falloff_verts
@@ -36,7 +36,25 @@ from ..common.snapping import (
     build_island_bvh, build_snap_sources, draw_snap_to_props, seed_source_snap_props,
 )
 from ..rfpanels.rfpanel_snapping import draw_hard_surface_snapping
+from ..rftool_relax.relax import seed_relax_algorithm_props
 from ..rftool_relax.relax_logic import Relax_Logic, RelaxOptions
+
+
+class RelaxSelected_Settings:
+    # Module-level storage so the Relax panel can show these next to the tool's own settings.
+    # Properties stored on the operator are only reachable from its redo panel.
+    shapings : list[tuple[str, str, str, int]] = [
+        # (identifier, name, description, number)
+        ('NONE',              'None',             'No additional shaping', 0),
+        ('PRESERVE_VOLUME',   'Preserve Volume',  'Scales relaxed vertices so the mesh stays the same size', 1),
+        ('INTERPOLATE_LOOPS', 'Interpolate Loop Curvature',
+            "Uses the loop edges just outside the selection to create the loop's curvature. "
+            "Can be used to reconstruct a quad patch on a sphere, for example", 2),
+        ('SLIDE_EDGES',       'Slide Edges',      'Restrict vertex movement to be along their connected edges', 3),
+    ]
+
+    iterations : int = 25
+    shaping    : int = 1      # PRESERVE_VOLUME
 
 
 class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
@@ -60,7 +78,8 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
     # -------------------------------------------------------------------------
     # Algorithm settings
     # -------------------------------------------------------------------------
-    iterations: IntProperty(
+    iterations: OperatorPropertyWrapper.int(
+        RelaxSelected_Settings, 'iterations',
         name='Iterations',
         description='Number of times to run the relax simulation. Higher is smoother and slower',
         min=1, max=100, default=25,
@@ -91,17 +110,11 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
         description='Push faces towards ideal geometric shapes and average their sizes',
         default=False,
     )
-    shaping: EnumProperty(
+    shaping: OperatorPropertyWrapper.enum(
+        RelaxSelected_Settings, 'shaping',
         name='Shaping',
         description='Post-processing applied after each relax step to control overall shape',
-        items=[
-            ('NONE', 'None', 'No additional shaping'),
-            ('PRESERVE_VOLUME', 'Preserve Volume', 'Scales relaxed vertices so the mesh stays the same size'),
-            ('INTERPOLATE_LOOPS', 'Interpolate Loop Curvature',
-                "Uses the loop edges just outside the selection to create the loop's curvature. "
-                "Can be used to reconstruct a quad patch on a sphere, for example"),
-            ('SLIDE_EDGES', 'Slide Edges', 'Restrict vertex movement to be along their connected edges'),
-        ],
+        items=RelaxSelected_Settings.shapings,
         default='PRESERVE_VOLUME',
     )
     use_proportional_edit: BoolProperty(
@@ -318,6 +331,7 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
             # Start from the tool's own snapping settings rather than this operator's defaults.
             # Redo keeps any tweaks and the next fresh run re-seeds.
             seed_source_snap_props(context, self)
+            seed_relax_algorithm_props(self)
         return self.execute(context)
 
     def draw_warning(self, layout):
@@ -391,6 +405,7 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
             )
 
         options = RelaxOptions(
+            # a one-shot run always steps; the tool's integration method is for brush strokes
             algorithm_method='STEPS',
             algorithm_iterations=self.iterations,
             algorithm_laplacian=self.smooth_vertices,

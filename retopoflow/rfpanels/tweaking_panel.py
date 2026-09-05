@@ -62,6 +62,24 @@ def draw_active_tool_options(context, layout):
         col.separator()
 
 
+def draw_tweak_brush_options(context : Context, layout : UILayout):
+    # Lets quick-switch users adjust the Tweak brush without leaving the tool they are in.
+    from ..rftool_tweak.tweak import draw_tweak_options
+    ws = context.workspace
+    # The active tool reference is just a handy RNA pointer to draw the properties against;
+    # the values themselves live in Tweak_Brush_Modes and RFBrush_Tweak, which is what makes
+    # them reachable from here at all (a tool reference only stores its own tool's settings).
+    tool = ws.tools.from_space_view3d_mode('EDIT_MESH', create=False) if ws else None
+    if not tool or tool.idname == 'retopoflow.tweak': return
+    props = tool.operator_properties('retopoflow.tweak')
+    if not props: return
+
+    header, panel = layout.panel(idname='RF_tweak_brush', default_closed=True)
+    header.label(text='Tweak Brush')
+    if panel:
+        draw_tweak_options(context, panel, props)
+
+
 def draw_tweaking_options(context : Context, layout : UILayout):
     if not context.space_data: return
 
@@ -99,6 +117,8 @@ def draw_tweaking_options(context : Context, layout : UILayout):
             sub.prop(curve_props, 'curve_handle_density', text='Density')
             sub.prop(curve_props, 'curve_corner_angle')
 
+
+    draw_tweak_brush_options(context, layout)
 
     header, panel = layout.panel(idname='RF_selection', default_closed=True)
     header.label(text='Selection')
