@@ -74,7 +74,7 @@ def draw_masking_options(context, layout):
     draw_pinning_options(context, layout)
 
 def draw_masking_panel(context, layout):
-    header, panel = layout.panel(idname='masking_panel', default_closed=False)
+    header, panel = layout.panel(idname='masking_panel', default_closed=True)
     # outside the brush tools these settings only affect Tweak and Relax, so say so
     tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
     is_brush_tool = tool and tool.idname in {'retopoflow.tweak', 'retopoflow.relax'}

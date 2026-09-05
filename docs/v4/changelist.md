@@ -68,8 +68,8 @@ This document contains details about what has changed in Retopoflow in version 4
     - It is much faster than Walk but slower than Fast
     - It is slightly less accurate than Walk but much more accurate than Fast
     - It can handle flipped normals, split edges, and overhangs just fine
-- Added Shift Scroll hotkey to twist in Contours
-- Added Ctrl Scroll after extruding in Contours to adjust segment count
+- Added `Shift Scroll` hotkey to twist in Contours
+- Added `Ctrl Scroll` after extruding in Contours to adjust segment count
 - Added Curvature and Space Evenly controls to Contours that determine where new points are placed
 - Added Refinement option to Contours Fast method that improves quality without much overhead
 - Exposed the Contours Walk method source object cache so it can be managed manually if needed
@@ -77,7 +77,7 @@ This document contains details about what has changed in Retopoflow in version 4
 
 **PolyStrips**
 
-- Added Ctrl and Shift scroll operators to adjust segments and width at any time in PolyStrips
+- Added `Ctrl` and `Shift Scroll` operators to adjust segments and width at any time in PolyStrips
     - This is also a standalone operator that can be used outside of Retopoflow
 - PolyStrips now has insert size methods similar to Strokes
     - The default, Snapped, properly interpolates when drawing between any two quads
@@ -113,11 +113,15 @@ This document contains details about what has changed in Retopoflow in version 4
     - Can be changed in the Masking options
 - Relax is now significantly faster
 
-**Misc.**
-
-- Added experimental low poly hard surface / CAD snapping to all tools
-    - Enabled via the new Snapping menu
+**CAD Snapping**
+- Added experimental low poly hard surface / CAD snapping
+    - Enabled via the new Snapping menu under Source Feature Detection
+    - You can snap to sharp angles, creases, seams, or edges marked as sharp
+    - Works while grabbing, brushing, or creating new vertices in all tools
     - Inludes a new caching system for the source objects
+    - Can be slow in heavy scenes, so it is only recommended only for low detail scenes for now
+
+**Misc.**
 - All Retopoflow tools now respect Blender's Alt+B clipping region
     - Useful for isolating areas while working
 - Tools statusbar now shows the result of Blender operations such as Merge by Distance
