@@ -1567,7 +1567,8 @@ def edit_as_curve_draw_overlay_handler():
 class RFOperator_EditAsCurve(RFOperator_Invoke):
     bl_idname = 'retopoflow.edit_as_curve'
     bl_label = 'Edit as Curve (Retopoflow)'
-    bl_description = 'Edit the selected edge loops and quad strips with Bezier curve handles until Enter confirms'
+    bl_description = ('Edit the selected edge loops and quad strips with Bezier curve handles until Enter confirms. '
+                      'Inside a Retopoflow tool that has its own curve handles, toggles their visibility instead')
     bl_space_type = 'VIEW_3d'
     bl_region_type = 'TOOLS'
     bl_options = { 'REGISTER', 'UNDO' }
@@ -1623,10 +1624,21 @@ class RFOperator_EditAsCurve(RFOperator_Invoke):
         cls._is_running = False
         cls.active = None
 
+    @staticmethod
+    def _active_tool_curve_props(context):
+        ''' The active RF tool's own operator properties, if that tool has its own curve handles
+        (PolyStrips, PolyPen, Strokes, Contours, Legacy Patches) -- same toggle tweaking_panel and
+        the pie menu already expose. None outside RF, or on a tool without curve handles. '''
+        from ..rfpanels.tweaking_panel import _active_rftool
+        _, tool_props = _active_rftool(context)
+        return tool_props if hasattr(tool_props, 'show_curve_handles') else None
+
     @classmethod
     def poll(cls, context):
         if not super().poll(context): return False
-        if rf_is_running(): return False   # RF tools already provide curve handles
+        if rf_is_running():
+            # RF tools already edit their own curves; the hotkey can only toggle their handle visibility
+            return cls._active_tool_curve_props(context) is not None
         if cls._is_running: return False
         # hover/drag math is screen-space, so this only means anything in a 3D view.
         # space_data rather than region_data: menus draw in their own region, which has none.
@@ -1635,6 +1647,13 @@ class RFOperator_EditAsCurve(RFOperator_Invoke):
         return True
 
     def invoke(self, context, event):
+        if rf_is_running():
+            tool_props = self._active_tool_curve_props(context)
+            tool_props.show_curve_handles = not tool_props.show_curve_handles
+            if context.area:
+                context.area.tag_redraw()
+            return {'FINISHED'}
+
         if not context.region_data:
             self.report({'ERROR'}, 'Edit as Curve: needs a 3D viewport')
             return {'CANCELLED'}

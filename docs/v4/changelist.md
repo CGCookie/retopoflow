@@ -92,6 +92,7 @@ This document contains details about what has changed in Retopoflow in version 4
     - Expanded the curve handle system to work with edge loops and patches of faces
     - Hovering over a control point and pressing `v` toggles the handle type
     - Toggling the handle type to or from Vector automatically inserts or removes corners
+    - Handle visibility can be toggled with `Alt C`
 
 - Stokes now snaps its span sides to nearby connected vertices
     - This makes it so Strokes can fill holes without creating overlapping verts
