@@ -46,6 +46,27 @@ from ..common.interface import draw_tool_settings, draw_tool_panels
 
 from ..preferences import RF_Prefs
 
+class Tweak_Brush_Modes:
+    # Module-level storage, mirroring how the falloff brush holds radius/falloff/strength.
+    # Properties stored on the tool reference are only reachable while Tweak is the active
+    # tool, so the Tweak Brush panel shown from other tools could not read or write them.
+    brush_types : list[tuple[str, str, str, int]] = [
+        # (identifier, name, description, number)
+        ('GRAB',          'Grab',            'Classic Tweak behavior: grab and drag vertices under the brush', 0),
+        ('NUDGE',         'Nudge',           'Nudge-style: smear vertices in the direction of the stroke without grabbing', 1),
+        ('PINCH_MAGNIFY', 'Pinch / Magnify', 'Pull or push vertices perpendicular to the stroke direction', 2),
+    ]
+    pinch_magnify_modes : list[tuple[str, str, str, str, int]] = [
+        # (identifier, name, description, icon, number)
+        ('MAGNIFY', 'Magnify', 'Push vertices away from the brush center', 'ADD',    0),
+        ('PINCH',   'Pinch',   'Pull vertices toward the brush center',    'REMOVE', 1),
+    ]
+
+    brush_type         : int  = 1      # NUDGE
+    nudge_loops        : bool = False
+    pinch_magnify_mode : int  = 1      # PINCH
+
+
 RFBrush_Tweak, RFOperator_TweakBrush_Adjust = create_falloff_brush(
     'tweak_brush',
     'Tweak Brush',
@@ -135,30 +156,26 @@ class RFOperator_Tweak(RFOperator):
         default=1,
     )
 
-    brush_type: bpy.props.EnumProperty(
+    brush_type: OperatorPropertyWrapper.enum(
+        Tweak_Brush_Modes, 'brush_type',
         name='Brush Type',
         description='How the Tweak brush moves vertices',
-        items=[
-            ('GRAB',          'Grab',          'Classic Tweak behavior: grab and drag vertices under the brush'),
-            ('NUDGE',         'Nudge',         'Nudge-style: smear vertices in the direction of the stroke without grabbing'),
-            ('PINCH_MAGNIFY', 'Pinch / Magnify', 'Pull or push vertices perpendicular to the stroke direction'),
-        ],
+        items=Tweak_Brush_Modes.brush_types,
         default='NUDGE',
     )
 
-    nudge_loops: bpy.props.BoolProperty(
+    nudge_loops: OperatorPropertyWrapper.bool(
+        Tweak_Brush_Modes, 'nudge_loops',
         name='Loops',
         description='Find the nearest edge loop perpendicular to the stroke and smear only its vertices. Hold Alt while starting a stroke to toggle for that stroke',
         default=False,
     )
 
-    pinch_magnify_mode: bpy.props.EnumProperty(
+    pinch_magnify_mode: OperatorPropertyWrapper.enum(
+        Tweak_Brush_Modes, 'pinch_magnify_mode',
         name='Pinch / Magnify Mode',
         description='Magnify pushes vertices away from the brush center; Pinch pulls them toward it. Hold Ctrl while brushing to invert for that stroke',
-        items=[
-            ('MAGNIFY', 'Magnify', 'Push vertices away from the brush center', 'ADD',    0),
-            ('PINCH',   'Pinch',   'Pull vertices toward the brush center',    'REMOVE', 1),
-        ],
+        items=Tweak_Brush_Modes.pinch_magnify_modes,
         default='PINCH',
     )
 

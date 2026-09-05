@@ -76,6 +76,40 @@ from ..common.interface import draw_tool_settings, draw_tool_panels
 
 from ..preferences import RF_Prefs
 
+class Relax_Algorithm_Settings:
+    # Module-level storage, mirroring how the falloff brush holds radius/falloff/strength.
+    # Properties stored on the tool reference are only reachable while Relax is the active
+    # tool, so the Relax panel shown from other tools could not read or write them.
+    methods : list[tuple[str, str, str, int]] = [
+        # (identifier, name, description, number)
+        ('AUTO',  'Auto',              'Uses an automatic number of substeps based on the enabled options and vertex count to balance quality and performance', 0),
+        ('STEPS', 'Substeps',          'Use multiple tiny incremental steps for classic smoothing behavior', 1),
+        ('RK4',   'RK4 (Experimental)','Use Runge-Kutta integration to improve stability while smoothing', 2),
+    ]
+
+    method                : int   = 0      # AUTO
+    iterations            : int   = 2
+    max_distance_radius   : float = 0.10
+    max_distance_edges    : float = 0.05
+    prevent_bounce        : bool  = False
+    average_edge_lengths  : bool  = False
+    straighten_edges      : bool  = True
+    equalize_faces        : bool  = False
+    correct_flipped_faces : bool  = False
+    laplacian             : bool  = True
+
+
+def seed_relax_algorithm_props(props):
+    ''' Copy the Relax tool's algorithm toggles onto an operator's matching props.
+    Call from invoke() while RF is running so each fresh run starts from the tool's settings. '''
+    # Only the toggles map across. The tool's integration method and its per-frame iteration
+    # count describe a brush stroke, not a one-shot run, so those stay with the caller.
+    props.smooth_vertices      = Relax_Algorithm_Settings.laplacian
+    props.straighten_edges     = Relax_Algorithm_Settings.straighten_edges
+    props.average_edge_lengths = Relax_Algorithm_Settings.average_edge_lengths
+    props.equalize_faces       = Relax_Algorithm_Settings.equalize_faces
+
+
 RFBrush_Relax, RFOperator_RelaxBrush_Adjust = create_falloff_brush(
     'relax_brush',
     'Relax Brush',
@@ -123,53 +157,57 @@ class RFOperator_Relax(RFOperator):
         default=0.5,
     )
 
-    algorithm_method: bpy.props.EnumProperty(
+    algorithm_method: OperatorPropertyWrapper.enum(
+        Relax_Algorithm_Settings, 'method',
         name='Method',
         description='How Relax updates the position of the vertices under the brush',
-        items=[
-            ('AUTO', 'Auto', 'Uses an automatic number of substeps based on the enabled options and vertex count to balance quality and performance'),
-            ('STEPS', 'Substeps', 'Use multiple tiny incremental steps for classic smoothing behavior'),
-            ('RK4', 'RK4 (Experimental)', 'Use Runge-Kutta integration to improve stability while smoothing'),
-        ],
+        items=Relax_Algorithm_Settings.methods,
         default='AUTO',
     )
-    algorithm_iterations: bpy.props.IntProperty(
+    algorithm_iterations: OperatorPropertyWrapper.int(
+        Relax_Algorithm_Settings, 'iterations',
         name='Algorithm: Iterations',
         description='Number of iterations per frame. Ignored if RK4 is enabled',
         min=1,
         max=10,
         default=2,
     )
-    algorithm_max_distance_radius: bpy.props.FloatProperty(
+    algorithm_max_distance_radius: OperatorPropertyWrapper.float(
+        Relax_Algorithm_Settings, 'max_distance_radius',
         name='Algorithm: Max Distance (Radius)',
         description='Limit distance vertices are moved per iteration based on brush radius',
         min=0.001,
         max=1.0,
         default=0.10,
     )
-    algorithm_max_distance_edges: bpy.props.FloatProperty(
+    algorithm_max_distance_edges: OperatorPropertyWrapper.float(
+        Relax_Algorithm_Settings, 'max_distance_edges',
         name='Algorithm: Max Distance (Edges)',
         description='Limit distance vertices are moved per iteration based on average length of connected edges',
         min=0.001,
         max=1.0,
         default=0.05,
     )
-    algorithm_prevent_bounce: bpy.props.BoolProperty(
+    algorithm_prevent_bounce: OperatorPropertyWrapper.bool(
+        Relax_Algorithm_Settings, 'prevent_bounce',
         name='Algorithm: Prevent Bounce',
         description='Try to prevent vertices from bouncing back and forth',
         default=False,
     )
-    algorithm_average_edge_lengths: bpy.props.BoolProperty(
+    algorithm_average_edge_lengths: OperatorPropertyWrapper.bool(
+        Relax_Algorithm_Settings, 'average_edge_lengths',
         name='Algorithm: Average Edge Lengths',
         description='Squash / stretch each edge toward the average edge length near the brush',
         default=False,
     )
-    algorithm_straighten_edges: bpy.props.BoolProperty(
+    algorithm_straighten_edges: OperatorPropertyWrapper.bool(
+        Relax_Algorithm_Settings, 'straighten_edges',
         name='Algorithm: Straighten Edges',
         description='Moves each vertex towards making its connected edges straighter',
         default=True,
     )
-    algorithm_equalize_faces: bpy.props.BoolProperty(
+    algorithm_equalize_faces: OperatorPropertyWrapper.bool(
+        Relax_Algorithm_Settings, 'equalize_faces',
         name='Algorithm: Equalize Faces',
         description=(
             'Moves vertices of each face to be even distance from and evenly spread around the face center while also averaging the side lengths and overall area. ' \
@@ -192,12 +230,14 @@ class RFOperator_Relax(RFOperator):
     #     description='Move face vertices so they are equally spread around the face center',
     #     default=True,
     # )
-    algorithm_correct_flipped_faces: bpy.props.BoolProperty(
+    algorithm_correct_flipped_faces: OperatorPropertyWrapper.bool(
+        Relax_Algorithm_Settings, 'correct_flipped_faces',
         name='Algorithm: Correct Flipped Faces',
         description='Try to move vertices so faces are not flipped',
         default=False,
     )
-    algorithm_laplacian: bpy.props.BoolProperty(
+    algorithm_laplacian: OperatorPropertyWrapper.bool(
+        Relax_Algorithm_Settings, 'laplacian',
         name='Algorithm: Laplacian Smooth',
         description="Average vertex locations similarly to Blender's smooth sculpting brush",
         default=True,

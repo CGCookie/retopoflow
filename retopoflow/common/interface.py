@@ -40,6 +40,7 @@ def draw_tool_settings(context : Context, layout : UILayout, *, tool_props=None,
     # deferred: rfpanels imports back out of this module
     from ..preferences import RF_Prefs
     from ..rfpanels.mirror_panel import draw_mirror_popover
+    from ..rfpanels.relax_algorithm_panel import draw_relax_popover
     from ..rfpanels.tweaking_panel import draw_tweaking_popover
 
     prefs = RF_Prefs.get_prefs(context)
@@ -67,6 +68,7 @@ def draw_tool_settings(context : Context, layout : UILayout, *, tool_props=None,
 
     if tool_props is not None:
         draw_tweaking_popover(context, layout, tool_props)
+    draw_relax_popover(context, layout)
     row = layout.row(align=True)
     row.popover('RF_PT_MeshCleanup', text='Clean Up')
     row.operator('retopoflow.meshcleanup', text='', icon='TRIA_RIGHT').affect_all = False
@@ -91,11 +93,13 @@ def draw_tool_panels(context : Context, layout : UILayout, *, tweaking : bool = 
     from ..rfpanels.masking_panel import draw_masking_panel
     from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
     from ..rfpanels.mirror_panel import draw_mirror_panel
+    from ..rfpanels.relax_algorithm_panel import draw_relax_panel
     from ..rfpanels.rfpanel_snapping import draw_snapping_panel
     from ..rfpanels.tweaking_panel import draw_tweaking_panel
 
     if tweaking:
         draw_tweaking_panel(context, layout)
+    draw_relax_panel(context, layout)
     draw_masking_panel(context, layout)
     draw_cleanup_panel(context, layout)
     draw_mirror_panel(context, layout)
