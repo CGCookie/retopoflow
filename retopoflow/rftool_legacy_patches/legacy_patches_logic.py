@@ -59,11 +59,13 @@ from ..common.raycast import (
     iter_all_valid_sources, mouse_from_event, is_point_occluded, raycast_point_valid_sources,
 )
 from ..common.segments import active_mirror_axes, pin_to_mirror_planes
+from ..common.accel import SourceCache
+from ..common.snapping import source_snap_radius, source_snap_settings
 
 
 MAIN_OP_IDNAME = 'retopoflow.legacy_patches'
 
-DEBUG_OFFSET = True     # print how a run steps: its shape, welds, direction, and why a row is refused
+DEBUG_OFFSET = False     # print how a run steps: its shape, welds, direction, and why a row is refused
 
 # Corner overrides live in a per-vert int layer, so they survive depsgraph updates and undo
 CORNER_LAYER = 'rf_legacy_patches_corner'
@@ -1375,7 +1377,37 @@ class LegacyPatches_Logic:
         mirror_axes = active_mirror_axes(context)
         mirror_tol = mirror_threshold(context) or 0.0
 
+        # Source feature snapping
+        feature_accel = SourceCache.get(context) if sources else None
+        if feature_accel:
+            use_fixed, fixed_distance, proximity = source_snap_settings(context)
+            edge_lens = [ ((M @ e.verts[0].co) - (M @ e.verts[1].co)).length for e in edges ]
+            mean_edge_world = sum(edge_lens) / len(edge_lens) if edge_lens else 0.0
+
+        def feature_snap(co_local, cap=None):
+            if not feature_accel: return co_local
+            ref = cap / SNAP_CAP_EDGES if cap else mean_edge_world
+            radius = source_snap_radius(ref, use_fixed=use_fixed, fixed_distance=fixed_distance, avg_edge_factor=proximity)
+            if radius <= 0: return co_local
+            co_world = M @ co_local
+            corner = feature_accel.find_corner(co_world)
+            if corner and corner[2] <= radius: return Mi @ Vector(corner[0])
+            closest = feature_accel.closest_point(co_world)
+            if closest and (Vector(closest) - co_world).length <= radius: return Mi @ Vector(closest)
+            return co_local
+
         def snap(co_local, normal_world=None, cap=None, *, ray=True, missed=None):
+            ''' Onto the source surface, then onto a source feature if one is in reach. A point the
+            surface refused is left where it is, so the feature pass cannot rescue a vert that
+            should have stopped the fill. '''
+            refused = []
+            co = surface_snap(co_local, normal_world, cap, ray=ray, missed=refused)
+            if refused:
+                if missed is not None: missed.append(True)
+                return co
+            return feature_snap(co, cap)
+
+        def surface_snap(co_local, normal_world=None, cap=None, *, ray=True, missed=None):
             if not sources: return co_local.copy()
             # With a normal, cast along it both ways first: nearest point drags an off-surface point
             # sideways, a ray keeps its in-surface position. The cap rejects hits on unrelated far
