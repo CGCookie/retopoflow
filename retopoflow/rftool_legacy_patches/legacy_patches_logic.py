@@ -63,6 +63,8 @@ from ..common.segments import active_mirror_axes, pin_to_mirror_planes
 
 MAIN_OP_IDNAME = 'retopoflow.legacy_patches'
 
+DEBUG_OFFSET = True     # print how a run steps: its shape, welds, direction, and why a row is refused
+
 # Corner overrides live in a per-vert int layer, so they survive depsgraph updates and undo
 CORNER_LAYER = 'rf_legacy_patches_corner'
 CORNER_AUTO, CORNER_FORCED, CORNER_SMOOTH = 0, 1, 2
@@ -864,6 +866,7 @@ class LegacyPatches_Logic:
     # Selection bookkeeping
     sel_sig        : ClassVar[tuple | None] = None             # selection the last live rebuild ran on
     filled_sig     : ClassVar[tuple | None] = None             # selection left behind by the last fill; not offered again
+    ngon_verts     : ClassVar[tuple | None] = None             # vert indices of a lone selected n-gon the preview replaces
     filled_flags   : ClassVar[tuple] = (False, False, False, False, False)   # (bridge, grid, loft, offset, quad) of the last fill, for its redo panel
     filled_loops   : ClassVar[int] = 0
     filled_solutions : ClassVar[int] = 1
@@ -941,6 +944,7 @@ class LegacyPatches_Logic:
         L.wire_runs = []
         L.offer = None
         L.error = None
+        L.ngon_verts = None
 
     @staticmethod
     def selection_signature(bm, edges) -> tuple:
@@ -1139,7 +1143,22 @@ class LegacyPatches_Logic:
         ##############################################
         # read the selection
 
-        edges = { e for e in bmops.get_all_selected_bmedges(bm) if len(e.link_faces) < 2 and not e.hide }
+        sel_bmes = [ e for e in bmops.get_all_selected_bmedges(bm) if not e.hide ]
+        edges = { e for e in sel_bmes if len(e.link_faces) < 2 }
+        # Multiple selected faces should fall through be joined to an n-gon with Blender's fill
+        if edges and all(any(f.select for f in e.link_faces) for e in sel_bmes): edges = set()
+        # A single n-gon should be replaced with a fill if possible
+        sel_bmfs = bmops.get_all_selected_bmfaces(bm)
+        if len(sel_bmfs) == 1 and stroke is None:
+            ngon = next(iter(sel_bmfs))
+            if len(ngon.verts) > 4 and set(sel_bmes) <= set(ngon.edges):
+                L.ngon_verts = tuple(v.index for v in ngon.verts)
+                bm = bm.copy()
+                for seq in (bm.verts, bm.edges, bm.faces): seq.ensure_lookup_table()
+                ngon = bm.faces.get([ bm.verts[i] for i in L.ngon_verts ])
+                edges = set(ngon.edges)
+                bm.faces.remove(ngon)
+                layer = bm.verts.layers.int.get(CORNER_LAYER)     # the copy's own
         # only as many selected verts as it takes to tell none, one, three, four and more apart
         sel_verts = []
         for bmv in bm.verts:
@@ -1345,6 +1364,7 @@ class LegacyPatches_Logic:
             shapes[kind].append(loop_strips)
 
         L.corner_indices = { c.index for c in (string_corners | loop_corners) }
+        if DEBUG_OFFSET: print(f'[offset] {len(edges)} selected edges -> ' + (' '.join(f'{k}:{len(v)}' for k, v in shapes.items() if v) or 'no shape'))
 
         ##############################################
         # snapping and mirror helpers, set up once per rebuild
@@ -1792,6 +1812,7 @@ class LegacyPatches_Logic:
             MITER_LIMIT = 3.0   # cap on the corner stretch 1/sin(half angle); Split Angle's 135 degree cap needs 2.61
             STEP_STALL = 0.25   # a vert travelling less than this fraction of its step means the row has run out of source
             WELD_MAX_ANGLE = 150.0  # a weld rung this far round from the run darts the first quad; matches _quad_squareness
+            WELD_MAX_BACK = 20.0    # how far past square a weld rung may lean back over the face the run steps away from
             n = len(sv)
             if n < 3 if cyclic else n < 2: return True
             nseg = n if cyclic else n - 1      # bmes[k] joins sv[k] and sv[k+1]
@@ -1816,37 +1837,12 @@ class LegacyPatches_Logic:
             # how far a row reaches when it extrudes; a welded end lands on its weld whatever this says
             d_step = d_mean * max(0.05, settings.step_scale)
 
-            # straight out across the run and in the surface, at every vert
-            nrm = normal_fn(sv)
-            # Last resort for a wire run with no source: the plane the run itself lies in,
-            # and the view direction when it is too straight to fit one.
-            run_plane_n = None
-            if not sources:
-                pn, _ = fit_plane_of_verts(sv)
-                if (pn is None or pn.length_squared < 1e-12) and context.region_data:
-                    pn = Mi.to_3x3() @ view_forward_direction(context)
-                run_plane_n = pn.normalized() if (pn is not None and pn.length_squared > 1e-12) else None
-            perps, prev_n = [], None
-            for i, v in enumerate(sv):
-                nv = nrm(v)
-                if nv is None:
-                    bmfs = [ bmf for bme in v.link_edges if bme in run_edges for bmf in bme.link_faces ]
-                    nv = next((f.normal for f in bmfs if f.normal.length_squared > 0), None)
-                if nv is None: nv = run_plane_n
-                if nv is None: return True     # no source, no face and no plane: nothing to lean on
-                # keep the normal continuous along the run, so two verts finding opposite faces of a
-                # thin surface do not put the row on both sides
-                if prev_n is not None and nv.dot(prev_n) < 0: nv = -nv
-                prev_n = nv
-                p = along[i].cross(nv)
-                if p.length_squared < 1e-12: return True
-                perps.append(p.normalized())
-
-            # Which side is out, settled one vert at a time: away from the faces that vert's own run
-            # edges carry. One vote for the whole run trusts the perps to agree end to end, and across
-            # a crease they need not.
-            def face_sign(i):
-                acc = 0.0
+            # Which side is out, from target topology alone and before anything the source says: a
+            # run with a corner to follow must never depend on the source's answer at the crease.
+            def face_out(i):
+                ''' Away from the faces this vert's own run edges carry, across the run. None where
+                neither run edge carries a single face, which on a boundary means a wire vert. '''
+                acc = Vector()
                 for bme in (bmes[(i - 1) % n] if (cyclic or i > 0) else None,
                             bmes[i] if (cyclic or i < n - 1) else None):
                     if bme is None or len(bme.link_faces) != 1: continue
@@ -1856,50 +1852,100 @@ class LegacyPatches_Logic:
                     al = al.normalized()
                     to_old = bme.link_faces[0].calc_center_median() - (va.co + vb.co) / 2
                     to_old -= al * to_old.dot(al)
-                    acc += to_old.dot(perps[i])
-                return -1 if acc > 0 else (1 if acc < 0 else 0)
+                    if to_old.length_squared > 1e-14: acc -= to_old.normalized()
+                return acc.normalized() if acc.length_squared > 1e-12 else None
 
-            signs = [ face_sign(i) for i in range(n) ]
-            if any(signs):
-                # a vert whose own edges carry no face takes the side of the nearest one that does
-                for order in (range(n), range(n - 1, -1, -1)):
-                    last = 0
-                    for i in order:
-                        if signs[i]: last = signs[i]
-                        elif last: signs[i] = last
-                perps = [ p * signs[i] for i, p in enumerate(perps) ]
-            else:
+            outs = [ face_out(i) for i in range(n) ]
+
+            nrm = normal_fn(sv)     # the source normal under each run vert
+
+            def source_perps():
+                ''' Straight out across the run and in the surface, at every vert, signed away from
+                the run's own faces, or toward the mouse when it has none. None when some vert has
+                nothing to lean on. '''
+                # Last resort for a wire run with no source: the plane the run itself lies in,
+                # and the view direction when it is too straight to fit one.
+                run_plane_n = None
+                if not sources:
+                    pn, _ = fit_plane_of_verts(sv)
+                    if (pn is None or pn.length_squared < 1e-12) and context.region_data:
+                        pn = Mi.to_3x3() @ view_forward_direction(context)
+                    run_plane_n = pn.normalized() if (pn is not None and pn.length_squared > 1e-12) else None
+                perps, prev_n = [], None
+                for i, v in enumerate(sv):
+                    # A normal facing along the run leaves no perpendicular at all, and the source
+                    # hands one back wherever the nearest point is on a surface square to the run: the
+                    # side wall at the end of a run in an alcove corner. As unusable as no normal, so
+                    # it takes the same fallbacks rather than refusing the whole run.
+                    cands = [ nrm(v) ]
+                    cands += [ bmf.normal for bme in v.link_edges if bme in run_edges for bmf in bme.link_faces ]
+                    cands.append(run_plane_n)
+                    nv = p = None
+                    for c in cands:
+                        if c is None or c.length_squared < 1e-12: continue
+                        q = along[i].cross(c)
+                        if q.length_squared < 1e-12: continue
+                        nv, p = c, q
+                        break
+                    if nv is None: return None      # no source, no face and no plane: nothing to lean on
+                    # keep the normal continuous along the run, so two verts finding opposite faces of
+                    # a thin surface do not put the row on both sides
+                    if prev_n is not None and nv.dot(prev_n) < 0: nv, p = -nv, -p
+                    prev_n = nv
+                    perps.append(p.normalized())
+
+                signs = [ 0 if o is None else (1 if (dt := o.dot(perps[i])) > 0 else (-1 if dt < 0 else 0))
+                          for i, o in enumerate(outs) ]
+                if any(signs):
+                    # a vert whose own edges carry no face takes the side of the nearest one that does
+                    for order in (range(n), range(n - 1, -1, -1)):
+                        last = 0
+                        for i in order:
+                            if signs[i]: last = signs[i]
+                            elif last: signs[i] = last
+                    return [ p * signs[i] for i, p in enumerate(perps) ]
                 # a wire run has no faces to step away from, so it steps toward the mouse
                 mid_i = n // 2
                 side_sign, s_mouse = mouse_side(cos[0], cos[mid_i if cyclic else -1], cos[mid_i],
                                                 perps[mid_i] * d_mean)
                 if s_mouse and not cyclic: L.wire_runs.append((cos[0].copy(), cos[-1].copy(), s_mouse))
-                if side_sign < 0: perps = [ -p for p in perps ]
+                return [ -p for p in perps ] if side_sign < 0 else perps
 
-            # Step direction per vert: the quad's edge leaving the run there. Each of the vert's two run
-            # edges gets one vote and the two are averaged, so where the run turns between two poles the
-            # rail between them lands between what each side wants. A side edge running along the run, a
-            # non-quad, or a quad on the far side leaves that side with nothing to say; it then votes for
-            # the perp rather than standing aside, which would hand the whole direction to the other side.
-            dirs = []
-            for i, v in enumerate(sv):
-                acc = Vector()
-                for bme in (bmes[(i - 1) % n] if (cyclic or i > 0) else None,
-                            bmes[i] if (cyclic or i < n - 1) else None):
-                    if bme is None: continue    # the end of an open run has only the one side
-                    lean = Vector()
-                    for bmf in bme.link_faces:
-                        if len(bmf.verts) != 4: continue
-                        side_e = next((fe for fe in bmf.edges if fe is not bme and v in fe.verts), None)
-                        if side_e is None: continue
-                        d = v.co - side_e.other_vert(v).co
-                        if d.length_squared < 1e-14: continue
-                        d.normalize()
-                        if abs(d.dot(along[i])) > GUIDE_MAX_ALONG: continue
-                        if d.dot(perps[i]) <= 0: continue
-                        lean += d
-                    acc += lean.normalized() if lean.length_squared > 1e-12 else perps[i]
-                dirs.append(acc.normalized() if acc.length_squared > 1e-12 else perps[i])
+            def lean_dirs(perps):
+                ''' Step direction per vert: the quad's edge leaving the run there. Each of the vert's
+                two run edges gets one vote and the two are averaged, so where the run turns between two
+                poles the rail between them lands between what each side wants. A side edge running
+                along the run, a non-quad, or a quad on the far side leaves that side with nothing to
+                say; it then votes for the perp rather than standing aside, which would hand the whole
+                direction to the other side. '''
+                dirs = []
+                for i, v in enumerate(sv):
+                    acc = Vector()
+                    for bme in (bmes[(i - 1) % n] if (cyclic or i > 0) else None,
+                                bmes[i] if (cyclic or i < n - 1) else None):
+                        if bme is None: continue    # the end of an open run has only the one side
+                        lean = Vector()
+                        for bmf in bme.link_faces:
+                            if len(bmf.verts) != 4: continue
+                            side_e = next((fe for fe in bmf.edges if fe is not bme and v in fe.verts), None)
+                            if side_e is None: continue
+                            d = v.co - side_e.other_vert(v).co
+                            if d.length_squared < 1e-14: continue
+                            d.normalize()
+                            if abs(d.dot(along[i])) > GUIDE_MAX_ALONG: continue
+                            if d.dot(perps[i]) <= 0: continue
+                            lean += d
+                        acc += lean.normalized() if lean.length_squared > 1e-12 else perps[i]
+                    dirs.append(acc.normalized() if acc.length_squared > 1e-12 else perps[i])
+                return dirs
+
+            # A wire end has no face to be outward of. There the side the mouse is on stands in, and
+            # that is the source's answer: a run with a wire end asks it now, one with faces never has to.
+            perps = None
+            if not cyclic and (outs[0] is None or outs[-1] is None):
+                perps = source_perps()
+                if perps is None: return True   # no source, no face and no plane: nothing to lean on
+                outs = [ o if o is not None else p for o, p in zip(outs, perps) ]
 
             # a vert where the run turns has to reach further than one where it runs straight, or the
             # new row pinches in at every corner
@@ -1913,6 +1959,14 @@ class LegacyPatches_Logic:
                 c = max(-1.0, min(1.0, u.normalized().dot(w.normalized())))
                 sin_half = math.sqrt(max(0.0, (1.0 - c) / 2.0))
                 miter.append(MITER_LIMIT if sin_half < 1e-6 else min(MITER_LIMIT, 1.0 / sin_half))
+
+            def leans_back(d, i):
+                ''' Whether a rung at vert i lies back over the face the run is stepping away from,
+                which would put the new quad on top of it. The limit sits past square rather than at
+                it: `out` lies in the plane of that face, so a rung turning onto another surface at a
+                crease has no component along it at all, and a stricter test throws out the very
+                corner being looked for. '''
+                return _angle_deg(d, outs[i]) > 90.0 + WELD_MAX_BACK
 
             def open_edges_at(bmv, skip_faces_of):
                 ''' Candidate rails leaving a vert: unselected, still open, and not in a face the run
@@ -1931,26 +1985,22 @@ class LegacyPatches_Logic:
                 if arrive.length_squared < 1e-14: return None
                 arrive.normalize()
                 topo_corner = bool(v.link_faces) and is_bmvert_corner(v)
-                out = dirs[i_end]
-                best, best_dot = None, 0.0
+                out = outs[i_end]
+                best, best_dot = None, None
                 for _bme, w in open_edges_at(v, (bmes[-1] if i_end == n - 1 else bmes[0],)):
                     if w in run_verts or w in used: continue
                     d = w.co - v.co
                     if d.length_squared < 1e-14: continue
                     d = d.normalized()
-                    if d.dot(out) <= 0: continue
-                    # The rung has to lie outward of the run, not merely the way the mesh flows. A
-                    # rung on the inward side puts the first quad's corner here past 180 degrees, and
-                    # the quad comes out concave; `out` alone lets that through wherever a pole tilts
-                    # the flow round far enough to still agree with it.
-                    if d.dot(perps[i_end]) <= 0: continue
-                    # the same corner, still convex but opened out until the quad is a dart
+                    if leans_back(d, i_end): continue
+                    # the same corner, still convex but opened out until the quad is a dart, and its
+                    # mirror, a rung folded back alongside the run into a sliver
                     ang = _angle_deg(-arrive, d)
-                    if ang >= WELD_MAX_ANGLE: continue
+                    if not (180.0 - WELD_MAX_ANGLE < ang < WELD_MAX_ANGLE): continue
                     # without topology to say corner, the boundary itself has to turn, or w is nothing
                     # but the run carrying on and there is no corner here to weld round
                     if not topo_corner and ang >= min_angle: continue
-                    if d.dot(out) > best_dot: best, best_dot = w, d.dot(out)
+                    if best_dot is None or d.dot(out) > best_dot: best, best_dot = w, d.dot(out)
                 return best
 
             def rail_next(bmv, from_co, came_along, used):
@@ -1984,7 +2034,7 @@ class LegacyPatches_Logic:
                     if onward.length_squared < 1e-14: continue
                     if _angle_deg(back, onward.normalized()) < min_angle: continue
                     d = _co(w) - v.co
-                    if d.length_squared < 1e-14 or d.dot(perps[i_end]) <= 0: continue
+                    if d.length_squared < 1e-14 or leans_back(d.normalized(), i_end): continue
                     if isinstance(w, BMVert) and w in run_verts: continue
                     return w
                 return None
@@ -1998,6 +2048,41 @@ class LegacyPatches_Logic:
                 if weld1 is None: weld1 = weld_target(n - 1, n - 2, used_welds)
                 if weld0 is not None and weld0 is weld1: return True   # both ends fold onto one vert: not a row of quads
             row0_welds = { i: w for i, w in ((0, weld0), (n - 1, weld1)) if w is not None }
+
+            # Direction, in the order the answers are trustworthy. A weld knows where the row actually
+            # goes, so it aims the whole run the way it already sets the distance: carried to each vert
+            # by the run's own turn, and blended end to end when both ends weld. Only with no weld is
+            # the source asked, and on a crease it answers with whichever surface is nearest.
+            aimed_by_weld = False   # row 0 is going where a weld says, not where the old faces lean
+            carried = {}
+            for i_w, w in row0_welds.items():
+                d = _co(w) - cos[i_w]
+                if d.length_squared < 1e-14: continue
+                # walked out from the weld one edge at a time: neighbouring tangents never oppose each
+                # other, where the two ends of a run bent into a U do
+                walk = list(range(n) if i_w == 0 else range(n - 1, -1, -1))
+                ds = { i_w: d.normalized() }
+                for j, i in zip(walk, walk[1:]):
+                    ds[i] = along[j].rotation_difference(along[i]) @ ds[j]
+                carried[i_w] = [ ds[i] for i in range(n) ]
+            if carried:
+                # one weld aims the whole run, two blend end to end; with one, both ends of the blend
+                # are the same carried direction and it falls out
+                fr = _cumulative_fracs(cos)
+                a0 = carried.get(0) or carried[n - 1]
+                a1 = carried.get(n - 1) or a0
+                # two welds pointing near-opposite blend to nothing: that vert takes the first end's
+                dirs = [ (a.normalized() if a.length_squared > 1e-12 else a0[i])
+                         for i, a in enumerate(a0[i] * (1 - fr[i]) + a1[i] * fr[i] for i in range(n)) ]
+                aimed_by_weld = True
+            else:
+                # no corner to follow, so the source gets to say which way is out
+                if perps is None: perps = source_perps()
+                if perps is None: return True   # no source, no face and no plane: nothing to lean on
+                dirs = lean_dirs(perps)
+            if DEBUG_OFFSET:
+                print(f'[offset] run n={n} cyclic={cyclic} welds={ {i: (w.index if isinstance(w, BMVert) else "pt") for i, w in row0_welds.items()} } '
+                      f'aimed={aimed_by_weld} dirs[0]={tuple(round(c, 3) for c in dirs[0])} dirs[mid]={tuple(round(c, 3) for c in dirs[n // 2])}')
 
             def row_base(prev_cos, welds):
                 ''' Step vector for each vert of the previous row. A welded end must land exactly on its
@@ -2056,6 +2141,7 @@ class LegacyPatches_Logic:
                         else:
                             steps = k - 1   # the sides cannot meet in quads: stop short and leave the gap
                         break
+            if DEBUG_OFFSET: print(f'[offset] far_row={"yes" if far_row else "no"} steps={steps} d_step={d_step:.4f} d_mean={d_mean:.4f}')
             if steps < 1: return True
             if not budget(steps * n): return False
 
@@ -2161,7 +2247,10 @@ class LegacyPatches_Logic:
                         if i in welds:
                             row.append(welds[i])
                             continue
-                        nb = source_normal(prev_row[i]) or nrm(sv[i])
+                        # The normal test stops nearest point pulling a guessed vert onto the back of a
+                        # form. A weld-aimed first row is no guess, and at a crease the run vert's normal
+                        # is the surface being left, which would refuse every hit on the one stepped onto.
+                        nb = None if (k == 0 and aimed_by_weld) else (source_normal(prev_row[i]) or nrm(sv[i]))
                         pt = new_point(prev_cos[i] + base[i], side, nb, cap, ray=False, missed=missed)
                         if not cyclic and i in (0, n - 1): pt = to_planes(pt, sym_axes(cos[i]) - run_axes)
                         row.append(pt)
@@ -2170,15 +2259,23 @@ class LegacyPatches_Logic:
                 if far_row is None or k != steps - 1:
                     # a row that found no source, folded back on itself, or stopped advancing leaves the
                     # quads from here on unusable: keep what is good and stop
-                    if ((sources and missed)
-                            or folds_back(prev_cos, row_cos) or stalled(prev_cos, row_cos, base)):
+                    bad_miss, bad_fold = bool(sources and missed), folds_back(prev_cos, row_cos)
+                    bad_stall = stalled(prev_cos, row_cos, base)
+                    if bad_miss or bad_fold or bad_stall:
+                        if DEBUG_OFFSET:
+                            print(f'[offset] row {k} refused: missed={len(missed)} folds_back={bad_fold} stalled={bad_stall} cap={cap:.4f}')
+                            print('[offset]   ' + ' '.join(f'{tuple(round(c, 3) for c in prev_cos[i])}+{base[i].length:.3f}'
+                                                           f'->{tuple(round(c, 3) for c in row_cos[i])}' for i in range(n)))
                         steps = k
                         break
                 rows.append(row)
                 if row_free: L.has_free_step = True
                 prev_row, prev_prev_cos, prev_cos = row, prev_cos, row_cos
 
-            if not rows: return True
+            if not rows:
+                if DEBUG_OFFSET: print('[offset] no rows kept')
+                return True
+            if DEBUG_OFFSET: print(f'[offset] built {len(rows)} row(s)')
             # no over_existing_faces check: the step is aimed away from the run's own faces by construction
             verts = list(sv) + [ pt for row in rows for pt in row ]
             faces = [ ((k - 1) * n + i, (k - 1) * n + nxt(i), k * n + nxt(i), k * n + i)
@@ -2442,7 +2539,9 @@ class LegacyPatches_Logic:
                     # unequal opposite sides, or not four-sided: grid fill
                     if not emit_grid_fill(bmvs, 'grid'): break
                 if len(L.previz) > before: continue
-                # nothing to fill inside (already faces, or not griddable): step the loop outward instead
+                # nothing to fill inside (already faces, or not griddable): step the loop outward instead.
+                # Not round an n-gon's perimeter, where a ring would leave a smaller hole and no patch
+                if L.ngon_verts is not None: continue
                 bmes = cycle_bmes(bmvs)
                 if bmes and not emit_offset(bmvs, bmes, cyclic=True): break
 
@@ -3268,6 +3367,14 @@ class LegacyPatches_Logic:
                     return False
                 row.append(bmv)
             existing.append(row)
+
+        # a lone n-gon goes first, and only the face: its edges stay for the patch to build on
+        if L.ngon_verts is not None:
+            ngon = bm.faces.get([ bm.verts[i] for i in L.ngon_verts ]) if max(L.ngon_verts) < nverts else None
+            if ngon is None or not ngon.select:
+                L.dirty = True      # stale preview; the next frame rebuilds it
+                return False
+            bmesh.ops.delete(bm, geom=[ngon], context='FACES_ONLY')
 
         new_bmvs, new_bmfs, built = [], [], []
         for pv, row in zip(previz, existing):

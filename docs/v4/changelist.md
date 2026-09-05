@@ -4,10 +4,6 @@ This document contains details about what has changed in Retopoflow in version 4
 
 ### 4.2.0
 
-- Added experimental low poly hard surface / CAD snapping to all tools
-    - Enabled via the new Snapping menu
-    - Inludes a new caching system for the source objects
-
 **New Operators**
 
 - Added standalone operator for Relax that can even be used outside of Retopoflow
@@ -15,18 +11,56 @@ This document contains details about what has changed in Retopoflow in version 4
     - Includes unique options for retaining / reconstructing the desired shape
     - Works great with proportional editing
     - Improved Relax performance
+    - The default hotkey is `Shift R`
 
 - Added operator for evening selection that also works outside of Retopoflow
     - Similar to Relax but faster to use when adjusting spacing and improved for edge loops
     - Works for any number of selected edge loops, non-loop edges, and faces
     - Optionally preserves sharp angles
+    - The default hotkey is `Shift Alt R`
 
 - Added operator for inserting diamond junctions that also works outside of Retopoflow
+    - The default hotkey is `Ctrl Alt B`
 
 - Added operator for twisting loops that also works outside of Retopoflow
     - It automatically finds cross-sectional loops in the selection and twists each one independantly
     - All vertices that are not on complete loops are properly interpolated
     - Works great with proportional editing
+    - The default hotkey is `Alt T`
+
+- Added new Auto Fill operator that can be used outside of Retopoflow
+    - Described below in the Patches section
+    - The default hotkey is `F`
+
+- Added new Edit as Curve operator for adjusting any selection with Bezier handles
+    - Works outside of Retopoflow tools
+    - Works the same as the curve handles in PolyStrips and Strokes described below
+    - The default hotkey is `Alt C`
+
+**Patches**
+
+- Added new Patches tool for quickly filling areas with quads
+    - Select boundary edges to see a preview of the fill
+    - `Ctrl LMB` on vertices to add or remove corners as needed
+    - Hit `Enter`, `Ctrl LMB` (not on the selected vertices) or `F` to accept the fill
+    - Select the edges around a hole to fill it
+        - `Ctrl Scroll` can be used to cycle through solutions when multiple exist
+    - Select boundary edges to face step them
+        - When the selection ends in a corner, it will step and connect similar to the F2 add-on,
+            but this works for entire loops not just single faces
+        - `Ctrl Scroll` to step multiple times
+        - `Shift Scroll` to adjust the step width
+    - Select perpendicular boundary edges that form an L shape to complete it with a grid
+    - Select any n-gon to replace it with a quad patch if possible
+    - Select a corner vert to make a quad, same as the F2 add-on
+    - `Shift scroll` before or after filling a patch to rotate the solution
+    - `Alt R` on any selected faces to rotate the topology in any tool
+- Added new hotkey `F` to access Patches from any tool
+    - Tapping `F` will auto-fill the selection using the Patches algorithm
+    - Holding `F` will temporarily switch you into Patches, giving you an interactive
+        preview of the fill, which you can adjust as needed and accept with `LMB` or `Enter`
+- The Patches fill operator can be used outside of Retopoflow by pressing `F`, from the
+    Retopoflow context menu, or the Edge or Face menus.
 
 **Contours**
 
@@ -73,13 +107,16 @@ This document contains details about what has changed in Retopoflow in version 4
 
 - Added Nudge, Nudge Loops, and Pinch / Magnify modes to Tweak tool
     - Nudge is now the default instead of Grab
-    - You can hold Alt to quickly toggle loops mode in Nudge
+    - You can hold `Alt` to quickly toggle loops mode in Nudge
 - Tweak and Relax now default to affecting only one mesh island at a time
     - Can be changed in the Masking options
 - Relax is now significantly faster
 
 **Misc.**
 
+- Added experimental low poly hard surface / CAD snapping to all tools
+    - Enabled via the new Snapping menu
+    - Inludes a new caching system for the source objects
 - All Retopoflow tools now respect Blender's Alt+B clipping region
     - Useful for isolating areas while working
 - Tools statusbar now shows the result of Blender operations such as Merge by Distance
