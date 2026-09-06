@@ -342,10 +342,18 @@ class RFTool_Tweak(RFTool_Base):
         # WINDOW: properties > tool
         if context.region.type == 'TOOL_HEADER':
             # layout.label(text="Brush:")
-            layout.prop(props_tweak, 'brush_radius')
-            layout.prop(props_tweak, 'brush_strength', slider=True)
-            layout.prop(props_tweak, 'brush_falloff', slider=True)
-            layout.prop(props_tweak, 'brush_type', expand=False, text='')
+            row = layout.row()
+            row.ui_units_x = 6
+            row.prop(props_tweak, 'brush_radius')
+            row = layout.row()
+            row.ui_units_x = 6
+            row.prop(props_tweak, 'brush_strength', slider=True)
+            row = layout.row()
+            row.ui_units_x = 5.5
+            row.prop(props_tweak, 'brush_falloff', slider=True)
+            row = layout.row()
+            row.ui_units_x = 5.5 if props_tweak.brush_type == 'PINCH_MAGNIFY' else 3.5
+            row.prop(props_tweak, 'brush_type', expand=False, text='')
             if props_tweak.brush_type == 'NUDGE':
                 layout.prop(props_tweak, 'nudge_loops', toggle=False)
             if props_tweak.brush_type == 'PINCH_MAGNIFY':

@@ -1,10 +1,11 @@
-import bpy, os
+import bpy
+from bl_ui import space_toolsystem_common
 from math import degrees, radians
 from bpy.types import Context, Menu, OperatorProperties, UILayout
-from bpy.utils import previews
 
-from ..common.icons import Icon
+from ..common.icons import Icon, get_icon_value_from_icon_handle
 from ..common.operator import RFRegisterClass
+from ..rfglobals import RFGlobals
 from ..rftool_polypen.polypen import PolyPen_Insert_Modes
 from ..rftool_patches.patches import USE_NEW_PATCHES
 from ..rftool_legacy_patches.legacy_patches_logic import LegacyPatches_Logic
@@ -59,6 +60,42 @@ class RFOperator_SetToolProp(RFRegisterClass, bpy.types.Operator):
         if context.area: context.area.tag_redraw()
         return {'FINISHED'}
 
+class RFOperator_SwitchToSelectTool(RFRegisterClass, bpy.types.Operator):
+    bl_idname : str = 'retopoflow.switch_to_select_tool'
+    bl_label : str = 'Switch to Select Tool'
+    bl_description : str = "Switch to whatever selection tool is currently active in the toolbar"
+    bl_options : set[str] = {'INTERNAL'}
+
+    @staticmethod
+    def _select_tool_item(context : Context):
+        helper = space_toolsystem_common.ToolSelectPanelHelper._tool_class_from_space_type('VIEW_3D')
+        if helper is None: return None
+        item, _index, _group = helper._tool_get_by_id_active_with_group(context, helper.tool_fallback_id)
+        return item
+
+    @classmethod
+    def select_tool_icon_and_label(cls, context : Context) -> tuple[int, str]:
+        ''' The toolbar's own icon and name for that tool, for layout.operator(). '''
+        item = cls._select_tool_item(context)
+        if not item: return (0, 'Select Tool')
+        icon_value = space_toolsystem_common.ToolSelectPanelHelper._icon_value_from_icon_handle(item.icon)
+        return (icon_value, item.label)
+
+    @classmethod
+    def poll(cls, context : Context) -> bool:
+        return cls._select_tool_item(context) is not None
+
+    def execute(self, context : Context) -> set[str]:
+        item = self._select_tool_item(context)
+        if not item: return {'CANCELLED'}
+        RFCore = RFGlobals.RFCore_None
+        if RFCore:
+            RFCore.switch_to_tool(item.idname)
+        else:
+            space_toolsystem_common.activate_by_id(context, 'VIEW_3D', item.idname)
+        return {'FINISHED'}
+
+
 def _label_for(rna, value, decimals : int = 0) -> str:
     if rna.subtype == 'ANGLE': return f'{degrees(value):.0f}°'
     if rna.type == 'INT': return str(int(value))
@@ -77,7 +114,7 @@ def _is_current(current, value) -> bool:
 
 def _step_icons(steps) -> list[str]:
     # A zero bottom step takes STEP_ICONS[0] and then ramps from [2]
-    STEP_ICONS = ('LAYER_USED', 'DECORATE', 'LAYER_ACTIVE', 'RECORD_ON', 'SHADING_SOLID')
+    STEP_ICONS = ('LAYER_USED', 'DECORATE', 'LAYER_ACTIVE', 'RADIOBUT_ON', 'SHADING_SOLID')
     zero = bool(steps) and not steps[0]
     ramp = STEP_ICONS[2:] if zero else STEP_ICONS[1:]
     n = len(steps) - zero
@@ -141,7 +178,7 @@ def rftool_props(tool):
 
 class RFMenu_MT_ToolPie(Menu):
     bl_idname = 'RF_MT_Tools'
-    bl_label = 'Retopoflow Tools Pie Menu'
+    bl_label = 'Retopoflow Tools'
 
     @classmethod
     def poll(cls, context):
@@ -162,6 +199,16 @@ class RFMenu_MT_ToolPie(Menu):
         pie_emboss = 'PIE_MENU' if bpy.app.version >= (5,0,0) else 'RADIAL_MENU'
 
         back = pie.box().column(align=True)
+
+        row = back.row()
+        row.emboss = pie_emboss
+        icon_value, label = RFOperator_SwitchToSelectTool.select_tool_icon_and_label(context)
+        if icon_value:
+            row.scale_y = 1.4
+            row.operator('retopoflow.switch_to_select_tool', text=f'     {label}', icon_value=icon_value)
+        else:
+            row.operator('retopoflow.switch_to_select_tool', text=label, icon='RESTRICT_SELECT_OFF')
+        back.separator(type='LINE', factor=0.5)
 
         section = pie_section(back, pie_emboss, 'Clean Up', 'RF_PT_MeshCleanup')
         row = section.split(align=True)
@@ -305,75 +352,52 @@ class RFMenu_MT_ToolPie(Menu):
                         draw_prop_steps(section, props, 'step_scale', (0.5, 1.0, 2.0), text='Distance')
 
 
+    def draw_pie_button(self, context, pie, name: str):
+        tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
+        toolname = name.lower()
+        row = pie.row()
+        row.ui_units_x = 6
+        row.scale_y = 1.75
+        row.emboss = 'PIE_MENU' if bpy.app.version >= (5,0,0) else 'RADIAL_MENU'
+        spacing = '     '
+        return row.operator(
+            f'retopoflow.switch_to_{toolname}',
+            text=spacing+name,
+            icon_value=get_icon_value_from_icon_handle(toolname),
+            depress=tool.idname==f'retopoflow.{toolname}'
+        )
 
     def draw(self, context):
-        tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
         layout = self.layout
         pie = layout.menu_pie()
 
         # West
-        _ = pie.operator(
-            'retopoflow.switch_to_polystrips',
-            text='PolyStrips',
-            icon_value=RF_icons['POLYSTRIPS'].icon_id,
-            depress=tool.idname=='retopoflow.polystrips'
-        )
+        self.draw_pie_button(context, pie, 'PolyStrips')
 
         # East
-        _ = pie.operator(
-            'retopoflow.switch_to_tweak',
-            text='Tweak',
-            icon_value=RF_icons['TWEAK'].icon_id,
-            depress=tool.idname=='retopoflow.tweak'
-        )
+        self.draw_pie_button(context, pie, 'Tweak')
 
         # South
         self.draw_bottom_menu(context, pie)
 
         # North
-        _ = pie.operator(
-            'retopoflow.switch_to_contours',
-            text='Contours',
-            icon_value=RF_icons['CONTOURS'].icon_id,
-            depress=tool.idname=='retopoflow.contours'
-        )
+        self.draw_pie_button(context, pie, 'Contours')
 
         # Northwest
-        _ = pie.operator(
-            'retopoflow.switch_to_strokes',
-            text='Strokes',
-            icon_value=RF_icons['STROKES'].icon_id,
-            depress=tool.idname=='retopoflow.strokes'
-        )
+        self.draw_pie_button(context, pie, 'Strokes')
 
         # Northeast
-        _ = pie.operator(
-            PATCHES_SWITCH_IDNAME,
-            text='Patches',
-            icon_value=RF_icons['PATCHES'].icon_id,
-            depress=tool.idname==PATCHES_IDNAME,
-        )
+        self.draw_pie_button(context, pie, 'Patches')
 
         # Southwest
-        _ = pie.operator(
-            'retopoflow.switch_to_polypen',
-            text='PolyPen',
-            icon_value=RF_icons['POLYPEN'].icon_id,
-            depress=tool.idname=='retopoflow.polypen'
-        )
+        self.draw_pie_button(context, pie, 'PolyPen')
 
         # Southeast
-        _ = pie.operator(
-            'retopoflow.switch_to_relax',
-            text='Relax',
-            icon_value=RF_icons['RELAX'].icon_id,
-            depress=tool.idname=='retopoflow.relax'
-        )
+        self.draw_pie_button(context, pie, 'Relax')
 
 
 
 keymaps = []
-RF_icons = None
 
 
 def register():
@@ -387,23 +411,9 @@ def register():
         keymap_item.properties.name =  RFMenu_MT_ToolPie.bl_idname
         keymaps.append((keymap, keymap_item))
 
-    global RF_icons
-    RF_icons = previews.new()
-    icons_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir, os.pardir, 'icons'))
-    RF_icons.load('POLYPEN', os.path.join(icons_dir, 'polypen-icon.png'), 'IMAGE')
-    RF_icons.load('POLYSTRIPS', os.path.join(icons_dir, 'polystrips-icon.png'), 'IMAGE')
-    RF_icons.load('STROKES', os.path.join(icons_dir, 'strokes-icon.png'), 'IMAGE')
-    RF_icons.load('CONTOURS', os.path.join(icons_dir, 'contours-icon.png'), 'IMAGE')
-    RF_icons.load('PATCHES', os.path.join(icons_dir, 'patches-icon.png'), 'IMAGE')
-    RF_icons.load('TWEAK', os.path.join(icons_dir, 'tweak-icon.png'), 'IMAGE')
-    RF_icons.load('RELAX', os.path.join(icons_dir, 'relax-icon.png'), 'IMAGE')
-
 def unregister():
     bpy.utils.unregister_class(RFMenu_MT_ToolPie)
 
     for keymap, keymap_item in keymaps:
         keymap.keymap_items.remove(keymap_item)
     keymaps.clear()
-
-    global RF_icons
-    previews.remove(RF_icons)

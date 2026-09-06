@@ -113,7 +113,10 @@ def register():
     preview_collections["main"] = previews.new()
 
 def unregister():
-    # Clear icons cache
+    # Clear icons cache.
+    for icon_value in set(_icon_cache.values()):
+        if icon_value:
+            bpy.app.icons.release(icon_value)
     _icon_cache.clear()
     _icon_preview_cache.clear()
 

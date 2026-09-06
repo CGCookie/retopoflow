@@ -343,8 +343,15 @@ class RFTool_Relax(RFTool_Base):
         # WINDOW: properties > tool
         if context.region.type == 'TOOL_HEADER':
             # layout.label(text="Brush:")
-            layout.prop(props_relax, 'brush_radius')
-            layout.prop(props_relax, 'brush_strength', slider=True)
+            row = layout.row()
+            row.ui_units_x = 6
+            row.prop(props_relax, 'brush_radius')
+            row = layout.row()
+            row.ui_units_x = 6
+            row.prop(props_relax, 'brush_strength', slider=True)
+            row = layout.row()
+            row.ui_units_x = 5.5
+            row.prop(props_relax, 'brush_falloff', slider=True)
             layout.popover('RF_PT_RelaxAlgorithm')
             draw_tool_settings(context, layout, masking=True)
 

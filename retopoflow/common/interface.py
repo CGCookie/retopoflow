@@ -68,15 +68,18 @@ def draw_tool_settings(context : Context, layout : UILayout, *, tool_props=None,
 
     if tool_props is not None:
         draw_tweaking_popover(context, layout, tool_props)
-    draw_relax_popover(context, layout)
-    row = layout.row(align=True)
-    row.popover('RF_PT_MeshCleanup', text='Clean Up')
-    row.operator('retopoflow.meshcleanup', text='', icon='TRIA_RIGHT').affect_all = False
+    if not masking:
+        draw_relax_popover(context, layout)
+        row = layout.row(align=True)
+        row.popover('RF_PT_MeshCleanup', text='Clean Up')
+        row.operator('retopoflow.meshcleanup', text='', icon='TRIA_RIGHT').affect_all = False
     draw_mirror_popover(context, layout)
     if snapping:
         layout.popover('RF_PT_Snapping', text='Snapping')
     if prefs.expand_offset:
-        layout.prop(props_scene, 'retopo_offset', text='Overlay Offset')
+        row = layout.row()
+        row.ui_units_x = 7.5
+        row.prop(props_scene, 'retopo_offset', text='Overlay Offset')
     layout.popover('RF_PT_General', text='', icon='OPTIONS')
     layout.popover('RF_PT_Help', text='', icon='INFO_LARGE' if bpy.app.version >= (4,3,0) else 'INFO')
 
