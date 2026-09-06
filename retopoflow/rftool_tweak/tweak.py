@@ -29,6 +29,8 @@ from typing import Any
 from ..rfglobals import RFGlobals
 from ..rftool_base import RFTool_Base
 from ..common.icons import get_path_to_blender_icon
+from ..common.selection import deselect_all_on_empty_click
+from ..common.raycast import mouse_from_event
 from ..common.operator import RFOperator, OperatorPropertyWrapper, chain_rf_keymaps, execute_operator, poll_retopoflow, RFKeyMaps, BLKeyMaps
 from ...addon_common.common.maths import Color
 from ...addon_common.common.resetter import Resetter
@@ -247,11 +249,13 @@ class RFOperator_Tweak(RFOperator):
 
     logic : Tweak_Logic | None = None
     timer : TimerHandler | None = None
+    mouse_down : tuple[int, int] = (0, 0)  # press position, to tell a click from a stroke
 
     def init(self, context : Context, event : Event):
         # print(f'STARTING POLYPEN')
         assert RFTool_Tweak.rf_brush
         RFTool_Tweak.rf_brush.update(context, event, force=True)
+        self.mouse_down = mouse_from_event(event)
         self.logic = Tweak_Logic(context, event, RFTool_Tweak.rf_brush, self)
         self.tickle(context)
         self.timer = TimerHandler(120, context=context, enabled=True)
@@ -267,6 +271,10 @@ class RFOperator_Tweak(RFOperator):
         self.logic.update(context, event)
 
         if event.type == 'LEFTMOUSE' and event.value == 'RELEASE':
+            deselect_all_on_empty_click(
+                context, self.logic.bm, self.logic.em, RFTool_Tweak.rf_brush,
+                self.mouse_down, mouse_from_event(event),
+            )
             return {'FINISHED'}
 
         if event.value == 'PRESS' and event.type in {'RIGHTMOUSE', 'ESC'}:

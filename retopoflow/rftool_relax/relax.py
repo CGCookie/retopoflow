@@ -38,6 +38,7 @@ from ..rfglobals import RFGlobals
 from ..rftool_base import RFTool_Base
 from ..rfbrush_base import RFBrush_Base
 from ..common.bmesh import get_bmesh_emesh, NearestBMVert
+from ..common.selection import deselect_all_on_empty_click
 from ..common.drawing import (
     Drawing,
     CC_2D_POINTS,
@@ -245,8 +246,10 @@ class RFOperator_Relax(RFOperator):
 
     logic : Relax_Logic | None = None
     timer : TimerHandler | None = None
+    mouse_down : tuple[int, int] = (0, 0)  # press position, to tell a click from a stroke
 
     def init(self, context, event):
+        self.mouse_down = mouse_from_event(event)
         self.logic = Relax_Logic(
             context,
             event,
@@ -268,6 +271,10 @@ class RFOperator_Relax(RFOperator):
         self.logic.update(context, event)
 
         if event.type == 'LEFTMOUSE' and event.value == 'RELEASE':
+            deselect_all_on_empty_click(
+                context, self.logic.bm, self.logic.em, RFTool_Relax.rf_brush,
+                self.mouse_down, mouse_from_event(event),
+            )
             return {'FINISHED'}
 
         if event.value == 'PRESS' and event.type in {'RIGHTMOUSE', 'ESC'}:
