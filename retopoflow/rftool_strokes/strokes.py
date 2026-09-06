@@ -652,11 +652,12 @@ class RFTool_Strokes(RFTool_Base):
                 row.prop(props_strokes, 'span_length', text="")
             else:
                 row.prop(props_strokes, 'brush_radius', text="")
-            layout.prop(props_strokes, 'smooth_angle', text='Blending', slider=True)
+            row = layout.row()
+            row.ui_units_x = 6
+            row.prop(props_strokes, 'smooth_angle', text='Blending', slider=True)
             row = layout.row(heading='Extrusions:', align=False)
             row.prop(props_strokes, 'extrapolate_mode', expand=True)
             row.popover('RF_PT_StrokeOptions', text='', icon='STROKE')
-
             draw_tool_settings(context, layout, tool_props=props_strokes)
 
         else:

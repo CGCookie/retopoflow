@@ -737,9 +737,12 @@ class RFTool_PolyStrips(RFTool_Base):
                 row.prop(props_polystrips, 'span_length', text="")
             else:
                 row.prop(props_polystrips, 'brush_radius', text="")
-            layout.prop(props_polystrips, 'stroke_smoothing', slider=True)
-            layout.prop(props_polystrips, 'split_angle')
-
+            row = layout.row()
+            row.ui_units_x = 5.5
+            row.prop(props_polystrips, 'stroke_smoothing', slider=True)
+            row = layout.row()
+            row.ui_units_x = 6
+            row.prop(props_polystrips, 'split_angle')
             draw_tool_settings(context, layout, tool_props=props_polystrips)
 
         else:

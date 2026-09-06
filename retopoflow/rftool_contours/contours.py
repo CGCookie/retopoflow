@@ -831,13 +831,23 @@ class RFTool_Contours(RFTool_Base):
             row = layout.row(align=True)
             row.prop(props_contours, 'span_insert_mode', text='')
             if props_contours.span_insert_mode == 'LENGTH':
-                row.prop(props_contours, 'span_length', text='')
+                col = row.column(align=True)
+                col.ui_units_x = 4
+                col.prop(props_contours, 'span_length', text='')
             else:
-                row.prop(props_contours, 'span_count', text='')
+                col = row.column(align=True)
+                col.ui_units_x = 2.5
+                col.prop(props_contours, 'span_count', text='')
             if props_contours.span_insert_mode == 'FIXED':
-                row.prop(props_contours, 'loop_count', text='')
-            layout.prop(props_contours, 'curvature_bias', text='Curvature', slider=True)
-            layout.prop(props_contours, 'space_evenly', text='Space Evenly', slider=True)
+                col = row.column(align=True)
+                col.ui_units_x = 2.5
+                col.prop(props_contours, 'loop_count', text='')
+            row = layout.row()
+            row.ui_units_x = 6
+            row.prop(props_contours, 'curvature_bias', text='Curvature', slider=True)
+            row = layout.row()
+            row.ui_units_x = 7
+            row.prop(props_contours, 'space_evenly', text='Space Evenly', slider=True)
             method_name = props_contours.bl_rna.properties['process_source_method'].enum_items[props_contours.process_source_method].name
             layout.popover('RF_PT_ContoursMethod', text=method_name)
             draw_tool_settings(context, layout, tool_props=props_contours)
