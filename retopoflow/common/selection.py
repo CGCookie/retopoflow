@@ -21,10 +21,33 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy, bmesh
 from bpy.types import Context, Mesh, Object
+from mathutils import Vector
 from typing import Literal
+
+from ...addon_common.common import bmesh_ops as bmops
+from ...addon_common.common.blender_preferences import mouse_drag
 
 
 DEBUG = False
+
+
+def deselect_all_on_empty_click(context, bm, em, brush, mouse_down, mouse_up) -> bool:
+    ''' Clear the selection when the artist clicks where the brush has no geometry to work on.
+    Returns True when the selection actually changed. '''
+    # The brush tools bind LMB on press, so their clicks never fall through to Blender's
+    # view3d.select, which is what deselects on empty space in every other tool.
+    if (Vector(mouse_up) - Vector(mouse_down)).length > mouse_drag():
+        return False  # a stroke, not a click
+    if brush.hit and brush.hit_p:
+        M = context.edit_object.matrix_world
+        center, radius_squared = Vector(brush.hit_p), brush.get_scaled_radius() ** 2
+        if any(not bmv.hide and ((M @ bmv.co) - center).length_squared <= radius_squared for bmv in bm.verts):
+            return False
+    if not any(bmv.select for bmv in bm.verts):
+        return False
+    bmops.deselect_all(bm)
+    bmops.flush_selection(bm, em)
+    return True
 
 
 def get_selected(
