@@ -279,6 +279,11 @@ class RF_Prefs(AddonPreferences):
         description='Selects the geometry under the cursor, if any, before transforming using keyboard shortcuts',
         default=False,
     )
+    tweaking_drag_select: bpy.props.BoolProperty(
+        name='Drag Select',
+        description="Click and drag away from geometry to box, circle, or lasso select, using whichever selection tool is active in Blender's toolbar",
+        default=True,
+    )
     #endregion
 
     """ Naming """

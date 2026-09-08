@@ -20,10 +20,17 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy, bmesh
-from bpy.types import Context, Mesh, Object
+from bl_ui import space_toolsystem_common
+from bpy.types import Context, Event, Mesh, Object
 from mathutils import Vector
+from mathutils.bvhtree import BVHTree
 from typing import Literal
 
+from ..rfglobals import RFGlobals
+from ..preferences import RF_Prefs
+from .bmesh import get_bmesh_emesh
+from .bmesh_maths import is_bmvert_hidden
+from .raycast import ray_from_mouse, raycast_valid_sources, mouse_from_event
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.blender_preferences import mouse_drag
 
@@ -153,3 +160,135 @@ def restore_selected(
             obj_bm.to_mesh(obj.data)
             if DEBUG: print('Retopoflow selection.py: freeing own bmesh')
             obj_bm.free()
+
+
+def hovered_bmelem(context : Context, event : Event, distance2d, nearest_bmv, nearest_bme, nearest_bmf):
+    ''' Nearest unhidden element the select mode allows, and the source point it was measured
+    from. Both None when the cursor is off the source. Dragging and clicking both pick through
+    here so they measure the same boundary. '''
+    hit = raycast_valid_sources(context, mouse_from_event(event), respect_clip_planes=True)
+    if not hit: return (None, None)
+    co = hit['co_local']
+    nearest_bmv.update(context, co, distance2d=distance2d, filter_fn=lambda bmv: not is_bmvert_hidden(context, bmv))
+    nearest_bme.update(context, co, distance2d=distance2d, filter_fn=lambda bme: not any(is_bmvert_hidden(context, bmv) for bmv in bme.verts))
+    nearest_bmf.update(context, co, distance2d=distance2d, filter_fn=lambda bmf: not any(is_bmvert_hidden(context, bmv) for bmv in bmf.verts))
+    mode = context.tool_settings.mesh_select_mode
+    for allowed, bmelem in zip(mode, (nearest_bmv.bmv, nearest_bme.bme, nearest_bmf.bmf)):
+        if allowed and bmelem is not None: return (bmelem, co)
+    return (None, co)
+
+
+# Blender's fallback selection tools and the gesture each runs. Tweak has no gesture, so it gets Box.
+FALLBACK_SELECT_OPS : dict[str, str] = {
+    'builtin.select':        'select_box',
+    'builtin.select_box':    'select_box',
+    'builtin.select_circle': 'select_circle',
+    'builtin.select_lasso':  'select_lasso',
+}
+
+
+def fallback_select_tool_item(context : Context):
+    ''' The tool in the toolbar's fallback (selection) slot, or None. '''
+    helper = space_toolsystem_common.ToolSelectPanelHelper._tool_class_from_space_type('VIEW_3D')
+    if helper is None: return None
+    item, _index, _group = helper._tool_get_by_id_active_with_group(context, helper.tool_fallback_id)
+    return item
+
+
+def fallback_select_icon_and_label(context : Context) -> tuple[int, str]:
+    ''' The toolbar's own icon and name for that tool, for layout.operator(). '''
+    item = fallback_select_tool_item(context)
+    if not item: return (0, 'Select Tool')
+    icon_value = space_toolsystem_common.ToolSelectPanelHelper._icon_value_from_icon_handle(item.icon)
+    return (icon_value, item.label)
+
+
+# The gesture is invoked and left to run, so a timer polls for it and cleans up once it ends.
+# Everything below is scoped to the gesture we launched; ones started through Blender's own keys
+# are left alone.
+_watching : str | None = None                          # op name of the gesture we launched
+_restore_select_mode : tuple[bool, ...] | None = None  # mesh_select_mode borrowed for circle select
+_circle_radius : int | None = None                     # radius the last circle select ended at
+
+
+def _running_gesture():
+    if not _watching: return None
+    idname = f'VIEW3D_OT_{_watching}'
+    return next((
+        op
+        for window in bpy.context.window_manager.windows
+        for op in window.modal_operators
+        if op.bl_idname == idname
+    ), None)
+
+
+def _watch_gesture_timer() -> float | None:
+    global _watching, _restore_select_mode, _circle_radius
+    op = _running_gesture()
+    if op:
+        # Python invocations don't get last-used properties back, so keep the radius ourselves
+        if _watching == 'select_circle' and 'radius' in op.properties:
+            _circle_radius = op.properties['radius']
+        return 0.05
+    _watching = None
+    if _restore_select_mode is not None and bpy.context.scene:
+        bpy.context.scene.tool_settings.mesh_select_mode = _restore_select_mode
+        _restore_select_mode = None
+    if RFCore := RFGlobals.RFCore_None:
+        RFCore._update_statusbar(bpy.context)
+    return None
+
+
+def _start_gesture(context : Context, event : Event) -> bool:
+    ''' Start the toolbar's fallback selection gesture from the drag in progress. '''
+    global _watching, _restore_select_mode
+    item = fallback_select_tool_item(context)
+    op_name = FALLBACK_SELECT_OPS.get(item.idname) if item else None
+    if DEBUG: print(f'fallback select: {item.idname if item else None} -> {op_name}')
+    if not op_name: return False
+    op = getattr(bpy.ops.view3d, op_name)
+    if not op.poll(): return False
+
+    # add to the selection rather than replace it, so reaching for the gesture never costs what was selected
+    mode = 'AND' if (event.shift and event.ctrl) else 'SUB' if event.ctrl else 'ADD'
+    if op_name == 'select_circle' and mode == 'AND': mode = 'ADD'  # circle has no AND
+    props = {'mode': mode}
+    # box and circle wait for a click when invoked from Python, but the drag already is the click
+    if 'wait_for_input' in op.get_rna_type().properties: props['wait_for_input'] = False
+    if op_name == 'select_circle':
+        # in vert+edge mode the circle grabs edges that merely cross it, so run it vert-only
+        ts = context.scene.tool_settings
+        select_mode = tuple(ts.mesh_select_mode)
+        if select_mode[0] and select_mode[1]:
+            _restore_select_mode = select_mode
+            ts.mesh_select_mode = (True, False, False)
+        if _circle_radius is not None: props['radius'] = _circle_radius
+
+    _watching = op_name
+    context.workspace.status_text_set(None)  # show Blender's gesture hints instead of RF's hotkeys
+    if not bpy.app.timers.is_registered(_watch_gesture_timer):
+        bpy.app.timers.register(_watch_gesture_timer, first_interval=0.05)
+    op('INVOKE_DEFAULT', **props)
+    return True
+
+
+def selected_under_mouse(context : Context, event : Event) -> bool:
+    ''' Whether the target face under the cursor carries any selection, ignoring the select mode.
+    Raycasts the target itself, so it also answers where the target overhangs the source. '''
+    if not context.edit_object: return False
+    o, d = ray_from_mouse(context, event)
+    if o is None: return False
+    bm, _em = get_bmesh_emesh(context, ensure_lookup_tables=True)
+    Mi = context.edit_object.matrix_world.inverted_safe()
+    _co, _no, index, _dist = BVHTree.FromBMesh(bm).ray_cast((Mi @ o).xyz, (Mi @ d).xyz)
+    if index is None: return False
+    bmf = bm.faces[index]
+    return bmf.select or any(bmv.select for bmv in bmf.verts)
+
+
+def try_drag_select(context : Context, event : Event, *, hovering_selected : bool = False) -> bool:
+    ''' Hand a drag that started away from geometry to the fallback selection gesture. Returns
+    True when the gesture took the drag, so the caller should drop what it was about to do. '''
+    if not RF_Prefs.get_prefs(context).tweaking_drag_select: return False
+    if hovering_selected or selected_under_mouse(context, event): return False
+    return _start_gesture(context, event)

@@ -33,16 +33,14 @@ from ..preferences import RF_Prefs
 from ..common.accel import SourceCache, Accel
 from ..common.bmesh import (
     get_bmesh_emesh,
-    NearestBMVert, NearestBMEdge, NearestBMFace,
     get_bmv_avg_edge_len,
+    NearestBMVert, NearestBMEdge, NearestBMFace,
 )
 from ..common.bmesh_maths import is_bmvert_hidden, orient_bmf_normals
 from ..common.operator import execute_operator, RFOperator, RFKeyMaps
 from ..common.raycast import (
-    raycast_valid_sources,
     raycast_point_capped_valid_sources,
     region_2d_to_location_3d_stable,
-    mouse_from_event,
     nearest_point_valid_sources,
     nearest_normal_valid_sources,
     MatrixInfo,
@@ -57,6 +55,7 @@ from ..common.maths import (
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.colors import Color4
 from ..common.snapping import SourceSnapMixin, source_snap_radius, source_snap_settings
+from ..common.selection import try_drag_select, hovered_bmelem
 
 
 def sync_projection_from_blender(context):
@@ -193,48 +192,56 @@ class RFOperator_Translate(SourceSnapMixin, RFOperator):
         op = getattr(bpy.ops.retopoflow, f'{idname}')
         op('INVOKE_DEFAULT', used_keyboard=True)
 
-    def init(self, context, event):
-        # print(f'STARTING TRANSLATE')
-        prefs = RF_Prefs.get_prefs(context)
+    hovered = None  # what Auto Select picked in can_init, for init to select
+
+    def is_hovering_selected(self, context, co, distance2d) -> bool:
+        ''' Whether the press at source point co landed on selected geometry, ignoring the select
+        mode. Reads the lookups hovered_bmelem just ran. '''
+        if any(elem is not None and elem.select for elem in (self.nearest_bmv.bmv, self.nearest_bmf.bmf)):
+            return True
+        if co is None: return False
+        # the edge lookup drops edges touching selected verts (so dragging a selected loop moves
+        # the loop, not one edge), so ask again without that filter
+        bme = self.nearest_bme.update(
+            context, co, distance2d=distance2d, ignore_selected=False,
+            filter_fn=lambda bme: not any(is_bmvert_hidden(context, bmv) for bmv in bme.verts),
+        )
+        return bme is not None and any(bmv.select for bmv in bme.verts)
+
+    def can_init(self, context, event) -> bool:
+        ''' A drag that starts away from geometry goes to the fallback select tool instead. '''
+        # init relies on these too; building them here means the BVHs are built once per grab
         self.matrix_world = context.edit_object.matrix_world
         self.matrix_world_inv = self.matrix_world.inverted_safe()
         self.bm, self.em = get_bmesh_emesh(context, ensure_lookup_tables=True)
-        M, Mi = self.matrix_world, self.matrix_world_inv
         self.nearest_bmv = NearestBMVert(self.bm, self.matrix_world, self.matrix_world_inv, ensure_lookup_tables=False)
         self.nearest_bme = NearestBMEdge(self.bm, self.matrix_world, self.matrix_world_inv, ensure_lookup_tables=False)
         self.nearest_bmf = NearestBMFace(self.bm, self.matrix_world, self.matrix_world_inv, ensure_lookup_tables=False)
+
+        prefs = RF_Prefs.get_prefs(context)
+        auto_select = prefs.tweaking_move_hovered_keyboard if self.used_keyboard else prefs.tweaking_move_hovered_mouse
+        # Auto Select off means "drag anywhere moves the selection", so leave that alone
+        if not (self.move_hovered and auto_select): return True
+        self.hovered, co = hovered_bmelem(context, event, prefs.tweaking_distance, self.nearest_bmv, self.nearest_bme, self.nearest_bmf)
+        if self.hovered or self.used_keyboard: return True
+        return not try_drag_select(
+            context, event,
+            hovering_selected=self.is_hovering_selected(context, co, prefs.tweaking_distance),
+        )
+
+    def init(self, context, event):
+        # print(f'STARTING TRANSLATE')
+        M = self.matrix_world
         sync_projection_from_blender(context)
         self.tweaking_projection = context.scene.retopoflow.snapping.projection
         if self.use_native == 'AUTO':
             self.use_native = 'TRUE' if translate_uses_native(context) else 'FALSE'
 
-        if self.used_keyboard:
-            move_hovered = self.move_hovered and prefs.tweaking_move_hovered_keyboard
-        else:
-            move_hovered = self.move_hovered and prefs.tweaking_move_hovered_mouse
-
-        if move_hovered:
-            hit = raycast_valid_sources(context, mouse_from_event(event), respect_clip_planes=True)
-            if hit:
-                co = hit['co_local']
-
-                distance2d = prefs.tweaking_distance
-                self.nearest_bmv.update(context, co, distance2d=distance2d, filter_fn=lambda bmv: not is_bmvert_hidden(context, bmv))
-                self.nearest_bme.update(context, co, distance2d=distance2d, filter_fn=lambda bme: not any(map(lambda bmv:is_bmvert_hidden(context, bmv), bme.verts)))
-                self.nearest_bmf.update(context, co, distance2d=distance2d, filter_fn=lambda bmf: not any(map(lambda bmv:is_bmvert_hidden(context, bmv), bmf.verts)))
-                # bmesh.geometry.intersect_face_point(face, point)
-                # select hovered geometry
-                mode = context.tool_settings.mesh_select_mode
-                nearest_bmelem = None
-                if mode[0] and not nearest_bmelem: nearest_bmelem = self.nearest_bmv.bmv
-                if mode[1] and not nearest_bmelem: nearest_bmelem = self.nearest_bme.bme
-                if mode[2] and not nearest_bmelem: nearest_bmelem = self.nearest_bmf.bmf
-
-                if nearest_bmelem:
-                    bmops.deselect_all(self.bm)
-                    bmops.select(self.bm, nearest_bmelem)
-                    #self.bm.select_history.validate()
-                    bmops.flush_selection(self.bm, self.em)
+        if self.hovered:
+            bmops.deselect_all(self.bm)
+            bmops.select(self.bm, self.hovered)
+            #self.bm.select_history.validate()
+            bmops.flush_selection(self.bm, self.em)
 
         self.bmvs = list(bmops.get_all_selected_bmverts(self.bm))
         # self.bmvs_co_orig = [Vector(bmv.co) for bmv in self.bmvs]

@@ -87,7 +87,8 @@ from .rfprops import rfprops_scene, rfprops_object
 
 # Operator files need to be imported here in order to be registered, even if they are not used in this file
 from .rfoperators import (mesh_cleanup, mirror, pinning, reset_tool_settings, launch_browser, relax_selected, space_evenly,
-    insert_diamond_junction, twist, rebuild_sources, separate_feature_regions, curve_edit, topo_rotate)
+    insert_diamond_junction, twist, rebuild_sources, separate_feature_regions, curve_edit, topo_rotate,
+    select)
 from .rfoperators.apply_retopo_settings import RFOperator_ApplyRetopoSettings, RFOperator_RestoreRetopoSettings
 from .rfoperators.newtarget import RFCore_NewTarget_Cursor, RFCore_NewTarget_Active
 
@@ -460,6 +461,10 @@ class RFCore:
         # print(f'tool_changed(context, {_space_type=}, {idname=}, {as_fallback=})')
 
         if RFCore.is_paused or RFCore.is_exiting:
+            return
+
+        if as_fallback:
+            # Alt+W uses this without actually switching tools.
             return
 
         if not isinstance(context, Context):

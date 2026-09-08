@@ -122,6 +122,9 @@ This document contains details about what has changed in Retopoflow in version 4
     - Can be slow in heavy scenes, so it is only recommended only for low detail scenes for now
 
 **Misc.**
+- LMB drag away from geometry now falls back to the active selection tool
+    - Can be disabled in the Tweaking menu under Selection
+    - You can change the fallback tool with Blender's `Alt W` hotkey
 - All Retopoflow tools now respect Blender's Alt+B clipping region
     - Useful for isolating areas while working
 - Tools statusbar now shows the result of Blender operations such as Merge by Distance
