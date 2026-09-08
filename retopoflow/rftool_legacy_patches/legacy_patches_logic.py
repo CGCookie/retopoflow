@@ -183,9 +183,9 @@ def _is_convex_2d(pts):
 
 def _quad_squareness(q):
     ''' How square a quad is, 1.0 for a perfect square, given its corners in ring order. None when
-    it is a thin diamond, a long strip, or folded over a crease. Measured in 3D. '''
-    MIN_ANGLE, MAX_ANGLE = 30.0, 150.0   # wider than the usual 45-135: retopo quads on a curved surface skew more
-    MAX_EDGE_RATIO = 4.0                 # longest side over shortest; catches the long strip the angle test passes
+    it is considered not a good fit: a long strip, a fold over a crease, or a shape under the floor. '''
+    MIN_SQUARENESS = 0.15                # floor on the score: a 55 degree lean on a square, 45 on a 2:1, 37 on a 3:1
+    MAX_EDGE_RATIO = 3.5                 # longest side over shortest; aspect weighs lightly in the score, so a long strip needs its own limit
     MAX_WARP = 45.0                      # angle between the triangle normals across a diagonal
     # Skew (a rhombus) is punished harder than aspect (a rectangle): a leaning quad is rarely wanted,
     # a 2:1 quad is ordinary retopo. With the caller dividing area by this, a square beats a 45
@@ -197,11 +197,8 @@ def _quad_squareness(q):
     if min(lens) < 1e-9: return None
     if max(lens) / min(lens) > MAX_EDGE_RATIO: return None
 
-    worst_corner = 0.0
-    for i in range(4):
-        ang = _angle_deg(-sides[i - 1].normalized(), sides[i].normalized())
-        if ang < MIN_ANGLE or ang > MAX_ANGLE: return None
-        worst_corner = max(worst_corner, abs(ang - 90.0))
+    # a corner at 0 or 180 scores nothing, so collinear corners fall through the floor without a test of their own
+    worst_corner = max(abs(_angle_deg(-sides[i - 1].normalized(), sides[i].normalized()) - 90.0) for i in range(4))
 
     for d in (0, 1):
         n0 = (q[(d + 1) % 4] - q[d]).cross(q[(d + 2) % 4] - q[d])
@@ -209,7 +206,8 @@ def _quad_squareness(q):
         if n0.length_squared < 1e-18 or n1.length_squared < 1e-18: return None
         if _angle_deg(n0.normalized(), n1.normalized()) > MAX_WARP: return None
 
-    return (1.0 - worst_corner / 90.0) ** SKEW_WEIGHT * (min(lens) / max(lens)) ** ASPECT_WEIGHT
+    score = (1.0 - worst_corner / 90.0) ** SKEW_WEIGHT * (min(lens) / max(lens)) ** ASPECT_WEIGHT
+    return score if score >= MIN_SQUARENESS else None
 
 def _tri_shape_ok(cos):
     ''' Whether three points make a triangle worth filling rather than a sliver. Verts taken from a
@@ -225,7 +223,6 @@ def _quad_from_points(pts2d, cos3d, mouse):
     positions. Returns (order, score) with order indexing the inputs, lower score better; None
     when the four make no quad worth offering. '''
     HOVER_SLOP = 0.25       # how far outside the outline the cursor may sit, in mean side lengths
-    MIN_SQUARENESS = 0.15   # floor, so a barely passing shape cannot lose to a far larger quad on shape alone
 
     # sorting by angle round the centroid is the one order that does not self-intersect
     centre2d = sum(pts2d, Vector((0, 0))) / 4
@@ -245,9 +242,10 @@ def _quad_from_points(pts2d, cos3d, mouse):
     if squareness is None: return None
 
     # Screen area over squareness. The smallest quad holding the cursor is usually the one meant,
-    # but size alone kept offering rhombuses, and shape alone reached clean across the mesh.
+    # but size alone kept offering rhombuses, and shape alone reached clean across the mesh. The
+    # shape floor in _quad_squareness keeps a barely passing sliver from winning on size alone.
     area = abs(sum(p[i].x * p[(i + 1) % 4].y - p[(i + 1) % 4].x * p[i].y for i in range(4))) / 2
-    cost = area / max(squareness, MIN_SQUARENESS)
+    cost = area / squareness
     dist = sum((pt - mouse).length_squared for pt in p)
     return order, (0 if inside else 1, cost, dist)
 
@@ -719,6 +717,7 @@ class Stroke:
         self.corners = {}       # corner vert index -> (va, vb) indices, the pairing the pick chose
         self.corner_faces = {}  # corner vert index -> (indices, positions) of its quad from the last rebuild
         self.step_faces = []    # (edge key, indices, positions) of every face the stepped edges made in the last rebuild
+        self.covered = set()    # frozenset pairs: existing edges a stepped row lies along (a weld, a closed far side), filled by that step
         self.face_sides = set() # frozenset pairs: every side of every quad and notch quad taken
         self.runs    = {}       # offer key -> px of the stroke that has run inside that offer's faces
         self.prev    = None     # the stroke's previous sample point, window px
@@ -737,9 +736,10 @@ class Stroke:
 
     def spoken_for(self, ia : int, ib : int, *, by_faces_only : bool = False) -> bool:
         ''' Whether the edge between two verts is already in the stroke: as a side of a quad or notch
-        quad it has taken, or (unless by_faces_only) as an edge it is stepping. '''
+        quad it has taken, as an existing edge one of its stepped rows lies along, or (unless
+        by_faces_only) as an edge it is stepping. '''
         e = frozenset((ia, ib))
-        return e in self.face_sides or (not by_faces_only and e in self.edges)
+        return e in self.face_sides or e in self.covered or (not by_faces_only and e in self.edges)
 
     def _rebuild_sides(self):
         sides = set()
@@ -790,7 +790,7 @@ class Stroke:
         kind = offer[0]
         if kind == 'e':
             key = frozenset(offer[1:3])
-            if key in self.edges: return False
+            if key in self.edges or key in self.covered: return False
             self.edges.add(key)
             return True
         if kind == 'c':
@@ -1190,6 +1190,15 @@ class LegacyPatches_Logic:
         layer = bm.verts.layers.int.get(CORNER_LAYER)
         def override(bmv):
             return bmv[layer] if layer else CORNER_AUTO
+        def is_corner(bmv1, bmv0, bmv2):
+            ''' Whether the boundary turns a corner at bmv1, arriving from bmv0 and leaving for bmv2.
+            Toggled to one, or bending past Split Angle and not toggled smooth. '''
+            mode = override(bmv1)
+            if mode == CORNER_FORCED: return True
+            if mode == CORNER_SMOOTH: return False
+            d10 = (bmv0.co - bmv1.co).normalized()
+            d12 = (bmv2.co - bmv1.co).normalized()
+            return _angle_deg(d10, d12) < min_angle
 
         ##############################################
         # read the selection
@@ -1219,9 +1228,19 @@ class LegacyPatches_Logic:
         if stroke is not None: edges, sel_verts = set(), []
         lone_bmv = sel_quad = sel_tri = None
 
+        def run_turns(bmvs, bmes):
+            ''' Whether four verts are one open run of three of the edges, turning a corner at one of
+            the two verts inside it. '''
+            if len(bmes) != 3: return False
+            at = { v: [ e for e in bmes if v in e.verts ] for v in bmvs }
+            if sorted(len(es) for es in at.values()) != [1, 1, 2, 2]: return False
+            return any(is_corner(v, es[0].other_vert(v), es[1].other_vert(v)) for v, es in at.items() if len(es) == 2)
+
         # Four selected verts with at least one on no selected edge are a picked quad. Every vert of
         # an L or C is on a selected edge, and two separate edges are a bridge with its count knob.
-        if len(sel_verts) == 4 and any(not any(e in edges for e in v.link_edges) for v in sel_verts):
+        # A run of three edges can also be a good quad if the angles support it.
+        if len(sel_verts) == 4 and (any(not any(e in edges for e in v.link_edges) for v in sel_verts)
+                                    or run_turns(sel_verts, edges)):
             sel_quad = L._selected_quad(bm, sel_verts, context.region, context.region_data, M)
             if sel_quad is not None:
                 edges = set()   # the quad is the whole fill; a selected edge among the four must not also step
@@ -1282,13 +1301,7 @@ class LegacyPatches_Logic:
                     if e not in remaining_edges: continue
                     bmv1 = bmes_shared_bmv(edge, e)
                     if bmv1 is None: continue
-                    mode = override(bmv1)
-                    if mode == CORNER_FORCED: continue
-                    bmv0 = edge.other_vert(bmv1)
-                    bmv2 = e.other_vert(bmv1)
-                    d10 = (bmv0.co - bmv1.co).normalized()
-                    d12 = (bmv2.co - bmv1.co).normalized()
-                    if mode != CORNER_SMOOTH and _angle_deg(d10, d12) < min_angle: continue
+                    if is_corner(bmv1, edge.other_vert(bmv1), e.other_vert(bmv1)): continue
                     neighbors[edge].append(e)
                     neighbors[e].append(edge)
                     working.add(e)
@@ -2249,10 +2262,10 @@ class LegacyPatches_Logic:
             `pins` (vert index -> [(where the rung should land: BMVert or Vector, the vert that the
             pin's own boundary edge runs on to)]) is what a stroke's quads and runs beside this run ask
             of its ends; a pin that carries straight on from the run takes precedence over any weld the
-            end would find for itself. '''
+            end would find for itself. Either is refused when the quad it would force on the end edge
+            is not worth having, since an anchor's direction and length go to the whole run. '''
             MITER_LIMIT = 3.0   # cap on the corner stretch 1/sin(half angle); Split Angle's 135 degree cap needs 2.61
             STEP_STALL = 0.25   # a vert travelling less than this fraction of its step means the row has run out of source
-            WELD_MAX_ANGLE = 150.0  # a weld rung this far round from the run darts the first quad; matches _quad_squareness
             WELD_MAX_BACK = 20.0    # how far past square a weld rung may lean back over the face the run steps away from
             n = len(sv)
             if n < 3 if cyclic else n < 2: return True
@@ -2409,6 +2422,18 @@ class LegacyPatches_Logic:
                 corner being looked for. '''
                 return _angle_deg(d, outs[i]) > 90.0 + WELD_MAX_BACK
 
+            def keeps_shape(i_end, i_prev, w):
+                ''' Whether a rung from the end vert to `w` still makes a quad worth having on the end
+                edge: the parallelogram the two span, judged like any other quad. An anchor's direction
+                and length are carried to the whole run, so a rung leaning far off square or reaching
+                far past the run's own spacing bends and stretches every quad, not just this one. Below
+                the shape floor a fresh vert makes the better quad and the end steps free. '''
+                d = _co(w) - cos[i_end]
+                ok = _quad_squareness([cos[i_prev], cos[i_end], cos[i_end] + d, cos[i_prev] + d]) is not None
+                if DEBUG_OFFSET and not ok:
+                    print(f'[offset] anchor at {sv[i_end].index} -> {w.index if isinstance(w, BMVert) else "pt"} refused: bends or stretches the run')
+                return ok
+
             def open_edges_at(bmv, skip_faces_of):
                 ''' Candidate rails leaving a vert: unselected, still open, and not in a face the run
                 (or the rail so far) already occupies there. Yields (edge, far vert). '''
@@ -2434,13 +2459,10 @@ class LegacyPatches_Logic:
                     if d.length_squared < 1e-14: continue
                     d = d.normalized()
                     if leans_back(d, i_end): continue
-                    # the same corner, still convex but opened out until the quad is a dart, and its
-                    # mirror, a rung folded back alongside the run into a sliver
-                    ang = _angle_deg(-arrive, d)
-                    if not (180.0 - WELD_MAX_ANGLE < ang < WELD_MAX_ANGLE): continue
                     # without topology to say corner, the boundary itself has to turn, or w is nothing
                     # but the run carrying on and there is no corner here to weld round
-                    if not topo_corner and ang >= min_angle: continue
+                    if not topo_corner and _angle_deg(-arrive, d) >= min_angle: continue
+                    if not keeps_shape(i_end, i_prev, w): continue
                     if best_dot is None or d.dot(out) > best_dot: best, best_dot = w, d.dot(out)
                 return best
 
@@ -2477,6 +2499,7 @@ class LegacyPatches_Logic:
                     d = _co(w) - v.co
                     if d.length_squared < 1e-14 or leans_back(d.normalized(), i_end): continue
                     if isinstance(w, BMVert) and w in run_verts: continue
+                    if not keeps_shape(i_end, i_prev, w): continue
                     return w
                 return None
 
@@ -2750,6 +2773,12 @@ class LegacyPatches_Logic:
             if la >= lb: sv0, sv1 = [q[0], q[3]], [q[1], q[2]]   # the strips are the short sides
             else:        sv0, sv1 = [q[0], q[1]], [q[3], q[2]]
             existing = [ v for v in q if isinstance(v, BMVert) ]
+            # a cut runs from one short side to the other and splits the long sides.
+            if cuts is None and any(
+                isinstance(a, BMVert) and isinstance(b, BMVert) and bmvs_shared_bme(a, b)
+                is not None for a, b in zip(sv0, sv1)
+            ):
+                cuts = 0
             n_cuts = settings.crosses if cuts is None else cuts
             if not emit_span(kind, sv0, sv1, max(1, n_cuts + 1) + 1, existing, checks=False): return False
             if cuts is None: L.has_quad = True
@@ -2923,11 +2952,25 @@ class LegacyPatches_Logic:
                     step_faces += [ (src[1], [ pv.vert_idx[i] for i in f ], [ pv.vert_co[i] for i in f ])
                                     for f, src in zip(pv.faces, pv.face_src) ]
             stroke.step_faces = step_faces
+            # a row that landed on existing verts lies along existing edges: a weld round a corner, or the
+            # far side of a hole it closed. Those edges are filled by this step, so they are not offered again.
+            stroke.covered = { frozenset((idx[k], idx[(k + 1) % len(idx)])) for _ekey, idx, _cos in step_faces
+                               for k in range(len(idx)) if idx[k] is not None and idx[(k + 1) % len(idx)] is not None } - stroke.edges
 
             if offer_edge is not None and offer_edge not in stroke.edges and (bme := step_edge(offer_edge)) is not None:
                 va, vb = bme.verts
                 both = { i: pins.get(i, []) + rung_pins.get(i, []) for i in (va.index, vb.index) }
+                before = len(L.previz)
                 emit_run([va, vb], [bme], False, both)
+                # The footprint that offered it is a band a little deeper than a step reaches, so the faces
+                # can be known; taking needs the stroke inside those faces. Outside them there is nothing to show.
+                rgn = context.region
+                m = Vector((mouse_at[0] - rgn.x, mouse_at[1] - rgn.y)) if (rgn and mouse_at is not None) else None
+                polys = L._polys_2d(context, [ ([ pv.vert_idx[i] for i in f ], [ pv.vert_co[i] for i in f ])
+                                               for pv in L.previz[before:] for f in pv.faces ])
+                if m is None or not any(point_inside_face_2d(m, poly) for poly in polys):
+                    del L.previz[before:]
+                    offer = None
 
             if L.previz: L.previz = [ _fuse_previz(L.previz) ]
             L.offer = offer
@@ -3583,8 +3626,13 @@ class LegacyPatches_Logic:
                         pair = _corner_pairing(bmv, mouse_v, rgn, r3d, M)
                         if pair is None: continue
                         va, vb = pair
-                        pts = [ location_3d_to_region_2d(rgn, r3d, M @ co) for co in (va.co, bmv.co, vb.co, va.co + vb.co - bmv.co) ]
+                        co4 = va.co + vb.co - bmv.co
+                        pts = [ location_3d_to_region_2d(rgn, r3d, M @ co) for co in (va.co, bmv.co, vb.co, co4) ]
                         if not (all(pts) and point_inside_face_2d(mouse_v, pts)): continue
+                        # the test take() applies: a notch that cannot sit beside what the stroke holds is not shown
+                        if L.stroke is not None:
+                            quads, blocked = L.stroke.clashes([va.index, bmv.index, vb.index, None], [va.co, bmv.co, vb.co, co4])
+                            if quads or blocked: continue
                     opens = [ (M @ e.other_vert(bmv).co - M @ bmv.co).length for e in bmv.link_edges if len(e.link_faces) < 2 ]
                     if opens and not within_reach(bmv, sum(opens) / len(opens)): continue
                     over_face = False
