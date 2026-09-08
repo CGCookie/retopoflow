@@ -45,6 +45,7 @@ from .strokes_logic import Strokes_Logic
 
 from ..rfoperators.quickswitch import RFOperator_Relax_QuickSwitch, RFOperator_Tweak_QuickSwitch, RFOperator_LegacyPatches_QuickSwitch
 from ..rfoperators.transform import RFOperator_Translate, sync_projection_from_blender
+from ..rfoperators.select import RFOperator_ClickSelect
 from ..rfoperators.maximize_watcher import RFOperator_MaximizeWatcher
 from ..rfoperators.topo_rotate import RFOperator_TopoRotate
 from ..rfoperators.adjust_segment_count import adjust_selected_strip
@@ -631,6 +632,7 @@ class RFTool_Strokes(RFTool_Base):
         RFOperator_Strokes_ToggleHandleType,
         RFOperator_StrokesBrush_Adjust,
         RFOperator_MaximizeWatcher,
+        RFOperator_ClickSelect,
         RFOperator_Translate,
         RFOperator_Relax_QuickSwitch,
         RFOperator_Tweak_QuickSwitch,

@@ -65,6 +65,7 @@ from ..rfoperators.maximize_watcher import RFOperator_MaximizeWatcher
 from ..rfoperators.quickswitch import RFOperator_Relax_QuickSwitch, RFOperator_Tweak_QuickSwitch
 from ..rfoperators.topo_rotate import RFOperator_TopoRotate, get_perimeter_bmedges
 from ..rfoperators.transform import RFOperator_Translate
+from ..rfoperators.select import RFOperator_ClickSelect
 
 
 from ..preferences import RF_Prefs
@@ -809,6 +810,7 @@ class RFTool_LegacyPatches(RFTool_Base):
         RFOperator_LegacyPatches_Edit,
         RFOperator_LegacyPatches_ToggleHandleType,
         RFOperator_MaximizeWatcher,
+        RFOperator_ClickSelect,
         RFOperator_Translate,
         RFOperator_TopoRotate,
         RFOperator_Relax_QuickSwitch,

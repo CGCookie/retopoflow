@@ -38,7 +38,7 @@ from ..rfglobals import RFGlobals
 from ..rftool_base import RFTool_Base
 from ..rfbrush_base import RFBrush_Base
 from ..common.bmesh import get_bmesh_emesh, NearestBMVert
-from ..common.selection import deselect_all_on_empty_click
+from ..common.selection import deselect_all_on_empty_click, try_drag_select
 from ..common.drawing import (
     Drawing,
     CC_2D_POINTS,
@@ -53,6 +53,7 @@ from ..common.icons import get_path_to_blender_icon
 from ..common.operator import RFOperator, OperatorPropertyWrapper, chain_rf_keymaps, execute_operator, poll_retopoflow, RFKeyMaps, BLKeyMaps
 from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, size2D_to_size, vec_forward, mouse_from_event
 from ..common.maths import view_forward_direction, lerp
+from ...addon_common.common.blender_preferences import mouse_drag
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.maths import Color, Frame
@@ -247,9 +248,12 @@ class RFOperator_Relax(RFOperator):
     logic : Relax_Logic | None = None
     timer : TimerHandler | None = None
     mouse_down : tuple[int, int] = (0, 0)  # press position, to tell a click from a stroke
+    _drag_select_candidate : bool = False  # press landed off the source, so a drag can select
 
     def init(self, context, event):
+        RFTool_Relax.rf_brush.update(context, event, force=True)
         self.mouse_down = mouse_from_event(event)
+        self._drag_select_candidate = not RFTool_Relax.rf_brush.is_displayed(context)
         self.logic = Relax_Logic(
             context,
             event,
@@ -268,6 +272,15 @@ class RFOperator_Relax(RFOperator):
 
     def update(self, context : Context, event : Event) -> set[str]:
         if not self.logic: return {'CANCELLED'}
+
+        if self._drag_select_candidate and event.type in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE'}:
+            # off the source, so hand it to the fallback select gesture if it is a drag
+            if (Vector(mouse_from_event(event)) - Vector(self.mouse_down)).length > mouse_drag():
+                self._drag_select_candidate = False
+                if try_drag_select(context, event):
+                    self.logic.cancel(context)
+                    return {'CANCELLED'}
+
         self.logic.update(context, event)
 
         if event.type == 'LEFTMOUSE' and event.value == 'RELEASE':

@@ -9,6 +9,7 @@ from ..rfglobals import RFGlobals
 from ..rftool_polypen.polypen import PolyPen_Insert_Modes
 from ..rftool_patches.patches import USE_NEW_PATCHES
 from ..rftool_legacy_patches.legacy_patches_logic import LegacyPatches_Logic
+from ..common.selection import fallback_select_tool_item, fallback_select_icon_and_label
 from .tool_options_panel import RFMenu_PT_ToolOptions, has_tool_options
 
 PATCHES_IDNAME = 'retopoflow.patches' if USE_NEW_PATCHES else 'retopoflow.legacy_patches'
@@ -66,27 +67,12 @@ class RFOperator_SwitchToSelectTool(RFRegisterClass, bpy.types.Operator):
     bl_description : str = "Switch to whatever selection tool is currently active in the toolbar"
     bl_options : set[str] = {'INTERNAL'}
 
-    @staticmethod
-    def _select_tool_item(context : Context):
-        helper = space_toolsystem_common.ToolSelectPanelHelper._tool_class_from_space_type('VIEW_3D')
-        if helper is None: return None
-        item, _index, _group = helper._tool_get_by_id_active_with_group(context, helper.tool_fallback_id)
-        return item
-
-    @classmethod
-    def select_tool_icon_and_label(cls, context : Context) -> tuple[int, str]:
-        ''' The toolbar's own icon and name for that tool, for layout.operator(). '''
-        item = cls._select_tool_item(context)
-        if not item: return (0, 'Select Tool')
-        icon_value = space_toolsystem_common.ToolSelectPanelHelper._icon_value_from_icon_handle(item.icon)
-        return (icon_value, item.label)
-
     @classmethod
     def poll(cls, context : Context) -> bool:
-        return cls._select_tool_item(context) is not None
+        return fallback_select_tool_item(context) is not None
 
     def execute(self, context : Context) -> set[str]:
-        item = self._select_tool_item(context)
+        item = fallback_select_tool_item(context)
         if not item: return {'CANCELLED'}
         RFCore = RFGlobals.RFCore_None
         if RFCore:
@@ -202,7 +188,7 @@ class RFMenu_MT_ToolPie(Menu):
 
         row = back.row()
         row.emboss = pie_emboss
-        icon_value, label = RFOperator_SwitchToSelectTool.select_tool_icon_and_label(context)
+        icon_value, label = fallback_select_icon_and_label(context)
         if icon_value:
             row.scale_y = 1.4
             row.operator('retopoflow.switch_to_select_tool', text=f'     {label}', icon_value=icon_value)
@@ -355,12 +341,8 @@ class RFMenu_MT_ToolPie(Menu):
     def draw_pie_button(self, context, pie, name: str):
         tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
         toolname = name.lower()
-        row = pie.row()
-        row.ui_units_x = 6
-        row.scale_y = 1.75
-        row.emboss = 'PIE_MENU' if bpy.app.version >= (5,0,0) else 'RADIAL_MENU'
         spacing = '     '
-        return row.operator(
+        return pie.operator(
             f'retopoflow.switch_to_{toolname}',
             text=spacing+name,
             icon_value=get_icon_value_from_icon_handle(toolname),

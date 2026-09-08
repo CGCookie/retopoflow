@@ -126,6 +126,9 @@ def create_falloff_brush(
             self.hit_rmat = None
             self.disabled = False
 
+        def is_displayed(self, context : Context) -> bool:
+            return bool(self.hit and not self.disabled and context.area in self.mouse_areas)
+
         def stop(self):
             self.set_operator(None)
 

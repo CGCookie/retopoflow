@@ -95,15 +95,14 @@ def draw_tweaking_options(context : Context, layout : UILayout):
     header.label(text='Transform')
     if panel:
         if context.area.type != 'PREFERENCES':
-            row = panel.row(heading='Auto Merge')
-            row.prop(context.scene.tool_settings, 'use_mesh_automerge', text='', toggle=False)
-            row.separator(factor=0.5)
-            row2 = row.row()
-            row2.enabled = context.scene.tool_settings.use_mesh_automerge
+            panel.row(heading='Auto Merge').prop(context.scene.tool_settings, 'use_mesh_automerge', text='Enable', toggle=False)
+            col = panel.column()
+            col.enabled = context.scene.tool_settings.use_mesh_automerge
             if translate_uses_native(context):
-                row2.prop(context.scene.tool_settings, 'double_threshold', text='')
+                col.prop(context.scene.tool_settings, 'double_threshold', text='Threshold')
             else:
-                row2.prop(context.scene.retopoflow, 'automerge_distance', text='')
+                col.prop(context.scene.retopoflow, 'automerge_distance', text='Grab')
+                col.prop(context.scene.tool_settings, 'double_threshold', text='Other')
 
     _, tool_props = _active_rftool(context)
     if hasattr(tool_props, 'show_curve_handles'):
@@ -117,9 +116,6 @@ def draw_tweaking_options(context : Context, layout : UILayout):
             sub.prop(curve_props, 'curve_handle_density', text='Density')
             sub.prop(curve_props, 'curve_corner_angle')
 
-
-    draw_tweak_brush_options(context, layout)
-
     header, panel = layout.panel(idname='RF_selection', default_closed=True)
     header.label(text='Selection')
     if panel:
@@ -128,6 +124,12 @@ def draw_tweaking_options(context : Context, layout : UILayout):
         row = col.row(heading='Auto Select')
         row.prop(props, 'tweaking_move_hovered_mouse', text='Mouse')
         col.prop(props, 'tweaking_move_hovered_keyboard', text='Keyboard')
+        row = col.row(heading='Drag Fallback')
+        row.enabled = props.tweaking_move_hovered_mouse
+        row.prop(props, 'tweaking_drag_select', text='Selection Tool')
+
+
+    draw_tweak_brush_options(context, layout)
 
 
 def draw_tweaking_panel(context : Context, layout : UILayout):
