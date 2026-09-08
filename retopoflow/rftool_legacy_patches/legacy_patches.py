@@ -37,11 +37,14 @@ from ..rftool_base import RFTool_Base
 from ..rfoverlay_base import RFOverlay_Base
 from ..rfoverlays.overlays import overlay_names
 from ..rfoverlays.curve_overlay import create_curve_overlay_logic, _internal_bl_idname
-from ..common.curves import QuadStripChainProvider, LoopStripChainProvider
+from bmesh.types import BMesh
+from mathutils import Vector
+from ..common.curves import QuadStripChainProvider, LoopStripChainProvider, ChainProvider, ChainSpec
 from ..rfoperators.curve_edit import create_curve_edit_operator, create_curve_toggle_handle_type_operator
 
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.blender import event_modifier_check
+from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.resetter import Resetter
 
 from ..common.bpy_helper import BL_OPTIONS
@@ -121,17 +124,17 @@ class LegacyPatches_Properties:
         subtype='DISTANCE',
     )
 
-    # a loop with uneven sides or without four corners is filled like Blender's Grid Fill
+    # a loop that is not a rectangle is filled round a pole where its side counts allow, else like Blender's Grid Fill
     solution: bpy.props.IntProperty(
         name='Solution',
-        description='Which way to divide a grid filled loop into quads. 1 is the automatic choice; higher values flip through the alternatives and wrap round',
+        description='Which way to fill the loop: round one pole, with a corner demoted or the loop cut into single-pole pieces, or as a grid. 1 is the automatic choice; higher values flip through the alternatives and wrap round. Drag the pole handle to place the pole; Offset steps through its placements and puts a dragged pole back',
         min=1,
         soft_max=16,
         default=PatchSettings.solution,
     )
     offset: bpy.props.IntProperty(
         name='Offset',
-        description='Rotate the four corners of a grid filled patch around its loop',
+        description='Rotate the four corners of a grid filled patch around its loop. On a patch filled round a pole, step through the placements the pole may take; adjusting it puts a dragged pole back',
         soft_min=-32,
         soft_max=32,
         default=PatchSettings.offset,
@@ -230,7 +233,7 @@ def fill_patches_owns_f(context : Context) -> bool:
 class RFOperator_LegacyPatches_Fill(LegacyPatches_Properties, RFOperator_Execute):
     bl_idname : str = 'retopoflow.legacy_patches_fill'
     bl_label : str = 'Auto Fill (Retopoflow)'
-    bl_description : str = ('Fill the holes bounded by the selected boundary edges. '
+    bl_description : str = ('Fill the holes bounded by the selected boundary edges; a patch of selected faces is joined into one n-gon. '
                             'Whatever this cannot fill falls through to Blender\'s own New Edge/Face')
     bl_options : BL_OPTIONS = { 'UNDO', 'REGISTER' }
 
@@ -266,16 +269,26 @@ class RFOperator_LegacyPatches_Fill(LegacyPatches_Properties, RFOperator_Execute
         LegacyPatches_Logic.ctrl_locked = (bool(event.ctrl) or LegacyPatches_Logic.nearest_active
                                            or LegacyPatches_Logic.ctrl_forced)
 
-        # With nothing previewed, rebuild here: outside the tool no overlay keeps a preview alive, and
-        # inside it the overlay may not have drawn yet.
-        if not LegacyPatches_Logic.previz or LegacyPatches_Logic.tool_props(context) is None:
-            try:
-                LegacyPatches_Logic._recompute(context, LegacyPatches_Logic.read_settings(context))
-            except ReferenceError:
-                LegacyPatches_Logic._clear_products()
-        # Still nothing: hand the key on so Blender's own fill gets it. This must be PASS_THROUGH from
-        # invoke, not a failing poll: Blender re-checks poll before a redo, when the preview is empty.
+        # Rebuild for the selection as it is now, always: outside the tool no overlay keeps a preview
+        # alive, inside it the overlay may not have drawn since the selection changed, and a preview
+        # left over from the last selection must not decide the key's fate
+        try:
+            LegacyPatches_Logic._recompute(context, LegacyPatches_Logic.read_settings(context))
+        except ReferenceError:
+            LegacyPatches_Logic._clear_products()
         if not LegacyPatches_Logic.previz:
+            # A patch of connected faces joins into one n-gon, which is what F means there. Blender's own
+            # F would only lay an n-gon over the top, so the dissolve is done here, with its own undo
+            # step; this operator then has nothing to register or redo.
+            if LegacyPatches_Logic.selection_is_face_patch(context):
+                try:
+                    bpy.ops.mesh.dissolve_faces('INVOKE_DEFAULT', True)
+                except RuntimeError:
+                    pass
+                context.area.tag_redraw()
+                return { 'CANCELLED' }
+            # Anything else: hand the key on so Blender's own fill gets it. This must be PASS_THROUGH
+            # from invoke, not a failing poll: Blender re-checks poll before a redo, when the preview is empty.
             return { 'PASS_THROUGH' }
         # a fresh fill starts from the tool's settings; a redo comes straight to execute with the redo panel's
         src = LegacyPatches_Logic.tool_props(context)
@@ -285,14 +298,22 @@ class RFOperator_LegacyPatches_Fill(LegacyPatches_Properties, RFOperator_Execute
         else:
             self.steps = PatchSettings.steps
             self.step_scale = PatchSettings.step_scale
-        return self.execute(context)
+        # the fill re-reads the selection itself; if it finds nothing after all, the key is still Blender's
+        if not self._fill(context):
+            return { 'PASS_THROUGH' }
+        return { 'FINISHED' }
+
+    def _fill(self, context : Context) -> bool:
+        settings = PatchSettings(**{ name: getattr(self, name) for name in PATCH_SETTING_NAMES })
+        if not LegacyPatches_Logic.fill(context, settings): return False
+        context.area.tag_redraw()
+        return True
 
     def execute(self, context : Context) -> set[str]:
-        settings = PatchSettings(**{ name: getattr(self, name) for name in PATCH_SETTING_NAMES })
-        if not LegacyPatches_Logic.fill(context, settings):
+        # the redo panel's path: a failed refill is worth a word, since no key is waiting behind it
+        if not self._fill(context):
             self.report({'WARNING'}, 'Patches: nothing to fill. Select boundary edges forming a rectangle, L, C, two parallel strips, a single strip to step outward, or four vertices, or hold Ctrl and hover between four nearby vertices')
             return { 'CANCELLED' }
-        context.area.tag_redraw()
         return { 'FINISHED' }
 
     def draw(self, context : Context):
@@ -367,6 +388,53 @@ class RFOperator_LegacyPatches_Draw(RFOperator):
         assert self.gesture
         ret = self.gesture.handle(context, event, accept_press=ctrl_only)
         return ret if ret is not None else {'PASS_THROUGH'}
+
+
+class RFOperator_LegacyPatches_DragPole(RFOperator):
+    ''' LMB drag on an n-sided fill's pole handle moves the pole freely over the source: the fill takes
+    the placement its side counts allow nearest to where the pole is put (the free parameters of an
+    8-sided loop, or which side of an odd loop carries the imaginary vertex), pins the pole there and
+    lets the rest follow. Claims LMB only while the handle is hovered, so selection works elsewhere. '''
+    bl_idname : str = 'retopoflow.legacy_patches_drag_pole'
+    bl_label : str = 'Drag Patch Pole'
+    bl_description : str = 'Drag the pole of a previewed n-sided patch; the patch takes the nearest layout its side counts allow and the pole stays where it is put'
+    bl_space_type : str = 'VIEW_3D'
+    bl_region_type : str = 'TOOLS'
+    bl_options : BL_OPTIONS = { 'INTERNAL' }
+
+    rf_patches_passive : bool = True    # only reads the mouse, so the preview keeps rebuilding as the pole moves
+
+    rf_keymaps : RFKeyMaps = [
+        (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS'}, None),
+    ]
+
+    key : tuple | None = None
+
+    @classmethod
+    def can_start(cls, context : Context) -> bool:
+        return not cls.is_running() and LegacyPatches_Logic.pick_pole_handle(context) is not None
+
+    def init(self, context : Context, event : Event):
+        self.key = LegacyPatches_Logic.pick_pole_handle(context)
+        if self.key is not None: LegacyPatches_Logic.start_pole_drag(context, self.key)
+
+    def finish(self, context : Context):
+        LegacyPatches_Logic.end_pole_drag(context)
+
+    def update(self, context : Context, event : Event) -> set[str]:
+        L = LegacyPatches_Logic
+        if self.key is None: return {'FINISHED'}
+        if event.type == 'MOUSEMOVE':
+            L.move_pole_drag(context, event)
+            if context.area: context.area.tag_redraw()
+            return {'RUNNING_MODAL'}
+        if event.type == 'LEFTMOUSE' and event.value == 'RELEASE':
+            L.end_pole_drag(context)
+            return {'FINISHED'}
+        if event.type in {'ESC', 'RIGHTMOUSE'} and event.value == 'PRESS':
+            L.end_pole_drag(context, cancel=True)
+            return {'FINISHED'}
+        return {'RUNNING_MODAL'}
 
 
 # Ctrl+Scroll is the count knob and Shift+Scroll the offset knob, the same split Contours uses. What
@@ -519,6 +587,60 @@ class RFOperator_LegacyPatches_ClearCorners(RFOperator_Execute):
         return { 'FINISHED' }
 
 
+PATCH_CORNER_COLOR = (1.0, 1.0, 0.0, 1.0)     # the corner control points: the pole's mark, filled yellow
+
+
+class PatchCornerChainProvider(ChainProvider):
+    ''' The corners of every previewed patch boundary as curve control points. One chain per loop or
+    string, its knots exactly at the corners, every arm hidden: a hidden Vector arm points at the next
+    control point, so dragging a corner reshapes the two sides that meet there and nothing else. '''
+
+    def collect(self, context : Context, bm : BMesh) -> list[ChainSpec] | None:
+        L = LegacyPatches_Logic
+        L.update(context)           # the corners are a product of the patch rebuild
+        if not L.corner_chains: return None
+        nverts = len(bm.verts)
+        specs = []
+        for indices, corners, cyclic in L.corner_chains:
+            if len(indices) < 3 or max(indices) >= nverts: continue
+            cos = [ bm.verts[i].co.copy() for i in indices ]
+            n = len(cos)
+            lens = [ (cos[(k + 1) % n] - cos[k]).length for k in range(n if cyclic else n - 1) ]
+            avg_len = (sum(lens) / len(lens)) if lens else 1.0
+
+            def current_points(bm : BMesh, _indices : tuple = tuple(indices)) -> list[Vector] | None:
+                if max(_indices) >= len(bm.verts): return None
+                return [ bm.verts[i].co.copy() for i in _indices ]
+
+            specs.append(ChainSpec(
+                points=cos,
+                cyclic=cyclic,
+                cache_key=('patch', *indices),
+                deform_bmv_indices=list(indices),
+                label=('', 0),              # the patch preview already labels the sides
+                min_spline_points=3,
+                coupled=True,
+                avg_len=avg_len,
+                current_points=current_points,
+                forced_sharp_indices=corners,
+                knots_only_forced=True,
+                hide_arms=True,
+                knot_color=PATCH_CORNER_COLOR,
+            ))
+        return specs or None
+
+
+class _CurveHandlesGate(ChainProvider):
+    ''' A provider that only answers while the tool's Curve Handles setting is on. '''
+    def __init__(self, provider : ChainProvider):
+        self.provider = provider
+
+    def collect(self, context : Context, bm : BMesh) -> list[ChainSpec] | None:
+        tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
+        if not tool or not getattr(tool.operator_properties(MAIN_OP_IDNAME), 'show_curve_handles', False): return None
+        return self.provider.collect(context, bm)
+
+
 # The curve handle overlay, as the logic class rather than the finished operator that
 # create_curve_overlay would hand back. A tool only gets one rf_overlay slot, so the patch preview
 # subclasses this instead of running alongside it.
@@ -526,9 +648,10 @@ _LegacyPatches_Curve_Overlay = create_curve_overlay_logic(
     MAIN_OP_IDNAME,
     'legacy_patches_overlay',
     'Legacy Patches Overlay',
-    # same providers in the same order as PolyPen, PolyStrips and Strokes: faces win, so loop
-    # curves only appear when the selection is edges-only
-    [QuadStripChainProvider(), LoopStripChainProvider(only_boundary=True)],
+    # same providers in the same order as PolyPen, PolyStrips and Strokes, gated by Curve Handles:
+    # faces win, so loop curves only appear when the selection is edges-only. The patch corners come
+    # between them and are always on: a boundary selection's corners are the patch's control points
+    [_CurveHandlesGate(QuadStripChainProvider()), PatchCornerChainProvider(), _CurveHandlesGate(LoopStripChainProvider(only_boundary=True))],
 )
 
 
@@ -546,8 +669,14 @@ class RFOperator_LegacyPatches_Overlay(_LegacyPatches_Curve_Overlay, RFOperator)
         RFCore = RFGlobals.RFCore_None
         return RFCore.selected_RFTool_idname != RFTool_LegacyPatches.bl_idname if RFCore else True
 
+    def _curve_handles_enabled(self, context : Context) -> bool:
+        return True     # the corner control points are always on; the Curve Handles setting gates the other providers
+
+    pole_hovered : bool = False
+
     def init(self, context : Context, event : Event):
         super().init(context, event)
+        self.pole_hovered = False
         LegacyPatches_Logic.reset_session()
         LegacyPatches_Logic.mouse = (event.mouse_x, event.mouse_y)    # so a wire run can step toward the cursor before it moves
 
@@ -557,6 +686,16 @@ class RFOperator_LegacyPatches_Overlay(_LegacyPatches_Curve_Overlay, RFOperator)
         redraw = LegacyPatches_Logic.track_ctrl(context, event)    # every event carries the modifier state
         if event.type in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE'}:
             if LegacyPatches_Logic.track_mouse(context, event): redraw = True
+            # the pole handle takes the hand, as a curve control point does; the curve overlay above keeps
+            # its own hand while one of its handles is hovered
+            over_pole = LegacyPatches_Logic.pick_pole_handle(context) is not None
+            if over_pole:
+                Cursors.set('hand')
+            elif self.pole_hovered and not getattr(self, 'hovering', False):
+                Cursors.restore()
+            if over_pole != self.pole_hovered:
+                self.pole_hovered = over_pole
+                redraw = True
         if redraw and context.area:
             context.area.tag_redraw()    # passing an event through does not redraw on its own
         return {'PASS_THROUGH'}
@@ -665,7 +804,8 @@ class RFTool_LegacyPatches(RFTool_Base):
         RFOperator_LegacyPatches_OffsetDecrease,
         RFOperator_LegacyPatches_OffsetIncrease,
         RFOperator_LegacyPatches_ClearCorners,
-        # before Translate: curve edit's LMB PRESS only claims the event while a handle is hovered
+        # before Translate: these LMB PRESS operators only claim the event while their handle is hovered
+        RFOperator_LegacyPatches_DragPole,
         RFOperator_LegacyPatches_Edit,
         RFOperator_LegacyPatches_ToggleHandleType,
         RFOperator_MaximizeWatcher,

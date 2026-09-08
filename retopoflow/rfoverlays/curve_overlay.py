@@ -363,7 +363,8 @@ def create_curve_overlay_logic(
             return True
 
         def _add_chain(self, spec : ChainSpec, *, bm, bend_tolerance_factor, sharp_angle, active_keys):
-            self.label_data.append((spec.label[0], spec.label[1], spec.points))
+            if spec.label[0]:
+                self.label_data.append((spec.label[0], spec.label[1], spec.points))
 
             if len(spec.points) < spec.min_spline_points:
                 return  # not enough points in a row to build a curve
@@ -376,7 +377,14 @@ def create_curve_overlay_logic(
                 coupled=spec.coupled,
                 corner_eligible_knots=spec.corner_eligible_knots,
                 corner_removable_knots=spec.corner_removable_knots,
+                knots_only_forced=spec.knots_only_forced,
             )
+            if spline is not None and spec.hide_arms:
+                # an inert arm is neither drawn nor grabbed, and a Vector knot's inert arm is re-aimed at
+                # the segment's other knot every frame: point-at handles the artist never sees
+                for h in handles:
+                    if h['kind'] == 'tangent': h['inert'] = True
+                snap_hidden_vector_arms(spline.cbs, handles)
             if spline is None or not spline.cbs:
                 return
 
@@ -394,6 +402,7 @@ def create_curve_overlay_logic(
                 'deform_bmv_rungs': spec.deform_bmv_rungs,
                 'coupled': spec.coupled, # True when points are on verts, False when derived from faces
                 'junction_bmf_indices': spec.junction_bmf_indices,
+                'knot_color': spec.knot_color,
             })
 
         def _attach_occlusion_probes(self, bm, spec : ChainSpec, spline, handles):
@@ -453,13 +462,13 @@ def create_curve_overlay_logic(
             k = h['vert_index'] if h['kind'] == 'knot' else h['owner_vert_index']
             return self.knot_visibility(context, ci, chain).get(k, True)
 
-        def _build_curve(self, cos, *, cyclic, avg_len, bend_tolerance_factor, sharp_angle, cache_key, forced_sharp_indices=(), coupled=True, corner_eligible_knots=frozenset(), corner_removable_knots=frozenset()):
+        def _build_curve(self, cos, *, cyclic, avg_len, bend_tolerance_factor, sharp_angle, cache_key, forced_sharp_indices=(), coupled=True, corner_eligible_knots=frozenset(), corner_removable_knots=frozenset(), knots_only_forced=False):
             n = len(cos)
             # rebuild when important inputs are changed.
             # Handle-type overrides are kept separate from the structural tunables, so toggling
             # a handle type must not trigger a structural re-derive, which could move the toggled handle elsewhere.
             handle_type_overrides = self._handle_type_overrides.get(cache_key, {})
-            tunables = (bend_tolerance_factor, sharp_angle, tuple(sorted(forced_sharp_indices)))
+            tunables = (bend_tolerance_factor, sharp_angle, tuple(sorted(forced_sharp_indices)), knots_only_forced)
             handle_tunables = tuple(sorted(handle_type_overrides.items()))
 
             cached = self._curve_struct_cache.get(cache_key)
@@ -476,7 +485,11 @@ def create_curve_overlay_logic(
                 return cached['spline'], cached['handles']
 
             fresh_derive = knots is None
-            if fresh_derive:
+            if fresh_derive and knots_only_forced:
+                # the control points are given: every forced index is a Vector corner and nothing else is a knot
+                knots = sorted((set(forced_sharp_indices) | ({0, n - 1} if not cyclic else set())) & set(range(n)))
+                corner_set = set(knots)
+            elif fresh_derive:
                 knots, corner_set = derive_centerline_knots(
                     cos, cyclic=cyclic,
                     bend_tolerance_factor=bend_tolerance_factor,
@@ -872,7 +885,7 @@ def create_curve_overlay_logic(
                     if arm_lines:
                         Drawing.draw2D_lines(context, arm_lines, CONTROL_POLYGON_COLOR, width=2)
 
-                knot_pts2d, free_knot_pts2d, auto_knot_pts2d, tan_pts2d = [], [], [], []
+                knot_pts2d, free_knot_pts2d, auto_knot_pts2d, tan_pts2d, colored_knot_pts2d = [], [], [], [], []
                 for h in chain['handles']:
                     if h['kind'] == 'knot':
                         if h.get('inert'):
@@ -887,6 +900,8 @@ def create_curve_overlay_logic(
                         continue
                     if h['kind'] != 'knot':
                         tan_pts2d.append(p)
+                    elif chain.get('knot_color'):
+                        colored_knot_pts2d.append(p)
                     elif h.get('handle_type') == 'automatic':
                         auto_knot_pts2d.append(p)
                     elif h.get('free'):
@@ -895,6 +910,8 @@ def create_curve_overlay_logic(
                         knot_pts2d.append(p)
                 if tan_pts2d:
                     Drawing.draw2D_points(context, tan_pts2d, TANGENT_FILL_COLOR, radius=TANGENT_RADIUS, border=2, borderColor=TANGENT_BORDER_COLOR)
+                if colored_knot_pts2d:
+                    Drawing.draw2D_points(context, colored_knot_pts2d, chain['knot_color'], radius=KNOT_RADIUS, border=2, borderColor=KNOT_BORDER_COLOR)
                 if knot_pts2d:
                     Drawing.draw2D_points(context, knot_pts2d, KNOT_FILL_COLOR, radius=KNOT_RADIUS, border=2, borderColor=KNOT_BORDER_COLOR)
                 if free_knot_pts2d:
