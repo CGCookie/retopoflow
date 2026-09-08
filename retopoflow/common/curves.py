@@ -235,6 +235,7 @@ class ChainSpec:
         'min_spline_points', 'coupled', 'avg_len', 'current_points',
         'interior_bmv_indices', 'deform_bmv_rungs', 'forced_sharp_indices',
         'corner_eligible_knots', 'corner_removable_knots', 'junction_bmf_indices',
+        'knots_only_forced', 'hide_arms', 'knot_color',
     )
 
     def __init__(
@@ -254,6 +255,9 @@ class ChainSpec:
         corner_eligible_knots : Sequence[int] = (),
         corner_removable_knots : Sequence[int] = (),
         junction_bmf_indices : tuple[int | None, int | None] = (None, None),
+        knots_only_forced : bool = False,
+        hide_arms : bool = False,
+        knot_color : tuple | None = None,
     ):
         self.points = points
         self.cyclic = cyclic
@@ -270,6 +274,11 @@ class ChainSpec:
         self.corner_eligible_knots = set(corner_eligible_knots)
         self.corner_removable_knots = set(corner_removable_knots)
         self.junction_bmf_indices = tuple(junction_bmf_indices)
+        # a chain whose control points are given, not derived: knots only at forced_sharp_indices, every
+        # arm hidden (a hidden Vector arm points at the segment's other knot), knots in their own colour
+        self.knots_only_forced = knots_only_forced
+        self.hide_arms = hide_arms
+        self.knot_color = knot_color
 
 
 class ChainProvider:

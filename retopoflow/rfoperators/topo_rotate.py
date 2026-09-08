@@ -77,6 +77,7 @@ DEBUG_PERIMETER = False
 def get_perimeter_bmedges(bmfaces : Iterable[BMFace]) -> list[BMEdge]:
     bmedges = { bme for bmf in bmfaces for bme in bmf.edges }
     perimeter_bmedges = { bme for bme in bmedges if is_perimeter(bme, bmfaces) }
+    if not perimeter_bmedges: return []     # a closed selection, or a face lying over its neighbours, has no rim
 
     perimeter = [ next(iter(perimeter_bmedges)) ]
     bmv = perimeter[-1].verts[0]

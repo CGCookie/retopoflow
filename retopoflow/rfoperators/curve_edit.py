@@ -1253,7 +1253,7 @@ def create_curve_edit_logic(idname : str, label : str, description : str, *,
                     arm_lines += shrink_segment(p2_, p3_, tan_r, knot_r)
                 if arm_lines:
                     Drawing.draw2D_lines(context, arm_lines, CONTROL_POLYGON_COLOR, width=2)
-            knot_pts2d, free_knot_pts2d, auto_knot_pts2d, tan_pts2d = [], [], [], []
+            knot_pts2d, free_knot_pts2d, auto_knot_pts2d, tan_pts2d, colored_knot_pts2d = [], [], [], [], []
             for h in self.chain['handles']:
                 if h['kind'] == 'knot' and h.get('inert'): continue
                 if h['kind'] == 'knot' and not self.knot_visible.get(h['vert_index'], True): continue
@@ -1263,6 +1263,8 @@ def create_curve_edit_logic(idname : str, label : str, description : str, *,
                 if h['kind'] != 'knot':
                     if h['pos'] not in hidden_tangents:
                         tan_pts2d.append(p)
+                elif self.chain.get('knot_color'):
+                    colored_knot_pts2d.append(p)
                 elif h.get('handle_type') == 'automatic':
                     auto_knot_pts2d.append(p)
                 elif h.get('free'):
@@ -1271,6 +1273,8 @@ def create_curve_edit_logic(idname : str, label : str, description : str, *,
                     knot_pts2d.append(p)
             if tan_pts2d:
                 Drawing.draw2D_points(context, tan_pts2d, TANGENT_FILL_COLOR, radius=TANGENT_RADIUS, border=2, borderColor=TANGENT_BORDER_COLOR)
+            if colored_knot_pts2d:
+                Drawing.draw2D_points(context, colored_knot_pts2d, self.chain['knot_color'], radius=KNOT_RADIUS, border=2, borderColor=KNOT_BORDER_COLOR)
             if knot_pts2d:
                 Drawing.draw2D_points(context, knot_pts2d, KNOT_FILL_COLOR, radius=KNOT_RADIUS, border=2, borderColor=KNOT_BORDER_COLOR)
             if free_knot_pts2d:
