@@ -621,11 +621,15 @@ def diamond_positions(m, n):
     return cands
 
 
-def bow_positions(m):
+def bow_positions(m, central=False):
     ''' Every k a bow junction can take between rails of m edges, bowing through column k + 1: the
-    bow beside the short side first, then one column further toward the long side with each step. '''
-    # at k = 0 the 3-poles sit on the short side's own verts, where the horseshoe reads best (3 to 1, 5 to 1, 7 to 1)
-    return list(range(m))
+    bow beside the short side first, then one column further toward the long side with each step;
+    when `central`, the middle column first, then outward, the short side's own column last. '''
+    # at k = 0 the 3-poles sit on the short side's own verts, where the horseshoe reads best (3 to 1, 5 to 1, 7 to 1),
+    # and each end of that side carries two quads. The caller asks for `central` when those corners are closed and
+    # the two quads would squash: then the columns nearer the long side go before those nearer the short side
+    if not central: return list(range(m))
+    return sorted(range(m), key=lambda k: (abs(2 * k + 1 - m), -k))
 
 
 def rail_columns(sides, height):
