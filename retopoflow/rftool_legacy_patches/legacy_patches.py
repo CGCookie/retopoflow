@@ -61,7 +61,6 @@ from ..common.operator import (
     BLKeyMaps,
 )
 
-from ..rfoperators.maximize_watcher import RFOperator_MaximizeWatcher
 from ..rfoperators.quickswitch import RFOperator_Relax_QuickSwitch, RFOperator_Tweak_QuickSwitch
 from ..rfoperators.topo_rotate import RFOperator_TopoRotate, get_perimeter_bmedges
 from ..rfoperators.transform import RFOperator_Translate
@@ -816,7 +815,6 @@ class RFTool_LegacyPatches(RFTool_Base):
         RFOperator_LegacyPatches_DragPole,
         RFOperator_LegacyPatches_Edit,
         RFOperator_LegacyPatches_ToggleHandleType,
-        RFOperator_MaximizeWatcher,
         RFOperator_ClickSelect,
         RFOperator_Translate,
         RFOperator_TopoRotate,

@@ -41,7 +41,6 @@ from ...addon_common.common.blender_preferences import mouse_drag
 from .tweak_logic import Tweak_Logic
 
 from ..rfoperators.quickswitch import RFOperator_Relax_QuickSwitch
-from ..rfoperators.maximize_watcher import RFOperator_MaximizeWatcher
 from ..rfoperators.transform import sync_projection_from_blender
 from ..rfoperators.topo_rotate import RFOperator_TopoRotate
 from ..rfbrushes.falloff_brush import create_falloff_brush
@@ -347,7 +346,6 @@ class RFTool_Tweak(RFTool_Base):
 
     bl_keymap : BLKeyMaps = chain_rf_keymaps(
         RFOperator_Tweak,
-        RFOperator_MaximizeWatcher,
         RFOperator_TweakBrush_Adjust,
         RFOperator_TopoRotate,
         RFOperator_Relax_QuickSwitch,
