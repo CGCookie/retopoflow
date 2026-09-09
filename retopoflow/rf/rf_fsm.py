@@ -46,6 +46,7 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
     def setup_states(self):
         self.view_version = None
         self._last_rfwidget = None
+        self._last_raycast_state = None
         self.fast_update_timer = self.actions.start_timer(120.0, enabled=False)
 
     def update(self, timer=True):
@@ -96,7 +97,15 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
             self.callback_view_change()
             tag_redraw_all('RF_FSM view change')
 
-        self.actions.hit_pos,self.actions.hit_norm,_,_ = self.raycast_sources_mouse()
+        if self._hover_ui:
+            raycast_state = None
+        else:
+            mouse = self.actions.mouse
+            raycast_state = ((mouse.x, mouse.y) if mouse else None, view_version)
+        if raycast_state is not None and raycast_state != self._last_raycast_state:
+            self._last_raycast_state = raycast_state
+            self.actions.hit_pos,self.actions.hit_norm,_,_ = self.raycast_sources_mouse()
+
         fpsdiv = self.document.body.getElementById('fpsdiv')
         if fpsdiv: fpsdiv.innerText = f'UI FPS: {self.document._draw_fps:.2f}'
 
