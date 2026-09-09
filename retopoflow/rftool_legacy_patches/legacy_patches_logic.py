@@ -86,8 +86,8 @@ class PatchSettings:
     span_insert_mode : str = 'AVERAGE'
     crosses          : int = 0
     span_length      : float = 0.1
-    solution         : int = 1      # grid fill: 1 is the best split, higher flips through the rest, wrapping
-    offset           : int = 0      # grid fill: rotate the chosen corners this many verts
+    solution         : int = 1      # which of a loop's ranked fills, 1 the best, wrapping
+    offset           : int = 0      # which placement of that fill: a grid's corners, a pole's spokes, a junction's column
     twist            : int = 0      # loft: rotate the loop pairing this many verts
     steps            : int = 1      # offset: rows of quads to step outward
     step_scale       : float = 1.0  # offset: scales how far a row that extrudes freely reaches
@@ -98,18 +98,17 @@ PATCH_SETTING_NAMES = tuple(f.name for f in fields(PatchSettings))
 ##############################################
 # geometry helpers
 
-def _angle_deg(d0, d1):
+def angle_deg(d0, d1):
     return math.degrees(math.acos(max(-1.0, min(1.0, d0.dot(d1)))))
 
-def _side2d(pa, pb, p):
+def side2d(pa, pb, p):
     ''' Which side of the screen line pa->pb the point p is on: +1, -1, or 0 on the line. '''
     c = (pb.x - pa.x) * (p.y - pa.y) - (pb.y - pa.y) * (p.x - pa.x)
     return 0 if abs(c) < 1e-6 else (1 if c > 0 else -1)
 
-def _polys_overlap2d(a, b, *, eps=0.5):
-    ''' Whether two screen-space outlines cover any of the same ground. Sharing a side or a corner
-    does not count: a proper tiling does that everywhere. Only a real crossing between sides that
-    have no corner in common, or one outline's middle sitting inside the other, is an overlap. '''
+def polys_overlap2d(a, b, *, eps=0.5):
+    ''' Whether two screen-space outlines cover any of the same ground: one's middle inside the
+    other, or a crossing between sides that share no corner. '''
     ca = sum(a, Vector((0, 0))) / len(a)
     cb = sum(b, Vector((0, 0))) / len(b)
     if point_inside_face_2d(ca, b) or point_inside_face_2d(cb, a): return True
@@ -117,20 +116,19 @@ def _polys_overlap2d(a, b, *, eps=0.5):
         p0, p1 = a[i], a[(i + 1) % len(a)]
         for j in range(len(b)):
             q0, q1 = b[j], b[(j + 1) % len(b)]
-            if any((p - q).length < eps for p in (p0, p1) for q in (q0, q1)): continue
-            s1, s2 = _side2d(p0, p1, q0), _side2d(p0, p1, q1)
-            s3, s4 = _side2d(q0, q1, p0), _side2d(q0, q1, p1)
+            if any((p - q).length < eps for p in (p0, p1) for q in (q0, q1)): continue     # sides sharing a corner: a proper tiling does that everywhere
+            s1, s2 = side2d(p0, p1, q0), side2d(p0, p1, q1)
+            s3, s4 = side2d(q0, q1, p0), side2d(q0, q1, p1)
             if s1 and s2 and s3 and s4 and s1 != s2 and s3 != s4: return True
     return False
 
-def _same_side_of_edge(co_a, co_b, centres_a, centres_b) -> bool:
-    ''' Whether a face centre from each group sits on the same side of the edge a-b. Two faces may
-    share an edge, but only one on each side of it; both on the same side is a fold. The cross of the
-    edge with the direction to a centre points one way for one side and the other way for the other,
-    so this needs no normal and does not depend on the view. '''
+def same_side_of_edge(co_a, co_b, centres_a, centres_b) -> bool:
+    ''' Whether a face centre from each group sits on the same side of the edge a-b: two faces sharing
+    an edge belong one on each side, both on one side is a fold. '''
     d = co_b - co_a
     if d.length_squared < 1e-14: return False
     def arm(c):
+        # the cross of the edge with the direction to a centre points one way per side, so no normal or view is needed
         r = d.cross(c - co_a)
         return r if r.length_squared > 1e-14 else None
     arms_b = [ r for c in centres_b if (r := arm(c)) is not None ]
@@ -139,25 +137,25 @@ def _same_side_of_edge(co_a, co_b, centres_a, centres_b) -> bool:
                for c in centres_a if (ra := arm(c)) is not None
                for rb in arms_b)
 
-def _co(pt):
+def co_of(pt):
     ''' A patch corner is either an existing BMVert or the coordinate of a vert Fill will create. '''
     return pt.co if isinstance(pt, BMVert) else pt
 
-def _dist2d_point_segment(p, a, b):
+def dist2d_point_segment(p, a, b):
     d = b - a
     dd = d.length_squared
     if dd < 1e-12: return (p - a).length
     t = max(0.0, min(1.0, (p - a).dot(d) / dd))
     return (p - (a + d * t)).length
 
-def _plane_frame(n, ref):
+def plane_frame(n, ref):
     ''' Unit vectors (u, w) spanning the plane normal to n, with u along ref. None when degenerate. '''
     u = ref - n * ref.dot(n)
     if u.length_squared < 1e-18: return None
     u.normalize()
     return u, n.cross(u)
 
-def _on_faced_side(bme, co):
+def on_faced_side(bme, co):
     ''' Whether co lies on the same side of a one-faced edge as that face, or None when it cannot
     be told. Measured across the edge, in the plane the face and the point span. '''
     va, vb = bme.verts
@@ -172,16 +170,16 @@ def _on_faced_side(bme, co):
     if to_face.length_squared < 1e-14 or to_co.length_squared < 1e-14: return None
     return to_face.dot(to_co) > 0
 
-def _quad_area3d(cos):
+def quad_area3d(cos):
     # exact for a planar quad, close enough for the nearly planar ones the shape test lets through
     return 0.5 * (cos[2] - cos[0]).cross(cos[3] - cos[1]).length
 
-def _is_convex_2d(pts):
+def is_convex_2d(pts):
     ''' Whether four screen points in ring order make a convex quad: every turn goes the same way. '''
-    signs = { _side2d(pts[i], pts[(i + 1) % 4], pts[(i + 2) % 4]) for i in range(4) }
+    signs = { side2d(pts[i], pts[(i + 1) % 4], pts[(i + 2) % 4]) for i in range(4) }
     return 0 not in signs and len(signs) == 1
 
-def _quad_squareness(q):
+def quad_squareness(q):
     ''' How square a quad is, 1.0 for a perfect square, given its corners in ring order. None when
     it is considered not a good fit: a long strip, a fold over a crease, or a shape under the floor. '''
     MIN_SQUARENESS = 0.15                # floor on the score: a 55 degree lean on a square, 45 on a 2:1, 37 on a 3:1
@@ -198,67 +196,63 @@ def _quad_squareness(q):
     if max(lens) / min(lens) > MAX_EDGE_RATIO: return None
 
     # a corner at 0 or 180 scores nothing, so collinear corners fall through the floor without a test of their own
-    worst_corner = max(abs(_angle_deg(-sides[i - 1].normalized(), sides[i].normalized()) - 90.0) for i in range(4))
+    worst_corner = max(abs(angle_deg(-sides[i - 1].normalized(), sides[i].normalized()) - 90.0) for i in range(4))
 
     for d in (0, 1):
         n0 = (q[(d + 1) % 4] - q[d]).cross(q[(d + 2) % 4] - q[d])
         n1 = (q[(d + 2) % 4] - q[d]).cross(q[(d + 3) % 4] - q[d])
         if n0.length_squared < 1e-18 or n1.length_squared < 1e-18: return None
-        if _angle_deg(n0.normalized(), n1.normalized()) > MAX_WARP: return None
+        if angle_deg(n0.normalized(), n1.normalized()) > MAX_WARP: return None
 
     score = (1.0 - worst_corner / 90.0) ** SKEW_WEIGHT * (min(lens) / max(lens)) ** ASPECT_WEIGHT
     return score if score >= MIN_SQUARENESS else None
 
-def _tri_shape_ok(cos):
-    ''' Whether three points make a triangle worth filling rather than a sliver. Verts taken from a
-    run along a strip are nearly straight, and the triangle across them is all sliver; stepping the
-    strip is what was wanted there, so this refuses them. '''
-    MIN_ANGLE = 20.0    # a triangle this pointed is a sliver whatever its longest side does
+def tri_shape_ok(cos):
+    ''' Whether three points make a triangle worth filling rather than a sliver. '''
+    MIN_ANGLE = 20.0    # three verts along a strip are nearly straight: stepping the strip was wanted there, not a sliver across them
     sides = [cos[(i + 1) % 3] - cos[i] for i in range(3)]
     if min(s.length for s in sides) < 1e-9: return False
-    return all(_angle_deg(-sides[i - 1].normalized(), sides[i].normalized()) >= MIN_ANGLE for i in range(3))
+    return all(angle_deg(-sides[i - 1].normalized(), sides[i].normalized()) >= MIN_ANGLE for i in range(3))
 
-def _quad_from_points(pts2d, cos3d, mouse):
-    ''' Order four points into a quad and score it. pts2d are screen positions, cos3d world
-    positions. Returns (order, score) with order indexing the inputs, lower score better; None
-    when the four make no quad worth offering. '''
+def quad_from_points(pts2d, cos3d, mouse):
+    ''' (order indexing the inputs, score, lower better) for the quad four points make, given their
+    screen and world positions; None when they make no quad worth offering. '''
     HOVER_SLOP = 0.25       # how far outside the outline the cursor may sit, in mean side lengths
 
     # sorting by angle round the centroid is the one order that does not self-intersect
     centre2d = sum(pts2d, Vector((0, 0))) / 4
     order = sorted(range(4), key=lambda k: math.atan2(pts2d[k].y - centre2d.y, pts2d[k].x - centre2d.x))
     p = [pts2d[k] for k in order]
-    if not _is_convex_2d(p): return None
+    if not is_convex_2d(p): return None
 
     # four nearby points pair up several ways; the cursor says which quad is meant, as in Maya
     mean_side = sum((p[(i + 1) % 4] - p[i]).length for i in range(4)) / 4
     inside = point_inside_face_2d(mouse, p)
     if not inside:
-        if min(_dist2d_point_segment(mouse, p[i], p[(i + 1) % 4]) for i in range(4)) > HOVER_SLOP * mean_side:
+        if min(dist2d_point_segment(mouse, p[i], p[(i + 1) % 4]) for i in range(4)) > HOVER_SLOP * mean_side:
             return None
 
     # shape in 3D, where the quad lives: a quad can look square on screen and be a sliver seen face-on
-    squareness = _quad_squareness([cos3d[k] for k in order])
+    squareness = quad_squareness([cos3d[k] for k in order])
     if squareness is None: return None
 
     # Screen area over squareness. The smallest quad holding the cursor is usually the one meant,
     # but size alone kept offering rhombuses, and shape alone reached clean across the mesh. The
-    # shape floor in _quad_squareness keeps a barely passing sliver from winning on size alone.
+    # shape floor in quad_squareness keeps a barely passing sliver from winning on size alone.
     area = abs(sum(p[i].x * p[(i + 1) % 4].y - p[(i + 1) % 4].x * p[i].y for i in range(4))) / 2
     cost = area / squareness
     dist = sum((pt - mouse).length_squared for pt in p)
     return order, (0 if inside else 1, cost, dist)
 
-def _corner_overlaps_faces(bmv, co_prev, co_next, *, tol_deg=5.0):
-    ''' Whether the wedge a new quad would take up at bmv overlaps a face already there. Each face
-    round a vert takes a slice of the directions leaving it; so does the new quad. Sharing an edge
-    is not an overlap, which is what the tolerance allows. '''
+def corner_overlaps_faces(bmv, co_prev, co_next, *, tol_deg=5.0):
+    ''' Whether the wedge of directions a new quad takes up at bmv overlaps a face already there,
+    beyond the tolerance that lets them share an edge. '''
     faces = [ f for f in bmv.link_faces if not f.hide ]
     if not faces: return False
     n = sum((f.normal for f in faces), Vector())
     if n.length_squared < 1e-18: return False
     n.normalize()
-    frame = _plane_frame(n, co_prev - bmv.co)
+    frame = plane_frame(n, co_prev - bmv.co)
     if frame is None: return False
     u, w = frame
 
@@ -289,17 +283,17 @@ def _corner_overlaps_faces(bmv, co_prev, co_next, *, tol_deg=5.0):
         if gap < (new_arc[1] + f_arc[1]) / 2 - tol_deg: return True
     return False
 
-def _mesh_juts_into_face(verts, cos, is_existing, *, depth=3):
+def mesh_juts_into_face(verts, cos, is_existing, *, depth=3):
     ''' Whether an existing vert lies inside the face or an existing edge crosses one of its sides,
-    judged in the face's plane. Looks a few edges out from the face's existing corners, plus any
-    loose points the candidate cache knows about nearby. '''
+    judged in the face's plane, among the mesh a few edges out from its corners and the loose
+    points the candidate cache knows nearby. '''
     n_pts = len(cos)
     centre = sum(cos, Vector()) / n_pts
     # crossing a quad's diagonals averages out its warp; a triangle is flat, so two of its sides do
     n = (cos[2] - cos[0]).cross(cos[3] - cos[1]) if n_pts == 4 else (cos[1] - cos[0]).cross(cos[2] - cos[0])
     if n.length_squared < 1e-18: return False
     n.normalize()
-    frame = _plane_frame(n, cos[1] - cos[0])
+    frame = plane_frame(n, cos[1] - cos[0])
     if frame is None: return False
     u, w = frame
     mean_side = sum((cos[(i + 1) % n_pts] - cos[i]).length for i in range(n_pts)) / n_pts
@@ -313,13 +307,13 @@ def _mesh_juts_into_face(verts, cos, is_existing, *, depth=3):
 
     def inside(p):
         if not point_inside_face_2d(p, poly): return False
-        return min(_dist2d_point_segment(p, poly[i], poly[(i + 1) % n_pts]) for i in range(n_pts)) > eps
+        return min(dist2d_point_segment(p, poly[i], poly[(i + 1) % n_pts]) for i in range(n_pts)) > eps
 
     def crosses(pa, pb):
         for i in range(n_pts):
             qa, qb = poly[i], poly[(i + 1) % n_pts]
-            s1, s2 = _side2d(pa, pb, qa), _side2d(pa, pb, qb)
-            s3, s4 = _side2d(qa, qb, pa), _side2d(qa, qb, pb)
+            s1, s2 = side2d(pa, pb, qa), side2d(pa, pb, qb)
+            s3, s4 = side2d(qa, qb, pa), side2d(qa, qb, pb)
             if s1 and s2 and s3 and s4 and s1 != s2 and s3 != s4: return True
         return False
 
@@ -359,21 +353,21 @@ def _mesh_juts_into_face(verts, cos, is_existing, *, depth=3):
             if h <= thick and inside(p): return True
     return False
 
-def _face_is_placeable(bm, verts):
-    ''' _face_is_placeable_now, remembered for as long as a stroke is down: nothing in the mesh changes
-    while one is, and the weld-fit asks the same questions of the same corners on every rebuild. '''
+def face_is_placeable(bm, verts):
+    ''' face_is_placeable_now, remembered while a stroke is down: the mesh cannot change then, and the
+    weld fit asks the same of the same corners on every rebuild. '''
     stroke = LegacyPatches_Logic.stroke
-    if stroke is None: return _face_is_placeable_now(bm, verts)
+    if stroke is None: return face_is_placeable_now(bm, verts)
     key = tuple((v.index if isinstance(v, BMVert) else tuple(round(c, 6) for c in v)) for v in verts)
     hit = stroke.placeable.get(key)
-    if hit is None: hit = stroke.placeable[key] = _face_is_placeable_now(bm, verts)
+    if hit is None: hit = stroke.placeable[key] = face_is_placeable_now(bm, verts)
     return hit
 
-def _face_is_placeable_now(bm, verts):
-    ''' Whether a face on these corners, in this order, leaves the mesh making sense: no third face
-    on an edge, no face already there, none laid over existing geometry, no diagonal that is really
-    an edge of the mesh. A corner may be a plain Vector for a vert the fill will create; it has no
-    history, so only the tests about existing corners apply to it. Triangles and quads. '''
+def face_is_placeable_now(bm, verts):
+    ''' Whether a triangle or quad on these corners, in this order, leaves the mesh making sense: no
+    third face on an edge, no face already there, none laid over existing geometry, no diagonal that
+    is an edge of the mesh. A corner may be a Vector for a vert the fill creates, which only the tests
+    about existing corners skip. '''
     SIDE_OVER_VERT_ANGLE = 120.0    # a new side whose ends share a neighbour this straight runs over that neighbour
 
     n = len(verts)
@@ -381,7 +375,7 @@ def _face_is_placeable_now(bm, verts):
     is_existing = [ isinstance(v, BMVert) for v in verts ]
     if all(is_existing) and bm.faces.get(verts): return False
 
-    cos = [ _co(v) for v in verts ]
+    cos = [ co_of(v) for v in verts ]
     centre = sum(cos, Vector()) / n
     for i in range(n):
         j = (i + 1) % n
@@ -390,7 +384,7 @@ def _face_is_placeable_now(bm, verts):
         bme = bmvs_shared_bme(va, vb)
         if bme is not None:
             if len(bme.link_faces) >= 2: return False
-            if bme.link_faces and _on_faced_side(bme, centre): return False
+            if bme.link_faces and on_faced_side(bme, centre): return False
             continue
         # this side would be created: refuse it when it runs straight over a shared neighbour, which
         # means the face skipped a row of the mesh
@@ -398,7 +392,7 @@ def _face_is_placeable_now(bm, verts):
             if w in verts: continue
             d0, d1 = va.co - w.co, vb.co - w.co
             if d0.length_squared < 1e-14 or d1.length_squared < 1e-14: continue
-            if _angle_deg(d0.normalized(), d1.normalized()) >= SIDE_OVER_VERT_ANGLE: return False
+            if angle_deg(d0.normalized(), d1.normalized()) >= SIDE_OVER_VERT_ANGLE: return False
 
     # a faced diagonal means the face straddles a fold: the pieces either side are the real surface
     for a, b in combinations(range(n), 2):
@@ -415,25 +409,25 @@ def _face_is_placeable_now(bm, verts):
             if not any(set(bme.verts) == {va, vb} for bme in bmf.edges): return False
 
     for i in range(n):
-        if is_existing[i] and _corner_overlaps_faces(verts[i], cos[i - 1], cos[(i + 1) % n]): return False
+        if is_existing[i] and corner_overlaps_faces(verts[i], cos[i - 1], cos[(i + 1) % n]): return False
 
-    return not _mesh_juts_into_face(verts, cos, is_existing)
+    return not mesh_juts_into_face(verts, cos, is_existing)
 
-def _complete_quad(bm, known, slots, *, min_squareness):
-    ''' Finish a quad from existing verts. `known` are the corners already decided, in ring order;
-    `slots` holds candidate verts for each open corner, in ring order after the known ones. Every
-    assignment is judged the way the cursor pick judges quads. Returns (verts, cost) or None. '''
+def complete_quad(bm, known, slots, *, min_squareness):
+    ''' (verts, cost) of the best quad finishing the `known` corners (in ring order) with a candidate
+    vert from each of `slots` (in ring order after them), judged as the cursor pick judges quads, or
+    None. '''
     n_open = len(slots)
     if n_open not in (1, 2) or len(known) + n_open != 4: return None
     best = None
 
     def consider(verts):
         nonlocal best
-        cos = [ _co(v) for v in verts ]
-        squareness = _quad_squareness(cos)
+        cos = [ co_of(v) for v in verts ]
+        squareness = quad_squareness(cos)
         if squareness is None or squareness < min_squareness: return
-        if not _face_is_placeable(bm, verts): return
-        cost = _quad_area3d(cos) / squareness
+        if not face_is_placeable(bm, verts): return
+        cost = quad_area3d(cos) / squareness
         if best is None or cost < best[1]: best = (list(verts), cost)
 
     if n_open == 1:
@@ -446,9 +440,8 @@ def _complete_quad(bm, known, slots, *, min_squareness):
                 if w1 not in known and w1 is not w0: consider(known + [w0, w1])
     return best
 
-def _grid_topology(verts, l0, l1, *, cyclic_i=False):
-    ''' Faces of an l0 x l1 grid of verts (row-major, k = i * l1 + j) and the edges the preview
-    draws: every grid edge not already in the mesh. '''
+def grid_topology(verts, l0, l1, *, cyclic_i=False):
+    ''' (edges not already in the mesh, faces) of an l0 x l1 grid of verts, row-major, k = i * l1 + j. '''
     def is_new(a, b):
         va, vb = verts[a], verts[b]
         if not (isinstance(va, BMVert) and isinstance(vb, BMVert)): return True
@@ -460,7 +453,7 @@ def _grid_topology(verts, l0, l1, *, cyclic_i=False):
     edges += [ (i*l1+j, nxt(i)*l1+j) for i in rows for j in range(l1) if is_new(i*l1+j, nxt(i)*l1+j) ]
     return edges, faces
 
-def _smooth_path(pts, passes=2):
+def smooth_path(pts, passes=2):
     ''' Lightly smoothed copy of a polyline, endpoints kept. Display only. '''
     out = list(pts)
     for _ in range(passes):
@@ -474,9 +467,9 @@ def _smooth_path(pts, passes=2):
 ##############################################
 # curved-surface helpers: fit a sphere to two points and their normals, then move along it
 
-def _fit_sphere_centre(p_a, n_a, p_b, n_b):
-    ''' Centre of the sphere through two points with the given normals, or None when the surface
-    between them is flat. Same fit Relax uses for Interpolate Loops; the radius is signed. '''
+def fit_sphere_centre(p_a, n_a, p_b, n_b):
+    ''' Centre of the sphere through two points with the given normals (Relax's Interpolate Loops
+    fit, radius signed), or None when the surface between them is flat. '''
     d = n_b - n_a
     dd = d.dot(d)
     if dd < 1e-10: return None
@@ -484,28 +477,28 @@ def _fit_sphere_centre(p_a, n_a, p_b, n_b):
     if abs(r) < 1e-10: return None
     return p_a - n_a * r
 
-def _arc_rotation(centre, p_a, p_b, t=1.0):
+def arc_rotation(centre, p_a, p_b, t=1.0):
     ''' Rotation about centre carrying p_a a fraction t of the way to p_b, or None when collinear. '''
     va, vb = p_a - centre, p_b - centre
     axis = va.cross(vb)
     if axis.length_squared < 1e-14 or va.length_squared < 1e-14 or vb.length_squared < 1e-14: return None
     return Matrix.Rotation(va.angle(vb) * t, 3, axis.normalized())
 
-def _bend_along(p_a, n_a, p_b, n_b, x):
-    ''' Move x the way the surface carries p_a to p_b: the parallelogram completion bent to the
-    fitted sphere, or the plain translation when flat. '''
-    centre = _fit_sphere_centre(p_a, n_a, p_b, n_b) if (n_a is not None and n_b is not None) else None
-    rot = _arc_rotation(centre, p_a, p_b) if centre is not None else None
+def bend_along(p_a, n_a, p_b, n_b, x):
+    ''' x moved the way the surface carries p_a to p_b: rotated about the fitted sphere, or
+    translated when flat. '''
+    centre = fit_sphere_centre(p_a, n_a, p_b, n_b) if (n_a is not None and n_b is not None) else None
+    rot = arc_rotation(centre, p_a, p_b) if centre is not None else None
     if rot is None: return x + (p_b - p_a)
     return centre + rot @ (x - centre)
 
-def _arc_between(p_a, n_a, p_b, n_b, fracs):
+def arc_between(p_a, n_a, p_b, n_b, fracs):
     ''' (point, normal) at each fraction along the arc from p_a to p_b on the fitted sphere, or
     along the straight line with lerped normals when flat. '''
-    centre = _fit_sphere_centre(p_a, n_a, p_b, n_b) if (n_a is not None and n_b is not None) else None
+    centre = fit_sphere_centre(p_a, n_a, p_b, n_b) if (n_a is not None and n_b is not None) else None
     out = []
     for t in fracs:
-        rot = _arc_rotation(centre, p_a, p_b, t) if centre is not None else None
+        rot = arc_rotation(centre, p_a, p_b, t) if centre is not None else None
         if rot is None:
             n = None
             if n_a is not None and n_b is not None:
@@ -516,13 +509,13 @@ def _arc_between(p_a, n_a, p_b, n_b, fracs):
             out.append((centre + rot @ (p_a - centre), (rot @ n_a).normalized()))
     return out
 
-def _bezier(p0, p1, p2, p3, t):
+def bezier(p0, p1, p2, p3, t):
     u = 1.0 - t
     return p0 * (u*u*u) + p1 * (3*u*u*t) + p2 * (3*u*t*t) + p3 * (t*t*t)
 
-def _mirror_curve(p0, t0, p3):
-    ''' Control points of a cubic leaving p0 along t0 and arriving at p3 along t0 mirrored across
-    the chord, so the curve bows evenly and never curls. Returns (p1, p2, arrival direction). '''
+def mirror_curve(p0, t0, p3):
+    ''' (p1, p2, arrival direction) of a cubic leaving p0 along t0 and arriving at p3 along t0
+    mirrored across the chord, which bows evenly and never curls. '''
     HANDLE_AT_START, HANDLE_AT_END = 0.25, 0.15     # fractions of the chord; shorter at the end so two sides meeting there do not pinch
     chord = p3 - p0
     length = chord.length
@@ -532,7 +525,7 @@ def _mirror_curve(p0, t0, p3):
     t3 = t3.normalized() if t3.length_squared > 1e-12 else c
     return p0 + t0 * (HANDLE_AT_START * length), p3 - t3 * (HANDLE_AT_END * length), t3
 
-def _cumulative_fracs(cos):
+def cumulative_fracs(cos):
     ''' Fraction of the polyline length reached at each point, 0 at the first and 1 at the last. '''
     seg = [ (cos[k + 1] - cos[k]).length for k in range(len(cos) - 1) ]
     total = sum(seg) or 1.0
@@ -543,7 +536,7 @@ def _cumulative_fracs(cos):
     out[-1] = 1.0
     return out
 
-def _turn_sharpness(cos):
+def turn_sharpness(cos):
     ''' How sharply a closed loop turns at each vert: 0 straight, 2 doubled back. '''
     n = len(cos)
     out = []
@@ -553,10 +546,10 @@ def _turn_sharpness(cos):
         out.append(1.0 - max(-1.0, min(1.0, d0.dot(d1))))
     return out
 
-def _grid_snap_noise(cos, raws, l0, l1, *, cyclic_i=False):
-    ''' Mean disagreement between neighbouring verts' snap displacements, in quad widths. A patch
-    draped over a curved surface moves far but moves together (a steep dome reads ~0.25); a patch
-    whose verts each find their own piece of the source reads 1.0 or more. '''
+def grid_snap_noise(cos, raws, l0, l1, *, cyclic_i=False):
+    ''' Mean disagreement between neighbouring verts' snap displacements, in quad widths: a patch
+    draped over a curve moves together (a steep dome reads ~0.25), one whose verts each find their
+    own piece of the source reads 1.0 or more. '''
     disp = { k: cos[k] - raws[k] for k in range(len(cos)) if raws[k] is not None }
     if len(disp) < 2: return 0.0
     steps = [ (cos[i*l1+j] - cos[i*l1+j+1]).length for i in range(l0) for j in range(l1 - 1) ]
@@ -576,7 +569,7 @@ def _grid_snap_noise(cos, raws, l0, l1, *, cyclic_i=False):
     return (sum(diffs) / len(diffs)) / spacing
 
 
-def _layout_topology(verts, edges):
+def layout_topology(verts, edges):
     ''' The edges of an n-sided layout the preview draws: every one not already in the mesh. '''
     def is_new(a, b):
         va, vb = verts[a], verts[b]
@@ -585,8 +578,8 @@ def _layout_topology(verts, edges):
     return [ (a, b) for a, b in edges if is_new(a, b) ]
 
 
-def _layout_snap_noise(cos, raws, edges):
-    ''' _grid_snap_noise for an n-sided layout, whose neighbourhood is its edge list. '''
+def layout_snap_noise(cos, raws, edges):
+    ''' grid_snap_noise for an n-sided layout, whose neighbourhood is its edge list. '''
     disp = { k: cos[k] - raws[k] for k in range(len(cos)) if raws[k] is not None }
     if len(disp) < 2: return 0.0
     steps = [ (cos[a] - cos[b]).length for a, b in edges ]
@@ -597,9 +590,9 @@ def _layout_snap_noise(cos, raws, edges):
     return (sum(diffs) / len(diffs)) / spacing
 
 
-def _shared_side_fold(idx_a, cos_a, idx_b, cos_b):
-    ''' Whether two faces that share a side lie on the same side of it (a fold); None when they do
-    not share a side. Faces given by vert index (None for a vert not yet made) and position. '''
+def shared_side_fold(idx_a, cos_a, idx_b, cos_b):
+    ''' Whether two faces sharing a side lie on the same side of it, a fold; None when they share no
+    side. Faces are vert indices (None for a vert not yet made) and positions. '''
     shared = { i for i in idx_a if i is not None } & { i for i in idx_b if i is not None }
     if len(shared) != 2: return None
     ia, ib = tuple(shared)
@@ -607,41 +600,40 @@ def _shared_side_fold(idx_a, cos_a, idx_b, cos_b):
         return (idx.index(ia) - idx.index(ib)) % len(idx) in (1, len(idx) - 1)
     if not (is_side(idx_a) and is_side(idx_b)): return None
     ca, cb = sum(cos_a, Vector()) / len(cos_a), sum(cos_b, Vector()) / len(cos_b)
-    return _same_side_of_edge(cos_a[idx_a.index(ia)], cos_a[idx_a.index(ib)], [ca], [cb])
+    return same_side_of_edge(cos_a[idx_a.index(ia)], cos_a[idx_a.index(ib)], [ca], [cb])
 
 
-def _faces_overlap(idx_a, cos_a, idx_b, cos_b) -> bool:
-    ''' Whether two faces, each given by vert index (None for a vert not yet made) and position, would
-    lie over each other. Three corners in common is one quad laid across the other's diagonal. One
-    side in common is a proper tiling only with a face on each side of it; both on one side is a
-    fold. Anything else is laid flat in the first face's plane and the outlines compared, which
-    catches one cutting across the other whatever corners they share. Nothing here needs the view. '''
+def faces_overlap(idx_a, cos_a, idx_b, cos_b) -> bool:
+    ''' Whether two faces, each as vert indices (None for a vert not yet made) and positions, would
+    lie over each other. Needs no view. '''
     na, nb = len(cos_a), len(cos_b)
     ca, cb = sum(cos_a, Vector()) / na, sum(cos_b, Vector()) / nb
     ra = max((c - ca).length for c in cos_a)
     rb = max((c - cb).length for c in cos_b)
     if (cb - ca).length > ra + rb: return False    # nowhere near each other
     shared = { i for i in idx_a if i is not None } & { i for i in idx_b if i is not None }
-    if len(shared) >= 3: return True
+    if len(shared) >= 3: return True     # one quad laid across the other's diagonal
     if len(shared) == 2:
-        fold = _shared_side_fold(idx_a, cos_a, idx_b, cos_b)
+        fold = shared_side_fold(idx_a, cos_a, idx_b, cos_b)
         if fold is not None: return fold
+    # anything else is laid flat in the first face's plane and the outlines compared, which catches one cutting
+    # across the other whatever corners they share
     n = (cos_a[2] - cos_a[0]).cross(cos_a[3] - cos_a[1]) if na == 4 else (cos_a[1] - cos_a[0]).cross(cos_a[2] - cos_a[0])
     if n.length_squared < 1e-18: return False
     n.normalize()
-    frame = _plane_frame(n, cos_a[1] - cos_a[0])
+    frame = plane_frame(n, cos_a[1] - cos_a[0])
     if frame is None: return False
     u, w = frame
     mean_side = sum((cos_a[(i + 1) % na] - cos_a[i]).length for i in range(na)) / na
     if all(abs((c - ca).dot(n)) > 0.5 * mean_side for c in cos_b): return False    # another layer of the surface
     to2d = lambda c: Vector(((c - ca).dot(u), (c - ca).dot(w)))
-    return _polys_overlap2d([ to2d(c) for c in cos_a ], [ to2d(c) for c in cos_b ], eps=1e-3 * mean_side)
+    return polys_overlap2d([ to2d(c) for c in cos_a ], [ to2d(c) for c in cos_b ], eps=1e-3 * mean_side)
 
 
-def _corner_pairing(bmv, mouse, rgn, r3d, M):
-    ''' The two open edges at a corner vert that F2's quad would close, as their far verts (va, vb):
-    the pair whose parallelogram completion the cursor is nearest, or the squarest pair without a
-    cursor. None when the vert is no corner. '''
+def corner_pairing(bmv, mouse, rgn, r3d, M):
+    ''' The far verts (va, vb) of the two open edges at a corner vert that F2's quad would close: the
+    pair whose parallelogram completion the cursor is nearest, or the squarest pair without a cursor.
+    None when the vert is no corner. '''
     opens = [ bme for bme in bmv.link_edges if len(bme.link_faces) < 2 and not bme.hide ]
     if len(opens) < 2: return None
     best = None
@@ -661,9 +653,9 @@ def _corner_pairing(bmv, mouse, rgn, r3d, M):
     return (best[1], best[2]) if best else None
 
 
-def _chains(bmes) -> list:
-    ''' Split edges into runs by connectivity: (verts in order, edges in order, cyclic). A vert with
-    three or more of the edges ends every run that reaches it. '''
+def edge_chains(bmes) -> list:
+    ''' The edges as connected runs, (verts in order, edges in order, cyclic); a vert with three or
+    more of the edges ends every run reaching it. '''
     at = {}
     for bme in bmes:
         for v in bme.verts: at.setdefault(v, []).append(bme)
@@ -691,7 +683,7 @@ def _chains(bmes) -> list:
     return out
 
 
-def _offer_key(offer):
+def offer_key(offer):
     ''' Order-free identity of an offer; what Previz.face_src carries. '''
     if offer is None: return None
     if offer[0] == 'e': return ('e', frozenset(offer[1:3]))
@@ -700,15 +692,14 @@ def _offer_key(offer):
 
 
 class Stroke:
-    ''' What a Ctrl+LMB stroke has collected: not faces but the boundary elements the faces are made
-    from. Open edges to step, quads picked over verts that already exist, notch corners to close.
-    The preview and the commit are both one rebuild over the whole set, so a run of stepped edges is
-    offset as one run, its rungs blended where edges meet exactly as a selected run's are, and every
-    picked quad hands its verts to the runs that end beside it. Realising each face as it was taken
-    lost that blending; holding the faces as separate previews to merge later left the pick blind to
-    what the stroke had decided. Holding the elements and rebuilding gives both. Indices only,
-    resolved on every rebuild. The mesh cannot change while a stroke is down, so anything worked out
-    from it is kept here for the stroke's lifetime. '''
+    ''' What a Ctrl+LMB stroke has collected, as the boundary elements its faces are made from: open
+    edges to step, quads picked over existing verts, notch corners to close. Indices only, resolved
+    on every rebuild; the mesh cannot change while a stroke is down, so what is worked out from it is
+    kept for the stroke's lifetime. '''
+    # the preview and the commit are one rebuild over the whole set, so a run of stepped edges is offset as one run,
+    # its rungs blended where edges meet as a selected run's are, and every picked quad hands its verts to the runs
+    # ending beside it. Realising each face as it was taken lost that blending; holding the faces as separate
+    # previews to merge later left the pick blind to what the stroke had decided
 
     def __init__(self):
         self.edges   = set()    # frozenset({ia, ib}): open boundary edges to step
@@ -723,7 +714,7 @@ class Stroke:
         self.prev    = None     # the stroke's previous sample point, window px
         self.chains  = {}       # run key -> the previews emit_offset made for it, reused while the run is unchanged
         self.normals = {}       # source-normal cache shared by every rebuild of the stroke
-        self.placeable = {}     # _face_is_placeable results, likewise
+        self.placeable = {}     # face_is_placeable results, likewise
 
     def is_empty(self) -> bool:
         return not (self.edges or self.quads or self.corners)
@@ -752,25 +743,23 @@ class Stroke:
         self.face_sides = sides
 
     def clashes(self, idx, cos) -> tuple:
-        ''' (keys of the taken quads a face over these verts cannot sit beside, whether it clashes
-        with something it cannot replace). Exact geometry: every vert involved is in the mesh or in
-        the preview. A notch quad is a clash on any overlap; a stepped edge's face only when the two
-        share a side and lie on the same side of it, since a picked quad beside a run moves the
-        run's rung onto its own vert and a slight overlap with the rung as it stands now is no
-        objection. A quad over a stepped edge is not measured against that edge's face at all: it
-        takes the edge over and the face goes. '''
+        ''' (keys of the taken quads a face over these verts cannot sit beside, whether it clashes with
+        something it cannot replace), in exact geometry: every vert involved is in the mesh or the preview. '''
         centre = sum(cos, Vector()) / len(cos)
         radius = max((c - centre).length for c in cos)
         quads = []
         for key, (ring, _cost) in self.quads.items():
             qcos, qc, qr = self.quad_geo[key]
             if (qc - centre).length > qr + radius: continue
-            if _faces_overlap(idx, cos, ring, qcos): quads.append(key)
-        blocked = any(_faces_overlap(idx, cos, cidx, ccos) for cidx, ccos in self.corner_faces.values())
+            if faces_overlap(idx, cos, ring, qcos): quads.append(key)
+        # a notch quad is a clash on any overlap. A stepped edge's face only when the two share a side and lie on the
+        # same side of it: a picked quad beside a run moves the run's rung onto its own vert, so a slight overlap with
+        # the rung as it stands is no objection. A quad over a stepped edge takes the edge over and its face goes
+        blocked = any(faces_overlap(idx, cos, cidx, ccos) for cidx, ccos in self.corner_faces.values())
         if not blocked:
             n = len(idx)
             sides = { frozenset((idx[k], idx[(k + 1) % n])) for k in range(n) if idx[k] is not None and idx[(k + 1) % n] is not None }
-            blocked = any(_shared_side_fold(idx, cos, sidx, scos)
+            blocked = any(shared_side_fold(idx, cos, sidx, scos)
                           for ekey, sidx, scos in self.step_faces if ekey not in sides)
         return quads, blocked
 
@@ -784,9 +773,9 @@ class Stroke:
         return not blocked and all(cost < self.quads[k][1] for k in quads)
 
     def take(self, bm, offer, faces=()) -> bool:
-        ''' Collect an offer. A quad laid over a worse quad already taken replaces it; over a better
-        one, or over a notch quad, it is refused. `faces` are the offer's previewed faces as
-        (indices, positions), which is how a notch quad is judged. True when the stroke changed. '''
+        ''' Collect an offer; True when the stroke changed. A quad laid over a worse quad already
+        taken replaces it, over a better one or a notch quad it is refused. `faces` are the offer's
+        previewed faces as (indices, positions), which is how a notch quad is judged. '''
         kind = offer[0]
         if kind == 'e':
             key = frozenset(offer[1:3])
@@ -842,9 +831,9 @@ class Previz:
     mark     : tuple = ()   # faces drawn in a warning colour: the one non-quad an odd loop is closed with
 
 
-def _fuse_previz(previz : list) -> Previz:
-    ''' One preview out of several that share verts: existing verts by index, new ones by position,
-    so a run's rung and the notch quad it was pinned to are one vert, drawn once and built once. '''
+def fuse_previz(previz : list) -> Previz:
+    ''' One preview out of several sharing verts, existing ones by index and new ones by position, so
+    a run's rung and the notch quad it was pinned to are one vert, drawn once and built once. '''
     slots, idx, cos, edges, seen, faces, srcs, open_idx, marks = {}, [], [], [], set(), [], [], [], []
     for pv in previz:
         remap = []
@@ -895,8 +884,8 @@ class LegacyPatches_Logic:
     has_quad       : ClassVar[bool] = False                # a single quad: cursor, four verts, or a corner
     has_manual_corners : ClassVar[bool] = False            # any corner override on the selected boundary
     wire_runs      : ClassVar[list] = []                   # (chord co0, chord co1, mouse side) per wire offset, watched by track_mouse
-    grid_last      : ClassVar[tuple[int, int] | None] = None   # (span, offset) used
-    grid_ranked    : ClassVar[list] = []                       # (span, offset) of every split, best first
+    grid_last      : ClassVar[tuple | None] = None             # (tag of the fill built, Offset); for an O loop the tag is its grid span
+    grid_ranked    : ClassVar[list] = []                       # the loop's FillSolutions, ranked; an O loop's ('grid', span, offset) splits
     grid_sig       : ClassVar[tuple | None] = None             # selection the solutions were ranked for
     ngon_cuts      : ClassVar[dict] = {}                       # (loop nodes, corners) -> cut plans, the one search too slow to redo every rebuild
     pole_pos       : ClassVar[dict] = {}                       # loop key -> (Solution and Offset it was made under, local co): where a drag put the pole; it stays there, excluded from smoothing
@@ -1037,13 +1026,12 @@ class LegacyPatches_Logic:
 
     @staticmethod
     def settled(name : str, value):
-        ''' What a property will read once a write of ours has landed. Until it does the property
-        still holds the old value, and a rebuild in between would work from that. Floats are compared
-        loosely: a FloatProperty is single precision, so 1.1 written comes back a hair off and an
-        exact test would leave the pending value pinned there for good. '''
+        ''' What a property will read once a write of ours has landed: until then it still holds the
+        old value, and a rebuild in between would work from that. '''
         L = LegacyPatches_Logic
         pending = L.prop_pending.get(name)
         if pending is None: return value
+        # a FloatProperty is single precision, so 1.1 written comes back a hair off; an exact test would pin the pending value for good
         landed = (abs(value - pending) <= 1e-5 * max(1.0, abs(pending))
                   if isinstance(pending, float) else value == pending)
         if not landed: return pending
@@ -1083,8 +1071,8 @@ class LegacyPatches_Logic:
 
     @staticmethod
     def scaled_step(value : float, delta : int) -> float:
-        ''' The step distance a scroll tick away, snapped to the tick grid so a value typed into the
-        redo panel comes back to round numbers. '''
+        ''' The step distance a scroll tick away, snapped to the tick grid so a typed value comes back
+        to round numbers. '''
         L = LegacyPatches_Logic
         return max(L.STEP_SCALE_TICK,
                    min(L.STEP_SCALE_MAX, round(value / L.STEP_SCALE_TICK + delta) * L.STEP_SCALE_TICK))
@@ -1169,7 +1157,7 @@ class LegacyPatches_Logic:
         MAX_SELECTED_EDGES = 1000       # same bail-out as the loop/strip selection overlay
         MAX_NEW_VERTS = 20000           # each new vert costs one closest-point query per source
         SNAP_CAP_EDGES = 2.0            # how far a new vert may be projected, in mean boundary edge lengths, so it cannot land on the far side of a form
-        MAX_SNAP_NOISE = 0.7            # _grid_snap_noise above this means the fill bears no relation to the source
+        MAX_SNAP_NOISE = 0.7            # grid_snap_noise above this means the fill bears no relation to the source
         GUIDE_MAX_ALONG = 0.7           # |cos| above which an existing edge runs along the strip and cannot guide a new side
         WELD_FIT_RADIUS = 0.6           # how far from where a new vert would land an existing one may sit, in step lengths
         WELD_FIT_MIN_SQUARENESS = 0.45  # below this a fresh vert makes a better quad than the existing one would
@@ -1212,7 +1200,7 @@ class LegacyPatches_Logic:
             if mode == CORNER_SMOOTH: return False
             d10 = (bmv0.co - bmv1.co).normalized()
             d12 = (bmv2.co - bmv1.co).normalized()
-            return _angle_deg(d10, d12) < min_angle
+            return angle_deg(d10, d12) < min_angle
 
         ##############################################
         # read the selection
@@ -1321,47 +1309,40 @@ class LegacyPatches_Logic:
                     working.add(e)
             strips.append(strip)
 
+        def order_strip(first, strip_edges):
+            # the strip's edges end to end from `first` on; None when it forks (GitHub issue #481)
+            strip = list(first)
+            remaining = set(strip_edges) - set(strip)
+            while remaining:
+                next_edges = [edge for edge in neighbors[strip[-1]] if edge in remaining]
+                if len(next_edges) != 1: return None
+                strip.append(next_edges[0])
+                remaining.remove(next_edges[0])
+            return strip
+
         # order each strip end to end; a strip with no ends is an O
         ordered_strips = []
         corners = dict()
-        for sedges in strips:
-            if len(sedges) == 1:
-                edge = next(iter(sedges))
+        for strip_edges in strips:
+            if len(strip_edges) == 1:
+                edge = next(iter(strip_edges))
                 strip = [edge]
                 v0, v1 = edge.verts
                 ordered_strips.append(strip)
                 corners.setdefault(v0, []).append(strip)
                 corners.setdefault(v1, []).append(strip)
                 continue
-            end_edges = [edge for edge in sedges if len(neighbors[edge]) == 1]
+            end_edges = [edge for edge in strip_edges if len(neighbors[edge]) == 1]
             if not end_edges:
-                strip = [next(iter(sedges))]
-                strip.append(next(iter(neighbors[strip[0]])))
-                rem = set(sedges) - set(strip)
-                isbad = False
-                while rem:
-                    next_edges = [edge for edge in neighbors[strip[-1]] if edge in rem]
-                    if len(next_edges) != 1:
-                        isbad = True
-                        break
-                    strip.append(next_edges[0])
-                    rem.remove(next_edges[0])
-                if isbad: continue
+                first = next(iter(strip_edges))
+                strip = order_strip([first, next(iter(neighbors[first]))], strip_edges)
+                if strip is None: continue
                 shapes['O'].append(strip)
                 cos = [ bmv.co for bme in strip for bmv in bme.verts ]
                 L.labels.append((str(len(strip)), [sum(cos, Vector()) / len(cos)]))
                 continue
-            strip = [end_edges[0]]
-            rem = set(sedges) - set(strip)
-            isbad = False
-            while rem:
-                next_edges = [edge for edge in neighbors[strip[-1]] if edge in rem]
-                if len(next_edges) != 1:
-                    isbad = True    # see GitHub issue #481
-                    break
-                strip.append(next_edges[0])
-                rem.remove(next_edges[0])
-            if isbad: continue
+            strip = order_strip([end_edges[0]], strip_edges)
+            if strip is None: continue
             v0 = strip[0].other_vert(bmes_shared_bmv(strip[0], strip[1]))
             v1 = strip[-1].other_vert(bmes_shared_bmv(strip[-1], strip[-2]))
             corners.setdefault(v0, []).append(strip)
@@ -1402,15 +1383,14 @@ class LegacyPatches_Logic:
             string_strips = [corners[c][0]]
             ignore = c in ignore_corners
             while True:
-                s = string_strips[-1]
-                c = next((c for c in remaining_corners if s in corners[c]), None)
+                strip = string_strips[-1]
+                c = next((c for c in remaining_corners if strip in corners[c]), None)
                 if not c: break
                 ignore |= c in ignore_corners
                 remaining_corners.remove(c)
                 string_corners.add(c)
                 if len(corners[c]) != 2: break
-                ns = next(ns for ns in corners[c] if ns != s)
-                string_strips.append(ns)
+                string_strips.append(next(other for other in corners[c] if other != strip))
             string_strips = align_strips(string_strips)
             if ignore or string_strips is None: continue
             kind = { 1: 'I', 2: 'L', 3: 'C' }.get(len(string_strips), 'else')
@@ -1423,15 +1403,15 @@ class LegacyPatches_Logic:
             loop_strips = [corners[c][0]]
             ignore = c in ignore_corners
             while True:
-                s = loop_strips[-1]
-                c = next((c for c in remaining_corners if s in corners[c]), None)
+                strip = loop_strips[-1]
+                c = next((c for c in remaining_corners if strip in corners[c]), None)
                 if not c: break
                 ignore |= c in ignore_corners
                 remaining_corners.remove(c)
                 loop_corners.add(c)
-                ns = next((ns for ns in corners[c] if ns != s), None)
-                if not ns: break
-                loop_strips.append(ns)
+                next_strip = next((other for other in corners[c] if other != strip), None)
+                if not next_strip: break
+                loop_strips.append(next_strip)
             loop_strips = align_strips(loop_strips)
             if ignore or loop_strips is None: continue
             s0, s1 = loop_strips[0], loop_strips[-1]
@@ -1532,7 +1512,7 @@ class LegacyPatches_Logic:
             ''' Per mirror axis, which side of the plane the shape's boundary is on; 0 when it straddles it. '''
             side = {}
             for a in mirror_axes:
-                votes = [ s for v in pts if (s := sign_threshold(getattr(_co(v), a), mirror_tol)) != 0 ]
+                votes = [ s for v in pts if (s := sign_threshold(getattr(co_of(v), a), mirror_tol)) != 0 ]
                 pos = sum(1 for s in votes if s > 0)
                 neg = len(votes) - pos
                 side[a] = 1 if not votes else (0 if (pos and neg) else (1 if pos else -1))
@@ -1540,7 +1520,7 @@ class LegacyPatches_Logic:
 
         def shape_cap(pts):
             ''' World-space limit on how far a new vert may be projected: a few mean boundary edge lengths. '''
-            cos = [ M @ _co(v) for v in pts ]
+            cos = [ M @ co_of(v) for v in pts ]
             lens = [ l for a, b in zip(cos, cos[1:]) if (l := (b - a).length) > 1e-9 ]
             if not lens: return None
             return SNAP_CAP_EDGES * sum(lens) / len(lens)
@@ -1564,7 +1544,7 @@ class LegacyPatches_Logic:
             if not sources: return None
             key = ('v', pt.index) if isinstance(pt, BMVert) else ('c', tuple(round(c, 6) for c in pt))
             if key not in normal_cache:
-                r = nearest_point_normal_valid_sources(context, M @ _co(pt))
+                r = nearest_point_normal_valid_sources(context, M @ co_of(pt))
                 normal_cache[key] = r[1].normalized() if (r and r[1].length_squared > 0) else None
             return normal_cache[key]
 
@@ -1629,13 +1609,13 @@ class LegacyPatches_Logic:
                         if k in fixed: continue
                         acc, n = Vector(), 0
                         if cyclic_i:
-                            acc += _co(verts[((i - 1) % l0) * l1 + j]) + _co(verts[((i + 1) % l0) * l1 + j])
+                            acc += co_of(verts[((i - 1) % l0) * l1 + j]) + co_of(verts[((i + 1) % l0) * l1 + j])
                             n += 2
                         elif 0 < i < l0 - 1:
-                            acc += _co(verts[(i - 1) * l1 + j]) + _co(verts[(i + 1) * l1 + j])
+                            acc += co_of(verts[(i - 1) * l1 + j]) + co_of(verts[(i + 1) * l1 + j])
                             n += 2
                         if 0 < j < l1 - 1:
-                            acc += _co(verts[i * l1 + (j - 1)]) + _co(verts[i * l1 + (j + 1)])
+                            acc += co_of(verts[i * l1 + (j - 1)]) + co_of(verts[i * l1 + (j + 1)])
                             n += 2
                         if n: moved[k] = acc / n
                 for k, co in moved.items():
@@ -1647,13 +1627,13 @@ class LegacyPatches_Logic:
             side of their one-faced boundary edges as the existing face. '''
             same, other = 0, 0
             for f in faces:
-                centre = sum((_co(verts[k]) for k in f), Vector()) / len(f)
+                centre = sum((co_of(verts[k]) for k in f), Vector()) / len(f)
                 for a, b in zip(f, f[1:] + f[:1]):
                     va, vb = verts[a], verts[b]
                     if not (isinstance(va, BMVert) and isinstance(vb, BMVert)): continue
                     bme = bmvs_shared_bme(va, vb)
                     if bme is None or len(bme.link_faces) != 1: continue
-                    faced = _on_faced_side(bme, centre)
+                    faced = on_faced_side(bme, centre)
                     if faced is None: continue
                     if faced: same += 1
                     else: other += 1
@@ -1697,10 +1677,10 @@ class LegacyPatches_Logic:
                     pt = new_point(co, side, n, cap)
                     if pin: pt = pin(i, j, pt)
                     verts.append(pt); normals.append(n); raws.append(co)
-            if checks and sources and _grid_snap_noise([ _co(v) for v in verts ], raws, l0, l1, cyclic_i=cyclic_i) > MAX_SNAP_NOISE:
+            if checks and sources and grid_snap_noise([ co_of(v) for v in verts ], raws, l0, l1, cyclic_i=cyclic_i) > MAX_SNAP_NOISE:
                 return
             smooth_grid(verts, normals, l0, l1, side, cap, fixed, cyclic_i=cyclic_i)
-            edges, faces = _grid_topology(verts, l0, l1, cyclic_i=cyclic_i)
+            edges, faces = grid_topology(verts, l0, l1, cyclic_i=cyclic_i)
             if checks and over_existing_faces(verts, faces): return
             # the same test smooth_grid moves a vert on, so Smooth is only offered where it does something
             if any((cyclic_i or 0 < i < l0 - 1) or (0 < j < l1 - 1)
@@ -1734,7 +1714,7 @@ class LegacyPatches_Logic:
             pm = location_3d_to_region_2d(rgn, r3d, M @ co_mid)
             po = location_3d_to_region_2d(rgn, r3d, M @ (co_mid + out))
             if not (pa and pb and pm and po): return 1, 0
-            s_mouse, s_out = _side2d(pa, pb, mouse), _side2d(pa, pb, po - pm + pa)
+            s_mouse, s_out = side2d(pa, pb, mouse), side2d(pa, pb, po - pm + pa)
             if not s_mouse or not s_out: return 1, 0
             return (1 if s_mouse == s_out else -1), s_mouse
 
@@ -1752,16 +1732,11 @@ class LegacyPatches_Logic:
             return sides
 
         def build_layout_previz(kind, layout, bmv_of, boundary, *, checks=True, handle=None, pole_co=None, pole_fixed=False, seed=None):
-            ''' Fill an n-sided layout (ngon_layout.build_layout) and add it to the preview. Its
-            existing nodes are the loop's own verts. Cut runs, poles and spokes are placed first and
-            relaxed on their own, pole included, with the region interiors re-blended from them after
-            each pass, so at Smooth 0 the interiors are still pure Coons blends; Smooth passes then relax
-            every new vert. `seed`, node index -> (co, normal), places nodes before any of that and they relax
-            with the spokes: a layout with no pole and spokes to place from, the diamond junction's
-            columns, starts from these. `handle`, a loop key, records the pole as a draggable handle;
-            `pole_co` is where the pole starts, else the mean of its split verts, and with `pole_fixed`
-            it stays there through every relax pass, as a pole the artist placed should. True when a
-            preview was added, False when the checks refused it, None when the vert budget is spent. '''
+            ''' Fill an n-sided layout (ngon_layout.build_layout) whose existing nodes are the loop's own
+            verts, and add it to the preview: True when added, False when the checks refused it, None when
+            the vert budget is spent. `seed` (node index -> (co, normal)) places nodes before anything else;
+            `handle`, a loop key, records the pole as a draggable handle; `pole_co` is where the pole starts,
+            else the mean of its split verts, and with `pole_fixed` it stays there through every pass. '''
             nodes = layout.nodes
             N = len(nodes)
             synthetic = [ k for k in range(N) if k not in layout.existing ]
@@ -1788,19 +1763,22 @@ class LegacyPatches_Logic:
                 if len(line) < 3: return
                 a, b = line[0], line[-1]
                 fracs = [ k / (len(line) - 1) for k in range(len(line)) ]
-                pts = _arc_between(_co(verts[a]), normals[a], _co(verts[b]), normals[b], fracs)
+                pts = arc_between(co_of(verts[a]), normals[a], co_of(verts[b]), normals[b], fracs)
                 for k, (co, n) in zip(line[1:-1], pts[1:-1]):
                     if k not in fixed: place(k, co, n)    # a spoke can run along the boundary when the pole sits on it
 
+            # cut runs, poles and spokes are placed first and relaxed on their own, pole included, the region interiors
+            # re-blended from them after each pass, so at Smooth 0 the interiors are still pure Coons blends; Smooth then
+            # relaxes every new vert. Seeds relax with the spokes: a junction has no pole and spokes to place from
             for k, (co, n) in (seed or {}).items(): place(k, co, n)
             for k, a, b in layout.helpers:
-                if verts[k] is None: place(k, (_co(verts[a]) + _co(verts[b])) / 2, blend_pair(normals[a], normals[b], 0.5))
+                if verts[k] is None: place(k, (co_of(verts[a]) + co_of(verts[b])) / 2, blend_pair(normals[a], normals[b], 0.5))
             for line in layout.cuts: place_line(line)
             for pole in layout.poles:
                 if verts[pole] is not None: continue    # on the boundary or on a cut
                 starts = [ line[0] for line in layout.polylines if line[-1] == pole ]
                 if not starts or any(verts[k] is None for k in starts): return False
-                co = pole_co if pole_co is not None else sum((_co(verts[k]) for k in starts), Vector()) / len(starts)
+                co = pole_co if pole_co is not None else sum((co_of(verts[k]) for k in starts), Vector()) / len(starts)
                 ns = [ normals[k] for k in starts if normals[k] is not None ]
                 n = sum(ns, Vector()) if ns else None
                 place(pole, co, n.normalized() if (n is not None and n.length_squared > 1e-12) else None)
@@ -1820,7 +1798,7 @@ class LegacyPatches_Logic:
                             pu, pv = u / (l0 - 1), v / (l1 - 1)
                             ring = (grid[u][0], grid[u][l1 - 1], grid[0][v], grid[l0 - 1][v], c00, c10, c01, c11)
                             n = blend_normal(*(normals[i] for i in ring), pu, pv)
-                            co = coons(*(_co(verts[i]) for i in ring), pu, pv)
+                            co = coons(*(co_of(verts[i]) for i in ring), pu, pv)
                             place(k, co, n)
 
             faces_of = [ [] for _ in range(N) ]
@@ -1832,12 +1810,12 @@ class LegacyPatches_Logic:
                 # the same distance from its face centres, those distances drawn toward the mean over all
                 # faces, which is what keeps the triangle and the n-gon from crushing or ballooning
                 placed = [ f for f in layout.faces if all(verts[k] is not None for k in f) ]
-                centres = { id(f): sum((_co(verts[k]) for k in f), Vector()) / len(f) for f in placed }
-                radii = { id(f): sum((_co(verts[k]) - centres[id(f)]).length for k in f) / len(f) for f in placed }
+                centres = { id(f): sum((co_of(verts[k]) for k in f), Vector()) / len(f) for f in placed }
+                radii = { id(f): sum((co_of(verts[k]) - centres[id(f)]).length for k in f) / len(f) for f in placed }
                 mean_r = (sum(radii.values()) / len(radii)) if radii else 0.0
                 moved = {}
                 for k in which:
-                    nb = [ _co(verts[j]) for j in neighbours[k] if verts[j] is not None ]
+                    nb = [ co_of(verts[j]) for j in neighbours[k] if verts[j] is not None ]
                     if not nb: continue
                     lap = sum(nb, Vector()) / len(nb)
                     pulls = []
@@ -1845,7 +1823,7 @@ class LegacyPatches_Logic:
                         f = layout.faces[fi]
                         if id(f) not in centres: continue
                         c = centres[id(f)]
-                        rel = _co(verts[k]) - c
+                        rel = co_of(verts[k]) - c
                         if rel.length_squared < 1e-18: continue
                         pulls.append(c + rel.normalized() * (0.5 * radii[id(f)] + 0.5 * mean_r))
                     eq = (sum(pulls, Vector()) / len(pulls)) if pulls else lap
@@ -1866,8 +1844,8 @@ class LegacyPatches_Logic:
             if synthetic: L.has_smoothing = True
             if any(v is None for v in verts): return False
 
-            cos = [ _co(v) for v in verts ]
-            if checks and sources and _layout_snap_noise(cos, raws, layout.edges) > MAX_SNAP_NOISE: return False
+            cos = [ co_of(v) for v in verts ]
+            if checks and sources and layout_snap_noise(cos, raws, layout.edges) > MAX_SNAP_NOISE: return False
             if checks and over_existing_faces(verts, list(layout.faces)): return False
             if checks and all(n is not None for n in normals):
                 # a folded fill has quads facing both ways; the loop's own winding is not known, so count the minority
@@ -1883,7 +1861,7 @@ class LegacyPatches_Logic:
             marks = [ i for i, f in enumerate(faces) if len(f) != 4 ]
             # a boundary node that is a point rather than a vert is on a side this fill creates, as a bridge's rails are
             open_idx = [ i for i, k in enumerate(keep) if k in fixed and not isinstance(verts[k], BMVert) ]
-            add_previz(kind, kept_verts, _layout_topology(kept_verts, edges), faces, open_idx, mark=marks)
+            add_previz(kind, kept_verts, layout_topology(kept_verts, edges), faces, open_idx, mark=marks)
             if handle is not None and layout.poles[0] not in fixed:
                 # the pole, or where it was dissolved into the one n-gon; a pole on a boundary vert is just that vert
                 pole = layout.poles[0]
@@ -1917,7 +1895,7 @@ class LegacyPatches_Logic:
                 pi, pj = i / (l0 - 1), j / (l1 - 1)
                 l, r, b, t = sv0[i], sv2[i], sv3[j], sv1[j]
                 n = blend_normal(nrm(l), nrm(r), nrm(b), nrm(t), nrm(c00), nrm(c10), nrm(c01), nrm(c11), pi, pj)
-                co = coons(_co(l), _co(r), _co(b), _co(t), _co(c00), _co(c10), _co(c01), _co(c11), pi, pj)
+                co = coons(co_of(l), co_of(r), co_of(b), co_of(t), co_of(c00), co_of(c10), co_of(c01), co_of(c11), pi, pj)
                 return co, n
 
             build_grid(kind, l0, l1, boundary_at, interior_at, shape_side(boundary), shape_cap(boundary))
@@ -1935,7 +1913,7 @@ class LegacyPatches_Logic:
 
             def interior_at(i, j):
                 pj = j / (l1 - 1)
-                co = _co(sv0[i]) * (1 - pj) + _co(sv1[i]) * pj
+                co = co_of(sv0[i]) * (1 - pj) + co_of(sv1[i]) * pj
                 return co, blend_pair(nrm(sv0[i]), nrm(sv1[i]), pj)
 
             build_grid(kind, l0, l1, boundary_at, interior_at, shape_side(boundary), shape_cap(boundary),
@@ -1982,7 +1960,7 @@ class LegacyPatches_Logic:
             # differ in size or sit off-axis, so matching sharp corners gets a say too, as in Contours.
             cos0 = [v.co for v in bmvs0]
             cos1 = [v.co for v in bmvs1]
-            sharp0, sharp1 = _turn_sharpness(cos0), _turn_sharpness(cos1)
+            sharp0, sharp1 = turn_sharpness(cos0), turn_sharpness(cos1)
             dists   = [ sum((cos0[i] - cos1[(i + j) % n]).length_squared for i in range(n)) for j in range(n) ]
             corners = [ sum(sharp0[i] * sharp1[(i + j) % n] for i in range(n)) for j in range(n) ]
             d_min = min(dists) or 1e-9
@@ -2004,11 +1982,11 @@ class LegacyPatches_Logic:
             span x (half - span) rectangle with its four corners somewhere round the loop: (span,
             offset into bmvs) pairs, best first, so Solution 1 is the automatic choice. '''
             n = len(bmvs)
-            cos = [_co(v) for v in bmvs]
+            cos = [co_of(v) for v in bmvs]
             if n < 4 or n % 2: return []    # an odd loop cannot be closed with quads alone
             half = n // 2
 
-            sharp = _turn_sharpness(cos)
+            sharp = turn_sharpness(cos)
             def side_mid(a, cnt):
                 # middle of the side running cnt edges from vert a
                 k = a + cnt // 2
@@ -2075,9 +2053,8 @@ class LegacyPatches_Logic:
             return emit_rect_grid(sv0, sv1, sv2, sv3, kind)
 
         def emit_grid_fill(bmvs, kind):
-            ''' Fill a closed loop of any even count the way Blender's Grid Fill does, the Solution
-            property choosing among the distinct splits. Hands the result to the Coons fill, so an
-            uneven or non-quadrilateral loop still previews and snaps. '''
+            ''' Blender's Grid Fill for a closed loop with no corners, the Solution property choosing
+            among the distinct splits, each Coons-filled and snapped. '''
             ranked = rank_grid_splits(bmvs)
             if not ranked: return True
             L.grid_ranked = [ ('grid', span, off) for span, off in ranked ]
@@ -2123,15 +2100,10 @@ class LegacyPatches_Logic:
             return len(L.previz) > before
 
         def solutions_for(kind, sides, rails=None):
-            ''' Every way to fill a closed loop given as its sides, each a run of verts sharing its ends
-            with the next, as FillSolutions in rank order: a rectangle's grid where opposite sides match;
-            a diamond or bow junction where equal rails join sides an even number apart; one pole where
-            Tarini's closed-form conditions allow it (ngon_layout); otherwise corners are demoted or the
-            loop is cut into single-pole pieces, Blender-style grid fill, and the turnout where rails and
-            sides step by the same amount. An odd loop gets pole fills with one triangle or n-gon beside
-            the pole. A side may hold points this fill is creating as well as the mesh's verts, as a
-            bridge's do; `rails` names the sides a turnout should leave through rather than run its rows
-            along: the two a bridge created, or a C's back and the side closing it. '''
+            ''' Every way to fill a closed loop given as its sides, runs of verts each sharing its ends with
+            the next (points this fill creates as well as the mesh's verts, as a bridge's do), as
+            FillSolutions in rank order. `rails` names the sides a turnout should leave through rather
+            than run its rows along: the two a bridge created, or a C's back and the side closing it. '''
             counts = [ len(sv) - 1 for sv in sides ]
             total = sum(counts)
             if kind == 'rect' and counts[0] == counts[2] and counts[1] == counts[3]:
@@ -2150,8 +2122,8 @@ class LegacyPatches_Logic:
             key_at = { id(v): key for v, key in zip(bmvs, keys) }
             loop = NL.Loop(tuple(keys), tuple(corners))
             bmv_of = dict(zip(keys, bmvs))
-            cos = [ _co(v) for v in bmvs ]
-            sharp = _turn_sharpness(cos)
+            cos = [ co_of(v) for v in bmvs ]
+            sharp = turn_sharpness(cos)
             mean_edge = sum((cos[(k + 1) % m] - cos[k]).length for k in range(m)) / m
 
             loop_key = frozenset(loop.nodes)
@@ -2199,19 +2171,18 @@ class LegacyPatches_Logic:
                 return plane_c + plane_u * q2.x + plane_v * q2.y + plane_n * (co - plane_c).dot(plane_n)
 
             def pole_estimate(plan):
-                ''' Where a plan's pole belongs, before any geometry is built. Each corner region is a grid
-                with the pole at its far corner, so a region that kept its corner's shape would put the pole
-                at the parallelogram completion of its two boundary runs; the estimate is the mean of those
-                over the regions. It separates two placements on a symmetric loop, whose split verts average
-                to the same spot, and it follows the loop's shape where the edges are uneven: spoke count
-                times mean edge, solved as a radical centre, put a bridge's pole in its short side's corner
-                with the spokes folded over. '''
+                ''' Where a plan's pole belongs before anything is built: the mean over its corner regions of
+                the parallelogram completion of each region's two boundary runs, the far corner a region
+                keeping its corner's shape would have, clamped inside the loop. '''
+                # this separates two placements on a symmetric loop, whose split verts average to the same spot, and
+                # follows the loop's shape where the edges are uneven; a radical centre of spoke count times mean edge
+                # put a bridge's pole in its short side's corner with the spokes folded over
                 lay = layout_of(plan)
                 pole = lay.poles[0]
                 helpers = { k: (a, b) for k, a, b in lay.helpers }
                 def at(k):
                     key = lay.nodes[k]
-                    if k in lay.existing: return _co(bmv_of[key])
+                    if k in lay.existing: return co_of(bmv_of[key])
                     if k in helpers: return (at(helpers[k][0]) + at(helpers[k][1])) / 2
                     return None
                 if pole in lay.existing: return at(pole)
@@ -2248,16 +2219,10 @@ class LegacyPatches_Logic:
 
             def emit_junction(which, orient):
                 ''' A junction taking up a step in the row count, the loop laid over a rectangle by
-                ngon_layout.orient_sides(sides, *orient). Between equal rails: 'diamond' takes up a step of
-                two, merging two of the long side's lines at a 5-pole and ending the one between them at a
-                3-pole in one quad turned across the columns; 'bow' takes up any even step, running one line
-                per two edges off the short rail's ends through one column, each inside the last, and ending
-                the long side's outer lines on them with two 3-poles. Between rails that differ by as much as
-                the sides do, 'turnout' sends the extra rows out through the longer rail past a 5-pole and a
-                3-pole on one column (build_diamond, build_bow, build_turnout). Every new vert starts on the
-                Coons blend of the four sides, the unequal sides sampled by fraction so their rows line up
-                with the columns, then relaxes like a spoke. Offset moves the junction along the rails, most
-                central first. `orient` is the laying (rotation, reflected) for ngon_layout.orient_sides. '''
+                ngon_layout.orient_sides(sides, *orient): 'diamond' or 'bow' between equal rails, 'turnout'
+                between rails that differ by as much as the sides do. Offset picks its position. '''
+                # every new vert starts on the Coons blend of the four sides, the unequal sides sampled by fraction so
+                # their rows line up with the columns, then relaxes like a spoke (build_layout_previz's seed)
                 if which == 'turnout':
                     cands = NL.turnout_positions(*NL.turnout_shape(counts, orient))
                     k, j = cands[settings.offset % len(cands)]
@@ -2272,14 +2237,16 @@ class LegacyPatches_Logic:
                     x = t * (len(s) - 1)
                     a = min(int(x), len(s) - 2)
                     f = x - a
-                    return _co(s[a]).lerp(_co(s[a + 1]), f), blend_pair(nrm(s[a]), nrm(s[a + 1]), f)
+                    return co_of(s[a]).lerp(co_of(s[a + 1]), f), blend_pair(nrm(s[a]), nrm(s[a + 1]), f)
 
                 def at(pi, pj):
                     (l, nl), (rr, nr), (b, nb), (t, nt) = along(sv0, pi), along(sv2, pi), along(sv3, pj), along(sv1, pj)
-                    co = coons(l, rr, b, t, _co(c00), _co(c10), _co(c01), _co(c11), pi, pj)
+                    co = coons(l, rr, b, t, co_of(c00), co_of(c10), co_of(c01), co_of(c11), pi, pj)
                     return co, blend_normal(nl, nr, nb, nt, nrm(c00), nrm(c10), nrm(c01), nrm(c11), pi, pj)
 
                 if which == 'diamond':
+                    # two of the long side's lines merge at a 5-pole and the one between them ends at a 3-pole, in one
+                    # quad turned across the columns
                     cands = NL.diamond_positions(ncol, nrow)
                     k, j = cands[settings.offset % len(cands)]
                     layout, columns, R = NL.build_diamond(side_keys, k, j)
@@ -2294,6 +2261,7 @@ class LegacyPatches_Logic:
 
                     extra = { R: at((k + 1.5) / ncol, (up(k + 1, j) + up(k + 1, j + 1) + 2 * up(k + 2, j + 1)) / 4) }
                 elif which == 'turnout':
+                    # the extra rows leave through the longer rail past a 5-pole and a 3-pole on one column
                     short = len(sv1) - 1
                     d = nrow - short
                     layout, left, right, wedge = NL.build_turnout(side_keys, k, j)
@@ -2312,6 +2280,8 @@ class LegacyPatches_Logic:
                         seed[wedge[0][v]] = at(seam_pi(j) * (1 - t) + (k + d) / (ncol + d) * t, ((j / nrow) * (1 - t) + t + (j + v) / short) / 2)
                     return build_layout_previz('ngon', layout, bmv_of, bmvs, seed=seed)
                 else:
+                    # one line per two edges of the step leaves the short side's end verts and bows through one column,
+                    # each inside the last, the long side's outer lines ending on them with two 3-poles
                     depth = (len(sv1) - len(sv3)) // 2
                     long = nrow + 2 * depth
                     cands = NL.bow_positions(ncol)
@@ -2339,7 +2309,7 @@ class LegacyPatches_Logic:
                 def side_len(plan):
                     # mean edge length of the side carrying the vertex, on the loop the plan fills
                     keys = [ k for k in plan.pieces[0][0].sides()[plan.phantom[1]] if k in bmv_of ]
-                    return sum((_co(bmv_of[a]) - _co(bmv_of[b])).length for a, b in zip(keys, keys[1:])) / max(1, len(keys) - 1)
+                    return sum((co_of(bmv_of[a]) - co_of(bmv_of[b])).length for a, b in zip(keys, keys[1:])) / max(1, len(keys) - 1)
                 by_rank = lambda p: (p.score, -side_len(p))
                 phantoms = sorted(NL.plan_phantom(loop), key=by_rank)
                 demoted = sorted(NL.plan_phantom_merges(loop, { c: sharp[c] for c in corners }), key=by_rank)
@@ -2376,7 +2346,7 @@ class LegacyPatches_Logic:
                         for run in plan.cuts:
                             a, b = bmv_of.get(run[0]), bmv_of.get(run[-1])
                             if a is None or b is None: continue     # ends on another cut, which has no position yet
-                            chord = (_co(a) - _co(b)).length
+                            chord = (co_of(a) - co_of(b)).length
                             pen += abs(math.log(max(chord, 1e-9) / max((len(run) - 1) * mean_edge, 1e-9)))
                         return pen
                     key = (loop.nodes, loop.corners)
@@ -2422,9 +2392,10 @@ class LegacyPatches_Logic:
             plans = [ plan_solution(g) for g in groups ]
             if odd: return plans
             grid_fills = [ grid_solution(span, off) for span, off in grids ]
-            # a four-sided loop with uneven sides has always been grid filled; that stays its first answer,
-            # except where a junction fits: equal rails with the other two sides an even number apart take
-            # the diamond or the bow, which no single pole fills and an artist would draw, so they lead
+            # a junction leads where one fits: equal rails with the other sides an even number apart take the diamond
+            # or the bow, which no single pole fills and an artist would draw. A four-sided loop lists its grid splits
+            # before its plans, as it always did, but every one puts a grid corner at a plain vert, so emit_ranked
+            # sorts them last as degenerate
             entries = grid_fills + plans if kind == 'rect' else plans + grid_fills
             if kind == 'rect':
                 if (fit := NL.step_fits(counts)) is not None:
@@ -2443,14 +2414,10 @@ class LegacyPatches_Logic:
         def emit_offset(sv, bmes, *, cyclic=False, pins=None):
             ''' Rows of quads stepped out from a run of boundary edges that has nothing to fill: an open
             strip with no partner, or a closed loop whose inside is already faces. Each vert steps the
-            way the quads already on the run lean, or straight out across the run where there is none.
-            An end that turns a corner onto an existing open edge welds onto that edge's far vert
-            instead of extruding, so stepping along a boundary knits into what is already there.
-            `pins` (vert index -> [(where the rung should land: BMVert or Vector, the vert that the
-            pin's own boundary edge runs on to)]) is what a stroke's quads and runs beside this run ask
-            of its ends; a pin that carries straight on from the run takes precedence over any weld the
-            end would find for itself. Either is refused when the quad it would force on the end edge
-            is not worth having, since an anchor's direction and length go to the whole run. '''
+            way the quads on the run lean, or straight out where there are none; an end that turns a
+            corner onto an open edge welds onto that edge's far vert. `pins` (vert index -> [(where the
+            rung should land, the vert the pin's own boundary edge runs on to)]) is what a stroke's
+            quads and runs beside this run ask of its ends, ahead of any weld an end finds for itself. '''
             MITER_LIMIT = 3.0   # cap on the corner stretch 1/sin(half angle); Split Angle's 135 degree cap needs 2.61
             STEP_STALL = 0.25   # a vert travelling less than this fraction of its step means the row has run out of source
             WELD_MAX_BACK = 20.0    # how far past square a weld rung may lean back over the face the run steps away from
@@ -2607,7 +2574,7 @@ class LegacyPatches_Logic:
                 it: `out` lies in the plane of that face, so a rung turning onto another surface at a
                 crease has no component along it at all, and a stricter test throws out the very
                 corner being looked for. '''
-                return _angle_deg(d, outs[i]) > 90.0 + WELD_MAX_BACK
+                return angle_deg(d, outs[i]) > 90.0 + WELD_MAX_BACK
 
             def keeps_shape(i_end, i_prev, w):
                 ''' Whether a rung from the end vert to `w` still makes a quad worth having on the end
@@ -2615,8 +2582,8 @@ class LegacyPatches_Logic:
                 and length are carried to the whole run, so a rung leaning far off square or reaching
                 far past the run's own spacing bends and stretches every quad, not just this one. Below
                 the shape floor a fresh vert makes the better quad and the end steps free. '''
-                d = _co(w) - cos[i_end]
-                ok = _quad_squareness([cos[i_prev], cos[i_end], cos[i_end] + d, cos[i_prev] + d]) is not None
+                d = co_of(w) - cos[i_end]
+                ok = quad_squareness([cos[i_prev], cos[i_end], cos[i_end] + d, cos[i_prev] + d]) is not None
                 if DEBUG_OFFSET and not ok:
                     print(f'[offset] anchor at {sv[i_end].index} -> {w.index if isinstance(w, BMVert) else "pt"} refused: bends or stretches the run')
                 return ok
@@ -2648,7 +2615,7 @@ class LegacyPatches_Logic:
                     if leans_back(d, i_end): continue
                     # without topology to say corner, the boundary itself has to turn, or w is nothing
                     # but the run carrying on and there is no corner here to weld round
-                    if not topo_corner and _angle_deg(-arrive, d) >= min_angle: continue
+                    if not topo_corner and angle_deg(-arrive, d) >= min_angle: continue
                     if not keeps_shape(i_end, i_prev, w): continue
                     if best_dot is None or d.dot(out) > best_dot: best, best_dot = w, d.dot(out)
                 return best
@@ -2682,8 +2649,8 @@ class LegacyPatches_Logic:
                 for w, nb in pins.get(v.index, ()):
                     onward = nb.co - v.co
                     if onward.length_squared < 1e-14: continue
-                    if _angle_deg(back, onward.normalized()) < min_angle: continue
-                    d = _co(w) - v.co
+                    if angle_deg(back, onward.normalized()) < min_angle: continue
+                    d = co_of(w) - v.co
                     if d.length_squared < 1e-14 or leans_back(d.normalized(), i_end): continue
                     if isinstance(w, BMVert) and w in run_verts: continue
                     if not keeps_shape(i_end, i_prev, w): continue
@@ -2707,7 +2674,7 @@ class LegacyPatches_Logic:
             aimed_by_weld = False   # row 0 is going where a weld says, not where the old faces lean
             carried = {}
             for i_w, w in row0_welds.items():
-                d = _co(w) - cos[i_w]
+                d = co_of(w) - cos[i_w]
                 if d.length_squared < 1e-14: continue
                 # walked out from the weld one edge at a time: neighbouring tangents never oppose each
                 # other, where the two ends of a run bent into a U do
@@ -2719,7 +2686,7 @@ class LegacyPatches_Logic:
             if carried:
                 # one weld aims the whole run, two blend end to end; with one, both ends of the blend
                 # are the same carried direction and it falls out
-                fr = _cumulative_fracs(cos)
+                fr = cumulative_fracs(cos)
                 a0 = carried.get(0) or carried[n - 1]
                 a1 = carried.get(n - 1) or a0
                 # two welds pointing near-opposite blend to nothing: that vert takes the first end's
@@ -2741,14 +2708,14 @@ class LegacyPatches_Logic:
                 for is carried across the run, fading out. '''
                 if not welds:
                     return [ dirs[i] * (d_step * miter[i]) for i in range(n) ]
-                fr = _cumulative_fracs(prev_cos)
+                fr = cumulative_fracs(prev_cos)
                 scale = lambda i, l: dirs[i] * (l * (1.0 if i in welds else miter[i]))
                 if len(welds) == 1:
                     i_w, w = next(iter(welds.items()))
-                    D = _co(w) - prev_cos[i_w]
+                    D = co_of(w) - prev_cos[i_w]
                     r = D - dirs[i_w] * D.length
                     return [ scale(i, D.length) + r * (fr[i] if i_w else 1 - fr[i]) for i in range(n) ]
-                D0, D1 = _co(welds[0]) - prev_cos[0], _co(welds[n - 1]) - prev_cos[-1]
+                D0, D1 = co_of(welds[0]) - prev_cos[0], co_of(welds[n - 1]) - prev_cos[-1]
                 r0, r1 = D0 - dirs[0] * D0.length, D1 - dirs[-1] * D1.length
                 return [ scale(i, D0.length * (1 - fr[i]) + D1.length * fr[i]) + r0 * (1 - fr[i]) + r1 * fr[i]
                          for i in range(n) ]
@@ -2832,7 +2799,7 @@ class LegacyPatches_Logic:
                         known = [ring[3], sv[a], sv[b]]     # rotate the ring so the open corner is last
                     else:
                         known = [ c for c in ring if c is not None ]
-                    res = _complete_quad(bm, known, slots, min_squareness=WELD_FIT_MIN_SQUARENESS)
+                    res = complete_quad(bm, known, slots, min_squareness=WELD_FIT_MIN_SQUARENESS)
                     if res is None: continue
                     verts_q, cost = res
                     for i, w in zip(open_i, verts_q[len(known):]):
@@ -2853,7 +2820,7 @@ class LegacyPatches_Logic:
                     def corner(i):
                         return chosen[i] if i in chosen else welds[i] if i in welds else intended[i]
                     q = [sv[a], sv[b], corner(b), corner(a)]
-                    if _quad_squareness([ _co(c) for c in q ]) is None or not _face_is_placeable(bm, q):
+                    if quad_squareness([ co_of(c) for c in q ]) is None or not face_is_placeable(bm, q):
                         chosen.pop(a, None)
                         chosen.pop(b, None)
                 for i, w in chosen.items():
@@ -2906,7 +2873,7 @@ class LegacyPatches_Logic:
                         if not cyclic and i in (0, n - 1): pt = to_planes(pt, sym_axes(cos[i]) - run_axes)
                         row.append(pt)
                         row_free = True    # this vert reached out rather than landing on existing geometry
-                row_cos = [ _co(pt) for pt in row ]
+                row_cos = [ co_of(pt) for pt in row ]
                 if far_row is None or k != steps - 1:
                     # a row that found no source, folded back on itself, or stopped advancing leaves the
                     # quads from here on unusable: keep what is good and stop
@@ -2944,7 +2911,7 @@ class LegacyPatches_Logic:
             L.has_offset = True
             outer = range(steps * n, (steps + 1) * n)
             if steps > 1:   # the count appears once it is scrolled; the default needs no announcing
-                L.labels.append((str(steps), [ sum((_co(verts[k]) for k in outer), Vector()) / n ]))
+                L.labels.append((str(steps), [ sum((co_of(verts[k]) for k in outer), Vector()) / n ]))
             add_previz('offset', verts, edges, faces,
                        [ k for k in outer if not isinstance(verts[k], BMVert) ], outer)
             return True
@@ -2954,7 +2921,7 @@ class LegacyPatches_Logic:
             `cuts + 1` quads across its longer dimension. Interior points are blended between the two
             short sides and snapped, as a bridge's are. `cuts` None takes the artist's count and says
             the count is theirs to set; a fixed count is for a quad whose sides are already decided. '''
-            cos = [ _co(v) for v in q ]
+            cos = [ co_of(v) for v in q ]
             la = ((cos[1] - cos[0]).length + (cos[2] - cos[3]).length) / 2   # sides 0-1 and 3-2
             lb = ((cos[3] - cos[0]).length + (cos[2] - cos[1]).length) / 2   # sides 0-3 and 1-2
             if la >= lb: sv0, sv1 = [q[0], q[3]], [q[1], q[2]]   # the strips are the short sides
@@ -2985,7 +2952,7 @@ class LegacyPatches_Logic:
             settled on one. '''
             rgn, r3d = context.region, context.region_data
             mouse = Vector((mouse_at[0] - rgn.x, mouse_at[1] - rgn.y)) if (mouse_at is not None and rgn and r3d) else None
-            if pair is None: pair = _corner_pairing(bmv, mouse, rgn, r3d, M)
+            if pair is None: pair = corner_pairing(bmv, mouse, rgn, r3d, M)
             if pair is None: return True
             va, vb = pair
             da, db = va.co - bmv.co, vb.co - bmv.co
@@ -2999,7 +2966,7 @@ class LegacyPatches_Logic:
                 # or a point the artist already dropped about where the corner would go
                 r = WELD_FIT_RADIUS * (da.length + db.length) / 2
                 cands = [ w for w in L._candidates_near(context, bm, co, r) if w not in (va, vb, bmv) ]
-                res = _complete_quad(bm, [va, bmv, vb], [cands], min_squareness=WELD_FIT_MIN_SQUARENESS) if cands else None
+                res = complete_quad(bm, [va, bmv, vb], [cands], min_squareness=WELD_FIT_MIN_SQUARENESS) if cands else None
                 if res is not None: corner = res[0][3]
             if corner is None:
                 if not budget(1): return False
@@ -3013,12 +2980,12 @@ class LegacyPatches_Logic:
 
             # held to the same standard as a quad picked by the cursor: convex on screen, a shape worth
             # having in 3D, and legal against the mesh
-            q = [ M @ _co(v) for v in verts ]
-            if _quad_squareness(q) is None: return True
+            q = [ M @ co_of(v) for v in verts ]
+            if quad_squareness(q) is None: return True
             if rgn and r3d:
                 pts = [ location_3d_to_region_2d(rgn, r3d, co) for co in q ]
-                if all(pts) and not _is_convex_2d(pts): return True
-            if not _face_is_placeable(bm, verts): return True
+                if all(pts) and not is_convex_2d(pts): return True
+            if not face_is_placeable(bm, verts): return True
 
             # Its two sides are existing edges, and cutting across would have to split one of them,
             # so there is no count here: one quad, and no Cuts in the panel or on the scroll knob.
@@ -3113,7 +3080,7 @@ class LegacyPatches_Logic:
             step_bmes = [ bme for ekey in stroke.edges if (bme := step_edge(ekey)) is not None ]
             sel_edges = frozenset(step_bmes)    # a run's rails may not be edges the stroke is itself stepping
             rung_pins, step_faces = {}, []      # run end vert index -> (its rung, the run vert before it)
-            for sv, bmes, cyclic in _chains(step_bmes):
+            for sv, bmes, cyclic in edge_chains(step_bmes):
                 # what a run's result depends on: its edges, what its ends are pinned to, which other stepped
                 # edges meet its ends (those are barred as rails), and the settings
                 ends = { sv[0].index, sv[-1].index }
@@ -3159,7 +3126,7 @@ class LegacyPatches_Logic:
                     del L.previz[before:]
                     offer = None
 
-            if L.previz: L.previz = [ _fuse_previz(L.previz) ]
+            if L.previz: L.previz = [ fuse_previz(L.previz) ]
             L.offer = offer
             L.nearest_active = True
             return
@@ -3264,8 +3231,8 @@ class LegacyPatches_Logic:
             # Fourth corner: the parallelogram completion bent to the surface. Each strip's end normals
             # fit a sphere, and the rotation carrying one end to the other is applied to the far corner
             # of the other strip.
-            guess_a = _bend_along(c10, n10, c00, n00, c11)     # c11 carried the way sv0 bends
-            guess_b = _bend_along(c10, n10, c11, n11, c00)     # c00 carried the way sv1 bends
+            guess_a = bend_along(c10, n10, c00, n00, c11)     # c11 carried the way sv0 bends
+            guess_b = bend_along(c10, n10, c11, n11, c00)     # c00 carried the way sv1 bends
             n01 = None
             if n00 is not None and n11 is not None:
                 n01 = n00 + n11
@@ -3278,8 +3245,8 @@ class LegacyPatches_Logic:
             # The corner stays where the estimate above put it; letting the curves move it made a needle.
             guide_r = guide_direction(sv1[-1], n11, (c11 - sv1[-2].co).normalized(), guess_a - c11)
             guide_b = guide_direction(sv0[0],  n00, (sv0[1].co - c00).normalized(),  guess_b - c00)
-            fracs_r = _cumulative_fracs([sv0[k].co for k in range(l0 - 1, -1, -1)])   # from c11 outward
-            fracs_b = _cumulative_fracs([v.co for v in sv1])                          # from c00 outward
+            fracs_r = cumulative_fracs([sv0[k].co for k in range(l0 - 1, -1, -1)])   # from c11 outward
+            fracs_b = cumulative_fracs([v.co for v in sv1])                          # from c00 outward
 
             # a side whose tangent leans into the patch swoops inward, and two such sides meet the
             # parallelogram corner in a needle: bring the corner in along each chord by the lean
@@ -3298,8 +3265,8 @@ class LegacyPatches_Logic:
                 n01 = source_normal(c01) or n01
 
             def side_curve(p0, t0, n0, p3, n3, fracs):
-                p1, p2, _ = _mirror_curve(p0, t0, p3)
-                return ([ _bezier(p0, p1, p2, p3, t) for t in fracs ],
+                p1, p2, _ = mirror_curve(p0, t0, p3)
+                return ([ bezier(p0, p1, p2, p3, t) for t in fracs ],
                         [ blend_pair(n0, n3, t) for t in fracs ])
 
             if guide_r is not None:
@@ -3307,13 +3274,13 @@ class LegacyPatches_Logic:
                 side_r = [ new_point(co, side, n, cap) for co, n in zip(pts, ns) ][::-1]   # indexed by i
             else:
                 side_r = [ new_point(co, side, n, cap) for (co, n) in
-                           _arc_between(c01, n01, c11, n11, _cumulative_fracs([v.co for v in sv0])) ]
+                           arc_between(c01, n01, c11, n11, cumulative_fracs([v.co for v in sv0])) ]
             if guide_b is not None:
                 pts, ns = side_curve(c00, guide_b, n00, c01, n01, fracs_b)
                 side_b = [ new_point(co, side, n, cap) for co, n in zip(pts, ns) ]          # indexed by j
             else:
                 side_b = [ new_point(co, side, n, cap) for (co, n) in
-                           _arc_between(c00, n00, c01, n01, fracs_b) ]
+                           arc_between(c00, n00, c01, n01, fracs_b) ]
             # the ends are the corners themselves, so pin them rather than trusting a snap
             side_r[0], side_r[-1] = c01, c11
             side_b[0], side_b[-1] = c00, c01
@@ -3370,7 +3337,7 @@ class LegacyPatches_Logic:
                 step = abs(c0 - c2)
                 side, cap = shape_side(boundary), shape_cap(boundary)
                 back = [ v.co for v in sv1 ]
-                fracs = _cumulative_fracs(back)
+                fracs = cumulative_fracs(back)
 
                 def fourth(n):
                     # the created side, rail B's free end to rail A's in n edges: the back carried along the rails, sampled by length
@@ -3440,8 +3407,8 @@ class LegacyPatches_Logic:
                     sv1 = list(reversed(sv1))
                     dir1 = -dir1
                 # the strips must face each other, not lie end to end
-                if _angle_deg(dir0, (sv1[0].co - sv0[0].co).normalized()) < 45: continue
-                if _angle_deg(dir1, (sv0[0].co - sv1[0].co).normalized()) < 45: continue
+                if angle_deg(dir0, (sv1[0].co - sv0[0].co).normalized()) < 45: continue
+                if angle_deg(dir1, (sv0[0].co - sv1[0].co).normalized()) < 45: continue
                 dist = min((v0.co - v1.co).length for v0 in sv0 for v1 in sv1)
                 if best_sv1 and best_dist < dist: continue
                 best_sv1 = sv1
@@ -3527,7 +3494,7 @@ class LegacyPatches_Logic:
             if bme is not None: emit_offset([v0, v1], [bme])
         else:
             emit_corner_quad(bm.verts[offer[1]], pair=(bm.verts[offer[2]], bm.verts[offer[3]]))
-        src = _offer_key(offer)
+        src = offer_key(offer)
         for pv in L.previz:
             pv.hover = True
             pv.face_src = tuple(src for _ in pv.faces)   # a drag starting here needs to know these faces are the offer's
@@ -3574,7 +3541,7 @@ class LegacyPatches_Logic:
                 offer = L.pick_offer(context, bm, M, L.mouse)
             except (ReferenceError, RuntimeError):
                 offer = None
-            if _offer_key(offer) == _offer_key(L.offer): return False
+            if offer_key(offer) == offer_key(L.offer): return False
             L.offer = offer
             L.dirty = True
             return True
@@ -3589,7 +3556,7 @@ class LegacyPatches_Logic:
                 offer = L.pick_offer(context, bm, M, L.mouse)
             except (ReferenceError, RuntimeError):
                 offer = None
-            if _offer_key(offer) != _offer_key(L.offer):
+            if offer_key(offer) != offer_key(L.offer):
                 L.offer = offer
                 L.dirty = True
                 return True
@@ -3600,7 +3567,7 @@ class LegacyPatches_Logic:
         for co_a, co_b, sign in L.wire_runs:
             pa, pb = location_3d_to_region_2d(rgn, r3d, M @ co_a), location_3d_to_region_2d(rgn, r3d, M @ co_b)
             if not pa or not pb: continue
-            s = _side2d(pa, pb, mouse)
+            s = side2d(pa, pb, mouse)
             if s and s != sign:
                 L.dirty = True
                 return True
@@ -3724,10 +3691,9 @@ class LegacyPatches_Logic:
         path passes through. '''
         RADIUS_PX = 250     # screen radius a candidate may be from the cursor; generous, since the cursor-inside test does the picking
         K = 8               # nearest candidates whose four-subsets are tried: 70 combinations
-        REACH_3D = 2.0      # every corner must be within this many mean side lengths of the surface point under the cursor.
-                            # Any quad the shape test lets through has every corner under 1.7 mean sides from any point
-                            # inside it. At 1.0 a good quad failed near its own sides, and the only quad that still
-                            # reached over the cursor there was a larger, skewed one: the overlaps a stroke produced.
+        REACH_3D = 2.0      # every corner within this many mean sides of the surface point under the cursor: any quad the
+                            # shape test passes keeps its corners under 1.7 mean sides from every point inside it, and at 1.0
+                            # a good quad failed near its own sides, leaving a larger, skewed one reaching over the cursor
         L = LegacyPatches_Logic
         rgn, r3d = context.region, context.region_data
         if mouse_win is None or not rgn or not r3d: return None
@@ -3767,7 +3733,7 @@ class LegacyPatches_Logic:
         if n < 4: return None
         ranked = []
         for combo in combinations(range(n), 4):
-            r = _quad_from_points([pts2d[i] for i in combo], [cos3d[i] for i in combo], mouse)
+            r = quad_from_points([pts2d[i] for i in combo], [cos3d[i] for i in combo], mouse)
             if r is None: continue
             order, score = r
             ranked.append((score, tuple(combo[o] for o in order)))
@@ -3786,14 +3752,14 @@ class LegacyPatches_Logic:
                 # the cursor is inside an existing face; what is left in the running are wide quads
                 # reached through the outline slop from the cell next door, so offer nothing
                 return None
-            if not _face_is_placeable(bm, verts): continue
+            if not face_is_placeable(bm, verts): continue
             if anchor is not None:
                 q = [cos3d[i] for i in quad]
                 mean_side = sum((q[(i + 1) % 4] - q[i]).length for i in range(4)) / 4
                 if any((c - anchor).length > REACH_3D * mean_side for c in q): continue
             edges_out = [ (i, (i + 1) % 4) for i in range(4)
                           if bmvs_shared_bme(verts[i], verts[(i + 1) % 4]) is None ]
-            # a stroke's own quads are not in the mesh, so _face_is_placeable cannot see them; the stroke can
+            # a stroke's own quads are not in the mesh, so face_is_placeable cannot see them; the stroke can
             if L.stroke is not None and not L.stroke.allows_quad(bm, [ v.index for v in verts ], score[1]): continue
             return Previz(
                 'nearest',
@@ -3842,7 +3808,7 @@ class LegacyPatches_Logic:
             if not bme.link_faces: return True
             pf = location_3d_to_region_2d(rgn, r3d, M @ bme.link_faces[0].calc_center_median())
             if pf is None: return True
-            return _side2d(pa, pb, mouse_v) != _side2d(pa, pb, pf)
+            return side2d(pa, pb, mouse_v) != side2d(pa, pb, pf)
 
         anchor = raycast_point_valid_sources(context, mouse_v) if rf_is_running() else None
 
@@ -3866,7 +3832,7 @@ class LegacyPatches_Logic:
                         continue    # the stroke has closed this corner, or a quad of its already sits on one of its edges
                     if footprint:
                         # inside the notch quad it would close, on screen
-                        pair = _corner_pairing(bmv, mouse_v, rgn, r3d, M)
+                        pair = corner_pairing(bmv, mouse_v, rgn, r3d, M)
                         if pair is None: continue
                         va, vb = pair
                         co4 = va.co + vb.co - bmv.co
@@ -3919,13 +3885,11 @@ class LegacyPatches_Logic:
     def pick_offer(context : Context, bm, M : Matrix, mouse_win, *, strict : bool = False):
         ''' What the cursor asks for: ('q', indices in ring order, cost) for a quad over existing verts,
         ('e', ia, ib) to step an open edge, ('c', C, va, vb) to close a notch at a corner vert; None for
-        nothing. A quad wins over an extend. `strict` wants the cursor inside a quad and offers no
-        extend. While a stroke is down the pick is strict in a different way: hovering may reach a
-        little outside what it offers, so a click has something to hit, but a stroke takes what it
-        runs through, and reaching ahead of it showed the next face before the cursor got there. So a
-        stroke is offered only the quad the cursor is inside, or the extend whose footprint it is in,
-        and what the stroke has taken or cannot sit beside is passed over inside the picks. '''
+        nothing. A quad wins over an extend; `strict` wants the cursor inside a quad and offers no extend. '''
         L = LegacyPatches_Logic
+        # hovering may reach a little outside what it offers, so a click has something to hit, but a stroke takes what
+        # it runs through, and reaching ahead of it showed the next face early: a stroke is offered only the quad the
+        # cursor is inside or the extend whose footprint it is in, and the picks pass over what it holds or cannot sit beside
         drawing = L.stroke is not None
         pv = L.pick_nearest_quad(context, bm, M, mouse_win, strict=strict or drawing)
         if pv is not None: return ('q', tuple(pv.vert_idx), pv.cost)
@@ -3938,7 +3902,7 @@ class LegacyPatches_Logic:
             return ('e', v0.index, v1.index)
         rgn, r3d = context.region, context.region_data
         mouse = Vector((mouse_win[0] - rgn.x, mouse_win[1] - rgn.y)) if (rgn and r3d) else None
-        pair = _corner_pairing(elem, mouse, rgn, r3d, M)
+        pair = corner_pairing(elem, mouse, rgn, r3d, M)
         return ('c', elem.index, pair[0].index, pair[1].index) if pair else None
 
     @staticmethod
@@ -3949,7 +3913,7 @@ class LegacyPatches_Logic:
         if all(pts):
             c = sum(pts, Vector((0, 0))) / 4
             order = sorted(range(4), key=lambda k: math.atan2(pts[k].y - c.y, pts[k].x - c.x))
-            if not _is_convex_2d([pts[k] for k in order]): return None
+            if not is_convex_2d([pts[k] for k in order]): return None
         else:
             cos = [ v.co for v in sel_verts ]
             c = sum(cos, Vector()) / 4
@@ -3960,21 +3924,21 @@ class LegacyPatches_Logic:
                     n += (cos[a] - cos[d]).cross(cos[b] - cos[d])
             if n.length_squared < 1e-18: return None
             n.normalize()
-            frame = _plane_frame(n, cos[0] - c)
+            frame = plane_frame(n, cos[0] - c)
             if frame is None: return None
             u, w = frame
             order = sorted(range(4), key=lambda k: math.atan2((cos[k] - c).dot(w), (cos[k] - c).dot(u)))
         verts = [ sel_verts[k] for k in order ]
-        if _quad_squareness([ M @ v.co for v in verts ]) is None: return None
-        if not _face_is_placeable(bm, verts): return None
+        if quad_squareness([ M @ v.co for v in verts ]) is None: return None
+        if not face_is_placeable(bm, verts): return None
         return verts
 
     @staticmethod
     def _selected_tri(bm, sel_verts, M : Matrix) -> list | None:
         ''' Three selected verts as one triangle, when they make a real one and the mesh has room for
         it. No ordering to work out: every pair of a triangle's corners is a side of it. '''
-        if not _tri_shape_ok([ M @ v.co for v in sel_verts ]): return None
-        if not _face_is_placeable(bm, sel_verts): return None
+        if not tri_shape_ok([ M @ v.co for v in sel_verts ]): return None
+        if not face_is_placeable(bm, sel_verts): return None
         return list(sel_verts)
 
     ##############################################
@@ -4309,7 +4273,7 @@ class LegacyPatches_Logic:
             if not L.stroke.take(bm, offer, faces): return False
         except ReferenceError:
             return False
-        L.stroke.runs.pop(_offer_key(offer), None)
+        L.stroke.runs.pop(offer_key(offer), None)
         L.offer = None
         L.dirty = True
         return True
@@ -4359,7 +4323,7 @@ class LegacyPatches_Logic:
         pt = (int(pt[0]), int(pt[1]))
         prev, stroke.prev = stroke.prev, pt
         if offer is None or prev is None: return False
-        key = _offer_key(offer)
+        key = offer_key(offer)
         if stroke.has(key): return False
         run = stroke.runs.get(key, 0.0) + L._run_inside(context, prev, pt, L._polys_2d(context, faces))
         stroke.runs[key] = run
@@ -4480,7 +4444,7 @@ class LegacyPatches_Logic:
                 Drawing.draw2D_points(context, open_pts, color_open, radius=OPEN_VERT_RADIUS)
 
             if len(L.drag_path) > 1:
-                Drawing.draw2D_linestrip(context, [ Vector((x - rgn.x, y - rgn.y)) for x, y in _smooth_path(L.drag_path) ],
+                Drawing.draw2D_linestrip(context, [ Vector((x - rgn.x, y - rgn.y)) for x, y in smooth_path(L.drag_path) ],
                                          (1, 1, 0, 1), width=2, stipple=[5, 5])
 
             # the corners themselves are drawn by the curve overlay, as the control points they are
@@ -4538,7 +4502,7 @@ class DrawGesture:
                 self.press_xy = self.prev_xy = mouse
                 self.press_offer = L.offer
                 if L.offer is not None:
-                    self.press_faces, self.press_edges = L.offer_faces(context, _offer_key(L.offer)), []
+                    self.press_faces, self.press_edges = L.offer_faces(context, offer_key(L.offer)), []
                 else:
                     # a selection's own preview: a drag from it carries the selection's step into the stroke
                     self.press_edges = L.selected_step_edges(context)
@@ -4574,7 +4538,7 @@ class DrawGesture:
             if self.dragging:
                 L.accept_along(context, self.prev_xy, mouse)
                 if L.dirty: L.update(context)     # a take along the way changes what is on offer at the end
-                L.drag_step(context, mouse, L.offer, L.offer_faces(context, _offer_key(L.offer)))
+                L.drag_step(context, mouse, L.offer, L.offer_faces(context, offer_key(L.offer)))
                 if L.dirty: L.update(context)
             self.prev_xy = mouse
             if context.area: context.area.tag_redraw()
