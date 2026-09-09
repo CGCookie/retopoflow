@@ -30,10 +30,20 @@ from .ui_draw           import ui_draw
 from .ui_styling        import UI_Styling, ui_defaultstylings
 
 from .globals import Globals
-from .hasher import Hasher
 from .maths import Vec2D, Color, mid, Box2D, Size1D, Size2D, Point2D, RelPoint2D, Index2D, clamp, NumberUnit
 from .profiler import profiler, time_it
 from .utils import iter_head, any_args, join
+
+
+# the style properties that can change an element's size; hoisted out of _compute_style
+# so the list is not rebuilt on every call (it runs a few times per element per frame)
+_STYLE_SIZE_KEYS = (
+    'left', 'right', 'top', 'bottom',
+    'margin-top','margin-right','margin-bottom','margin-left',
+    'padding-top','padding-right','padding-bottom','padding-left',
+    'border-width',
+    'width', 'height',  #'min-width','min-height','max-width','max-height',
+)
 
 
 class UI_Core_Style:
@@ -270,9 +280,11 @@ class UI_Core_Style:
             ts = text_styles.get('text-shadow', 'none')
             self._textshadow = None if ts == 'none' else (ts[0].val(), ts[1].val(), ts[-1])
 
+        is_visible = self.is_visible
+
         # tell children to recompute selector
         # NOTE: self._children_all has not been constructed, yet!
-        if self.is_visible:
+        if is_visible:
             if self._children:
                 for child in self._children: child._compute_style()
             # if self._children_text:
@@ -284,14 +296,13 @@ class UI_Core_Style:
             #     if self._child_after:  self._child_after._compute_style()
 
         with profiler.code('style.hashing for cache'):
-            # style changes => content changes
-            style_content_hash = Hasher(
-                self.is_visible,
+            style_content_hash = (
+                is_visible,
                 self.src,                                       # image is loaded in compute_content
                 self.innerText,                                 # innerText => UI_Elements in compute content
                 self._fontid, self._fontsize, self._whitespace, # these properties affect innerText UI_Elements
-                self._computed_styles_before.get('content', None) if self._computed_styles_before else None,
-                self._computed_styles_after.get('content',  None) if self._computed_styles_after  else None,
+                str(self._computed_styles_before.get('content', None)) if self._computed_styles_before else None,
+                str(self._computed_styles_after.get('content',  None)) if self._computed_styles_after  else None,
             )
             if style_content_hash != getattr(self, '_style_content_hash', None) or self._children_gen:
                 self.dirty_content(cause='style change might have changed content (::before / ::after)')
@@ -304,15 +315,9 @@ class UI_Core_Style:
                 self._style_content_hash = style_content_hash
 
             # style changes => size changes
-            style_size_hash = Hasher(
+            style_size_hash = (
                 self._fontid, self._fontsize, self._whitespace,
-                {k:sc[k] for k in [
-                    'left', 'right', 'top', 'bottom',
-                    'margin-top','margin-right','margin-bottom','margin-left',
-                    'padding-top','padding-right','padding-bottom','padding-left',
-                    'border-width',
-                    'width', 'height',  #'min-width','min-height','max-width','max-height',
-                ]},
+                tuple(str(sc[k]) for k in _STYLE_SIZE_KEYS),   # NumberUnit has no __eq__
             )
             if style_size_hash != getattr(self, '_style_size_hash', None):
                 self.dirty_size(cause='style change might have changed size')
@@ -323,10 +328,10 @@ class UI_Core_Style:
                 self._style_size_hash = style_size_hash
 
             # style changes => render changes
-            style_render_hash = Hasher(
-                self._fontcolor,
-                self._computed_styles.get('background-color', None),
-                self._computed_styles.get('border-color', None),
+            style_render_hash = (                              # Color has no __eq__ either
+                str(self._fontcolor),
+                str(self._computed_styles.get('background-color', None)),
+                str(self._computed_styles.get('border-color', None)),
             )
             if style_render_hash != getattr(self, '_style_render_hash', None):
                 self.dirty_renderbuf(cause='style changed renderbuf')

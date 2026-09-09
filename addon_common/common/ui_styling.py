@@ -631,14 +631,18 @@ class UI_Styling:
         # those change as dialogs move and the tooltip follows the mouse.
         self._decllist_cache = {}
         self._matches_cache = {}
-        UI_Styling.trim_styling._cache = {}
-        UI_Styling.strip_selector_parts._cache = {}
-        # keyed by uid, so drop only the entries this styling took part in
+        uid = self._uid
         UI_Styling.selected_attributes._cache = {
-            key: attribs
-            for (key, attribs) in UI_Styling.selected_attributes._cache.items()
-            if self._uid not in key
+            k: v for (k, v) in UI_Styling.selected_attributes._cache.items() if uid not in k
         }
+        trim = UI_Styling.trim_styling._cache
+        dropped = {styling._uid for (k, styling) in trim.items() if uid in k[1]}
+        UI_Styling.trim_styling._cache = {k: v for (k, v) in trim.items() if uid not in k[1]}
+        if dropped:
+            UI_Styling.compute_style._cache = {
+                k: v for (k, v) in UI_Styling.compute_style._cache.items()
+                if dropped.isdisjoint(k[1])
+            }
 
     @staticmethod
     def purge_selector_caches():
@@ -1053,11 +1057,18 @@ class UI_Styling:
         return decllist
 
     @staticmethod
+    @add_cache('_cache', {})
     @profiler.function
     def compute_style(selector, *stylings):
         if selector is None: return {}
+        cacheable = all(styling is None or not styling._inline for styling in stylings)
+        if cacheable:
+            cache = UI_Styling.compute_style._cache
+            key = (tuple(selector), tuple(styling._uid if styling else None for styling in stylings))
+            if key in cache: return cache[key]
         full_decllist = [dl for styling in stylings if styling for dl in styling.get_decllist(selector)]
         decllist = UI_Styling._expand_declarations(full_decllist)
+        if cacheable: cache[key] = decllist
         return decllist
 
     @staticmethod
@@ -1124,14 +1135,14 @@ class UI_Styling:
             'attributevalues',
         }
         nselector = UI_Styling.strip_selector_parts(selector, strip)
-        onselector = str(nselector)
-        if onselector not in cache:
+        key = (str(nselector), tuple(styling._uid if styling else None for styling in stylings))
+        if key not in cache:
             nstyling = UI_Styling()
             # include only the rules that _might_ apply to selector (assumes some selector parts change but others do not)
             nstyling.rules = [rule for styling in stylings if styling for rule in styling.get_matching_rules(nselector, full_trie=False)]
             # nstyling.rules = [rule for styling in stylings for rule in styling.rules if rule.match(nselector, strip=strip)]
-            cache[onselector] = nstyling
-        return cache[onselector]
+            cache[key] = nstyling
+        return cache[key]
 
     @staticmethod
     def combine_styling(*stylings, inline=False, defaults=False):
