@@ -119,7 +119,7 @@ class RetopoFlow_Blender_Save:
             M = Matrix.Scale(1.0 / prev_factor, 4)
             sources = RetopoFlow_Blender_Objects.get_sources()
             target = RetopoFlow_Blender_Objects.get_target()
-            for obj in chain(sources, [target]):
+            for obj in RetopoFlow_Blender_Objects.get_transform_roots(chain(sources, [target])):
                 if not obj: continue
                 rot = obj.rotation_euler.copy()  # store original rotation
                 obj.matrix_world = M @ obj.matrix_world
@@ -382,4 +382,3 @@ class RetopoFlow_Blender_Save:
         # note: filepath might not be set until after save
         filepath = os.path.abspath(bpy.data.filepath)
         print(f'RetopoFlow: saved to {filepath}')
-

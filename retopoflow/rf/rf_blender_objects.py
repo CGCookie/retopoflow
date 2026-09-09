@@ -135,6 +135,20 @@ class RetopoFlow_Blender_Objects:
         return next(( o for o in bpy.data.objects if is_valid(o) ), None)
 
     @staticmethod
+    def get_transform_roots(objs):
+        # When transforming a group of objects by writing matrix_world, only the
+        # topmost object of each parent chain should be written. Fixes #1796
+        objs = [o for o in objs if o]
+        names = {o.name for o in objs}     # object names are unique, unlike bpy_struct wrappers
+        def inherits_from_set(o):
+            p = o.parent
+            while p:
+                if p.name in names: return True
+                p = p.parent
+            return False
+        return [o for o in objs if not inherits_from_set(o)]
+
+    @staticmethod
     def create_new_target(context, *, matrix_world=None):
         auto_edit_mode = bpy.context.preferences.edit.use_enter_edit_mode # working around blender bug, see https://github.com/CGCookie/retopoflow/issues/786
         bpy.context.preferences.edit.use_enter_edit_mode = False
@@ -179,6 +193,3 @@ class RetopoFlow_Blender_Objects:
         bpy.data.objects.remove(bpy.data.objects[name], do_unlink=True)
         if is_active and reset_active:
             bpy.context.view_layer.objects.active = RetopoFlow_Blender_Objects.get_target()
-
-
-

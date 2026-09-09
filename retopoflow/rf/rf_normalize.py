@@ -126,11 +126,12 @@ class RetopoFlow_Normalize:
                 prev_factor = normalize_opts['mesh scaling factor']
                 sources = RetopoFlow_Blender_Objects.get_sources()
                 targets = [rf_target]
+                objects = RetopoFlow_Blender_Objects.get_transform_roots(chain(sources, targets))
 
                 if mesh == 'RESTORE':
                     # Restore original scales directly to the original (stored) ones
                     mesh_scales = normalize_opts.get('mesh scales', {})
-                    for obj in chain(sources, targets):
+                    for obj in objects:
                         if not obj:
                             continue
                         if obj.name not in mesh_scales:
@@ -157,7 +158,7 @@ class RetopoFlow_Normalize:
                     # Scale to unit box
                     scale_ratio = fac / prev_factor
                     M = Matrix.Scale(scale_ratio, 4)
-                    for obj in chain(sources, targets):
+                    for obj in objects:
                         if not obj: continue
                         before_scale = obj.scale.copy()
                         armature = next((mod.object for mod in obj.modifiers if mod.type == 'ARMATURE'), None)
@@ -252,11 +253,3 @@ class RetopoFlow_Normalize:
         scene_scale = 1.0 # bpy.context.scene.unit_settings.scale_length
         magic_scale = 10.0  # to make the unit box manageable
         return (scene_scale * magic_scale) / max_length
-
-
-
-
-
-
-
-
