@@ -1169,6 +1169,7 @@ class LegacyPatches_Logic:
         MAX_GRID_ASPECT = 3.0           # a grid split whose quads would be longer than this across is a sliver, not a Solution (the best split is always kept)
         NGON_EQUALIZE = 0.5             # how much of each relax step pulls a vert toward equal distance from its face centres, against the plain average of its neighbours
         NGON_MAX_CUT_VERTS = 120        # boundary verts above which the cut search (roughly cubic in them, ~0.7s here) is skipped
+        BOW_CORNER_MIN_DEG = 60.0       # a bow hangs off the short side only while both its corners are at least this open; see emit_junction
 
         # v3 compared the interior angle to a threshold; Split Angle states the same test as a deviation from straight
         min_angle = 180.0 - math.degrees(settings.split_angle)
@@ -2284,7 +2285,14 @@ class LegacyPatches_Logic:
                     # each inside the last, the long side's outer lines ending on them with two 3-poles
                     depth = (len(sv1) - len(sv3)) // 2
                     long = nrow + 2 * depth
-                    cands = NL.bow_positions(ncol)
+                    # at k = 0 each end of the short side carries two quads, which share its corner's angle. A short side
+                    # bending into the patch closes those corners (a rail meeting it sharply does too), and once one is
+                    # under BOW_CORNER_MIN_DEG the smaller of its two quads comes out under about 30 degrees, squashed
+                    # against the bow; the bow then leads from the middle column instead
+                    def corner(c, a, b):
+                        return angle_deg((co_of(a) - co_of(c)).normalized(), (co_of(b) - co_of(c)).normalized())
+                    closed = min(corner(c00, sv0[1], sv3[1]), corner(c01, sv2[1], sv3[-2])) < BOW_CORNER_MIN_DEG
+                    cands = NL.bow_positions(ncol, central=closed)
                     k = cands[settings.offset % len(cands)]
                     layout, columns, bows = NL.build_bow(side_keys, k, depth)
                     up = lambda c, r: r / nrow if c <= k else r / long

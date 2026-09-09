@@ -140,6 +140,8 @@ This document contains details about what has changed in Retopoflow in version 4
 - Improved normal calculations when transforming or creating new geo
     - The option to turn off recalculating normals moved to the new Snapping menu
 
+**Fixes**
+- Fixed crash and removed hotkey block for Maximize Area
 - Fixed performance issues when using some pen tablets or non-official Blender distributions
 - Fixed performance issues when frequently using the Relax and Tweak quick switch hotkeys
 - Fixed proportional editing circle size and location
