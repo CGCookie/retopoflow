@@ -637,8 +637,10 @@ def diamond_positions(m, n):
 
 def bow_positions(m):
     ''' Every k a bow junction can take between rails of m edges, the column it bows through being
-    k + 1. Most central first. '''
-    return sorted(range(m), key=lambda k: (round(abs((k + 0.5) / m - 0.5), 9), k))    # rounded, or a float tie breaks the wrong way
+    k + 1. The bow beside the short side first, k = 0, its 3-poles on that side's own verts, where
+    the horseshoe reads best (3 to 1, 5 to 1, 7 to 1 above all), then one column further toward the
+    long side with each step. '''
+    return list(range(m))
 
 
 def _columns(sides, height):
