@@ -270,28 +270,9 @@ class RFOperator_LegacyPatches_Fill(LegacyPatches_Properties, RFOperator_Execute
         LegacyPatches_Logic.ctrl_locked = (bool(event.ctrl) or LegacyPatches_Logic.nearest_active
                                            or LegacyPatches_Logic.ctrl_forced)
 
-        # Rebuild for the selection as it is now, always: outside the tool no overlay keeps a preview
-        # alive, inside it the overlay may not have drawn since the selection changed, and a preview
-        # left over from the last selection must not decide the key's fate
-        try:
-            LegacyPatches_Logic._recompute(context, LegacyPatches_Logic.read_settings(context))
-        except ReferenceError:
-            LegacyPatches_Logic._clear_products()
-        if not LegacyPatches_Logic.previz:
-            # A patch of connected faces joins into one n-gon, which is what F means there. Blender's own
-            # F would only lay an n-gon over the top, so the dissolve is done here, with its own undo
-            # step; this operator then has nothing to register or redo.
-            if LegacyPatches_Logic.selection_is_face_patch(context):
-                try:
-                    bpy.ops.mesh.dissolve_faces('INVOKE_DEFAULT', True)
-                except RuntimeError:
-                    pass
-                context.area.tag_redraw()
-                return { 'CANCELLED' }
-            # Anything else: hand the key on so Blender's own fill gets it. This must be PASS_THROUGH
-            # from invoke, not a failing poll: Blender re-checks poll before a redo, when the preview is empty.
-            return { 'PASS_THROUGH' }
-        # a fresh fill starts from the tool's settings; a redo comes straight to execute with the redo panel's
+        # a fresh fill starts from the tool's settings; a redo comes straight to execute with the redo panel's.
+        # Outside the tool the operator's own last values stand, except that a fresh fill starts at the
+        # automatic Solution and Offset, as a new selection does inside it
         src = LegacyPatches_Logic.tool_props(context)
         if src:
             for name in PATCH_SETTING_NAMES:
@@ -299,6 +280,34 @@ class RFOperator_LegacyPatches_Fill(LegacyPatches_Properties, RFOperator_Execute
         else:
             self.steps = PatchSettings.steps
             self.step_scale = PatchSettings.step_scale
+            self.solution, self.offset = 1, 0
+        settings = PatchSettings(**{ name: getattr(self, name) for name in PATCH_SETTING_NAMES })
+
+        # Rebuild for the selection as it is now, always, with the settings the fill will use: outside the
+        # tool no overlay keeps a preview alive, inside it the overlay may not have drawn since the
+        # selection changed, and a preview left over from the last selection must not decide the key's fate
+        try:
+            LegacyPatches_Logic._recompute(context, settings)
+        except ReferenceError:
+            LegacyPatches_Logic._clear_products()
+        if not LegacyPatches_Logic.previz:
+            # A patch of connected faces joins into one n-gon, which is what F means there. Blender's own
+            # F would only lay an n-gon over the top, so the dissolve is done here; this operator then
+            # has nothing to register or redo. The undo step has to be pushed by hand: this operator has
+            # UNDO, and while one is running Blender pushes no step for the operators it calls (the undo
+            # depth), whatever they ask for. Without it the join left no step, so Ctrl+Z jumped back past
+            # it, and the redo of the next fill landed on the quads it had joined, with nothing to fill
+            if LegacyPatches_Logic.selection_is_face_patch(context):
+                try:
+                    if bpy.ops.mesh.dissolve_faces() == { 'FINISHED' }:
+                        bpy.ops.ed.undo_push(message='Dissolve Faces')
+                except RuntimeError:
+                    pass
+                context.area.tag_redraw()
+                return { 'CANCELLED' }
+            # Anything else: hand the key on so Blender's own fill gets it. This must be PASS_THROUGH
+            # from invoke, not a failing poll: Blender re-checks poll before a redo, when the preview is empty.
+            return { 'PASS_THROUGH' }
         # the fill re-reads the selection itself; if it finds nothing after all, the key is still Blender's
         if not self._fill(context):
             return { 'PASS_THROUGH' }
@@ -311,9 +320,10 @@ class RFOperator_LegacyPatches_Fill(LegacyPatches_Properties, RFOperator_Execute
         return True
 
     def execute(self, context : Context) -> set[str]:
-        # the redo panel's path: a failed refill is worth a word, since no key is waiting behind it
+        # the redo panel's path: a failed refill is worth a word, since no key is waiting behind it; the
+        # rebuild's own message says why when it knows
         if not self._fill(context):
-            self.report({'WARNING'}, 'Patches: nothing to fill. Select boundary edges forming a rectangle, L, C, two parallel strips, a single strip to step outward, or four vertices, or hold Ctrl and hover between four nearby vertices')
+            self.report({'WARNING'}, LegacyPatches_Logic.error or 'Patches: nothing to fill. Select boundary edges forming a rectangle, L, C, two parallel strips, a single strip to step outward, or four vertices, or hold Ctrl and hover between four nearby vertices')
             return { 'CANCELLED' }
         return { 'FINISHED' }
 
@@ -702,11 +712,13 @@ class RFOperator_LegacyPatches_Overlay(_LegacyPatches_Curve_Overlay, RFOperator)
         return {'PASS_THROUGH'}
 
     def draw_postpixel_overlay(self):
-        super().draw_postpixel_overlay()    # curve handles, no-ops while show_curve_handles is off
-        if self.is_done(): return
-        context = bpy.context
-        LegacyPatches_Logic.update(context)
-        LegacyPatches_Logic.draw(context)
+        if not self.is_done():
+            context = bpy.context
+            LegacyPatches_Logic.update(context)
+            LegacyPatches_Logic.draw(context)
+        # curve handles, no-ops while show_curve_handles is off; after the preview so the corner control
+        # points sit on top of its face colour rather than under it
+        super().draw_postpixel_overlay()
 
 # AutoSave skips saving while a modal operator is top-most unless it is a known overlay (keyed by label)
 overlay_names.add(RFOperator_LegacyPatches_Overlay.bl_label)

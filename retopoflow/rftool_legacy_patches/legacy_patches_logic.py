@@ -51,7 +51,7 @@ from ..common.bmesh import (
 )
 from ..common.bmesh_maths import orient_bmf_normals, check_bmf_normals, fit_plane_of_verts, compute_n
 from ..common.bpy_helper import bpy_ops_retopoflow
-from ..common.drawing import Drawing, CC_2D_LINES, CC_2D_POINTS, CC_2D_TRIANGLES
+from ..common.drawing import Drawing, CC_2D_LINES, CC_2D_TRIANGLES
 from ..common.maths import view_forward_direction
 from ..common.operator import RFOperator, rf_is_running
 from ..common.raycast import (
@@ -816,6 +816,16 @@ class Stroke:
 
 
 @dataclass
+class FillSolution:
+    ''' One way to fill a closed loop, as the Solution property offers them. '''
+    tag        : object                 # what grid_last records: a grid span, a plan kind, or a junction's name
+    degenerate : bool = False           # makes a quad that reads as a triangle, or is concave, at the boundary: ranks last
+    odd        : bool = False           # closes an odd loop with one triangle or n-gon: ranks behind the quad fills
+    hint       : str | None = None      # shown while this fill is the one built
+    build      : object = None          # () -> True built, False refused by its checks, None when the vert budget is spent
+
+
+@dataclass
 class Previz:
     kind     : str          # 'rect' | 'L' | 'C' | 'I' | 'loft' | 'grid' | 'ngon' | 'bridge' | 'offset' | 'corner' | 'nearest' | 'quad' | 'triangle'
     vert_idx : list         # bm vert index for existing verts, None for verts Fill will create
@@ -899,6 +909,7 @@ class LegacyPatches_Logic:
     # write properties, so writes go through a timer and these stand in for the value until then.
     solution_pending : ClassVar[int | None] = None
     solution_stale   : ClassVar[int | None] = None             # what the property held when the write was scheduled
+    solution_seen    : ClassVar[int | None] = None             # the Solution last built, so a change of it can put Offset back to 0
     prop_pending     : ClassVar[dict] = {}                     # tool property -> value written but not landed yet
 
     # Selection bookkeeping
@@ -951,7 +962,7 @@ class LegacyPatches_Logic:
         L.ngon_cuts = {}
         L.pole_pos = {}
         L.pole_drag = L.pole_drag_prev = None
-        L.solution_pending = L.solution_stale = None
+        L.solution_pending = L.solution_stale = L.solution_seen = None
         L.mouse = L.mouse_locked = None
         L.cand_key = None
         L.cand_idx = []
@@ -1017,6 +1028,7 @@ class LegacyPatches_Logic:
             values = { name: getattr(props, name) for name in PATCH_SETTING_NAMES }
             values['steps'] = max(1, L.settled('steps', int(values['steps'])))
             values['step_scale'] = L.settled('step_scale', float(values['step_scale']))
+            values['offset'] = int(L.settled('offset', int(values['offset'])))
             return PatchSettings(**values)
         except Exception:
             return PatchSettings()
@@ -1160,7 +1172,7 @@ class LegacyPatches_Logic:
         WELD_FIT_RADIUS = 0.6           # how far from where a new vert would land an existing one may sit, in step lengths
         WELD_FIT_MIN_SQUARENESS = 0.45  # below this a fresh vert makes a better quad than the existing one would
         LOFT_PARALLEL = LOFT_STACKED = 0.5  # two loops loft only when they face the same way and are stacked along their normals
-        NGON_LAYOUT_PASSES = 3          # relax passes on an n-sided fill's pole and spokes before Smooth; the interiors are re-blended from them
+        NGON_LAYOUT_PASSES = 8          # relax passes on an n-sided fill's pole and spokes before Smooth; the interiors are re-blended from them. Three left a bridge's pole short of where it settles
         NGON_MAX_FLIPPED = 0.1          # share of an n-sided fill's quads allowed to face the other way before it is refused as folded
         NGON_MAX_ALTERNATIVES = 4       # corner-demotion and cut Solutions offered, each; one Solution is every plan of one shape (ngon_layout.plan_shape)
         NGON_POLE_MARGIN = 0.75         # a pole stays at least this many mean boundary edges inside the loop, or its ring of quads collapses into slivers
@@ -1740,9 +1752,9 @@ class LegacyPatches_Logic:
         def build_layout_previz(kind, layout, bmv_of, boundary, *, checks=True, handle=None, pole_co=None, pole_fixed=False, seed=None):
             ''' Fill an n-sided layout (ngon_layout.build_layout) and add it to the preview. Its
             existing nodes are the loop's own verts. Cut runs, poles and spokes are placed first and
-            relaxed on their own, with the region interiors re-blended from them after each pass, so
-            at Smooth 0 the interiors are still pure Coons blends; Smooth passes then relax every new
-            vert. `seed`, node index -> (co, normal), places nodes before any of that and they relax
+            relaxed on their own, pole included, with the region interiors re-blended from them after
+            each pass, so at Smooth 0 the interiors are still pure Coons blends; Smooth passes then relax
+            every new vert. `seed`, node index -> (co, normal), places nodes before any of that and they relax
             with the spokes: a layout with no pole and spokes to place from, the diamond junction's
             columns, starts from these. `handle`, a loop key, records the pole as a draggable handle;
             `pole_co` is where the pole starts, else the mean of its split verts, and with `pole_fixed`
@@ -1837,14 +1849,15 @@ class LegacyPatches_Logic:
                     eq = (sum(pulls, Vector()) / len(pulls)) if pulls else lap
                     moved[k] = lap.lerp(eq, NGON_EQUALIZE)
                 for k, co in moved.items():
+                    raws[k] = co    # the noise check compares each vert with where the relax put it: relaxing is not noise
                     verts[k] = new_point(co, side, normals[k], cap)
 
             place_interiors()
-            # the pole stays where its topology puts it while the spokes settle; Smooth may move it after,
-            # unless the artist placed it
-            spokes_only = [ k for k in seams if k not in layout.poles ]
+            # the pole settles with its spokes: the estimate only starts it, and where it ends up is what
+            # smoothing used to have to correct. A pole the artist placed stays where they put it
+            settling = [ k for k in seams if not (pole_fixed and k in layout.poles) ]
             for _ in range(NGON_LAYOUT_PASSES):
-                relax(spokes_only)
+                relax(settling)
                 place_interiors()
             smoothed = [ k for k in synthetic if k not in layout.poles ] if pole_fixed else synthetic
             for _ in range(settings.smooth): relax(smoothed)
@@ -2039,7 +2052,13 @@ class LegacyPatches_Logic:
             else:
                 L.solution_pending = L.solution_stale = None  # the property has moved on and drives
                 choice = settings.solution
-            return (choice - 1) % count + 1
+            choice = (choice - 1) % count + 1
+            if (fresh or choice != L.solution_seen) and settings.offset != 0:
+                # a Solution starts at Offset 0, its automatic placement; the knob follows the rebuild
+                settings.offset = 0
+                L.push_prop('offset', 0)
+            L.solution_seen = choice
+            return choice
 
         def emit_grid_split(bmvs, span, off, kind):
             ''' Coons-fill a closed loop as the span x (half - span) rectangle whose first corner is bmvs[off]. '''
@@ -2066,34 +2085,66 @@ class LegacyPatches_Logic:
             return emit_grid_split(bmvs, span, (off + settings.offset) % len(bmvs), kind)
 
         def emit_ngon(kind, shape):
-            ''' Fill a closed loop of three or more strips by its real corners; emit_sides has the ways. '''
+            ''' Fill a closed loop of three or more strips by its real corners; solutions_for has the ways. '''
             sides = chain_sides(shape)
             if not sides: return True
             return emit_sides(kind, sides)
 
-        def emit_sides(kind, sides):
-            ''' Fill a closed loop given as its sides, each a run of verts sharing its ends with the
-            next: a rectangle's grid where opposite sides match; a diamond or bow junction where equal
-            rails join sides an even number apart; one pole where Tarini's closed-form conditions allow
-            it (ngon_layout); otherwise corners are demoted or the loop is cut into single-pole pieces,
-            and Blender-style grid fill is the last resort. An odd loop gets a pole fill with one
-            triangle beside the pole. Every alternative is a Solution. A side may hold points this fill
-            is creating as well as the mesh's verts, as a bridge's do. False only when the vert budget
-            is spent. '''
+        def emit_sides(kind, sides, rails=None):
+            ''' Fill a closed loop given as its sides with the Solution chosen among solutions_for's. '''
+            return emit_ranked(solutions_for(kind, sides, rails))
+
+        def emit_ranked(entries):
+            ''' Offer fills (FillSolution) as the Solutions of one selection, ranked: every plain quad fill
+            first, then the fills that close an odd loop with one triangle or n-gon, then the degenerate
+            ones, and within each as given. Builds the chosen one, or the next that builds. False only
+            when the vert budget is spent. '''
+            if not entries: return True
+            entries = sorted(entries, key=lambda e: (e.degenerate, e.odd))
+            L.grid_ranked = entries
+            L.has_grid = True
+            first = choose_solution(len(entries)) - 1
+            for k in range(len(entries)):
+                entry = entries[(first + k) % len(entries)]
+                ok = entry.build()
+                if ok is None: return False
+                if not ok: continue
+                L.grid_last = (entry.tag, settings.offset)
+                if entry.hint: L.hint = entry.hint
+                return True
+            return True
+
+        def built(fn):
+            # a grid builder returns False only when the vert budget is spent, and adds nothing when its checks refuse
+            before = len(L.previz)
+            if not fn(): return None
+            return len(L.previz) > before
+
+        def solutions_for(kind, sides, rails=None):
+            ''' Every way to fill a closed loop given as its sides, each a run of verts sharing its ends
+            with the next, as FillSolutions in rank order: a rectangle's grid where opposite sides match;
+            a diamond or bow junction where equal rails join sides an even number apart; one pole where
+            Tarini's closed-form conditions allow it (ngon_layout); otherwise corners are demoted or the
+            loop is cut into single-pole pieces, Blender-style grid fill, and the turnout where rails and
+            sides step by the same amount. An odd loop gets pole fills with one triangle or n-gon beside
+            the pole. A side may hold points this fill is creating as well as the mesh's verts, as a
+            bridge's do; `rails` names the two sides a bridge created, which a turnout should leave
+            through rather than run its rows along. '''
             counts = [ len(sv) - 1 for sv in sides ]
             total = sum(counts)
             if kind == 'rect' and counts[0] == counts[2] and counts[1] == counts[3]:
                 s0, s1, s2, s3 = sides
-                return emit_rect_grid(s0, s1, s2[::-1], s3[::-1], 'rect')
+                return [ FillSolution('rect', build=lambda: built(lambda: emit_rect_grid(s0, s1, s2[::-1], s3[::-1], 'rect'))) ]
             bmvs = [ v for sv in sides for v in sv[:-1] ]
             m = len(bmvs)
             corners, pos = [], 0
             for c in counts:
                 corners.append(pos)
                 pos += c
-            # a created point has no index; its place round the loop names it, so a pole dragged on one
-            # selection stays put through the rebuilds
-            keys = [ (v.index if isinstance(v, BMVert) else ('pt', i)) for i, v in enumerate(bmvs) ]
+            # a created point has no index; minus one minus its place round the loop names it, an int like
+            # an index so ngon_layout reads it as one of the loop's own verts (its tuple keys are the nodes
+            # it makes), and stable through the rebuilds so a dragged pole stays put
+            keys = [ (v.index if isinstance(v, BMVert) else -1 - i) for i, v in enumerate(bmvs) ]
             key_at = { id(v): key for v, key in zip(bmvs, keys) }
             loop = NL.Loop(tuple(keys), tuple(corners))
             bmv_of = dict(zip(keys, bmvs))
@@ -2146,9 +2197,13 @@ class LegacyPatches_Logic:
                 return plane_c + plane_u * q2.x + plane_v * q2.y + plane_n * (co - plane_c).dot(plane_n)
 
             def pole_estimate(plan):
-                ''' Where a plan's pole belongs, before any geometry is built: the point s_j edges from
-                the split vertex each spoke leaves, in the loop's plane, by least squares. This is what
-                separates two placements on a symmetric loop, whose split verts average to the same spot. '''
+                ''' Where a plan's pole belongs, before any geometry is built. Each corner region is a grid
+                with the pole at its far corner, so a region that kept its corner's shape would put the pole
+                at the parallelogram completion of its two boundary runs; the estimate is the mean of those
+                over the regions. It separates two placements on a symmetric loop, whose split verts average
+                to the same spot, and it follows the loop's shape where the edges are uneven: spoke count
+                times mean edge, solved as a radical centre, put a bridge's pole in its short side's corner
+                with the spokes folded over. '''
                 lay = layout_of(plan)
                 pole = lay.poles[0]
                 helpers = { k: (a, b) for k, a, b in lay.helpers }
@@ -2158,25 +2213,17 @@ class LegacyPatches_Logic:
                     if k in helpers: return (at(helpers[k][0]) + at(helpers[k][1])) / 2
                     return None
                 if pole in lay.existing: return at(pole)
-                spokes = [ (q, len(line) - 1) for line in lay.polylines if line[-1] == pole and (q := at(line[0])) is not None ]
-                if not spokes: return None
-                centre = sum((q for q, _ in spokes), Vector()) / len(spokes)
-                if len(spokes) < 3 or plane_n is None: return clamp_inside(centre)
-                # |P - q_j|^2 = (r_j l)^2 linearised against the first spoke: 2 (q_j - q_0) . P = |q_j|^2 - |q_0|^2 - l^2 (r_j^2 - r_0^2)
-                u, v = plane_u, plane_v
-                pts = [ (Vector(((q - centre).dot(u), (q - centre).dot(v))), r * mean_edge) for q, r in spokes ]
-                (q0, r0), rest = pts[0], pts[1:]
-                a11 = a12 = a22 = b1 = b2 = 0.0
-                for q, r in rest:
-                    ax, ay = 2 * (q.x - q0.x), 2 * (q.y - q0.y)
-                    rhs = q.length_squared - q0.length_squared - (r * r - r0 * r0)
-                    a11 += ax * ax; a12 += ax * ay; a22 += ay * ay
-                    b1 += ax * rhs; b2 += ay * rhs
-                det = a11 * a22 - a12 * a12
-                if abs(det) < 1e-12: return clamp_inside(centre)
-                x = (b1 * a22 - b2 * a12) / det
-                y = (a11 * b2 - a12 * b1) / det
-                return clamp_inside(centre + u * x + v * y)
+                far = []
+                for grid in lay.regions:
+                    l0, l1 = len(grid), len(grid[0])
+                    if l0 < 2 or l1 < 2 or grid[l0 - 1][l1 - 1] != pole: continue
+                    c00, c10, c01 = at(grid[0][0]), at(grid[l0 - 1][0]), at(grid[0][l1 - 1])
+                    if c00 is None or c10 is None or c01 is None: continue
+                    far.append(c10 + c01 - c00)
+                if far: return clamp_inside(sum(far, Vector()) / len(far))
+                # a layout with no whole region round the pole: where its spokes start, averaged
+                starts = [ q for line in lay.polylines if line[-1] == pole and (q := at(line[0])) is not None ]
+                return clamp_inside(sum(starts, Vector()) / len(starts)) if starts else None
 
             def pick_candidate(cands):
                 ''' (plan, where its pole goes or None) out of the plans that differ only in pole placement.
@@ -2197,18 +2244,22 @@ class LegacyPatches_Logic:
                     return (est - co).length if est is not None else float('inf')
                 return min(cands, key=dist), co
 
-            def emit_junction(which, r):
-                ''' A junction taking up a step between equal rails: sides r and r + 2 are the rails,
-                side r + 3 is an even number of edges short of side r + 1. 'diamond' takes up a step of two,
-                merging two of the long side's lines at a 5-pole and ending the one between them at a 3-pole
-                in one quad turned across the columns; 'bow' takes up any step, running one line per two
-                edges off the short rail's ends through one column, each inside the last, and ending the
-                long side's outer lines on them with two 3-poles (ngon_layout.build_diamond, build_bow).
-                Every new vert starts on the Coons blend of the four sides, the two unequal sides sampled
-                by fraction so their rows line up with the columns, then relaxes like a spoke. Offset slides
-                the junction along the rails, most central first. '''
-                sv = [ sides[(r + i) % 4] for i in range(4) ]
-                sv0, sv1, sv2, sv3 = sv[0], sv[1], sv[2][::-1], sv[3][::-1]
+            def emit_junction(which, orient):
+                ''' A junction taking up a step in the row count, the loop laid over a rectangle by
+                ngon_layout.orient_sides(sides, *orient). Between equal rails: 'diamond' takes up a step of
+                two, merging two of the long side's lines at a 5-pole and ending the one between them at a
+                3-pole in one quad turned across the columns; 'bow' takes up any even step, running one line
+                per two edges off the short rail's ends through one column, each inside the last, and ending
+                the long side's outer lines on them with two 3-poles. Between rails that differ by as much as
+                the sides do, 'turnout' sends the extra rows out through the longer rail past a 5-pole and a
+                3-pole on one column (build_diamond, build_bow, build_turnout). Every new vert starts on the
+                Coons blend of the four sides, the unequal sides sampled by fraction so their rows line up
+                with the columns, then relaxes like a spoke. Offset moves the junction along the rails, most
+                central first. `orient` is the laying (rotation, reflected) for ngon_layout.orient_sides. '''
+                if which == 'turnout':
+                    cands = NL.turnout_positions(*NL.turnout_shape(counts, orient))
+                    k, j = cands[settings.offset % len(cands)]
+                sv0, sv1, sv2, sv3 = NL.orient_sides(sides, *orient)
                 ncol, nrow = len(sv0) - 1, len(sv3) - 1
                 side_keys = [ [ key_at[id(v)] for v in s ] for s in (sv0, sv1, sv2, sv3) ]
                 nrm = normal_fn(bmvs)
@@ -2240,6 +2291,24 @@ class LegacyPatches_Logic:
                         return ((r / nrow + r / (nrow + 2)) if r <= j else ((r - 1) / nrow + (r + 1) / (nrow + 2))) / 2
 
                     extra = { R: at((k + 1.5) / ncol, (up(k + 1, j) + up(k + 1, j + 1) + 2 * up(k + 2, j + 1)) / 4) }
+                elif which == 'turnout':
+                    short = len(sv1) - 1
+                    d = nrow - short
+                    layout, left, right, wedge = NL.build_turnout(side_keys, k, j)
+                    w = short - j
+
+                    def seam_pi(r):
+                        # the seam runs from the top rail's vert k to the bottom rail's, at different fractions of
+                        # rails that differ in count; the left block's rows space it
+                        return (1 - r / nrow) * k / ncol + (r / nrow) * k / (ncol + d)
+
+                    seed = { node: at(seam_pi(r), r / nrow) for r, node in enumerate(left[k]) if node not in layout.existing }
+                    # the wedge's right side runs from the 5-pole down to the rail vert d past the seam's foot, its verts
+                    # between the wedge's own spacing and the right block's rows, which they also make
+                    for v in range(1, w):
+                        t = v / w
+                        seed[wedge[0][v]] = at(seam_pi(j) * (1 - t) + (k + d) / (ncol + d) * t, ((j / nrow) * (1 - t) + t + (j + v) / short) / 2)
+                    return build_layout_previz('ngon', layout, bmv_of, bmvs, seed=seed)
                 else:
                     depth = (len(sv1) - len(sv3)) // 2
                     long = nrow + 2 * depth
@@ -2256,7 +2325,8 @@ class LegacyPatches_Logic:
                 seed.update(extra)
                 return build_layout_previz('ngon', layout, bmv_of, bmvs, seed=seed)
 
-            if total % 2:
+            odd = bool(total % 2)
+            if odd:
                 # no quad fill closes an odd loop: an imaginary extra vertex on one side, filled round a pole
                 # and taken out again, leaves one n-gon or triangle at the pole, drawn in the warning colour.
                 # Each way of taking it out is one Solution; which side carries the vertex is the pole handle
@@ -2268,9 +2338,17 @@ class LegacyPatches_Logic:
                 modes = []
                 for plan in phantoms:
                     if plan.phantom[2] not in modes: modes.append(plan.phantom[2])
-                groups = [ [ p for p in phantoms if p.phantom[2] == mode ] for mode in modes ]
-                if not groups: return True
-                ranked = [ ('plan', g) for g in groups ]
+                # within a mode, Offset 0 is the placement that keeps the triangle or n-gon off the sides and puts
+                # its pole nearest the loop's centre; the rest follow outward, ties in the order above. A mode
+                # whose best placement touches a side goes behind one whose best does not
+                centre = sum(cos, Vector()) / m
+                def off_centre(plan):
+                    est = pole_estimate(plan)
+                    return round((est - centre).length / mean_edge, 3) if est is not None else float('inf')
+                def against_side(plan):
+                    return NL.odd_face_on_boundary(layout_of(plan))
+                groups = [ sorted([ p for p in phantoms if p.phantom[2] == mode ], key=lambda p: (against_side(p), off_centre(p))) for mode in modes ]
+                groups.sort(key=lambda g: against_side(g[0]))
                 grids = []
             else:
                 poles = NL.plan_pole(loop)
@@ -2279,78 +2357,76 @@ class LegacyPatches_Logic:
                 # plans of one shape, the same corners demoted or the same cut made from the other end, are one
                 # Solution: Offset steps through them, or the dragged pole picks the one nearest to it
                 groups += NL.group_plans(NL.plan_merges(loop, { c: sharp[c] for c in corners }))[:NGON_MAX_ALTERNATIVES]
-                ranked = grids = None
-            if ranked is None and not groups:
-                def cut_penalty(plan):
-                    # a cut whose chord is far from its edge count times the mean edge makes long or crushed quads
-                    pen = 0.0
-                    for run in plan.cuts:
-                        a, b = bmv_of.get(run[0]), bmv_of.get(run[-1])
-                        if a is None or b is None: continue     # ends on another cut, which has no position yet
-                        chord = (_co(a) - _co(b)).length
-                        pen += abs(math.log(max(chord, 1e-9) / max((len(run) - 1) * mean_edge, 1e-9)))
-                    return pen
-                key = (loop.nodes, loop.corners)
-                if key not in L.ngon_cuts:
-                    if len(L.ngon_cuts) > 8: L.ngon_cuts.clear()
-                    L.ngon_cuts[key] = NL.plan_cuts(loop) if m <= NGON_MAX_CUT_VERTS else []
-                cuts = list(L.ngon_cuts[key])
-                cuts.sort(key=lambda p: (p.score[:3], round(cut_penalty(p), 3)))
-                groups += NL.group_plans(cuts)[:NGON_MAX_ALTERNATIVES]
-            if ranked is None:
-                ranked = [ ('plan', g) for g in groups ]
-                grids = [ ('grid', span, off) for span, off in rank_grid_splits(bmvs) ]
-                # a four-sided loop with uneven sides has always been grid filled; that stays its first answer,
-                # except where its rails are equal and the other two sides an even number apart: no single pole
-                # fills that, and the diamond and bow junctions are what an artist would draw, so they lead
-                ranked = grids + ranked if kind == 'rect' else ranked + grids
-                if kind == 'rect' and (fit := NL.step_fits(counts)) is not None:
-                    ranked = [ (which, fit[0]) for which in NL.junctions(*fit[1:]) ] + ranked
-            if not ranked: return True
+                if not groups:
+                    def cut_penalty(plan):
+                        # a cut whose chord is far from its edge count times the mean edge makes long or crushed quads
+                        pen = 0.0
+                        for run in plan.cuts:
+                            a, b = bmv_of.get(run[0]), bmv_of.get(run[-1])
+                            if a is None or b is None: continue     # ends on another cut, which has no position yet
+                            chord = (_co(a) - _co(b)).length
+                            pen += abs(math.log(max(chord, 1e-9) / max((len(run) - 1) * mean_edge, 1e-9)))
+                        return pen
+                    key = (loop.nodes, loop.corners)
+                    if key not in L.ngon_cuts:
+                        if len(L.ngon_cuts) > 8: L.ngon_cuts.clear()
+                        L.ngon_cuts[key] = NL.plan_cuts(loop) if m <= NGON_MAX_CUT_VERTS else []
+                    cuts = list(L.ngon_cuts[key])
+                    cuts.sort(key=lambda p: (p.score[:3], round(cut_penalty(p), 3)))
+                    groups += NL.group_plans(cuts)[:NGON_MAX_ALTERNATIVES]
+                grids = rank_grid_splits(bmvs)
 
+            # a quad along two boundary edges at a plain boundary vert reads as a triangle on the mesh, and at a
+            # corner turning against the loop it is concave; every fill that makes one ranks behind every fill
+            # that does not, whatever its kind. Grid corners are judged at Offset 0 so the order holds under the knob
             corner_set = set(corners)
-            def reads_as_triangles(entry):
-                # a quad along two boundary edges at a plain boundary vert reads as a triangle on the mesh; every
-                # solution that makes one goes behind every solution that does not, as it is, whatever its kind.
-                # Grid corners are judged at Offset 0 so the order does not move under the knob
-                if entry[0] == 'grid':
-                    _, span, off = entry
-                    return any((off + k) % m not in corner_set for k in (0, span, m // 2, m // 2 + span))
-                if entry[0] == 'plan': return NL.straight_through(layout_of(entry[1][0]), loop) > 0
-                return False
-            ranked.sort(key=reads_as_triangles)
+            winding = sum(a.x * b.y - b.x * a.y for a, b in zip(poly2d, poly2d[1:] + poly2d[:1])) if poly2d is not None else 0.0
+            def reflex(p):
+                if poly2d is None: return False
+                a, b, c = poly2d[(p - 1) % m], poly2d[p], poly2d[(p + 1) % m]
+                return ((b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x)) * winding < 0
+            bad = { p for p in range(m) if p not in corner_set or reflex(p) }
 
-            L.grid_ranked = ranked
-            L.has_grid = True
-            first = choose_solution(len(ranked)) - 1
-            for k in range(len(ranked)):
-                entry = ranked[(first + k) % len(ranked)]
-                before = len(L.previz)
-                if entry[0] == 'grid':
-                    _, span, off = entry
-                    if not emit_grid_split(bmvs, span, (off + settings.offset) % m, 'grid'): return False
-                    ok = len(L.previz) > before
-                    tag = span
-                elif entry[0] in ('diamond', 'bow'):
-                    ok = emit_junction(*entry)
-                    if ok is None: return False
-                    tag = entry[0]
-                else:
-                    plan, placed = pick_candidate(entry[1])
-                    ok = build_layout_previz('ngon', layout_of(plan), bmv_of, bmvs, handle=loop_key,
-                                             pole_co=placed if placed is not None else pole_estimate(plan),
-                                             pole_fixed=placed is not None)
-                    if ok is None: return False
-                    tag = plan.kind
-                if not ok: continue
-                L.grid_last = (tag, settings.offset)
-                if entry[0] == 'grid' and kind != 'rect' and not groups:
+            def plan_solution(group):
+                def build():
+                    plan, placed = pick_candidate(group)
+                    return build_layout_previz('ngon', layout_of(plan), bmv_of, bmvs, handle=loop_key,
+                                               pole_co=placed if placed is not None else pole_estimate(plan),
+                                               pole_fixed=placed is not None)
+                return FillSolution(group[0].kind, degenerate=NL.straight_through(layout_of(group[0]), loop, bad) > 0, odd=odd, build=build)
+
+            def grid_solution(span, off):
+                hint = None
+                if kind != 'rect' and not groups:
                     edit = NL.cc_hint(counts)
                     fix = (' or '.join(f'{counts[i]}→{counts[i] + d}' for i, d in edit)) if edit else None
-                    L.hint = (f'Patches: no single-pole fill for sides {tuple(counts)}'
-                              + (f'; one pole needs e.g. {fix}' if fix else ''))
-                return True
-            return True
+                    hint = f'Patches: no single-pole fill for sides {tuple(counts)}' + (f'; one pole needs e.g. {fix}' if fix else '')
+                return FillSolution(span, degenerate=any((off + k) % m in bad for k in (0, span, m // 2, m // 2 + span)), hint=hint,
+                                    build=lambda: built(lambda: emit_grid_split(bmvs, span, (off + settings.offset) % m, 'grid')))
+
+            def junction_solution(which, orient):
+                return FillSolution(which, build=lambda: emit_junction(which, orient))
+
+            plans = [ plan_solution(g) for g in groups ]
+            if odd: return plans
+            grid_fills = [ grid_solution(span, off) for span, off in grids ]
+            # a four-sided loop with uneven sides has always been grid filled; that stays its first answer,
+            # except where a junction fits: equal rails with the other two sides an even number apart take
+            # the diamond or the bow, which no single pole fills and an artist would draw, so they lead
+            entries = grid_fills + plans if kind == 'rect' else plans + grid_fills
+            if kind == 'rect':
+                if (fit := NL.step_fits(counts)) is not None:
+                    entries = [ junction_solution(which, (fit[0], False)) for which in NL.junctions(*fit[1:]) ] + entries
+                else:
+                    turnouts = NL.turnout_fits(counts)
+                    if rails is not None:
+                        # a bridge's rows run strip to strip: a turnout leaving through a rail is laid out that way
+                        turnouts.sort(key=lambda orient: NL.oriented_index(*orient, 2) not in rails)
+                    # the layings of a turnout are one mesh seen from two sides, so the first is the Solution.
+                    # Demoting the corner between the two short sides always leaves a strict single 3-pole here,
+                    # and its quads come out the more even at every step, so the turnout follows the plans
+                    if turnouts: entries = entries + [ junction_solution('turnout', turnouts[0]) ]
+            return entries
 
         def emit_offset(sv, bmes, *, cyclic=False, pins=None):
             ''' Rows of quads stepped out from a run of boundary edges that has nothing to fill: an open
@@ -3326,26 +3402,40 @@ class LegacyPatches_Logic:
             avg0 = (sv0[0].co - sv0[-1].co).length / max(1, len(sv0) - 1)
             avg1 = (sv1[0].co - sv1[-1].co).length / max(1, len(sv1) - 1)
             gap = derive_loops(dist, max(avg0, avg1)) + 1    # edges across the gap
+            step = abs(len(sv0) - len(sv1))
+            # an odd step cannot cross between equal rails: its extra rows turn out through one created
+            # rail, which needs an edge per row more than the other and a column on each side of the turn
+            if step % 2 and settings.span_insert_mode != 'FIXED': gap = max(gap, 2)
             L.has_bridge = True
             L.loops_last = gap - 1
             boundary = sv0 + sv1
 
-            if len(sv0) != len(sv1):
+            if step:
                 # uneven sides: the two sides this fill creates close the region into a four-cornered
                 # loop, and it gets every closed-loop solution: a junction across the gap where the
-                # counts are an even step apart, then a grid, a pole with a corner demoted, or cuts
-                if (len(sv0) + len(sv1)) % 2: continue    # odd perimeter however many loops are added
-                if not budget(2 * max(0, gap - 1)): break
+                # counts are an even step apart, a turnout through the longer created rail where odd,
+                # then a grid, a pole with a corner demoted, or cuts
+                if not budget(2 * max(0, gap - 1) + (step if step % 2 else 0)): break
                 side, cap = shape_side(boundary), shape_cap(boundary)
                 nrm = normal_fn(boundary)
-                def connect(a, b, _gap=gap, _side=side, _cap=cap, _nrm=nrm):
-                    # interior points of one of the created sides, from a to b
-                    return [ new_point(a.co * (1 - t / _gap) + b.co * (t / _gap), _side,
-                                       blend_pair(_nrm(a), _nrm(b), t / _gap), _cap)
-                             for t in range(1, _gap) ]
-                sides = [ list(sv0), [sv0[-1]] + connect(sv0[-1], sv1[-1]) + [sv1[-1]],
-                          list(reversed(sv1)), [sv1[0]] + connect(sv1[0], sv0[0]) + [sv0[0]] ]
-                if not emit_sides('rect', sides): break
+                def connect(a, b, n, _side=side, _cap=cap, _nrm=nrm):
+                    # interior points of one of the created sides, from a to b, n edges long
+                    return [ new_point(a.co * (1 - t / n) + b.co * (t / n), _side,
+                                       blend_pair(_nrm(a), _nrm(b), t / n), _cap)
+                             for t in range(1, n) ]
+                def closed(gap1, gap3):
+                    return [ list(sv0), [sv0[-1]] + connect(sv0[-1], sv1[-1], gap1) + [sv1[-1]],
+                             list(reversed(sv1)), [sv1[0]] + connect(sv1[0], sv0[0], gap3) + [sv0[0]] ]
+                entries = []
+                if step % 2:
+                    # the longer created rail has the room for the extra edges the turnout and the single pole need
+                    longer_first = (sv0[-1].co - sv1[-1].co).length >= (sv1[0].co - sv0[0].co).length
+                    entries += solutions_for('rect', closed(gap + step if longer_first else gap, gap if longer_first else gap + step), rails=(1, 3))
+                    if not budget(2 * max(0, gap - 1)): break
+                # equal rails: the junctions and grids of an even step, or for an odd one the fills that close the
+                # odd loop with a triangle or n-gon, which rank behind the quad fills and ahead of the degenerate ones
+                entries += solutions_for('rect', closed(gap, gap), rails=(1, 3))
+                if not emit_ranked(entries): break
                 continue
 
             if not emit_span('I', sv0, sv1, gap + 1, boundary): break
@@ -4007,8 +4097,9 @@ class LegacyPatches_Logic:
         except ReferenceError:
             L._clear_products()
             L.dirty = True
+            L.error = 'Patches: the mesh changed under the fill; try again'
             return False
-        if not L.previz: return False
+        if not L.previz: return False    # L.error may say why, else there was nothing to offer
         # the rebuild after a fill previews nothing, so the redo panel and the scroll shortcuts read these
         L.filled_flags = (L.has_bridge, L.has_grid, L.has_loft, L.has_offset, L.has_quad)
         L.filled_free_step = L.has_free_step
@@ -4016,7 +4107,10 @@ class LegacyPatches_Logic:
         L.filled_loops = L.loops_last or 0
         L.filled_solutions = max(1, len(L.grid_ranked))
 
-        return L._build(context, L.previz)
+        if not L._build(context, L.previz):
+            L.error = L.error or 'Patches: the preview no longer matched the mesh; try again'
+            return False
+        return True
 
     @staticmethod
     def _build(context : Context, previz : list) -> bool:
@@ -4291,14 +4385,16 @@ class LegacyPatches_Logic:
         highlight = RF_Prefs.get_prefs(context).highlight_color
         color_point   = Color4((highlight[0], highlight[1], highlight[2], 1))
         color_stipple = Color4((theme.face_select[0], theme.face_select[1], theme.face_select[2], 0))
-        color_open    = Color4((theme.vertex_select[0], theme.vertex_select[1], theme.vertex_select[2], 1))
+        color_open    = Color4((1.0, 1.0, 0.0, 1.0))    # the corner control points' yellow (legacy_patches.PATCH_CORNER_COLOR)
         color_mesh    = theme.face_select
         color_mark    = Color4((1.0, 1.0, 0.0, max(0.4, color_mesh[3])))    # the one non-quad an odd loop is closed with
-        vertex_size   = theme.vertex_size
+        from ..rfoverlays.curve_overlay import KNOT_RADIUS
+        OPEN_VERT_RADIUS = KNOT_RADIUS / 2    # a vert a fill will create: plainly smaller than a corner control point
         color_label   = (1, 1, 0, 1)
         color_shadow  = (0, 0, 0, 0.75)
 
         try:
+            open_pts = []
             for pv in L.previz:
                 pts = [proj(co) for co in pv.vert_co]
 
@@ -4323,13 +4419,12 @@ class LegacyPatches_Logic:
                         p0, p1 = pts[i0], pts[i1]
                         if p0 and p1: draw.vertex(p0).vertex(p1)
 
-                if pv.open_idx:
-                    with Drawing.draw(context, CC_2D_POINTS) as draw:
-                        draw.point_size(vertex_size)
-                        draw.color(color_open)
-                        for k in pv.open_idx:
-                            p = pts[k]
-                            if p: draw.vertex(p)
+                open_pts += [ p for k in pv.open_idx if (p := pts[k]) ]
+
+            if open_pts:
+                # the verts a fill creates on its own boundary, a bridge's rails: small discs in the corners' yellow,
+                # no border, after every fill so no face colour lies over them
+                Drawing.draw2D_points(context, open_pts, color_open, radius=OPEN_VERT_RADIUS)
 
             if len(L.drag_path) > 1:
                 Drawing.draw2D_linestrip(context, [ Vector((x - rgn.x, y - rgn.y)) for x, y in _smooth_path(L.drag_path) ],
@@ -4339,7 +4434,7 @@ class LegacyPatches_Logic:
 
             if L.pole_handles:
                 # the same mark as a curve's Automatic control point: this too is a point the artist may drag
-                from ..rfoverlays.curve_overlay import KNOT_RADIUS, KNOT_BORDER_COLOR, AUTO_KNOT_FILL_COLOR
+                from ..rfoverlays.curve_overlay import KNOT_BORDER_COLOR, AUTO_KNOT_FILL_COLOR
                 pts2d = [ p for co, _ in L.pole_handles if (p := proj(co)) ]
                 if pts2d:
                     Drawing.draw2D_points(context, pts2d, AUTO_KNOT_FILL_COLOR, radius=KNOT_RADIUS, border=2, borderColor=KNOT_BORDER_COLOR)

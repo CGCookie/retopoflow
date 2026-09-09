@@ -515,20 +515,53 @@ def build_layout(plan):
 ##############################################
 # what a layout looks like at the boundary
 
-def straight_through(layout, loop):
-    ''' How many quads of a layout run along two consecutive boundary edges at a vert that is not one
-    of the loop's corners: the boundary passes straight through one of their corners, so on the mesh
-    they read as triangles. A pole or a grid corner landing on a plain boundary vert does this. '''
+def straight_through(layout, loop, bad=None):
+    ''' How many quads of a layout run along two consecutive boundary edges at one of the loop's
+    `bad` positions, by default every vert that is not a corner: the boundary passes straight through
+    one of their corners, so on the mesh they read as triangles. Pass the reflex corners too and it
+    also counts the quads that are concave there. A pole or a grid corner landing on such a vert does
+    this. '''
     m = len(loop.nodes)
+    if bad is None: bad = set(range(m)) - set(loop.corners)
     at = { key: i for i, key in enumerate(loop.nodes) }
-    corners = set(loop.corners)
     where = { k: at[layout.nodes[k]] for k in layout.existing if layout.nodes[k] in at }
     count = 0
     for f in layout.faces:
         if len(f) != 4: continue
         ps = { where[k] for k in f if k in where }
-        if any(p not in corners and (p - 1) % m in ps and (p + 1) % m in ps for p in ps): count += 1
+        if any(p in bad and (p - 1) % m in ps and (p + 1) % m in ps for p in ps): count += 1
     return count
+
+
+def odd_face_on_boundary(layout):
+    ''' Whether a face that is not a quad, the triangle or n-gon closing an odd loop, has one of the
+    loop's own verts as a corner: it then sits against a side rather than inside the fill. '''
+    return any(k in layout.existing for f in layout.faces if len(f) != 4 for k in f)
+
+
+def layout_key(layout):
+    ''' What a layout is as a mesh on its loop: its faces with the loop's own verts named by key and
+    every other vert by the verts round it, refined until the names stop splitting, so two layouts
+    that make the same quads between the same boundary verts get the same key however they were
+    built. Names are compressed to small ints each round (Weisfeiler-Lehman style), or they would
+    double in size every round. What tells one Solution from another; a turnout's two layings share
+    one. '''
+    around = {}
+    for a, b in layout.edges:
+        around.setdefault(a, set()).add(b)
+        around.setdefault(b, set()).add(a)
+    nodes = range(len(layout.nodes))
+    raw = { k: ('v', repr(layout.nodes[k])) if k in layout.existing else ('i',) for k in nodes }
+    ids = { r: i for i, r in enumerate(sorted(set(raw.values()))) }
+    name = { k: ids[raw[k]] for k in nodes }
+    distinct = len(ids)
+    for _ in nodes:
+        raw = { k: (name[k], tuple(sorted(name[j] for j in around.get(k, ())))) for k in nodes }
+        ids = { r: i for i, r in enumerate(sorted(set(raw.values()))) }
+        name = { k: ids[raw[k]] for k in nodes }
+        if len(ids) == distinct: break
+        distinct = len(ids)
+    return tuple(sorted(tuple(sorted(name[k] for k in f)) for f in layout.faces))
 
 
 ##############################################
@@ -677,3 +710,104 @@ def build_bow(sides, k, depth=1):
     for i in range(n):
         faces.append((inner[i], B[depth + i], B[depth + i + 1], inner[i + 1]))       # the innermost bow to the long rail
     return _junction_layout(nodes, faces, regions, existing), columns, bows
+
+
+##############################################
+# the turnout: an uneven step whose extra rows leave through the longer rail
+
+def orient_sides(sides, r, reflected=False):
+    ''' A loop's four sides laid over a rectangle in _columns' orientation: side r as sv0 (the top
+    rail), r + 1 as sv1 (the right side), r + 2 reversed as sv2 (the bottom rail) and r + 3 reversed
+    as sv3 (the left side). With `reflected` the loop is first run the other way round, so every one
+    of the eight ways of laying the rectangle is some (r, reflected). '''
+    if reflected: sides = [ s[::-1] for s in sides[::-1] ]
+    sv = [ sides[(r + i) % 4] for i in range(4) ]
+    return sv[0], sv[1], sv[2][::-1], sv[3][::-1]
+
+
+def oriented_index(r, reflected, i):
+    ''' Which of the loop's own sides orient_sides(sides, r, reflected) puts at sv_i. '''
+    return (3 - (r + i) % 4) if reflected else (r + i) % 4
+
+
+def turnout_fits(counts):
+    ''' Every way a four-sided loop takes a turnout, as (r, reflected) for orient_sides: the left
+    side sv3 has d >= 1 more edges than the right side sv1, and the bottom rail sv2 has d more than
+    the top rail sv0, which needs two or more for the poles' column to have a block on each side.
+    The ways leaving through the longer rail come first: the extra loops go out the larger side.
+    A loop that fits both ways round gives two layings, but they are one mesh seen from two sides
+    (layout_key agrees position for position), so the first is all a caller needs. '''
+    if len(counts) != 4: return []
+    fits = []
+    for reflected in (False, True):
+        c = counts[::-1] if reflected else list(counts)
+        for r in range(4):
+            top, right, bottom, left = (c[(r + i) % 4] for i in range(4))
+            d = left - right
+            if d >= 1 and bottom - top == d and top >= 2: fits.append((-bottom, reflected, r))
+    return [ (r, reflected) for _, reflected, r in sorted(fits) ]
+
+
+def turnout_shape(counts, orient):
+    ''' What tells one turnout laying from another as a shape: (base, short, d), the top rail's edges,
+    the short side's and the step. Layings of one shape are mirror images of each other across the
+    loop, one Solution whose Offset runs through the positions of each in turn. '''
+    r, reflected = orient
+    c = counts[::-1] if reflected else list(counts)
+    top, right, left = c[r % 4], c[(r + 1) % 4], c[(r + 3) % 4]
+    return top, right, left - right
+
+
+def turnout_positions(base, short, d):
+    ''' Every (k, j) a turnout can take between a top rail of base edges and a right side of short
+    edges, d rows turning out: the poles sit on column k, 1..base - 1, the 5-pole on line j, 1..short - 1,
+    or on the top rail (j = 0) when the short side is a single edge and there is no line to put it on.
+    Most central first; a tie goes to the column nearer the short side, where the rows converge. '''
+    tall = short + d
+    cands = [ (k, j) for k in range(1, base) for j in range(1 if short >= 2 else 0, short) ]
+    cands.sort(key=lambda kj: (round(abs(kj[0] / base - 0.5) + abs((kj[1] + d / 2) / tall - 0.5), 9), -kj[0], kj[1]))
+    return cands
+
+
+def build_turnout(sides, k, j):
+    ''' Layout of a four-sided loop whose left side sv3 has d more edges than its right side sv1 and
+    whose bottom rail sv2 has d more than its top rail sv0 (orient_sides' orientation). Columns run
+    between the rails: a block of k columns at the left side's row count, a block of base - k at the
+    right side's, and between them the seam, column k's line, with the 5-pole P on line j and the
+    3-pole Q on line j + d. The d rows between P and Q leave through the bottom rail across a d x w
+    wedge of quads, w the lines from Q to the bottom, whose corners are P, Q, the seam's foot on the
+    bottom rail and the rail vert d further along; the wedge's fourth side runs from that vert back
+    up to P and, with the seam above P, is the right block's left side. Every face is a quad, wound
+    with the loop; only P and Q are poles. Returns (Layout, left, right, wedge): left[c][r] the node
+    up column c of the left block (left[k] the seam), right[c - k][r] the right block's, wedge[u][v]
+    the wedge's, u from P toward Q and v from the seam toward the right; the caller places the seam
+    and the wedge's right side, the rest are region interiors. '''
+    sv0, sv1, sv2, sv3 = sides
+    base, short, tall = len(sv0) - 1, len(sv1) - 1, len(sv3) - 1
+    d, w = tall - short, short - j
+    nodes, index = [], {}
+
+    def idx(key):
+        if key not in index:
+            index[key] = len(nodes)
+            nodes.append(key)
+        return index[key]
+
+    left = [ [ idx(sv3[r] if c == 0 else sv0[c] if r == 0 else sv2[c] if r == tall else ('col', c, r))
+               for r in range(tall + 1) ] for c in range(k + 1) ]
+    seam = left[k]
+    comp = [ seam[r] if r <= j else idx(sv2[k + d]) if r == short else idx(('wedge', 0, r - j)) for r in range(short + 1) ]
+    right = [ comp ] + [ [ idx(sv1[r] if c == base else sv0[c] if r == 0 else sv2[c + d] if r == short else ('rcol', c, r))
+                           for r in range(short + 1) ] for c in range(k + 1, base + 1) ]
+    wedge = [ [ seam[j + u] if v == 0 else seam[j + d + v] if u == d else idx(sv2[k + d - u]) if v == w
+                else comp[j + v] if u == 0 else idx(('wedge', u, v))
+                for v in range(w + 1) ] for u in range(d + 1) ]
+    existing = { idx(key) for sv in sides for key in sv }
+    faces, regions = [], []
+    _blocks(faces, regions, [ left, right ])
+    for u in range(d):
+        for v in range(w):
+            # wound the other way round from a block, since the wedge's u runs down the seam that the left block's rows run up
+            faces.append((wedge[u][v], wedge[u][v + 1], wedge[u + 1][v + 1], wedge[u + 1][v]))
+    regions.append(wedge)
+    return _junction_layout(nodes, faces, regions, existing), left, right, wedge
