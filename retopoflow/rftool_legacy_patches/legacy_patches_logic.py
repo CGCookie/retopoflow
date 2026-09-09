@@ -823,6 +823,8 @@ class FillSolution:
     odd        : bool = False           # closes an odd loop with one triangle or n-gon: ranks behind the quad fills
     hint       : str | None = None      # shown while this fill is the one built
     build      : object = None          # () -> True built, False refused by its checks, None when the vert budget is spent
+    plans      : tuple = ()             # a pole fill: the ngon_layout.Plans Offset steps through, or the dragged pole picks from
+    split      : tuple | None = None    # a grid fill: its (span, offset into the loop) at Offset 0
 
 
 @dataclass
@@ -2128,8 +2130,8 @@ class LegacyPatches_Logic:
             loop is cut into single-pole pieces, Blender-style grid fill, and the turnout where rails and
             sides step by the same amount. An odd loop gets pole fills with one triangle or n-gon beside
             the pole. A side may hold points this fill is creating as well as the mesh's verts, as a
-            bridge's do; `rails` names the two sides a bridge created, which a turnout should leave
-            through rather than run its rows along. '''
+            bridge's do; `rails` names the sides a turnout should leave through rather than run its rows
+            along: the two a bridge created, or a C's back and the side closing it. '''
             counts = [ len(sv) - 1 for sv in sides ]
             total = sum(counts)
             if kind == 'rect' and counts[0] == counts[2] and counts[1] == counts[3]:
@@ -2393,7 +2395,7 @@ class LegacyPatches_Logic:
                     return build_layout_previz('ngon', layout_of(plan), bmv_of, bmvs, handle=loop_key,
                                                pole_co=placed if placed is not None else pole_estimate(plan),
                                                pole_fixed=placed is not None)
-                return FillSolution(group[0].kind, degenerate=NL.straight_through(layout_of(group[0]), loop, bad) > 0, odd=odd, build=build)
+                return FillSolution(group[0].kind, degenerate=NL.straight_through(layout_of(group[0]), loop, bad) > 0, odd=odd, build=build, plans=tuple(group))
 
             def grid_solution(span, off):
                 hint = None
@@ -2401,7 +2403,7 @@ class LegacyPatches_Logic:
                     edit = NL.cc_hint(counts)
                     fix = (' or '.join(f'{counts[i]}→{counts[i] + d}' for i, d in edit)) if edit else None
                     hint = f'Patches: no single-pole fill for sides {tuple(counts)}' + (f'; one pole needs e.g. {fix}' if fix else '')
-                return FillSolution(span, degenerate=any((off + k) % m in bad for k in (0, span, m // 2, m // 2 + span)), hint=hint,
+                return FillSolution(span, degenerate=any((off + k) % m in bad for k in (0, span, m // 2, m // 2 + span)), hint=hint, split=(span, off),
                                     build=lambda: built(lambda: emit_grid_split(bmvs, span, (off + settings.offset) % m, 'grid')))
 
             def junction_solution(which, orient):
@@ -3326,15 +3328,14 @@ class LegacyPatches_Logic:
             build_grid('L', l0, l1, boundary_at, interior_at, side, cap, pin=pin)
 
         ##############################################
-        # C: three strips; the missing side is the middle strip carried across by the end strips
+        # C: three strips; the missing side is the middle strip carried across by the end strips. Equal rails
+        # take a grid; rails of different counts close into a four-cornered loop and take its solutions
 
         for shape in shapes['C']:
             s0, s1, s2 = shape
             c0, c1, c2 = map(len, shape)
-            if c0 != c2: continue
             sv0, sv1, sv2 = get_verts(s0), get_verts(s1), get_verts(s2, True)
             l0, l1 = len(sv0), len(sv1)
-            if not budget((l0 - 1) * (l1 - 2)): break
             if sv0[-1] not in sv1: sv0.reverse()
             if sv1[-1] not in sv2: sv1.reverse()
             if sv2[-1] not in sv1: sv2.reverse()
@@ -3348,6 +3349,48 @@ class LegacyPatches_Logic:
             nrm = normal_fn(boundary)
             c00, c10, c01, c11 = sv0[0], sv0[-1], sv2[0], sv2[-1]
             n00, n10, n01, n11 = nrm(c00), nrm(c10), nrm(c01), nrm(c11)
+
+            if c0 != c2:
+                # no grid runs rail to rail between rails of different counts. The fourth side closes the C
+                # into a four-cornered loop, which gets every closed-loop solution the way a bridge does. Its
+                # edge count is what those need: the back's plus the step for the turnout leaving through it
+                # and the single pole, the back's own for a junction (or, with an odd step, the fills that
+                # close an odd loop with a triangle), and the back's less the step for the turnout leaving
+                # through the back
+                step = abs(c0 - c2)
+                side, cap = shape_side(boundary), shape_cap(boundary)
+                back = [ v.co for v in sv1 ]
+                fracs = _cumulative_fracs(back)
+
+                def fourth(n):
+                    # the created side, rail B's free end to rail A's in n edges: the back carried along the rails, sampled by length
+                    pts = [sv2[0]]
+                    for t in range(1, n):
+                        u = 1 - t / n           # fraction along the back from rail A's corner
+                        k = 0
+                        while k < len(back) - 2 and fracs[k + 1] < u: k += 1
+                        f = (u - fracs[k]) / max(fracs[k + 1] - fracs[k], 1e-9)
+                        co = back[k].lerp(back[k + 1], f) + off0 * (1 - u) + off2 * u
+                        pt = new_point(co, side, blend_pair(n00, n01, u), cap)
+                        pts.append(to_planes(pt, symmetry0) if use_symmetry else pt)
+                    pts.append(sv0[0])
+                    return pts
+
+                def closed(n):
+                    return [ list(sv0), list(sv1), sv2[::-1], fourth(n) ]
+
+                counts = [ c1 + step, c1 ] if step % 2 else [ c1, c1 + step ]
+                if c1 > step: counts.append(c1 - step)
+                entries, spent = [], False
+                for n in counts:
+                    if not budget(n - 1):
+                        spent = True
+                        break
+                    entries += solutions_for('rect', closed(n), rails=(1, 3))
+                if spent or not emit_ranked(entries): break
+                continue
+
+            if not budget((l0 - 1) * (l1 - 2)): break
 
             def boundary_at(i, j):
                 if i == l0 - 1: return sv1[j]
