@@ -24,7 +24,7 @@ import bpy
 from ..common.interface import draw_section_header, draw_section_indent
 
 
-def draw_relax_algo_options(context, layout, props=None):
+def draw_relax_algo_options(context, layout, props=None, draw_limits=True):
     if props is None:
         tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH')
         props = tool.operator_properties(tool.idname)
@@ -44,6 +44,8 @@ def draw_relax_algo_options(context, layout, props=None):
         layout.prop(props, 'algorithm_iterations', text="Iterations")
     layout.separator()
 
+    if not draw_limits:
+        return
     header, panel = layout.panel(idname='relax_panel_algo_limits', default_closed=True)
     header.label(text='Limit Distance')
     if panel:
@@ -69,9 +71,10 @@ def _relax_tool_props(context):
     return tool.operator_properties('retopoflow.relax') or None
 
 
-def draw_relax_options_all(context, layout, props):
+def draw_relax_options_all(context, layout, props, *, masking=False):
     """ Shared by the sidebar panel and the header popover. """
     from ..rftool_relax.relax import draw_relax_options
+    from .masking_panel import draw_masking_options
 
     # the standalone operator's own settings, which the brush has no equivalent for
     op_props = context.window_manager.operator_properties_last('retopoflow.relax_selected')
@@ -82,7 +85,13 @@ def draw_relax_options_all(context, layout, props):
     col.prop(op_props, 'iterations')
 
     col = layout.column(align=True)
-    draw_relax_algo_options(context, col, props)
+    draw_relax_algo_options(context, col, props, draw_limits=False)
+
+    if masking:
+        mask_header, mask_panel = layout.panel(idname='relax_panel_masking', default_closed=True)
+        mask_header.label(text="Masking")
+        if mask_panel:
+            draw_masking_options(context, mask_panel)
 
     header, panel = layout.panel(idname='relax_panel_brush', default_closed=True)
     header.label(text="Relax Brush")
@@ -128,7 +137,7 @@ class RFMenu_PT_Relax(bpy.types.Panel):
     def draw(self, context):
         props = _relax_tool_props(context)
         if not props: return
-        draw_relax_options_all(context, self.layout, props)
+        draw_relax_options_all(context, self.layout, props, masking=True)
 
 class RFMenu_PT_RelaxAlgorithm(bpy.types.Panel):
     bl_label = "Algorithm"
