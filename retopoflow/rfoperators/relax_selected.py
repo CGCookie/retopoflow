@@ -35,6 +35,8 @@ from ..common.raycast import nearest_point_valid_sources
 from ..common.snapping import (
     build_island_bvh, build_snap_sources, draw_snap_to_props, seed_source_snap_props,
 )
+from ..preferences import RF_Prefs
+from ..rfpanels.masking_panel import seed_masking_props
 from ..rfpanels.rfpanel_snapping import draw_hard_surface_snapping
 from ..rftool_relax.relax import seed_relax_algorithm_props
 from ..rftool_relax.relax_logic import Relax_Logic, RelaxOptions
@@ -227,16 +229,6 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
     # -------------------------------------------------------------------------
     # Masking settings
     # -------------------------------------------------------------------------
-    mask_selected: EnumProperty(
-        name='Selected',
-        description='Which vertices to relax based on selection state',
-        items=[
-            ('ALL',     'All',     'Relax all vertices regardless of selection',  'SELECT_EXTEND',     2),
-            ('ONLY',    'Only',    'Relax only selected vertices',                'SELECT_INTERSECT',  1),
-            ('EXCLUDE', 'Exclude', 'Relax only unselected vertices',              'SELECT_DIFFERENCE', 0),
-        ],
-        default='ONLY',
-    )
     mask_boundary: EnumProperty(
         name='Boundary',
         description='How to handle boundary geometry',
@@ -300,6 +292,11 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
         description='Include corners (vertices with exactly two edges)',
         default=True,
     )
+    include_pinned: BoolProperty(
+        name='Pinned',
+        description='Include vertices that have been pinned by Retopoflow',
+        default=False,
+    )
 
     # -------------------------------------------------------------------------
     # Debug settings
@@ -332,6 +329,7 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
             # Redo keeps any tweaks and the next fresh run re-seeds.
             seed_source_snap_props(context, self)
             seed_relax_algorithm_props(self)
+            seed_masking_props(context, self)
         return self.execute(context)
 
     def draw_warning(self, layout):
@@ -367,7 +365,6 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
         mask_header, mask_panel = layout.panel('relax_selected_mask', default_closed=True)
         mask_header.label(text='Masking')
         if mask_panel:
-            mask_panel.row(heading='Include').prop(self, 'include_corners', text='Corners')
             mask_panel.prop(self, 'mask_boundary',  text='Boundary')
             mask_panel.prop(self, 'mask_angle',     text='Sharp Angles')
             row = mask_panel.row()
@@ -376,6 +373,9 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
             mask_panel.prop(self, 'mask_seams',     text='Seams')
             mask_panel.prop(self, 'mask_sharps',    text='Sharps')
             mask_panel.prop(self, 'mask_creases',   text='Creases')
+            mask_panel.row(heading='Include').prop(self, 'include_corners', text='Corners')
+            if RF_Prefs.get_prefs(context).setup_pinning:
+                mask_panel.prop(self, 'include_pinned', text='Pinned')
 
         snap_header, snap_panel = layout.panel('relax_selected_snap', default_closed=True)
         snap_header.label(text='Snapping')
@@ -452,7 +452,9 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
         if self.use_proportional_edit and self.proportional_distance > 0:
             mw = context.edit_object.matrix_world
             prop_weights = get_falloff_verts(verts, mw, self.proportional_distance, self.proportional_falloff)
-            prop_verts = {v: w * self.strength for v, w in prop_weights.items() if v not in verts}
+            # the falloff flood-fill walks edges without regard for masking, so mask its result too
+            prop_allowed = logic.filter_verts(set(prop_weights) - verts)
+            prop_verts = {v: w * self.strength for v, w in prop_weights.items() if v in prop_allowed}
             vert_strength.update(prop_verts)
             verts = verts | set(prop_verts.keys())
 

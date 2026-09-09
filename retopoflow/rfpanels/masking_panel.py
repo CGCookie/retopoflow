@@ -24,6 +24,20 @@ import bpy
 from ..preferences import RF_Prefs
 from ..common.interface import draw_expandable_enum
 
+MASKING_PROP_NAMES = (
+    'mask_boundary',
+    'mask_angle', 'mask_angle_threshold',
+    'mask_seams', 'mask_sharps', 'mask_creases',
+    'include_corners', 'include_pinned',
+)
+
+def seed_masking_props(context, props):
+    ''' Copy the scene's masking settings onto an operator's matching props.
+    Call from invoke() while RF is running so each fresh run starts from the sidebar settings. '''
+    scene_props = context.scene.retopoflow
+    for name in MASKING_PROP_NAMES:
+        setattr(props, name, getattr(scene_props, name))
+
 
 def draw_pinning_options(context, layout):
     prefs = RF_Prefs.get_prefs(context)
