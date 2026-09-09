@@ -1176,7 +1176,7 @@ class LegacyPatches_Logic:
         LOFT_PARALLEL = LOFT_STACKED = 0.5  # two loops loft only when they face the same way and are stacked along their normals
         NGON_LAYOUT_PASSES = 8          # relax passes on an n-sided fill's pole and spokes before Smooth; the interiors are re-blended from them. Three left a bridge's pole short of where it settles
         NGON_MAX_FLIPPED = 0.1          # share of an n-sided fill's quads allowed to face the other way before it is refused as folded
-        NGON_MAX_ALTERNATIVES = 4       # corner-demotion and cut Solutions offered, each; one Solution is every plan of one shape (ngon_layout.plan_shape)
+        NGON_MAX_ALTERNATIVES = 4       # corner-demotion and cut Solutions offered, each, and an odd loop's demoted fills; one Solution is every plan of one shape (ngon_layout.plan_shape, phantom_shape)
         NGON_POLE_MARGIN = 0.75         # a pole stays at least this many mean boundary edges inside the loop, or its ring of quads collapses into slivers
         MAX_GRID_ASPECT = 3.0           # a grid split whose quads would be longer than this across is a sliver, not a Solution (the best split is always kept)
         NGON_EQUALIZE = 0.5             # how much of each relax step pulls a vert toward equal distance from its face centres, against the plain average of its neighbours
@@ -2331,26 +2331,36 @@ class LegacyPatches_Logic:
             if odd:
                 # no quad fill closes an odd loop: an imaginary extra vertex on one side, filled round a pole
                 # and taken out again, leaves one n-gon or triangle at the pole, drawn in the warning colour.
-                # Each way of taking it out is one Solution; which side carries the vertex is the pole handle
-                def side_len(j):
-                    a = corners[j]
-                    return sum((cos[(k + 1) % m] - cos[k]).length for k in range(a, a + counts[j])) / counts[j]
-                phantoms = NL.plan_phantom(loop)
-                phantoms.sort(key=lambda p: (p.score, -side_len(p.phantom[1])))
-                modes = []
-                for plan in phantoms:
-                    if plan.phantom[2] not in modes: modes.append(plan.phantom[2])
-                # within a mode, Offset 0 is the placement that keeps the triangle or n-gon off the sides and puts
-                # its pole nearest the loop's centre; the rest follow outward, ties in the order above. A mode
-                # whose best placement touches a side goes behind one whose best does not
+                # Each way of taking it out is one Solution; which side carries the vertex is the pole handle.
+                # A loop no side of which can carry the vertex (four sides need equal opposite sides) has
+                # corners demoted first, the least sharp first, and the loop left is filled the same way: 2,3,4,4
+                # becomes the 5,4,4 triangle, quads and one triangle. Those fills follow the loop's own, if any, and
+                # like the even loop's demotions at most NGON_MAX_ALTERNATIVES of them are offered
+                def side_len(plan):
+                    # mean edge length of the side carrying the vertex, on the loop the plan fills
+                    keys = [ k for k in plan.pieces[0][0].sides()[plan.phantom[1]] if k in bmv_of ]
+                    return sum((_co(bmv_of[a]) - _co(bmv_of[b])).length for a, b in zip(keys, keys[1:])) / max(1, len(keys) - 1)
+                by_rank = lambda p: (p.score, -side_len(p))
+                phantoms = sorted(NL.plan_phantom(loop), key=by_rank)
+                demoted = sorted(NL.plan_phantom_merges(loop, { c: sharp[c] for c in corners }), key=by_rank)
+                # within one shape (ngon_layout.phantom_shape: the loop filled and the way the vertex is taken out),
+                # Offset 0 is the placement that keeps the triangle or n-gon off the sides and puts its pole nearest
+                # the loop's centre; the rest follow outward, ties in the order above. A shape whose best placement
+                # touches a side goes behind one whose best does not, among the loop's own fills and within a demotion
                 centre = sum(cos, Vector()) / m
                 def off_centre(plan):
                     est = pole_estimate(plan)
                     return round((est - centre).length / mean_edge, 3) if est is not None else float('inf')
                 def against_side(plan):
                     return NL.odd_face_on_boundary(layout_of(plan))
-                groups = [ sorted([ p for p in phantoms if p.phantom[2] == mode ], key=lambda p: (against_side(p), off_centre(p))) for mode in modes ]
-                groups.sort(key=lambda g: against_side(g[0]))
+                def shape_groups(plans):
+                    shapes = []
+                    for p in plans:
+                        if NL.phantom_shape(p) not in shapes: shapes.append(NL.phantom_shape(p))
+                    return [ sorted([ p for p in plans if NL.phantom_shape(p) == sh ], key=lambda p: (against_side(p), off_centre(p))) for sh in shapes ]
+                groups = sorted(shape_groups(phantoms), key=lambda g: against_side(g[0]))
+                # score[1:3] is the demoted corners' turn and how many, so the least sharp demotion stays first
+                groups += sorted(shape_groups(demoted), key=lambda g: (g[0].score[1:3], against_side(g[0])))[:NGON_MAX_ALTERNATIVES]
                 grids = []
             else:
                 poles = NL.plan_pole(loop)
