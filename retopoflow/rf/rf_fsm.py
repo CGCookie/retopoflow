@@ -96,7 +96,10 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
             self.callback_view_change()
             tag_redraw_all('RF_FSM view change')
 
-        self.actions.hit_pos,self.actions.hit_norm,_,_ = self.raycast_sources_mouse()
+        if self._hover_ui:
+            self.actions.hit_pos, self.actions.hit_norm = None, None
+        else:
+            self.actions.hit_pos,self.actions.hit_norm,_,_ = self.raycast_sources_mouse()
         fpsdiv = self.document.body.getElementById('fpsdiv')
         if fpsdiv: fpsdiv.innerText = f'UI FPS: {self.document._draw_fps:.2f}'
 
@@ -957,4 +960,3 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
         self.fast_update_timer.stop()
         self.set_accel_defer(False)
         self.clear_split_target_visualization()
-

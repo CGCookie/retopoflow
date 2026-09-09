@@ -320,10 +320,10 @@ class EventHandler:
         if event and event.type != self.get_just_held('type'):
             return False
         delta = self.get_just_held('time') - time.time()
-        return delta < prefs.mouse_doubleclick()
+        return delta < bprefs.mouse_doubleclick()
 
     def is_dragging(self, *, event=None):
-        return get_held(event.type, prop='dragging') if event else self.get_first_held(prop='dragging')
+        return self.get_held(event.type, prop='dragging') if event else self.get_first_held(prop='dragging')
 
     def holding_non_modifiers(self):
         return bool(t for t in self._held if t not in self.keyboard_modifier_types)
@@ -422,4 +422,3 @@ class EventHandler:
 
         if event.type not in self.mouse_move_types:
             self._update_drag(event)
-

@@ -626,8 +626,25 @@ class UI_Styling:
 
     def clear_cache(self):
         # print(f'UI_Styling{self._uid}.clear_cache')
+        # rules are changing, so drop everything whose value was derived from them.
+        # NOTE: this runs often! An element's inline `style=` builds a UI_Styling, and
+        # those change as dialogs move and the tooltip follows the mouse.
         self._decllist_cache = {}
+        self._matches_cache = {}
         UI_Styling.trim_styling._cache = {}
+        UI_Styling.strip_selector_parts._cache = {}
+        # keyed by uid, so drop only the entries this styling took part in
+        UI_Styling.selected_attributes._cache = {
+            key: attribs
+            for (key, attribs) in UI_Styling.selected_attributes._cache.items()
+            if self._uid not in key
+        }
+
+    @staticmethod
+    def purge_selector_caches():
+        UI_Style_RuleSet._split_selector._cache = {}
+        UI_Style_RuleSet._join_selector_parts._cache = {}
+        UI_Style_RuleSet.selector_specificity._cache = {}
         UI_Styling.strip_selector_parts._cache = {}
 
 
@@ -1045,6 +1062,27 @@ class UI_Styling:
 
     @staticmethod
     @add_cache('_cache', {})
+    def selected_attributes(*stylings):
+        # names of the attributes that some rule in these stylesheets actually selects on.
+        # an attribute no rule mentions cannot change which rules match, but it still gets
+        # baked into every element's selector string, and those strings are the keys of
+        # get_decllist, strip_selector_parts and _split_selector below.
+        cache = UI_Styling.selected_attributes._cache
+        key = tuple(styling._uid if styling else None for styling in stylings)
+        if key not in cache:
+            split = UI_Style_RuleSet._split_selector
+            cache[key] = {
+                name
+                for styling in stylings if styling
+                for rule in styling._rules
+                for selector in rule.selectors
+                for part in (split(str(sel)) for sel in selector)
+                for name in (part['attribs'] | part['attribvals'].keys())
+            }
+        return cache[key]
+
+    @staticmethod
+    @add_cache('_cache', {})
     def strip_selector_parts(selector, strip):
         if not strip: return selector
         cache = UI_Styling.strip_selector_parts._cache
@@ -1116,6 +1154,8 @@ class UI_Styling:
 ui_defaultstylings = UI_Styling(defaults=True)
 def load_defaultstylings():
     global ui_defaultstylings
+    # every reload_stylings() comes through here, i.e. once per RF session start
+    UI_Styling.purge_selector_caches()
     path = get_path_from_addon_common('common', 'config', 'ui_defaultstyles.css')
     if os.path.exists(path): ui_defaultstylings.load_from_file(path)
     else: ui_defaultstylings.rules = []

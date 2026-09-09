@@ -57,13 +57,14 @@ class UI_Core_Style:
         else:
             ui_for = self.get_for_element()
 
+            # emit only the attributes that a loaded rule actually selects on.
+            styled_attribs = UI_Styling.selected_attributes(ui_defaultstylings, ui_draw.default_stylesheet)
+
             attribvals = {}
             type_val = self.type_with_for(ui_for)
-            if type_val: attribvals['type'] = type_val
-            value_val = self.value_with_for(ui_for)
-            if value_val: attribvals['value'] = value_val
+            if type_val and 'type' in styled_attribs: attribvals['type'] = type_val
             name_val = self.name
-            if name_val: attribvals['name'] = name_val
+            if name_val and 'name' in styled_attribs: attribvals['name'] = name_val
 
             is_disabled = False
             is_disabled |= self._value_bound and self._value.disabled
@@ -79,10 +80,12 @@ class UI_Core_Style:
             if is_disabled:
                 sel_pseudocls += ':disabled'
             if self.checked_with_for(ui_for):
-                sel_attribs    += '[checked]'
-                sel_attribvals += '[checked="checked"]'
+                # the :checked pseudoclass always goes in; the attribute forms only if styled
+                if 'checked' in styled_attribs:
+                    sel_attribs    += '[checked]'
+                    sel_attribvals += '[checked="checked"]'
                 sel_pseudocls  += ':checked'
-            if self.open:
+            if self.open and 'open' in styled_attribs:
                 sel_attribs += '[open]'
 
             self_selector = f'{sel_tagName}{sel_id}{sel_cls}{sel_attribs}{sel_attribvals}{sel_pseudocls}{sel_pseudoelem}'
