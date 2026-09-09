@@ -128,14 +128,14 @@ class LegacyPatches_Properties:
     # a loop that is not a rectangle is filled round a pole where its side counts allow, else like Blender's Grid Fill
     solution: bpy.props.IntProperty(
         name='Solution',
-        description='Which way to fill the loop: round one pole, with a corner demoted or the loop cut into single-pole pieces, or as a grid. 1 is the automatic choice; higher values flip through the alternatives and wrap round. Drag the pole handle to place the pole; Offset steps through its placements and puts a dragged pole back',
+        description='The topology strategy used to fill.',
         min=1,
         soft_max=16,
         default=PatchSettings.solution,
     )
     offset: bpy.props.IntProperty(
         name='Offset',
-        description='Rotate the four corners of a grid filled patch around its loop. On a patch filled round a pole, step through the placements the pole may take; adjusting it puts a dragged pole back',
+        description='The possible variations of each solution, such as rotating, mirroring, or moving the center pole',
         soft_min=-32,
         soft_max=32,
         default=PatchSettings.offset,

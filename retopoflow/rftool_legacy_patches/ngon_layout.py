@@ -154,6 +154,33 @@ def plan_key(plan):
             tuple((run[0], run[-1], len(run)) for run in plan.cuts))
 
 
+def _cycle_key(seq):
+    ''' The least rotation of the sequence or of its reverse: the same tuple for every way round a loop. '''
+    seq = tuple(seq)
+    return min(s[i:] + s[:i] for s in (seq, seq[::-1]) for i in range(len(seq)))
+
+
+def plan_shape(plan):
+    ''' What tells one solution from another as a shape rather than a placement: the kind, whether
+    the pole is inside, and each piece's side counts up to rotation and reflection. Plans sharing
+    one are the same solution seen from different corners, the opposite corner demoted or the cut
+    run from the other end, and are offered as one Solution with Offset stepping through them. '''
+    return (plan.kind, plan.strict, tuple(sorted(_cycle_key(loop.counts()) for loop, _ in plan.pieces)))
+
+
+def group_plans(plans):
+    ''' The plans in groups of one shape (plan_shape), groups in the order their first plan appears
+    and each keeping the plans' order, so a ranked list stays ranked. '''
+    groups, at = [], {}
+    for plan in plans:
+        key = plan_shape(plan)
+        if key not in at:
+            at[key] = len(groups)
+            groups.append([])
+        groups[at[key]].append(plan)
+    return groups
+
+
 def plan_pole(loop):
     ''' Single-pole plans for the loop as it is, strict first. '''
     counts = list(loop.counts())
@@ -483,3 +510,170 @@ def build_layout(plan):
     poles = [idx(k) for k in raw_poles]
     helpers = [tuple(idx(k) for k in h) for h in raw_helpers]
     return Layout(nodes, faces, edges, regions, polylines, cuts, poles, { idx(k) for k in existing }, unused, helpers)
+
+
+##############################################
+# what a layout looks like at the boundary
+
+def straight_through(layout, loop):
+    ''' How many quads of a layout run along two consecutive boundary edges at a vert that is not one
+    of the loop's corners: the boundary passes straight through one of their corners, so on the mesh
+    they read as triangles. A pole or a grid corner landing on a plain boundary vert does this. '''
+    m = len(loop.nodes)
+    at = { key: i for i, key in enumerate(loop.nodes) }
+    corners = set(loop.corners)
+    where = { k: at[layout.nodes[k]] for k in layout.existing if layout.nodes[k] in at }
+    count = 0
+    for f in layout.faces:
+        if len(f) != 4: continue
+        ps = { where[k] for k in f if k in where }
+        if any(p not in corners and (p - 1) % m in ps and (p + 1) % m in ps for p in ps): count += 1
+    return count
+
+
+##############################################
+# junctions: taking up a step of two between equal rails, the two-pole layouts worth offering
+
+def step_fits(counts):
+    ''' For a four-sided loop whose one pair of opposite sides is equal and whose other pair differs
+    by an even number: (r, m, n, d), the rotation r that puts the equal rails at sides r and r + 2 and
+    the shorter of the other two at r + 3, the rails' m edges, that shorter side's n and the half
+    difference d, the number of edge loops the step takes up. None otherwise. '''
+    if len(counts) != 4: return None
+    for r in range(4):
+        m, longer, shorter = counts[r], counts[(r + 1) % 4], counts[(r + 3) % 4]
+        if counts[(r + 2) % 4] == m and longer > shorter and (longer - shorter) % 2 == 0: return r, m, shorter, (longer - shorter) // 2
+    return None
+
+
+def junctions(m, n, d):
+    ''' The junctions that take up a step of 2 d between rails of m edges from a side of n, in the
+    order to offer them. The diamond, one 5-pole and one 3-pole, takes up a step of two and leads
+    there; it needs a rail of two and a short side of two to sit inside the loop. The bow fits
+    anywhere and takes up any step, one bow nested in the next, at the price of two 3-poles and an
+    extra edge on the rail's end verts. It leads when n is odd: it is symmetric about the middle row
+    where the diamond has to sit half a row off it. '''
+    kinds = ['bow']
+    if d == 1 and m >= 2 and n >= 2: kinds.insert(1 if n % 2 else 0, 'diamond')
+    return kinds
+
+
+def diamond_positions(m, n):
+    ''' Every (k, j) a diamond junction can take between rails of m edges, with n edges on the
+    shorter side: its 5-pole is vert j up column k, its 3-pole half a column past column k + 1.
+    Most central first, so Offset 0 is the one to reach for and the rest fan outward. '''
+    cands = [ (k, j) for k in range(m - 1) for j in range(1, n) ]
+    # the quad's centre lies about seven eighths of a column past its 5-pole
+    cands.sort(key=lambda kj: (round(abs((kj[0] + 0.875) / m - 0.5) + abs(kj[1] / n - 0.5), 9), kj))
+    return cands
+
+
+def bow_positions(m):
+    ''' Every k a bow junction can take between rails of m edges, the column it bows through being
+    k + 1. Most central first. '''
+    return sorted(range(m), key=lambda k: (round(abs((k + 0.5) / m - 0.5), 9), k))    # rounded, or a float tie breaks the wrong way
+
+
+def _columns(sides, height):
+    ''' Node indices up every column c of a four-sided loop, height(c) of them, the sides' own keys
+    where a column meets them: (nodes, idx, columns, existing). Sides are in the rectangle fill's order
+    and orientation, sv0 and sv2 the rails the columns cross between, sv3 up column 0 and sv1 up
+    column m: sv0[0] == sv3[0], sv0[-1] == sv1[0], sv2[0] == sv3[-1] and sv2[-1] == sv1[-1]. '''
+    sv0, sv1, sv2, sv3 = sides
+    m = len(sv0) - 1
+    nodes, index = [], {}
+
+    def idx(key):
+        if key not in index:
+            index[key] = len(nodes)
+            nodes.append(key)
+        return index[key]
+
+    columns = []
+    for c in range(m + 1):
+        col = []
+        for r in range(height(c)):
+            if r == 0: key = sv0[c]
+            elif r == height(c) - 1: key = sv2[c]
+            elif c == 0: key = sv3[r]
+            elif c == m: key = sv1[r]
+            else: key = ('rail', c, r)
+            col.append(idx(key))
+        columns.append(col)
+    existing = { idx(key) for sv in sides for key in sv }
+    return nodes, idx, columns, existing
+
+
+def _blocks(faces, regions, grids):
+    # regular runs of columns, grid[u][v] with every column the same height: quads wound like the loop
+    for grid in grids:
+        for u in range(len(grid) - 1):
+            for v in range(len(grid[u]) - 1):
+                faces.append((grid[u][v], grid[u + 1][v], grid[u + 1][v + 1], grid[u][v + 1]))
+        regions.append(grid)
+
+
+def _junction_layout(nodes, faces, regions, existing):
+    edges = sorted({ (min(a, b), max(a, b)) for f in faces for a, b in zip(f, f[1:] + f[:1]) })
+    return Layout(nodes, faces, edges, regions, [], [], [], existing, set(), [])
+
+
+def build_diamond(sides, k, j):
+    ''' Layout of a four-sided loop as columns of quads along two equal rails, sv0 and sv2, between a
+    side sv3 of n edges and a side sv1 of n + 2 (_columns' orientation), the diamond taking up the
+    step. The vert lines up column c hold n + 1 verts through column k, n + 2 on column k + 1 and n + 3
+    from column k + 2 on. Vert j up column k is the 5-pole L: the long side's lines j and j + 2 reach
+    column k + 1 as T and B and both run on into L, and its line j + 1 stops at the 3-pole R between
+    columns k + 1 and k + 2. [T, R, B, L] is the diamond, wound with the loop. Returns (Layout,
+    columns, R): columns[c][r] is the node index of vert r up column c, and R the 3-pole's, since the
+    caller places every one of them rather than a pole and its spokes. '''
+    n = len(sides[3]) - 1
+    m = len(sides[0]) - 1
+    nodes, idx, columns, existing = _columns(sides, lambda c: n + 1 if c <= k else n + 2 if c == k + 1 else n + 3)
+    R = idx(('pole', 0))
+    faces, regions = [], []
+    _blocks(faces, regions, [
+        [ columns[c][:n + 1] for c in range(k + 1) ],           # left of the junction
+        [ columns[k + u][:j + 1] for u in range(3) ],           # above it
+        [ columns[k + u][j + u:] for u in range(3) ],           # below it
+        [ columns[c] for c in range(k + 2, m + 1) ],            # right of it
+    ])
+    T, B, L = columns[k + 1][j], columns[k + 1][j + 1], columns[k][j]
+    faces.append((T, R, B, L))                                                       # the diamond
+    faces.append((T, columns[k + 2][j], columns[k + 2][j + 1], R))                   # the two quads the 3-pole closes
+    faces.append((R, columns[k + 2][j + 1], columns[k + 2][j + 2], B))
+    return _junction_layout(nodes, faces, regions, existing), columns, R
+
+
+def build_bow(sides, k, depth=1):
+    ''' Layout of a four-sided loop as columns of quads along two equal rails, sv0 and sv2, between a
+    side sv3 of n edges and a side sv1 of n + 2 depth (_columns' orientation), bows through column
+    k + 1 taking up the step. Columns through k hold n + 1 verts, those from k + 1 on n + 2 depth + 1.
+    Each of depth lines of n + 1 verts leaves column k's end verts and bows through the column, one
+    inside the next, splitting each of its rows; from the outside in, bow t's ends pair with the long
+    rail's verts t and n + 2 depth - t under one fan quad each, so the long side's outer lines end on
+    the bows and only the innermost bow's ends are 3-poles. Every face is a quad, wound with the loop.
+    Returns (Layout, columns, bows): columns[c][r] the node index of vert r up column c, bows[t][i]
+    the vert of bow t (outermost first) beside column k's vert i; the caller places every one of them. '''
+    n = len(sides[3]) - 1
+    m = len(sides[0]) - 1
+    long = n + 2 * depth
+    nodes, idx, columns, existing = _columns(sides, lambda c: n + 1 if c <= k else long + 1)
+    bows = [ [ idx(('bow', t, i)) for i in range(n + 1) ] for t in range(depth) ]
+    faces, regions = [], []
+    _blocks(faces, regions, [
+        [ columns[c] for c in range(k + 1) ],                   # left of the bows
+        [ columns[c] for c in range(k + 1, m + 1) ],            # right of them
+    ])
+    B = columns[k + 1]
+    lines = [columns[k]] + bows                                 # the rail, then each bow inward
+    for t in range(depth):
+        outer, inner = lines[t], lines[t + 1]
+        faces.append((outer[0], B[t], B[t + 1], inner[0]))                           # the fan quad over this bow's top end
+        for i in range(n):
+            faces.append((outer[i], inner[i], inner[i + 1], outer[i + 1]))           # each row between the two lines
+        faces.append((inner[n], B[long - t - 1], B[long - t], outer[n]))             # and the one under its bottom end
+    inner = bows[-1]
+    for i in range(n):
+        faces.append((inner[i], B[depth + i], B[depth + i + 1], inner[i + 1]))       # the innermost bow to the long rail
+    return _junction_layout(nodes, faces, regions, existing), columns, bows
