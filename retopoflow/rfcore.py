@@ -552,10 +552,10 @@ class RFCore:
         RFCore._last_rf_mesh_update_time = time.monotonic() # Reset timestamp so a startup geometry event never triggers a suppression window
 
         wm_type, space_type = bpy.types.WindowManager, bpy.types.SpaceView3D
-        RFCore._handle_draw_cursor = wm_type.draw_cursor_add(RFCore.handle_draw_cursor,   (context, context.area), 'VIEW_3D', 'WINDOW')
-        RFCore._handle_preview     = space_type.draw_handler_add(RFCore.handle_preview,   (context, context.area), 'WINDOW', 'PRE_VIEW')
-        RFCore._handle_postview    = space_type.draw_handler_add(RFCore.handle_postview,  (context, context.area), 'WINDOW', 'POST_VIEW')
-        RFCore._handle_postpixel   = space_type.draw_handler_add(RFCore.handle_postpixel, (context, context.area), 'WINDOW', 'POST_PIXEL')
+        RFCore._handle_draw_cursor = wm_type.draw_cursor_add(RFCore.handle_draw_cursor,   (context,), 'VIEW_3D', 'WINDOW')
+        RFCore._handle_preview     = space_type.draw_handler_add(RFCore.handle_preview,   (context,), 'WINDOW', 'PRE_VIEW')
+        RFCore._handle_postview    = space_type.draw_handler_add(RFCore.handle_postview,  (context,), 'WINDOW', 'POST_VIEW')
+        RFCore._handle_postpixel   = space_type.draw_handler_add(RFCore.handle_postpixel, (context,), 'WINDOW', 'POST_PIXEL')
         # tag_redraw_all('CC ui_start', only_tag=False)
 
         # bpy.app.handlers.depsgraph_update_post.append(RFCore.handle_depsgraph_update)
@@ -792,6 +792,9 @@ class RFCore:
 
     @staticmethod
     def remove_handlers():
+        # NOTE: Never call this from a draw or paint-cursor callback! Blender iterates the handler list with
+        # a saved next pointer, so removing a handler that comes later in the list frees the node the
+        # loop is about to read. Crashes. Callbacks return early instead.
         print('RFCore.remove_handlers')
         wm_type, space_type = bpy.types.WindowManager, bpy.types.SpaceView3D
         if RFCore._handle_preview:
@@ -873,9 +876,8 @@ class RFCore:
         return not top.bl_idname.startswith(MESH_SAFE_MODAL_PREFIXES)
 
     @staticmethod
-    def handle_draw_cursor(context : Context, area : Area, mouse : tuple[int, int]):
-        if len(area.spaces) == 0:
-            RFCore.remove_handlers()
+    def handle_draw_cursor(context : Context, mouse : tuple[int, int]):
+        if not RFCore.draw_callback_ok(context):
             return
         if not RFCore.is_running:
             # print('NOT RUNNING ANYMORE')
@@ -1017,9 +1019,16 @@ class RFCore:
                 RFCore.defer_recovery(RFCore.restart)
 
     @staticmethod
-    def handle_preview(context : Context, area : Area):
-        if not area or len(area.spaces) == 0 or context.mode != 'EDIT_MESH' or not RFCore.is_running:
-            RFCore.remove_handlers()
+    def draw_callback_ok(context : Context) -> bool:
+        ''' True when it is safe for a draw callback to touch RF state. '''
+        area = context.area
+        if not area or len(area.spaces) == 0:
+            return False
+        return RFCore.is_running
+
+    @staticmethod
+    def handle_preview(context : Context):
+        if not RFCore.draw_callback_ok(context) or context.mode != 'EDIT_MESH':
             return
 
         if RFCore.foreign_modal_blocks(context):
@@ -1034,9 +1043,8 @@ class RFCore:
         RFCore.attempt_handle_callback(op.draw_preview, context)
 
     @staticmethod
-    def handle_postview(context : Context, area : Area):
-        if not area or len(area.spaces) == 0 or context.mode != 'EDIT_MESH' or not RFCore.is_running:
-            RFCore.remove_handlers()
+    def handle_postview(context : Context):
+        if not RFCore.draw_callback_ok(context) or context.mode != 'EDIT_MESH':
             return
 
         global TEST_XMESH
@@ -1063,9 +1071,8 @@ class RFCore:
             RFCore.attempt_handle_callback(brush.draw_postview, context)
 
     @staticmethod
-    def handle_postpixel(context : Context, area : Area):
-        if not area or len(area.spaces) == 0 or context.mode != 'EDIT_MESH' or not RFCore.is_running:
-            RFCore.remove_handlers()
+    def handle_postpixel(context : Context):
+        if not RFCore.draw_callback_ok(context) or context.mode != 'EDIT_MESH':
             return
 
         if RFCore.foreign_modal_blocks(context):

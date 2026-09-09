@@ -32,7 +32,6 @@ from bpy.types import (
     Context, Event,
     Area, Window, WindowManager, SpaceView3D,
     Operator,
-    KeyMapItem,
     Timer,
     bpy_struct,
     Property,
@@ -44,7 +43,6 @@ from ..rfglobals import RFGlobals
 from ..rfoverlay_base import RFOverlay_Base
 from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.debug import Debugger
-from ...addon_common.common.useractions import event_match_blenderop
 from ...addon_common.terminal import term_printer
 
 
@@ -471,7 +469,6 @@ class RFOperator(RFOperator_KeymapContext):
     last_op : Operator | None = None
     _stop : bool = False
     _foreign_modal_ran : bool = False
-    fullscreen_keymaps : list[KeyMapItem] = []
     _draw_postpixel_overlay : object | None = None
 
     had_init : bool = False
@@ -603,13 +600,6 @@ class RFOperator(RFOperator_KeymapContext):
                 # in active_operators with _is_running set, and poll() refuses to start it again
                 _ = self.teardown(context)
                 return {'CANCELLED'}
-            keymap_items = user_keyconfigs.keymaps['Screen'].keymap_items
-            self.fullscreen_keymaps = [
-                km
-                for km in keymap_items
-                if km.idname == 'screen.screen_full_area'
-            ]
-
             if self.draw_postpixel_overlay.__func__ != RFOperator.draw_postpixel_overlay:
                 def draw_postpixel_overlay_safe():
                     # Don't touch tool state during or after outside modals that modify the bmesh
@@ -720,29 +710,6 @@ class RFOperator(RFOperator_KeymapContext):
                 # other RF operators on stack, so tickle them so they can see the changes
                 RFOperator.tickle(context)
             return ret
-
-        if 'PASS_THROUGH' in ret:
-            # check if passing event through might trigger something incompatible with RF
-            if event_match_blenderop(event, 'Screen | screen.screen_full_area'):
-                # attempting to full screen the area!
-                print('ATTEMPTING TO FULLSCREEN')
-                # this causes some machines to crash
-                # the RFOperator_MaximizeWatcher will catch, block, and message about this
-                # See issue #1615
-                return {'PASS_THROUGH'}
-
-                # ctx = { k: getattr(context,k) for k in ['window', 'area', 'region', 'screen'] }
-                # props = get_kmi_properties(kmi)
-                # def tickle():
-                #     RFOperator.tickle(bpy.context)
-                # def go_full_now():
-                #     with bpy.context.temp_override(**ctx):
-                #         bpy.ops.screen.screen_full_area(**props)
-                # self.stop()
-                # # RFCore.switch_to_tool('builtin.move')
-                # # RFCore.quick_switch_with_call(tickle, go_full_now, self.rf_idname, delay=0.125)
-                # RFCore.quick_switch_with_call(go_full_now, self.rf_idname, delay=0.125)
-                # return {'FINISHED'}
 
         return ret
 
