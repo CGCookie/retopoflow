@@ -24,6 +24,7 @@ import bpy
 import glob
 import time
 import atexit
+import traceback
 
 from .rf.rf_blender_objects import RetopoFlow_Blender_Objects
 from .rf.rf_blender_save    import RetopoFlow_Blender_Save
@@ -90,6 +91,9 @@ class RetopoFlow(
 ):
 
     instance = None
+
+    # CookieCutter calls this if the operator's RNA dies under a live session (add-on hot reload).
+    _cc_ui_orphan_recover = staticmethod(RetopoFlow_Blender_Save.recovery_revert_in_view3d)
 
     @classmethod
     def can_start(cls, context):
@@ -173,8 +177,37 @@ class RetopoFlow(
         self.unmark_sources_target()  # DO THIS AS ONE OF LAST
         sessionoptions.clear()
         RetopoFlow.instance = None
-        
+
         bpy.ops.ed.undo_push(message="RetopoFlow Exit")
+
+    @classmethod
+    def quit_running_instance(cls):
+        '''
+        synchronously shut down a live session from outside the modal loop.
+        needed by unregister(): the modal will never run again once its class is gone, so
+        setting self._done would do nothing, and a session left standing orphans its draw
+        handlers onto a freed operator RNA (every attribute read on it then raises).
+        best effort -- unregister must carry on regardless of what fails here.
+        '''
+        self = cls.instance
+        if not self: return
+        cls.instance = None
+        print('RetopoFlow: shutting down running session')
+        def guarded(label, fn):
+            try: fn()
+            except Exception as e:
+                print(f'  RetopoFlow: {label} failed during shutdown: {e}')
+                traceback.print_exc()
+        # drop the draw handlers before anything that might throw: everything else is
+        # recoverable, but a handler left hooked to a freed RNA is not
+        guarded('remove draw handlers', getattr(self, '_cc_ui_unhook', lambda: None))
+        # same sequence CookieCutter runs when a modal finishes normally
+        guarded('end_commit',         self.end_commit)
+        guarded('end',                self.end)
+        guarded('stop_running',       self.stop_running)
+        guarded('_cc_ui_end',         self._cc_ui_end)
+        guarded('_cc_actions_end',    self._cc_actions_end)
+        guarded('_cc_exception_done', self._cc_exception_done)
 
 
 
@@ -269,4 +302,3 @@ class RetopoFlow(
 
 
 RetopoFlow.cc_debug_print_to = 'RetopoFlow_Debug'
-

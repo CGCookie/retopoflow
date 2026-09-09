@@ -22,6 +22,7 @@ Created by Jonathan Denning, Jonathan Williamson
 import os
 import math
 import inspect
+import traceback
 from inspect import ismethod, isfunction, signature
 from collections import namedtuple
 from contextlib import contextmanager
@@ -39,6 +40,7 @@ def get_view3d_area(context=None):
     # assuming: context.screen is correct, and a SINGLE VIEW_3D area!
     if not context: context = bpy.context
     if context.area and context.area.type == 'VIEW_3D': return context.area
+    if not context.screen: return None
     return next((a for a in context.screen.areas if a.type == 'VIEW_3D'), None)
 
 def get_view3d_region(context=None):
@@ -157,6 +159,12 @@ class StoreRestore:
             try:
                 self._restoring = True
                 fn_set(self._storage[k])
+            except Exception as e:
+                # keep going.  restore_all walks every setting in one loop, so letting this
+                # propagate strands all the later ones -- and losing the panels restore
+                # leaves the artist staring at a viewport with no UI to click.
+                print(f'Addon Common: could not restore {k}: {e}')
+                traceback.print_exc()
             finally:
                 self._restoring = False
         if discard: self.discard(k)
@@ -259,6 +267,7 @@ class BlenderSettings:
     def _get_region(*, label=None, type=None):
         if label: type = region_label_to_data[label].type
         area = get_view3d_area()
+        if not area: return None
         return next((r for r in area.regions if r.type == type), None)
     @staticmethod
     def _get_regions():
@@ -964,27 +973,31 @@ def get_active_object(): return bpy.context.view_layer.objects.active
 def get_from_dict_or_object(o, k): return o[k] if type(o) is dict else getattr(o, k)
 def toggle_property(o, k): setattr(o, k, not getattr(o, k))
 
+def toggle_screen_region(ctx, prop):
+    # ctx['space_data'] is None whenever there is no area context -- add-on unregister,
+    # timers, handlers -- so fall back to the window's 3D View.  raising here would abort
+    # the whole settings restore and leave the artist with the panels still hidden.
+    space = ctx['space_data'] if type(ctx) is dict else None
+    if not space: space = get_view3d_space(None if type(ctx) is dict else ctx)
+    if not space: return
+    toggle_property(space, prop)
+
 def toggle_screen_header(ctx):
     # print(f'Addon Common Warning: Cannot toggle header visibility (addon_common/common/blender.py: toggle_screen_header)')
     # print(f'  Skipping while bug exists in Blender 4.0+, see: https://developer.blender.org/T93410')
-    space = ctx['space_data'] if type(ctx) is dict else get_view3d_space(ctx)
-    toggle_property(space, 'show_region_header')
+    toggle_screen_region(ctx, 'show_region_header')
 
 def toggle_screen_tool_header(ctx):
-    space = ctx['space_data'] if type(ctx) is dict else get_view3d_space(ctx)
-    toggle_property(space, 'show_region_tool_header')
+    toggle_screen_region(ctx, 'show_region_tool_header')
 
 def toggle_screen_toolbar(ctx):
-    space = ctx['space_data'] if type(ctx) is dict else get_view3d_space(ctx)
-    toggle_property(space, 'show_region_toolbar')
+    toggle_screen_region(ctx, 'show_region_toolbar')
 
 def toggle_screen_properties(ctx):
-    space = ctx['space_data'] if type(ctx) is dict else get_view3d_space(ctx)
-    toggle_property(space, 'show_region_ui')
+    toggle_screen_region(ctx, 'show_region_ui')
 
 def toggle_screen_lastop(ctx):
-    space = ctx['space_data'] if type(ctx) is dict else get_view3d_space(ctx)
-    toggle_property(space, 'show_region_hud')
+    toggle_screen_region(ctx, 'show_region_hud')
 
 
 

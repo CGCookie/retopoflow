@@ -82,6 +82,21 @@ class RetopoFlow_Blender_Save:
         return False
 
     @staticmethod
+    def recovery_revert_in_view3d():
+        # recovery_revert reaches for VIEW_3D space/region settings, so it needs a real
+        # 3D View context.  supply one when it is driven from a timer rather than the UI.
+        window = bpy.context.window
+        screen = window.screen if window else None
+        area   = next((a for a in screen.areas if a.type == 'VIEW_3D'), None) if screen else None
+        if not area:
+            RetopoFlow_Blender_Save.recovery_revert()
+            return
+        space  = next((s for s in area.spaces  if s.type == 'VIEW_3D'), None)
+        region = next((r for r in area.regions if r.type == 'WINDOW'),  None)
+        with bpy.context.temp_override(window=window, screen=screen, area=area, space_data=space, region=region):
+            RetopoFlow_Blender_Save.recovery_revert()
+
+    @staticmethod
     def recovery_revert():
         print('RetopoFlow: recovering from auto save')
 

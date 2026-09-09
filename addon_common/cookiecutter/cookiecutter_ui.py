@@ -98,35 +98,91 @@ class CookieCutter_UI:
     def ignore_ui_events(self, v):
         self._ignore_ui_events = bool(v)
 
+    @staticmethod
+    def _cc_ui_orphan_recover():
+        # subclasses override to put Blender back the way the session found it after the
+        # operator's RNA dies underneath a live session.  MUST stay a staticmethod: a bound
+        # method would raise ReferenceError the moment the orphan path tried to call it.
+        pass
+
     def _cc_ui_start(self):
+        # the handles live in this closure rather than on self, and unhooking goes through
+        # it too.  if the operator's RNA is freed while these handlers are still hooked up
+        # -- an add-on hot reload during a session -- then *every* attribute read on self
+        # raises ReferenceError, including the ones needed to unhook or to report the error.
+        handles  = []
+        orphaned = []
+        # captured while self is still alive: the region-darken covers are hooked to every
+        # space type and would otherwise leave the whole editor dimmed with no way back.
+        # region_darken/region_restore keep this list's identity stable so it stays current.
+        if not hasattr(self, '_postpixel_callbacks'): self._postpixel_callbacks = []
+        covers = self._postpixel_callbacks
+        # a staticmethod read off the instance is a plain function, so it still works after
+        # the RNA is gone -- unlike anything bound
+        recover = getattr(self, '_cc_ui_orphan_recover')
+
+        def unhook():
+            space = bpy.types.SpaceView3D
+            while handles: space.draw_handler_remove(handles.pop(), 'WINDOW')
+            while covers:
+                (s, a, cb) = covers.pop()
+                try: s.draw_handler_remove(cb, a)
+                except Exception: pass
+            return None                         # do not repeat, when run as a timer
+
+        def orphan_cleanup():
+            unhook()
+            try: recover()
+            except Exception as e: print(f'CookieCutter: orphan recovery failed: {e}')
+            tag_redraw_all('CC orphan cleanup', only_tag=False)
+            return None
+
+        def orphan():
+            # self is unusable, so there is nothing to report through -- and nothing to do
+            # but shut the session down from the outside.  it has to be deferred: unhooking
+            # a later draw handler from inside a draw callback frees a node Blender's draw
+            # loop still holds.
+            if orphaned: return
+            orphaned.append(True)
+            print('CookieCutter: draw handlers outlived their operator; shutting session down')
+            bpy.app.timers.register(orphan_cleanup, first_interval=0)
+
         def preview():
+            if orphaned: return
             try: self.drawcallbacks.pre3d()
+            except ReferenceError: orphan()
             except Exception as e:
                 self._handle_exception(e, 'draw pre3d')
                 ScissorStack.end(force=True)
         def postview():
             # print('***** postview')
+            if orphaned: return
             try: self.drawcallbacks.post3d()
+            except ReferenceError: orphan()
             except Exception as e:
                 self._handle_exception(e, 'draw post3d')
                 ScissorStack.end(force=True)
         def postpixel():
             # print('***** postpixel')
+            if orphaned: return
             gpustate.blend('ALPHA')
             try: self.drawcallbacks.post2d()
+            except ReferenceError: return orphan()
             except Exception as e:
                 self._handle_exception(e, 'draw post2d')
                 ScissorStack.end(force=True)
             try: self.document.draw(self.context)
+            except ReferenceError: return orphan()
             except Exception as e:
                 self._handle_exception(e, 'draw window UI')
                 ScissorStack.end(force=True)
                 self._done = True               # consider this a fatal failure
 
         space = bpy.types.SpaceView3D
-        self._handle_preview   = space.draw_handler_add(preview,   tuple(), 'WINDOW', 'PRE_VIEW')
-        self._handle_postview  = space.draw_handler_add(postview,  tuple(), 'WINDOW', 'POST_VIEW')
-        self._handle_postpixel = space.draw_handler_add(postpixel, tuple(), 'WINDOW', 'POST_PIXEL')
+        handles.append(space.draw_handler_add(preview,   tuple(), 'WINDOW', 'PRE_VIEW'))
+        handles.append(space.draw_handler_add(postview,  tuple(), 'WINDOW', 'POST_VIEW'))
+        handles.append(space.draw_handler_add(postpixel, tuple(), 'WINDOW', 'POST_PIXEL'))
+        self._cc_ui_unhook = unhook
         tag_redraw_all('CC ui_start', only_tag=False)
 
     def _cc_ui_update(self):
@@ -137,11 +193,10 @@ class CookieCutter_UI:
         return self._hover_ui
 
     def _cc_ui_end(self):
+        # unhook first: whatever else fails here, the handlers must not outlive the operator
+        unhook = getattr(self, '_cc_ui_unhook', None)   # unset if we never reached _cc_ui_start
+        if unhook: unhook()
         self._cc_blenderui_end()
-        space = bpy.types.SpaceView3D
-        space.draw_handler_remove(self._handle_preview,   'WINDOW')
-        space.draw_handler_remove(self._handle_postview,  'WINDOW')
-        space.draw_handler_remove(self._handle_postpixel, 'WINDOW')
         self.region_restore()
         self.context.workspace.status_text_set(None)
         tag_redraw_all('CC ui_end', only_tag=False)
@@ -161,7 +216,9 @@ class CookieCutter_UI:
     def region_darken(self):
         if hasattr(self, '_region_darkened'): return    # already darkened!
         self._region_darkened = True
-        self._postpixel_callbacks = []
+        # reuse the list rather than rebinding it: _cc_ui_start captures this exact list so
+        # an orphaned handler can still undarken (see the comment there)
+        if not hasattr(self, '_postpixel_callbacks'): self._postpixel_callbacks = []
 
         # darken all spaces
         spaces = [(getattr(bpy.types, n), n) for n in dir(bpy.types) if n.startswith('Space')]
@@ -189,7 +246,7 @@ class CookieCutter_UI:
         # remove callback handlers
         if hasattr(self, '_postpixel_callbacks'):
             for (s,a,cb) in self._postpixel_callbacks: s.draw_handler_remove(cb, a)
-            del self._postpixel_callbacks
+            self._postpixel_callbacks.clear()           # clear, do not rebind: see region_darken
         if hasattr(self, '_region_darkened'):
             del self._region_darkened
         tag_redraw_all('CC region_restore', only_tag=False)

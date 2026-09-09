@@ -1248,6 +1248,10 @@ def register():
     bpy.types.VIEW3D_MT_editor_menus.append(VIEW3D_PT_RetopoFlow.draw_popover)
 
 def unregister():
-    if import_succeeded: ImagePreloader.quit()
+    if import_succeeded:
+        # a session still running here (hot reload, add-on disabled) would leave its draw
+        # handlers hooked to an operator whose RNA is about to be freed
+        retopoflow.RetopoFlow.quit_running_instance()
+        ImagePreloader.quit()
     bpy.types.VIEW3D_MT_editor_menus.remove(VIEW3D_PT_RetopoFlow.draw_popover)
     for cls in reversed(RF_classes): bpy.utils.unregister_class(cls)
