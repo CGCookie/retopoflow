@@ -945,11 +945,11 @@ class SessionOptions:
             bpy.data.texts.new(cls.textblockname)
         data = copy.deepcopy(SessionOptions.default)
         data['retopoflow']['timestamp'] = str(datetime.now())
-        cls._save_data(data)
         if use_cache:
             global retopoflow_datablocks_cache
             retopoflow_datablocks_cache[cls.textblockname] = data
-            return retopoflow_datablocks_cache[cls.textblockname]
+        # cache must be seeded before saving
+        cls._save_data(data, use_cache=use_cache)
         return data
 
     @classmethod
@@ -1162,9 +1162,11 @@ class SessionOptions:
 
     @classmethod
     def clear(cls):
-        if not cls.has_session_data(): return
-        textblock = bpy.data.texts[cls.textblockname]
-        bpy.data.texts.remove(textblock)
+        global retopoflow_datablocks_cache
+        # Drop the cached copy! Otherwise the next RF entry won't rebuild it properly
+        retopoflow_datablocks_cache.pop(cls.textblockname, None)
+        if cls.textblockname not in bpy.data.texts: return
+        bpy.data.texts.remove(bpy.data.texts[cls.textblockname])
 
 
 # set all the default values!
