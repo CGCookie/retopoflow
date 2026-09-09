@@ -125,7 +125,7 @@ class LegacyPatches_Properties:
         subtype='DISTANCE',
     )
 
-    # a loop that is not a rectangle is filled round a pole where its side counts allow, else like Blender's Grid Fill
+    # the fills LegacyPatches_Logic.solutions_for ranks for a loop, and the placement of the chosen one
     solution: bpy.props.IntProperty(
         name='Solution',
         description='The topology strategy used to fill.',
@@ -270,9 +270,8 @@ class RFOperator_LegacyPatches_Fill(LegacyPatches_Properties, RFOperator_Execute
         LegacyPatches_Logic.ctrl_locked = (bool(event.ctrl) or LegacyPatches_Logic.nearest_active
                                            or LegacyPatches_Logic.ctrl_forced)
 
-        # a fresh fill starts from the tool's settings; a redo comes straight to execute with the redo panel's.
-        # Outside the tool the operator's own last values stand, except that a fresh fill starts at the
-        # automatic Solution and Offset, as a new selection does inside it
+        # a fresh fill starts from the tool's settings (a redo comes straight to execute with the redo panel's);
+        # outside the tool the operator's own last values stand, at the automatic Solution and Offset
         src = LegacyPatches_Logic.tool_props(context)
         if src:
             for name in PATCH_SETTING_NAMES:
@@ -283,20 +282,17 @@ class RFOperator_LegacyPatches_Fill(LegacyPatches_Properties, RFOperator_Execute
             self.solution, self.offset = 1, 0
         settings = PatchSettings(**{ name: getattr(self, name) for name in PATCH_SETTING_NAMES })
 
-        # Rebuild for the selection as it is now, always, with the settings the fill will use: outside the
-        # tool no overlay keeps a preview alive, inside it the overlay may not have drawn since the
-        # selection changed, and a preview left over from the last selection must not decide the key's fate
+        # rebuild for the selection as it is now, with the settings the fill will use: outside the tool no overlay
+        # keeps a preview alive, and inside it a preview left from the last selection must not decide the key's fate
         try:
             LegacyPatches_Logic._recompute(context, settings)
         except ReferenceError:
             LegacyPatches_Logic._clear_products()
         if not LegacyPatches_Logic.previz:
-            # A patch of connected faces joins into one n-gon, which is what F means there. Blender's own
-            # F would only lay an n-gon over the top, so the dissolve is done here; this operator then
-            # has nothing to register or redo. The undo step has to be pushed by hand: this operator has
-            # UNDO, and while one is running Blender pushes no step for the operators it calls (the undo
-            # depth), whatever they ask for. Without it the join left no step, so Ctrl+Z jumped back past
-            # it, and the redo of the next fill landed on the quads it had joined, with nothing to fill
+            # a patch of connected faces joins into one n-gon, which is what F means there; Blender's own F would
+            # only lay an n-gon over the top. The undo step is pushed by hand: while an UNDO operator runs, Blender
+            # pushes no step for the operators it calls, and without one Ctrl+Z jumped back past the join and the
+            # next fill's redo landed on the quads it had joined
             if LegacyPatches_Logic.selection_is_face_patch(context):
                 try:
                     if bpy.ops.mesh.dissolve_faces() == { 'FINISHED' }:
@@ -305,8 +301,8 @@ class RFOperator_LegacyPatches_Fill(LegacyPatches_Properties, RFOperator_Execute
                     pass
                 context.area.tag_redraw()
                 return { 'CANCELLED' }
-            # Anything else: hand the key on so Blender's own fill gets it. This must be PASS_THROUGH
-            # from invoke, not a failing poll: Blender re-checks poll before a redo, when the preview is empty.
+            # anything else is Blender's own fill's. PASS_THROUGH from invoke, not a failing poll: Blender re-checks
+            # poll before a redo, when the preview is empty
             return { 'PASS_THROUGH' }
         # the fill re-reads the selection itself; if it finds nothing after all, the key is still Blender's
         if not self._fill(context):
@@ -320,8 +316,7 @@ class RFOperator_LegacyPatches_Fill(LegacyPatches_Properties, RFOperator_Execute
         return True
 
     def execute(self, context : Context) -> set[str]:
-        # the redo panel's path: a failed refill is worth a word, since no key is waiting behind it; the
-        # rebuild's own message says why when it knows
+        # the redo panel's path: no key waits behind a failed refill, so it is worth a word
         if not self._fill(context):
             self.report({'WARNING'}, LegacyPatches_Logic.error or 'Patches: nothing to fill. Select boundary edges forming a rectangle, L, C, two parallel strips, a single strip to step outward, or four vertices, or hold Ctrl and hover between four nearby vertices')
             return { 'CANCELLED' }
@@ -453,44 +448,44 @@ class RFOperator_LegacyPatches_DragPole(RFOperator):
 # offset for a grid fill, steps for an offset. With nothing previewed, the fill just committed is
 # re-run with the changed value instead, collapsing onto one undo step so its redo panel stays live.
 
-def _refill_with(context : Context, last, **changes) -> bool:
+def refill_with(context : Context, last, **changes) -> bool:
     props = { name: getattr(last, name) for name in PATCH_SETTING_NAMES }
     props.update(changes)
     bpy.ops.ed.undo()
     return bpy.ops.retopoflow.legacy_patches_fill('EXEC_DEFAULT', True, **props) == {'FINISHED'}
 
-def _last_fill(context : Context):
+def last_fill(context : Context):
     ops = context.window_manager.operators
     last = ops[-1] if ops else None
     return last if last is not None and last.name == RFOperator_LegacyPatches_Fill.bl_label else None
 
-def _scroll_count(context : Context, sign : int):
+def scroll_count(context : Context, sign : int):
     L = LegacyPatches_Logic
     if L.adjust_count(context, sign): return
-    last = _last_fill(context)
+    last = last_fill(context)
     if last is None: return
     was_bridge, was_grid, _, was_offset, was_quad = L.filled_flags
     if was_bridge:
-        _refill_with(context, last, span_insert_mode='FIXED', crosses=max(0, L.filled_loops + sign))    # an explicit count stops deriving one
+        refill_with(context, last, span_insert_mode='FIXED', crosses=max(0, L.filled_loops + sign))    # an explicit count stops deriving one
     elif was_grid:
-        _refill_with(context, last, solution=(last.solution - 1 + sign) % L.filled_solutions + 1)
+        refill_with(context, last, solution=(last.solution - 1 + sign) % L.filled_solutions + 1)
     elif was_quad:
-        _refill_with(context, last, crosses=max(0, last.crosses + sign))
+        refill_with(context, last, crosses=max(0, last.crosses + sign))
     elif was_offset:
-        _refill_with(context, last, steps=max(1, last.steps + sign))   # a step normally leaves its next step previewed, so this only runs when that was refused
+        refill_with(context, last, steps=max(1, last.steps + sign))   # a step normally leaves its next step previewed, so this only runs when that was refused
 
-def _scroll_offset(context : Context, sign : int):
+def scroll_offset(context : Context, sign : int):
     L = LegacyPatches_Logic
     if L.adjust_offset(context, sign): return
-    last = _last_fill(context)
+    last = last_fill(context)
     if last is not None:
         _, was_grid, was_loft, _, _ = L.filled_flags
         if was_grid or was_loft:
             which = 'offset' if was_grid else 'twist'
-            _refill_with(context, last, **{which: getattr(last, which) + sign})
+            refill_with(context, last, **{which: getattr(last, which) + sign})
             return
         if L.filled_free_step:
-            _refill_with(context, last, step_scale=L.scaled_step(last.step_scale, sign))
+            refill_with(context, last, step_scale=L.scaled_step(last.step_scale, sign))
             return
     # nothing of ours to turn: topo-rotate the selection, when that can actually happen (it needs
     # selected faces with one closed perimeter, and raises or reports otherwise)
@@ -526,7 +521,7 @@ class RFOperator_LegacyPatches_CountDecrease(RFOperator_Execute):
     ]
 
     def execute(self, context : Context) -> set[str]:
-        _scroll_count(context, -1)
+        scroll_count(context, -1)
         context.area.tag_redraw()
         return { 'FINISHED' }
 
@@ -543,7 +538,7 @@ class RFOperator_LegacyPatches_CountIncrease(RFOperator_Execute):
     ]
 
     def execute(self, context : Context) -> set[str]:
-        _scroll_count(context, +1)
+        scroll_count(context, +1)
         context.area.tag_redraw()
         return { 'FINISHED' }
 
@@ -560,7 +555,7 @@ class RFOperator_LegacyPatches_OffsetDecrease(RFOperator_Execute):
     ]
 
     def execute(self, context : Context) -> set[str]:
-        _scroll_offset(context, -1)
+        scroll_offset(context, -1)
         context.area.tag_redraw()
         return { 'FINISHED' }
 
@@ -577,7 +572,7 @@ class RFOperator_LegacyPatches_OffsetIncrease(RFOperator_Execute):
     ]
 
     def execute(self, context : Context) -> set[str]:
-        _scroll_offset(context, +1)
+        scroll_offset(context, +1)
         context.area.tag_redraw()
         return { 'FINISHED' }
 
@@ -641,7 +636,7 @@ class PatchCornerChainProvider(ChainProvider):
         return specs or None
 
 
-class _CurveHandlesGate(ChainProvider):
+class CurveHandlesGate(ChainProvider):
     ''' A provider that only answers while the tool's Curve Handles setting is on. '''
     def __init__(self, provider : ChainProvider):
         self.provider = provider
@@ -655,24 +650,24 @@ class _CurveHandlesGate(ChainProvider):
 # The curve handle overlay, as the logic class rather than the finished operator that
 # create_curve_overlay would hand back. A tool only gets one rf_overlay slot, so the patch preview
 # subclasses this instead of running alongside it.
-_LegacyPatches_Curve_Overlay = create_curve_overlay_logic(
+LegacyPatches_Curve_Overlay = create_curve_overlay_logic(
     MAIN_OP_IDNAME,
     'legacy_patches_overlay',
     'Legacy Patches Overlay',
     # same providers in the same order as PolyPen, PolyStrips and Strokes, gated by Curve Handles:
     # faces win, so loop curves only appear when the selection is edges-only. The patch corners come
     # between them and are always on: a boundary selection's corners are the patch's control points
-    [_CurveHandlesGate(QuadStripChainProvider()), PatchCornerChainProvider(), _CurveHandlesGate(LoopStripChainProvider(only_boundary=True))],
+    [CurveHandlesGate(QuadStripChainProvider()), PatchCornerChainProvider(), CurveHandlesGate(LoopStripChainProvider(only_boundary=True))],
 )
 
 
-class RFOperator_LegacyPatches_Overlay(_LegacyPatches_Curve_Overlay, RFOperator):
+class RFOperator_LegacyPatches_Overlay(LegacyPatches_Curve_Overlay, RFOperator):
     ''' The patch preview and the shared curve handle overlay in one modal. '''
     bl_description : str = 'Previews the patches that Fill will create, and the curve handles of the selection'
 
     # The Ctrl modal only reads the mouse, the same reason it carries rf_patches_passive. Without
     # this the curve rebuild treats it as a foreign op and the handles blink out while Ctrl is held.
-    ignore_modal_bl_idnames = _LegacyPatches_Curve_Overlay.ignore_modal_bl_idnames | {
+    ignore_modal_bl_idnames = LegacyPatches_Curve_Overlay.ignore_modal_bl_idnames | {
         _internal_bl_idname(RFOperator_LegacyPatches_Draw.bl_idname),
     }
 
@@ -681,7 +676,7 @@ class RFOperator_LegacyPatches_Overlay(_LegacyPatches_Curve_Overlay, RFOperator)
         return RFCore.selected_RFTool_idname != RFTool_LegacyPatches.bl_idname if RFCore else True
 
     def _curve_handles_enabled(self, context : Context) -> bool:
-        return True     # the corner control points are always on; the Curve Handles setting gates the other providers
+        return True     # the corner control points are always on; CurveHandlesGate gates the other providers
 
     pole_hovered : bool = False
 
