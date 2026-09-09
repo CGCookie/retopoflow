@@ -44,17 +44,21 @@ This document contains details about what has changed in Retopoflow in version 4
     - `Ctrl LMB` on vertices to add or remove corners as needed
     - Hit `Enter`, `Ctrl LMB` (not on the selected vertices) or `F` to accept the fill
     - Select the edges around a hole to fill it
-        - `Ctrl Scroll` can be used to cycle through solutions when multiple exist
     - Select boundary edges to face step them
         - When the selection ends in a corner, it will step and connect similar to the F2 add-on,
             but this works for entire loops not just single faces
         - `Ctrl Scroll` to step multiple times
         - `Shift Scroll` to adjust the step width
-    - Select perpendicular boundary edges that form an L shape to complete it with a grid
-    - Select any n-gon to replace it with a quad patch if possible
+    - Select perpendicular boundary edges that form an L shape to fill it
+    - Select parallel boundary edges facing each other to create a bridge
+    - Select three boundary loops with four corners that form a U shape to fill it
+    - Select any n-gon to replace it with a patch
     - Select a corner vert to make a quad, same as the F2 add-on
+    - `Ctrl Scroll` can be used to cycle through solutions when multiple exist
     - `Shift scroll` before or after filling a patch to rotate the solution
     - `Alt R` on any selected faces to rotate the topology in any tool
+    - Solutions with triangles and n-gons are supported when quad solutions don't exist
+        - non-quads are highlighted and very obvious
 - Added new hotkey `F` to access Patches from any tool
     - Tapping `F` will auto-fill the selection using the Patches algorithm
     - Holding `F` will temporarily switch you into Patches, giving you an interactive

@@ -14,7 +14,7 @@ s_j edges, and the region at each corner is a regular grid. Strict CC-ability (a
 the pole inside; an s_i of 0 puts it on the boundary.
 '''
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from functools import lru_cache
 import itertools
 
@@ -255,6 +255,40 @@ def plan_phantom(loop):
                 plans.append(Plan('phantom', [(piece, s)], phantom=(0, j, mode), score=(1, 0, rank, 0)))
     plans.sort(key=lambda p: p.score)
     return plans
+
+
+def plan_phantom_merges(loop, sharpness=None):
+    ''' plan_phantom's plans for the loops left by demoting some corners (plan_merges' move), for an
+    odd loop that can carry the imaginary vertex on none of its own sides: a four-sided loop has a
+    single pole only with opposite sides equal, so 2,3,4,4 gets nothing, but with the corner between
+    the 2 and the 3 demoted it is the 5,4,4 triangle, which has one. sharpness maps a corner position
+    to how sharply the boundary turns there; the plans demoting the least sharp corners rank first,
+    then fewer demotions, then plan_phantom's order. `demoted` keeps the demoted corners' node keys;
+    the piece is the demoted loop with the imaginary vertex on side j of that loop. '''
+    cs = loop.corners
+    n = len(cs)
+    plans = []
+    for r in range(1, n - 2):
+        for demote in itertools.combinations(range(n), r):
+            kept = tuple(cs[k] for k in range(n) if k not in demote)
+            merged = Loop(loop.nodes, kept)
+            turn = sum(sharpness.get(cs[k], 0.0) for k in demote) if sharpness else 0.0
+            for p in plan_phantom(merged):
+                plans.append(replace(p, demoted=tuple(loop.nodes[cs[k]] for k in demote), score=(1, round(turn, 3), r) + p.score[2:]))
+    plans.sort(key=lambda p: p.score)
+    return plans
+
+
+def phantom_shape(plan):
+    ''' What tells one odd-loop Solution from another: the side counts of the loop the plan fills,
+    demoted corners merged and the imaginary vertex taken out again, up to rotation and reflection,
+    with the way it is taken out. Plans sharing one are placements of the same fill, on any side
+    and with mirror-image corners demoted, which Offset steps through. '''
+    piece, _ = plan.pieces[0]
+    _, j, mode = plan.phantom
+    counts = list(piece.counts())
+    counts[j] -= 1
+    return _cycle_key(counts), mode
 
 
 def _cut_loop(loop, p, q, cut_nodes):
