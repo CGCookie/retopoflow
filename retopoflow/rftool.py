@@ -166,6 +166,17 @@ class RFTool:
             ret.append(fn(self, *args, **kwargs))
         return ret
 
+    def _callback_once(self, *events):
+        # fire several events back to back, running each subscribed handler only once. #1429
+        seen, ordered = set(), []
+        for event in reversed(events):
+            for fn in reversed(self._callbacks.get(event, [])):
+                if fn in seen: continue
+                seen.add(fn)
+                ordered.append(fn)
+        for fn in reversed(ordered):
+            fn(self)
+
     def call_with_self_in_context(self, fn, *args, **kwargs):
         return fn(*args, **kwargs)
 
@@ -188,13 +199,7 @@ class RFTool:
         self._callback_next_frame = {}
         RFTool._draw_count = -1
         self._fsm.force_reset()
-        self._callback('reset')
-        self._update_all()
-
-    def _update_all(self):
-        self._callback('timer')
-        self._callback('target change')
-        self._callback('view change')
+        self._callback_once('reset', 'timer', 'target change', 'view change')
 
     def _fsm_update(self):
         if   self.actions.mousemove:      self._callback('mouse move')
