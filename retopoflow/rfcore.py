@@ -892,6 +892,7 @@ class RFCore:
         if context.area not in RFCore.running_in_areas:
             print(f'LAUNCHING IN NEW AREA {context.area.x},{context.area.y}')
             _ = bpy_ops_retopoflow('core')
+            RFCore.ensure_overlay_running()
         else:
             # print(f'handle_draw_cursor: context.area: {context.area.x},{context.area.y}')
             if not RFCore.is_current_area(context):
@@ -912,6 +913,20 @@ class RFCore:
         #     if brush:
         #         print(f'updating brush {brush}')
         #         pass
+
+    @staticmethod
+    def ensure_overlay_running():
+        ''' Relaunch the selected tool's overlay (curve handles, patch preview) if it isn't running. '''
+        rftool = RFCore.get_selected_rftool()
+        if not rftool or not rftool.rf_overlay: return
+        overlay = rftool.rf_overlay
+        # rf_overlay is typed as RFOverlay_Base, but every overlay is also an RFOperator
+        is_running = getattr(overlay, 'is_running', None)
+        if is_running and is_running(): return
+        try:
+            overlay.activate()
+        except Exception as e:
+            print(f'RFCore.ensure_overlay_running: could not relaunch {overlay.__name__}: {e}')
 
     @staticmethod
     def cursor_warp(context : Context, point : Sequence[int]):
@@ -1350,13 +1365,12 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
             RFOperator.tickled()
 
         if not context.area:
-            # THIS HAPPENS WHEN THE UI LAYOUT IS CHANGED WHILE RUNNING
-            # WORKAROUND: restart modal operator with correct context
-            if RFCore.selected_RFTool_idname:
-                print('RFCore_Operater.modal: no context.area. attempting a restart')
-                RFCore.quick_switch_to_reset(RFCore.selected_RFTool_idname)
-            else:
-                print('RFCore_Operator.modal: no context.area and no selected RFTool. exiting!')
+            # The area this operator launched in is gone. Don't stop/start RF here.
+            # Drawing already follows context.area, so only this operator is stale.
+            print('RFCore_Operator.modal: no context.area. Retiring core.')
+            if self.running_in_area and self.running_in_area in RFCore.running_in_areas:
+                RFCore.running_in_areas.remove(self.running_in_area)
+            self.running_in_area = None
             return {'FINISHED'}
 
         if context.area.type != 'VIEW_3D':
