@@ -37,6 +37,9 @@ import math
 import ctypes
 import random
 import traceback
+from itertools import chain
+
+import numpy as np
 
 import gpu
 import bpy
@@ -117,6 +120,10 @@ class BufferedRender_Batch:
     LINES     = 2
     TRIANGLES = 3
 
+    # the two triangles each point/segment expands into, in quad-corner coordinates
+    POINT_OFFSETS = np.array([(0,0), (1,0), (0,1), (0,1), (1,0), (1,1)], dtype=np.float32)
+    LINE_OFFSETS  = np.array([(0,0), (0,1), (1,1), (0,0), (1,1), (1,0)], dtype=np.float32)
+
     def __init__(self, drawtype):
         global faces_shader, edges_shader, verts_shader
         self.count = 0
@@ -129,32 +136,61 @@ class BufferedRender_Batch:
         self.batch = None
         self._quarantine.setdefault(self.shader, set())
 
+    @staticmethod
+    def _as_f32(seq, width):
+        # batch_for_shader hands whatever it gets to GPUVertBuf.attr_fill.  a numpy array
+        # goes in as a memcpy; a python list makes attr_fill walk every element and unbox
+        # it, which is where most of the cost of buffering a dense mesh used to sit.
+        #
+        # a flat fromiter beats asarray on a list of tuples by about 2x -- asarray walks
+        # the nested sequence, fromiter just drains the chained iterator.
+        if isinstance(seq, np.ndarray):
+            arr = np.ascontiguousarray(seq, dtype=np.float32)
+        elif width == 1:
+            arr = np.fromiter(seq, dtype=np.float32, count=len(seq))
+        else:
+            arr = np.fromiter(chain.from_iterable(seq), dtype=np.float32, count=width*len(seq))
+        return arr.reshape(-1, width) if width > 1 else arr
+
     def buffer(self, pos, norm, sel, warn, pin, seam):
         if self.shader == None: return
+        count = len(pos)
+        as_f32 = BufferedRender_Batch._as_f32
+
+        if not count:
+            # attr_fill rejects a zero-length (0,3) array, and draw() already skips on
+            # count 0, so leave the batch the way __init__ left it
+            self.batch, self.count = None, 0
+            return
+
         if self.shader_type == 'POINTS':
+            # each vert becomes a screen-space quad: 6 verts, one per corner of the two
+            # triangles, all sharing the point's own attributes
             data = {
-                # repeat each value 6 times
-                'vert_pos':    [p for p in pos  for __ in range(6)],
-                'vert_norm':   [n for n in norm for __ in range(6)],
-                'selected':    [s for s in sel  for __ in range(6)],
-                'warning':     [w for w in warn for __ in range(6)],
-                'pinned':      [p for p in pin  for __ in range(6)],
-                'seam':        [p for p in seam for __ in range(6)],
-                'vert_offset': [o for _ in pos for o in [(0,0), (1,0), (0,1), (0,1), (1,0), (1,1)]],
+                'vert_pos':    np.repeat(as_f32(pos,  3), 6, axis=0),
+                'vert_norm':   np.repeat(as_f32(norm, 3), 6, axis=0),
+                'selected':    np.repeat(as_f32(sel,  1), 6),
+                'warning':     np.repeat(as_f32(warn, 1), 6),
+                'pinned':      np.repeat(as_f32(pin,  1), 6),
+                'seam':        np.repeat(as_f32(seam, 1), 6),
+                'vert_offset': np.tile(self.POINT_OFFSETS, (count, 1)),
             }
         elif self.shader_type == 'LINES':
+            # pos arrives two entries per edge; the per-edge attributes are duplicated
+            # across both, so the even entries carry everything the quad needs
+            apos = as_f32(pos, 3)
             data = {
-                # repeat each value 6 times
-                'vert_pos0':   [p0 for p0 in pos [0::2] for __ in range(6)],
-                'vert_pos1':   [p1 for p1 in pos [1::2] for __ in range(6)],
-                'vert_norm':   [n  for n  in norm[0::2] for __ in range(6)],
-                'selected':    [s  for s  in sel [0::2] for __ in range(6)],
-                'warning':     [w  for w  in warn[0::2] for __ in range(6)],
-                'pinned':      [p  for p  in pin [0::2] for __ in range(6)],
-                'seam':        [s  for s  in seam[0::2] for __ in range(6)],
-                'vert_offset': [o for _ in pos[0::2] for o in [(0,0), (0,1), (1,1), (0,0), (1,1), (1,0)]],
-        }
+                'vert_pos0':   np.repeat(apos[0::2], 6, axis=0),
+                'vert_pos1':   np.repeat(apos[1::2], 6, axis=0),
+                'vert_norm':   np.repeat(as_f32(norm, 3)[0::2], 6, axis=0),
+                'selected':    np.repeat(as_f32(sel,  1)[0::2], 6),
+                'warning':     np.repeat(as_f32(warn, 1)[0::2], 6),
+                'pinned':      np.repeat(as_f32(pin,  1)[0::2], 6),
+                'seam':        np.repeat(as_f32(seam, 1)[0::2], 6),
+                'vert_offset': np.tile(self.LINE_OFFSETS, (count // 2, 1)),
+            }
         elif self.shader_type == 'TRIS':
+            # no expansion here, the conversion cost is not worth it
             data = {
                 'vert_pos':    pos,
                 'vert_norm':   norm,
@@ -164,7 +200,7 @@ class BufferedRender_Batch:
             }
         else: assert False, f'BufferedRender_Batch.buffer: Unhandled type: {self.shader_type}'
         self.batch = batch_for_shader(self.shader, 'TRIS', data)
-        self.count = len(pos)
+        self.count = count
 
     def set_options(self, prefix, opts):
         if not opts: return
@@ -322,4 +358,3 @@ class BufferedRender_Batch:
             if mx and my and mz: self._draw(-1, -1, -1)
 
         gpu.shader.unbind()
-
