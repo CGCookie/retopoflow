@@ -113,9 +113,18 @@ class PolyPen(RFTool, PolyPen_Insert):
     @RFTool.not_while_navigating
     @FSM.onlyinstate('main')
     def update_nearest(self):
-        self.nearest_vert,_ = self.rfcontext.accel_nearest2D_vert(max_dist=options['polypen merge dist'], selected_only=True)
-        self.nearest_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['polypen merge dist'], selected_only=True)
-        self.nearest_face,_ = self.rfcontext.accel_nearest2D_face(max_dist=options['polypen merge dist'], selected_only=True)
+        # each accel_nearest2D_* call fetches the accel struct itself, and even on the
+        # cache-hit path that revalidates every visible vert, edge and face. fetch it
+        # once and hand the same one to all three.
+        vis_accel = self.rfcontext.get_accel_visible(selected_only=True)
+        merge_dist = options['polypen merge dist']
+        if vis_accel:
+            self.nearest_vert,_ = self.rfcontext.accel_nearest2D_vert(max_dist=merge_dist, selected_only=True, vis_accel=vis_accel)
+            self.nearest_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=merge_dist, selected_only=True, vis_accel=vis_accel)
+            self.nearest_face,_ = self.rfcontext.accel_nearest2D_face(max_dist=merge_dist, selected_only=True, vis_accel=vis_accel)
+        else:
+            # matches what accel_nearest2D_* return when there is no accel struct
+            self.nearest_vert, self.nearest_edge, self.nearest_face = None, None, None
         self.nearest_geom = self.nearest_vert or self.nearest_edge or self.nearest_face
 
     @FSM.on_state('main', 'enter')
@@ -273,6 +282,3 @@ class PolyPen(RFTool, PolyPen_Insert):
         self.rfcontext.fast_update_timer.stop()
         self.rfcontext.set_accel_defer(False)
         self.rfcontext.clear_split_target_visualization()
-
-
-

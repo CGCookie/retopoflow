@@ -51,8 +51,11 @@ from ...config.options import options, themes
 
 
 class Knife_Insert():
+    USE_CROSSES_CACHE = True
+
     skip_edges: set = set()
     split_edge_vert = None
+    _crosses_cache = None   # (p0, p1, draw_count, target_version, crosses)
 
     @RFTool.on_quickswitch_start
     def quickswitch_start(self):
@@ -380,6 +383,13 @@ class Knife_Insert():
     def _get_crosses(self, p0, p1):
         # Calculate intersections between line segment p0-p1 and visible edges
         # Returns list of (point, intersected_element, distance) tuples
+
+        if self.USE_CROSSES_CACHE and self._crosses_cache is not None:
+            cp0, cp1, cdraw, cver, ccrosses = self._crosses_cache
+            if cdraw == self.rfcontext._draw_count and cp0 == p0 and cp1 == p1 and cver == self.rfcontext.get_target_version():
+                # callers extend the list they get back, so never hand out the cached one
+                return list(ccrosses)
+
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
         dist = self.rfcontext.drawing.scale(options['knife snap dist'])
         crosses = set()
@@ -410,10 +420,10 @@ class Knife_Insert():
                 continue
             v0, v1 = e.verts
             c0, c1 = Point_to_Point2D(v0.co), Point_to_Point2D(v1.co)
-            
+
             # Skip invalid/degenerate edges
             if (c0-c1).length < 0.000001: continue
-                
+
             # Calculate intersection with a small epsilon to handle floating point precision
             i = intersect2d_segment_segment(p0, p1, c0, c1)
             if i:
@@ -424,7 +434,7 @@ class Knife_Insert():
                 if on_p0p1 and on_c0c1:
                     add(ip, e)
                     continue
-                    
+
             # Existing snap checks
             clc0 = closest2d_point_segment(c0, p0, p1)
             clc1 = closest2d_point_segment(c1, p0, p1)
@@ -436,6 +446,8 @@ class Knife_Insert():
             elif (clp1 - p1).length <= dist: add(clp1, e)
             elif i:                          add(Point2D(i), e)
         crosses = sorted(crosses, key=lambda cross: cross[2])
+        if self.USE_CROSSES_CACHE:
+            self._crosses_cache = (p0.copy(), p1.copy(), self.rfcontext._draw_count, self.rfcontext.get_target_version(), list(crosses))
         return crosses
 
     ''' Drawing functions for visualization. '''

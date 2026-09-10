@@ -75,10 +75,11 @@ class Accel2D:
         verts = [ co for e in edges for co in e.verts ]
         return Accel2D(label, verts, edges, [], Point_to_Point2Ds)
 
-    def _insert_edge(self, edge):
-        pts_list = zip(*[ self.Point_to_Point2Ds(v.co, v.normal) for v in edge.verts ])
-        for co0, co1 in pts_list:
-            (i0, j0), (i1, j1) = self.compute_ij(co0), self.compute_ij(co1)
+    def _insert_edge(self, edge, get_vert_ijs=None):
+        if get_vert_ijs is None:
+            get_vert_ijs = lambda v: [ self.compute_ij(pt) for pt in self.Point_to_Point2Ds(v.co, v.normal) ]
+        ijs_list = zip(*[ get_vert_ijs(v) for v in edge.verts ])
+        for (i0, j0), (i1, j1) in ijs_list:
             mini, minj, maxi, maxj = min(i0, i1), min(j0, j1), max(i0, i1), max(j0, j1)
             for i in range(mini, maxi + 1):
                 for j in range(minj, maxj + 1):
@@ -97,16 +98,27 @@ class Accel2D:
         self._is_face = lambda elem: isinstance(elem, face_type)
         self.bins = {}
 
+        # Point_to_Point2Ds is expensive, a matrix multiply and a symmetry walk per call.
+        # Project once and reuse the result.
+        #
+        # visible_edges() keeps an edge when any of its verts is visible, so an edge here
+        # can name a vert that is not in `verts`. Those verts get projected on demand.
+        vert_points = { v: list(Point_to_Point2Ds(v.co, v.normal)) for v in self.verts }
+        def get_vert_points(v):
+            pts = vert_points.get(v)
+            if pts is None: pts = vert_points[v] = list(Point_to_Point2Ds(v.co, v.normal))
+            return pts
+
         # collect all involved pts so we can find bbox
         with time_it('collect', enabled=Accel2D.DEBUG):
             bbox = BBox2D()
             with time_it('collect verts', enabled=Accel2D.DEBUG):
-                bbox.insert_points(pt for v in verts for pt in Point_to_Point2Ds(v.co, v.normal))
+                bbox.insert_points(pt for pts in vert_points.values() for pt in pts)
             with time_it('collect edges and faces', enabled=Accel2D.DEBUG):
                 bbox.insert_points(
                     pt
-                    for ef in chain(edges, faces)
-                    for ef_pts in zip(*[Point_to_Point2Ds(v.co, v.normal) for v in ef.verts])
+                    for ef in chain(self.edges, self.faces)
+                    for ef_pts in zip(*[get_vert_points(v) for v in ef.verts])
                     for pt in ef_pts
                 )
         if bbox.count == 0:
@@ -125,24 +137,29 @@ class Accel2D:
         tot_inserted = 0
         max_spread = (1, 1, 1)
 
+        ij_cache = { v: [self.compute_ij(pt) for pt in pts] for (v, pts) in vert_points.items() }
+        def get_vert_ijs(v):
+            ijs = ij_cache.get(v)
+            if ijs is None: ijs = ij_cache[v] = [self.compute_ij(pt) for pt in get_vert_points(v)]
+            return ijs
+
         # inserting verts
         with time_it('insert verts', enabled=Accel2D.DEBUG):
-            for v in verts:
-                for pt in Point_to_Point2Ds(v.co, v.normal):
+            for v in self.verts:
+                for ij in ij_cache[v]:
                     tot_inserted += 1
-                    i, j = self.compute_ij(pt)
-                    self._put((i, j), v)
+                    self._put(ij, v)
 
         # inserting edges and faces
         with time_it('insert edges and faces', enabled=Accel2D.DEBUG):
-            for e in edges:
-                self._insert_edge(e)
-            for ef in faces:
-                ef_pts_list = zip(*[Point_to_Point2Ds(v.co, v.normal) for v in ef.verts])
-                for ef_pts in ef_pts_list:
+            for e in self.edges:
+                self._insert_edge(e, get_vert_ijs)
+            for ef in self.faces:
+                ef_ijs_list = zip(*[get_vert_ijs(v) for v in ef.verts])
+                for ef_ijs in ef_ijs_list:
                     tot_inserted += 1
-                    bbox2 = BBox2D((self.compute_ij(pt) for pt in ef_pts))
-                    mini, minj, maxi, maxj = int(bbox2.mx), int(bbox2.my), int(bbox2.Mx), int(bbox2.My)
+                    mini, minj = min(ij[0] for ij in ef_ijs), min(ij[1] for ij in ef_ijs)
+                    maxi, maxj = max(ij[0] for ij in ef_ijs), max(ij[1] for ij in ef_ijs)
                     sizei, sizej = maxi - mini + 1, maxj - minj + 1
                     if (spread := sizei*sizej) > max_spread[0]: max_spread = (spread, sizei, sizej)
                     for i in range(mini, maxi + 1):
@@ -221,4 +238,3 @@ class Accel2D:
     @profiler.function
     def get_faces(self, v2d, within):
         return self.get(v2d, within, fn_filter=self._is_face)
-
