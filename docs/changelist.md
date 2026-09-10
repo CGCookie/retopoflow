@@ -2,6 +2,12 @@
 
 This document contains details about what has changed in RetopoFlow since version 2.x.
 
+### RetopoFlow 3.4.10&rarr;3.4.11
+
+- Slightly improved general performance
+- Added options.py variable to save files to user directory
+- Fixed incorrect scaling on save then undo
+
 ### RetopoFlow 3.4.9&rarr;3.4.10
 
 - Fixed disconnected edge sometimes being created in PolyStrips
