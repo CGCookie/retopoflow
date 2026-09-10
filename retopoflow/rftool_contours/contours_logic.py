@@ -32,7 +32,7 @@ from typing import Literal
 from bmesh.types import BMVert, BMEdge, BMFace, BMesh
 from bpy.types import Context, Mesh
 from bpy_extras.view3d_utils import location_3d_to_region_2d
-from mathutils import Matrix, Vector
+from mathutils import Matrix, Vector, kdtree
 from ..common.bmesh import (
     get_bmesh_emesh, get_object_bmesh, evict_object_bmesh,
     has_mirror_x, has_mirror_y, has_mirror_z,
@@ -128,6 +128,7 @@ class Contours_Logic:
     span_count : int
     show_twist : bool
     twist : float
+    twist_ring_count : int   # verts around the last ring placed, so one scroll notch is one vert of twist
     show_loop_count : bool
     loop_count : int
     cyclic : bool
@@ -220,6 +221,7 @@ class Contours_Logic:
         self.path_length = None
         self.mirror_clipped_loop = None
         self.ring_sharp_verts = set()
+        self.twist_ring_count = 0
         self.mirror_threshold = 1e-4
 
     def update(self, context:Context):
@@ -450,6 +452,15 @@ class Contours_Logic:
             visited.add(nexts[0])
         return ordered
 
+    def split_twist(self, twist: float, ring_count: int) -> tuple[int, float]:
+        ''' Split a twist angle into whole verts of roll around the ring plus the sub-vert angle left over. '''
+        # A sharp cut pins its verts to the corners, so twisting should trade them not move them.
+        if ring_count < 3 or not twist:
+            return 0, 0.0
+        step = 2 * math.pi / ring_count
+        roll = math.ceil(abs(twist) / step - 1e-9) * (1 if twist > 0 else -1)
+        return roll, twist - roll * step
+
     def redistribute_ring(self, context: Context, new_bmvs: Sequence[BMVert]):
         '''Move ring verts along the cut path per the Contours settings. '''
         if not (self.points and self.path_length):
@@ -479,9 +490,19 @@ class Contours_Logic:
         # The projection can occasionally land two verts out of order; nudge them apart so the gap logic holds
         base = enforce_path_min_gap(base, self.cyclic, 0.05 / n)
 
+        # Twist. Corners trade verts rather than slide smoothly.
+        self.twist_ring_count = n
+        can_twist = self.cyclic and not self.mirror_clipped_loop
+        twist_roll, twist_residual = self.split_twist(self.twist, n) if can_twist else (0, 0.0)
+        if twist_residual:
+            base = [f + twist_residual / (2 * math.pi) for f in base]
+
         sharp = {i for i, bmv in enumerate(ordered_nbmvs) if bmv in self.ring_sharp_verts}
         final = place_ring_facs(self.points, self.cyclic, base, self.path_length, self.curvature_bias, self.space_evenly,
                                 sharp_verts=sharp)
+        if twist_roll:
+            k = twist_roll % n
+            final = list(final[k:]) + list(final[:k])
         def moved(i):
             d = final[i] - base[i]
             if self.cyclic:
@@ -556,8 +577,15 @@ class Contours_Logic:
             for bme in bmv.link_edges
             if any(bv in orig_verts for bv in bme.verts)
         })
-        # Mean extrusion length, measured before subdividing splits these edges
-        max_correction = mean_world_edge_length(lateral_edges, _M)
+        # How far the ring actually travelled, measured before subdividing splits the lateral edges.
+        # Distance to the nearest vert of the loop being extruded from, not along the lateral edges.
+        max_correction = 0.0
+        if new_bmvs and orig_verts:
+            kd = kdtree.KDTree(len(orig_verts))
+            for i, bmv in enumerate(orig_verts):
+                kd.insert(_M @ bmv.co, i)
+            kd.balance()
+            max_correction = sum(kd.find(_M @ bmv.co)[2] for bmv in new_bmvs) / len(new_bmvs)
 
         # Derive how many loops to cut so the new quads come out as even as possible.
         # Clamped to the loop_count property's range so the mesh and the redo panel can't diverge.
@@ -607,6 +635,11 @@ class Contours_Logic:
                 d: Plane.fit_to_points([Point(bmv.co) for bmv in bmvs])
                 for d, bmvs in verts_by_depth.items()
             }
+            loop_normals_world = {
+                d: n.normalized()
+                for d, plane in loop_planes.items()
+                if plane and (n := (M_normal @ Vector((*plane.n, 0.0))).xyz).length_squared > 1e-12
+            }
 
             # Find final positions before moving any vert so loop normals stay accurate
             new_cos = {}
@@ -615,8 +648,15 @@ class Contours_Logic:
                 # Nearest surface point
                 npt_snapped = nearest_point_valid_sources(context, npt_world, world=True, respect_clip_planes=True)
                 snapped_by_ray = False
-                # Cast along the vert's normal
+                # Cast along the vert's normal, flattened into its loop's plane to account for twist
                 vert_normal = (M_normal @ Vector((*bmv.normal, 0.0))).xyz
+                loop_normal = loop_normals_world.get(loop_depth.get(bmv))
+                if loop_normal is not None:
+                    vert_normal -= vert_normal.dot(loop_normal) * loop_normal
+                    if vert_normal.length_squared <= 1e-12 and (plane := loop_planes.get(loop_depth.get(bmv))):
+                        # Normal was straight up the loop's axis, so aim out from the loop's center instead
+                        radial = npt_world - point_to_bvec3(self.matrix_world @ bvec_to_point(Vector(plane.o)))
+                        vert_normal = Vector(radial) - Vector(radial).dot(loop_normal) * loop_normal
                 if vert_normal.length_squared > 1e-12:
                     vert_normal.normalize()
                     # Winding is not settled until ensure_correct_normals below, so cast both ways
@@ -708,7 +748,6 @@ class Contours_Logic:
 
         # Calculate transform to roughly move new geometry to the cut
         T1 = Matrix.Translation(center_src) # translate ring center to path centroid
-        RT = Matrix.Rotation(self.twist, 4, plane_fit.n) # user's twist
         nbmvs_set_s = set(new_bmvs)
         ring_perimeter = sum(
             bme.calc_length()
@@ -734,7 +773,7 @@ class Contours_Logic:
             SH = Matrix.Identity(4)
         S  = Matrix.Scale(self.path_length / ring_perimeter, 4) if ring_perimeter > 1e-6 else Matrix.Scale(1.0, 4) # scale to match path radius
         T0 = Matrix.Translation(-center_new) # translate parent ring to origin
-        xform = T1 @ RT @ SH @ S @ T0
+        xform = T1 @ SH @ S @ T0
 
         # Apply xform so that ring neighbor positions are fresh before normals are read
         nbmvs_set_snap = set(new_bmvs)
@@ -932,6 +971,12 @@ class Contours_Logic:
                     t = (offset - acc) / seg if seg > 0 else 0.0
                     new_start = pt0 + (pt1 - pt0) * t
                     points = [new_start] + points[i + 1:] + points[:i + 1]
+                    # The new start can land exactly on the point it was cut from, and the zero-length segment
+                    # that leaves divides by zero further down, so drop duplicates the rotation introduced
+                    points = [
+                        pt for j, pt in enumerate(points)
+                        if (pt - points[j - 1]).length > 0
+                    ]
                     break
                 acc += seg
 
@@ -948,6 +993,7 @@ class Contours_Logic:
         vertex_count = self.span_count if self.cyclic else self.span_count + 1
         if self.mirror_clipped_loop:
             vertex_count = vertex_count // 2 + 1 # update vert count when loop crosses mirror
+        self.twist_ring_count = vertex_count  # step size for the Shift+Scroll twist shortcut
 
         npts = sample_curvature(points, self.cyclic, vertex_count, path_length, self.curvature_bias, self.space_evenly)
         if not npts:
