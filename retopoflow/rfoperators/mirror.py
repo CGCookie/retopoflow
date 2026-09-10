@@ -185,7 +185,12 @@ def cleanup_nodes_preview(context):
             bpy.data.grease_pencils_v3.remove(gp_obj.data)
 
 
+# True while setup_mirror copies modifier state into the object props.
+is_syncing_props : bool = False
+
 def update_mirror_mod(context : Context, modifier : MirrorModifier | None = None):
+    if is_syncing_props:
+        return
     obj = context.active_object
     if not obj:
         return
@@ -219,6 +224,7 @@ def update_mirror_mod(context : Context, modifier : MirrorModifier | None = None
 
 
 def setup_mirror(context):
+    global is_syncing_props
     obj = context.active_object
 
     if obj == None: return
@@ -226,11 +232,17 @@ def setup_mirror(context):
     props_obj = obj.retopoflow
 
     mod = get_mirror_mod(obj)
-    if mod:
-        props_obj.mirror_axis = mod.use_axis
-        props_obj.mirror_clipping = mod.use_clip
-    else:
-        props_obj.mirror_axis = (False, False, False)
+    is_syncing_props = True
+    try:
+        if mod:
+            props_obj.mirror_axis = mod.use_axis
+            props_obj.mirror_clipping = mod.use_clip
+        else:
+            props_obj.mirror_axis = (False, False, False)
+    finally:
+        is_syncing_props = False
+    # one deliberate update: builds the preview objects if an axis is enabled, otherwise a no-op
+    update_mirror_mod(context, mod)
 
 
 def cleanup_mirror(context):
