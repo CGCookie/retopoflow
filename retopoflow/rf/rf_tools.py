@@ -39,6 +39,7 @@ class RetopoFlow_Tools:
 
     def setup_rftools(self):
         self.rftool = None
+        self._updating_rftool_ui = False
 
         # Set class-level flag before creating any tools
         RFTool.defer_recomputing = True
@@ -62,6 +63,8 @@ class RetopoFlow_Tools:
     def _select_rftool(self, rftool, *, reset=True, quick=False):
         assert rftool in self.rftools
 
+        if self._updating_rftool_ui: return False
+
         # return if tool already set
         if rftool == self.rftool:
             if reset: self.reset_rftool()
@@ -78,8 +81,12 @@ class RetopoFlow_Tools:
 
     def _update_rftool_ui(self):
         rftool = self.rftool
-        self.ui_main.getElementById(f'tool-{rftool.name.lower()}').checked = True
-        self.ui_tiny.getElementById(f'ttool-{rftool.name.lower()}').checked = True
+        self._updating_rftool_ui = True
+        try:
+            self.ui_main.getElementById(f'tool-{rftool.name.lower()}').checked = True
+            self.ui_tiny.getElementById(f'ttool-{rftool.name.lower()}').checked = True
+        finally:
+            self._updating_rftool_ui = False
         self.ui_main.dirty(cause='changed tools', children=True)
         self.ui_tiny.dirty(cause='changed tools', children=True)
 
