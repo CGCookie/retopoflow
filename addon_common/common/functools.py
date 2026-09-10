@@ -34,6 +34,8 @@ def find_fns(obj, key, *, full_search=False):
     # methods = [member for member in members if isfunction(member)]
     fn_type = type(find_fns)
     methods = [member for member in members if type(member) == fn_type]
+    # full_search finds a mixin's method once per class below it. Just keep the first of each
+    methods = list(dict.fromkeys(methods))
     return [
         (getattr(method, key), method)
         for method in methods
