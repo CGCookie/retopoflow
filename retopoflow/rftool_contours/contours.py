@@ -94,7 +94,13 @@ def warmup_cache_on_change(cls):
     bpy.app.timers.register(warmup_if_walk, first_interval= 0.1)
 
 
-def _twist_selected_loop(context, sign):
+def twist_step(logic):
+    ''' Radians of twist per scroll notch: one vert of the ring being twisted. '''
+    n = logic.twist_ring_count
+    return 2 * math.pi / n if n >= 3 else math.radians(5)
+
+
+def twist_selected_loop(context, sign):
     ''' Shift+Scroll fallback once the just-inserted cut's redo state is gone:
     twist the SELECTED loop instead. '''
 
@@ -382,8 +388,9 @@ class RFOperator_Contours_Insert(
         name='Rotate Cut',
         description='Rotate cut',
         default=0.0,
-        min= -math.pi / 2,
-        max= math.pi / 2,
+        # Half a turn either way. Past that the ring lines up with the other direction's smaller twist
+        min= -math.pi,
+        max= math.pi,
         subtype='ANGLE',
     )
     is_cycle: bpy.props.BoolProperty(
@@ -576,15 +583,15 @@ class RFOperator_Contours_Insert(
     @create_redo_operator('contours_insert_twist_decreased', 'Reinsert cut with decreased twist',
                           {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'shift': 1},
                           {'km_context': ('init', 'ready'), 'km_label': 'Twist'},
-                          fallback=lambda context: _twist_selected_loop(context, -1))
+                          fallback=lambda context: twist_selected_loop(context, -1))
     def decrease_twist(context, logic):
-        if logic.show_twist: logic.twist = max(-math.pi / 2, logic.twist - math.radians(5))
+        if logic.show_twist: logic.twist = max(-math.pi, logic.twist - twist_step(logic))
 
     @create_redo_operator('contours_insert_twist_increased', 'Reinsert cut with increased twist',
                           {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'shift': 1},
-                          fallback=lambda context: _twist_selected_loop(context, +1))
+                          fallback=lambda context: twist_selected_loop(context, +1))
     def increase_twist(context, logic):
-        if logic.show_twist: logic.twist = min(math.pi / 2, logic.twist + math.radians(5))
+        if logic.show_twist: logic.twist = min(math.pi, logic.twist + twist_step(logic))
 
 
 class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
