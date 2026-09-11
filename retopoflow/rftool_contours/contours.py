@@ -881,7 +881,7 @@ class RFTool_Contours(RFTool_Base):
             snap_elem = 'FACE_PROJECT' if context.scene.retopoflow.snapping.projection == 'SCREEN_SPACE' else 'FACE_NEAREST'
             cls.resetter['context.tool_settings.snap_elements_individual'] = {snap_elem}
         if prefs.setup_selection_mode:
-            cls.resetter['context.tool_settings.mesh_select_mode'] = [False, True, False]
+            cls.resetter['context.tool_settings.mesh_select_mode'] = [True, True, False]
 
         # Kick SourceMeshCache warmup when Walk is the active method
         tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH')

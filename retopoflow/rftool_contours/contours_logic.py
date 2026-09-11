@@ -1289,47 +1289,96 @@ class Contours_Logic:
 
         if DEBUG_PRINT_TIMINGS: timers.append(('cell size', time.perf_counter()))
 
-        # Walk the coarse grid outward in all directions and test surface proximity
-        base_radius = 0.5 * math.sqrt(2.0) * cell_size
-        def coarse_near(di, dj):
-            cx, cy = sx + di * cell_size, sy + dj * cell_size
-            npt = nearest_point_valid_sources(context, plane_cut.l2w_point(Vector((cx, cy, 0))), world=True, respect_clip_planes=True)
-            if npt is None: return False
-            npt_local = plane_cut.w2l_point(Vector(npt))
-            if abs(npt_local.z) >= base_radius: return False
-            return math.hypot(npt_local.x - cx, npt_local.y - cy) < base_radius
-
-        if not coarse_near(0, 0):
-            print('CONTOURS SDF: seed cell missed the surface, falling back to Fast')
-            return self.process_source_fast(context)
-
         NEIGHBORS_8 = ((-1, -1), (0, -1), (1, -1), (-1, 0), (1, 0), (-1, 1), (0, 1), (1, 1))
+        NEIGHBORS_4 = ((1, 0), (-1, 0), (0, 1), (0, -1))
         max_cell_queries = 1_000_000
-        band   = {(0, 0)}
-        tested = {(0, 0)}
-        stack  = [(0, 0)]
-        total_cell_queries = 1
-        grow_capped = False
-        while stack:
-            di, dj = stack.pop()
-            for ddi, ddj in NEIGHBORS_8:
-                nb = (di + ddi, dj + ddj)
-                if nb in tested: continue
-                total_cell_queries += 1
-                if total_cell_queries > max_cell_queries:
-                    grow_capped = True
+        MAX_GROW_ATTEMPTS = 4
+
+        def grow_band(cell, budget):
+            '''Walk the coarse grid outward from the seed, keeping cells the source passes through.
+               Returns (band, tested, queries, reason); band is None when the walk did not produce one.'''
+            radius = 0.5 * math.sqrt(2.0) * cell  # a cell's circumradius: the surface reaches its center
+            def coarse_near(di, dj):
+                cx, cy = sx + di * cell, sy + dj * cell
+                npt = nearest_point_valid_sources(context, plane_cut.l2w_point(Vector((cx, cy, 0))), world=True, respect_clip_planes=True)
+                if npt is None: return False
+                npt_local = plane_cut.w2l_point(Vector(npt))
+                if abs(npt_local.z) >= radius: return False
+                return math.hypot(npt_local.x - cx, npt_local.y - cy) < radius
+
+            queries = 1
+            if not coarse_near(0, 0):
+                return None, None, queries, 'seed cell missed the surface'
+            band   = {(0, 0)}
+            tested = {(0, 0)}
+            stack  = [(0, 0)]
+            while stack:
+                di, dj = stack.pop()
+                for ddi, ddj in NEIGHBORS_8:
+                    nb = (di + ddi, dj + ddj)
+                    if nb in tested: continue
+                    queries += 1
+                    if queries > budget:
+                        return None, None, queries, f'region grow exceeded {budget} queries'
+                    tested.add(nb)
+                    if coarse_near(*nb):
+                        band.add(nb)
+                        stack.append(nb)
+            if len(band) < 3:
+                return None, None, queries, 'region grow found too few cells'
+            return band, tested, queries, None
+
+        def band_encloses_seed(band):
+            '''Did the walk close a ring around the cross section, or dead-end as an arc?
+               A 4-connected flood from the border cannot cross an 8-connected band, so any unflooded
+               empty cell means the band walled off an interior. Zero is the right cutoff: a dead-end
+               arc traps nothing, while a ring around a section only a few cells wide traps very little.'''
+            di_min, di_max = min(d[0] for d in band), max(d[0] for d in band)
+            dj_min, dj_max = min(d[1] for d in band), max(d[1] for d in band)
+            nx, ny = (di_max - di_min + 1) + 2, (dj_max - dj_min + 1) + 2  # 1 empty pad cell per side
+            filled = np.zeros((nx, ny), dtype=bool)
+            for (di, dj) in band: filled[di - di_min + 1, dj - dj_min + 1] = True
+            outside = np.zeros((nx, ny), dtype=bool)
+            outside[0, :] = outside[nx - 1, :] = True
+            outside[:, 0] = outside[:, ny - 1] = True
+            stack = [(i, j) for i in (0, nx - 1) for j in range(ny)]
+            stack += [(i, j) for j in (0, ny - 1) for i in range(nx)]
+            while stack:
+                i, j = stack.pop()
+                for ddi, ddj in NEIGHBORS_4:
+                    ni, nj = i + ddi, j + ddj
+                    if ni < 0 or nj < 0 or ni >= nx or nj >= ny: continue
+                    if outside[ni, nj] or filled[ni, nj]: continue
+                    outside[ni, nj] = True
+                    stack.append((ni, nj))
+            n_interior = np.count_nonzero(~outside) - np.count_nonzero(filled)
+            return bool(n_interior > 0)
+
+        # Retry coarser when the walk dead-ends: a bigger cell has a bigger grow radius, which
+        # absorbs the nearest-point query error that dropped a cell. If no attempt closes a ring,
+        # keep the first band that grew at all (a section thinner than a cell has no interior yet
+        # still traces fine) rather than throwing the SDF result away.
+        band = tested = first = None
+        total_cell_queries = 0
+        for attempt in range(MAX_GROW_ATTEMPTS):
+            grown, grown_tested, queries, reason = grow_band(cell_size, max_cell_queries - total_cell_queries)
+            total_cell_queries += queries
+            if grown is not None:
+                if band_encloses_seed(grown):
+                    band, tested = grown, grown_tested
                     break
-                tested.add(nb)
-                if coarse_near(*nb):
-                    band.add(nb)
-                    stack.append(nb)
-            if grow_capped: break
-        if grow_capped:
-            print(f'CONTOURS SDF: region grow exceeded {max_cell_queries} queries, falling back to Fast')
+                if first is None: first = (grown, grown_tested, cell_size)
+                reason = 'band did not close a ring around the seed'
+            if attempt + 1 >= MAX_GROW_ATTEMPTS: break
+            cell_size *= 2.0
+            print(f'CONTOURS SDF: {reason}, retrying with cell size {cell_size:.6f}')
+        if band is None and first is not None:
+            band, tested, cell_size = first
+            print(f'CONTOURS SDF: no closed band found, using the first band at cell size {cell_size:.6f}')
+        if band is None:
+            print('CONTOURS SDF: no band found, falling back to Fast')
             return self.process_source_fast(context)
-        if len(band) < 3:
-            print('CONTOURS SDF: region grow found too few cells, falling back to Fast')
-            return self.process_source_fast(context)
+        base_radius = 0.5 * math.sqrt(2.0) * cell_size
 
         if DEBUG_PRINT_TIMINGS: timers.append((f'region grow ({len(band)} cells, {total_cell_queries} queries)', time.perf_counter()))
         # Pack the discovered band into the fixed grid the downstream expects, with a 1-cell empty

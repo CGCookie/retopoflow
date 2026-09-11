@@ -35,6 +35,7 @@ from .rfglobals import RFGlobals
 from .common.bpy_helper import BL_EVENT_TYPES, BL_ICONS
 from .common.icons import Icon
 from .common.accel import SourceCache
+from .common.raycast import nonuniformly_scaled_snap_source
 from ..addon_common.common.useractions import blenderop_to_kmis, kmi_to_op_properties
 from .rftool_base import RFTool_Base
 
@@ -406,6 +407,13 @@ def draw_rftool_statusbar(statusbar: Header, context: Context, tool: type[RFTool
         row.separator_spacer()
         layout.separator_spacer()
         return
+
+    # Warnings
+    scaled_source = nonuniformly_scaled_snap_source()
+    if scaled_source:
+        warn = layout.row(align=True)
+        warn.label(text=f'{scaled_source} has non-uniform scale, apply for faster snapping', icon='ERROR')
+        warn.separator()
 
     # Selected Tool Icon.
     # draw_rftool_icon(tool, layout, scale=0.9)

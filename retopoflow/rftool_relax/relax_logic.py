@@ -59,6 +59,7 @@ from ..common.maths import (
     point_to_bvec3,
 )
 from ..common.raycast import (
+    source_xform_tuple,
     raycast_valid_sources,
     nearest_point_valid_sources,
     mouse_from_event,
@@ -394,11 +395,7 @@ class Relax_Logic(FeatureRunsMixin):
             self.angle_edges = set(angle_bmedges)
             self.angle_accel = _angle_accel
 
-        self.sources = []
-        for obj in iter_all_valid_sources(context):
-            M_obj = obj.matrix_world
-            Mi_obj = M_obj.inverted_safe()
-            self.sources.append((obj, M_obj, Mi_obj, Mi_obj.to_3x3()))
+        self.sources = [source_xform_tuple(obj) for obj in iter_all_valid_sources(context)]
 
         snapping = context.scene.retopoflow.snapping
         self.source_edge_accel = SourceCache.get(context)

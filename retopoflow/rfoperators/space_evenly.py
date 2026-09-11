@@ -32,10 +32,10 @@ from ..common.accel import SourceAccel
 from ..common.bmesh import get_bmv_avg_edge_len, get_bmv_next_loop_vert
 from ..common.bmesh_maths import is_bmvert_pinned
 from ..common.maths import point_to_bvec3
-from ..common.raycast import iter_all_valid_sources, nearest_point_valid_sources
+from ..common.raycast import iter_all_valid_sources, nearest_point_valid_sources, source_xform_tuple
 from ..common.snapping import (
     SNAP_TO_ITEMS, build_island_bvh, build_snap_sources, draw_snap_to_props,
-    seed_source_snap_props, source_snap_radius, source_tuple,
+    seed_source_snap_props, source_snap_radius,
 )
 from ..rfpanels.rfpanel_snapping import draw_hard_surface_snapping
 from ..rftool_relax.relax_logic import Relax_Logic, RelaxOptions
@@ -553,10 +553,10 @@ class RFOperator_SpaceEvenly(RFRegisterClass, bpy.types.Operator):
         bmesh.update_edit_mesh(me)
 
     def snap_sources(self, context) -> list:
-        ''' [(obj, M, Mi, Mi_3x3), ...] Retopoflow supplies these itself; standalone they
+        ''' [(obj, M, Mi, Mi_3x3, nonuniform_scale), ...] Retopoflow supplies these itself; standalone they
         come from Snap To. Matches what Relax_Logic.initial_setup builds. '''
         if rf_is_running():
-            return [source_tuple(obj) for obj in iter_all_valid_sources(context)]
+            return [source_xform_tuple(obj) for obj in iter_all_valid_sources(context)]
         return build_snap_sources(
             context, self.snap_to,
             snap_object=self.snap_object, snap_collection=self.snap_collection,

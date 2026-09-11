@@ -40,6 +40,7 @@ from ..common.bmesh_maths import (
 )
 from ..common.maths import point_to_bvec3, direction_to_bvec3, local_to_world
 from ..common.raycast import (
+    source_xform_tuple,
     raycast_valid_sources, nearest_point_valid_sources, raycast_point_capped_valid_sources,
     mouse_from_event, iter_all_valid_sources, make_hidden_tester,
 )
@@ -164,11 +165,7 @@ class Tweak_Logic(SourceSnapMixin):
             self.angle_edges = set(angle_bmedges)
             self.angle_accel = angle_accel
 
-        self.sources = []
-        for obj in iter_all_valid_sources(context):
-            M_obj = obj.matrix_world
-            Mi_obj = M_obj.inverted_safe()
-            self.sources.append((obj, M_obj, Mi_obj, Mi_obj.to_3x3()))
+        self.sources = [source_xform_tuple(obj) for obj in iter_all_valid_sources(context)]
 
         # For hard surface snapping, detect the source features once per stroke, cached in SourceAccel
         self.scale_avg = sum(self.matrix_world.to_scale()) / 3

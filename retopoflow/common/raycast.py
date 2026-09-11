@@ -29,6 +29,7 @@ from collections.abc import Sequence, Iterable
 from bpy.types import Context, Event, Scene, Region, RegionView3D
 from bpy.types import Object as BObject
 from mathutils import Vector, Matrix
+from mathutils.bvhtree import BVHTree
 from bpy_extras.view3d_utils import (
     region_2d_to_origin_3d,
     region_2d_to_vector_3d,
@@ -332,6 +333,82 @@ def source_closest_point_on_mesh(obj : BObject, *args : ..., **kwargs : ...) -> 
         has_faces_cache.pop(obj.name, None)  # stale: re-test faces on the next pass
         return GEOMETRY_QUERY_MISS
 
+def has_nonuniform_scale(matrix_world : Matrix) -> bool:
+    UNIFORM_SCALE_TOLERANCE = 1e-4
+    sx, sy, sz = matrix_world.to_scale()
+    sx, sy, sz = abs(sx), abs(sy), abs(sz)
+    return max(sx, sy, sz) > min(sx, sy, sz) * (1.0 + UNIFORM_SCALE_TOLERANCE)
+
+def source_xform_tuple(obj : BObject) -> tuple:
+    '''The (obj, matrix_world, inverse, inverse 3x3, non-uniform scale) tuple the snapping calls expect.
+    Building it once per stroke keeps the scale check out of the per-vertex path.'''
+    M  = obj.matrix_world
+    Mi = M.inverted_safe()
+    return (obj, M, Mi, Mi.to_3x3(), has_nonuniform_scale(M))
+
+# name -> (matrix_world, triangle count, tree). Only non-uniformly scaled sources are ever cached here.
+source_world_bvh_cache : dict[str, tuple[Matrix, int, BVHTree]] = {}
+
+def clear_source_world_bvh_cache():
+    source_world_bvh_cache.clear()
+
+# Which source the user is currently working on
+_snapped_source : tuple[str, bool] = ('', False)   # (name, carries unapplied non-uniform scale)
+
+def note_snapped_source(obj : BObject):
+    global _snapped_source
+    _snapped_source = (obj.name, has_nonuniform_scale(obj.matrix_world))
+
+def nonuniformly_scaled_snap_source() -> 'str | None':
+    '''Name of the source last snapped to when it carries unapplied non-uniform scale.'''
+    name, scaled = _snapped_source
+    return name if scaled else None
+
+def source_world_bvh(context:Context, obj:BObject, M:Matrix) -> 'BVHTree | None':
+    '''BVH over obj's evaluated mesh baked into world space, cached until its matrix or mesh changes.'''
+    cached = source_world_bvh_cache.get(obj.name)
+    try:
+        eval_obj = obj.evaluated_get(context.evaluated_depsgraph_get())
+        mesh = eval_obj.to_mesh()
+        if not mesh or not mesh.polygons:
+            eval_obj.to_mesh_clear()
+            return None
+        mesh.calc_loop_triangles()
+        ntris = len(mesh.loop_triangles)
+        if cached and cached[0] == M and cached[1] == ntris:
+            eval_obj.to_mesh_clear()
+            return cached[2]
+        verts = [M @ v.co for v in mesh.vertices]
+        tris  = [tuple(t.vertices) for t in mesh.loop_triangles]
+        eval_obj.to_mesh_clear()
+    except RuntimeError:
+        has_faces_cache.pop(obj.name, None)  # stale: re-test faces on the next pass
+        return None
+    tree = BVHTree.FromPolygons(verts, tris, all_triangles=True)  # pyright: ignore [reportArgumentType]
+    source_world_bvh_cache[obj.name] = (M.copy(), ntris, tree)
+    return tree
+
+def source_nearest_point_normal(context:Context, obj:BObject, M:Matrix, Mi:Matrix, point_world:Vector, *, nonuniform:'bool | None'=None, need_normal:bool=True) -> 'tuple[Vector, Vector | None] | None':
+    ''' World-space closest point on obj and its world normal. '''
+    if nonuniform is None: nonuniform = has_nonuniform_scale(M)
+    if nonuniform:
+        tree = source_world_bvh(context, obj, M)
+        if tree is not None:
+            co_world, no_world, _idx, _dist = tree.find_nearest(Vector((point_world[0], point_world[1], point_world[2])))
+            if co_world is None: return None
+            return (co_world, no_world)
+        # No evaluated mesh to build from: fall through to the local query rather than losing the source.
+    elif obj.name in source_world_bvh_cache:
+        # Scale is applied (or was never there), so drop any world BVH built for this source earlier.
+        # That frees a tree we will not use again, and keeps the cache honest for the status bar warning.
+        del source_world_bvh_cache[obj.name]
+    point_local = Mi @ Vector((point_world[0], point_world[1], point_world[2], 1.0))
+    result, co, normal, _idx = source_closest_point_on_mesh(obj, point_local.xyz)
+    if not result: return None
+    co_world = (M @ Vector((co[0], co[1], co[2], 1.0))).xyz
+    if not need_normal: return (co_world, None)
+    return (co_world, xform_normal(Mi.transposed(), normal))
+
 def is_valid_source(context:Context, obj:BObject) -> bool:
     scene : Scene|None = context.scene
     if not scene: return False
@@ -364,7 +441,8 @@ def iter_all_valid_sources(context:Context) -> Iterable[BObject]:
 def prep_raycast_valid_sources(context):
     print(f'CACHING BVHS FOR ALL SOURCE OBJECTS')
     start = time.time()
-    clear_has_faces_cache()  # sources may have changed while RF was not running
+    clear_has_faces_cache()          # sources may have changed while RF was not running
+    clear_source_world_bvh_cache()   # ... including their transforms
     for obj in iter_all_valid_sources(context):
         source_ray_cast(obj, Vector((0,0,0)), Vector((1,0,0)))
     print(f'  {time.time() - start:0.2f}secs')
@@ -727,25 +805,23 @@ def nearest_point_valid_sources(
 
     point_world = Vector((*point_world, 1.0))
     best_hit = None
+    best_obj = None
     best_dist = float('inf')
 
     # Callers in a tight per-vert loop can pass a precomputed `sources` iterable of
     # (obj, matrix_world, matrix_world_inv[, ...]) tuples to avoid re-filtering the view
     # layer and re-inverting matrices on every call.
     if sources is None:
-        sources = [
-            (obj, obj.matrix_world, obj.matrix_world.inverted_safe())
-            for obj in iter_all_valid_sources(context)
-        ]
+        sources = [source_xform_tuple(obj) for obj in iter_all_valid_sources(context)]
 
     for src in sources:
         obj, M, Mi = src[0], src[1], src[2]
-        point_local = Mi @ point_world
-        result, co, _normal, _idx = source_closest_point_on_mesh(obj, point_local.xyz)
-        if not result:
+        nonuniform = src[4] if len(src) > 4 else None # Index 4 is the non-uniform-scale flag
+        found = source_nearest_point_normal(context, obj, M, Mi, point_world, nonuniform=nonuniform, need_normal=False)
+        if not found:
             continue
+        co_world = found[0]
 
-        co_world = M @ Vector((*co, 1.0))
         if respect_clip_planes and not is_point_in_clip_region(context, co_world):
             continue
 
@@ -755,7 +831,9 @@ def nearest_point_valid_sources(
 
         best_hit = co_world
         best_dist = dist
+        best_obj = obj
 
+    if best_obj: note_snapped_source(best_obj)
     if not best_hit:
         return None
 
@@ -768,22 +846,22 @@ def nearest_point_valid_sources(
 
 def nearest_normal_valid_sources(context, point_world, *, world=True):
     best_no_world = None
+    best_obj = None
     best_dist = float('inf')
     # print(f'RAY {ray_world}')
     for obj in iter_all_valid_sources(context):
         M = obj.matrix_world
         Mi = M.inverted_safe()
-        Mit = Mi.transposed()
-        point_local = point_to_bvec3(xform_point(Mi, point_world))
-        result, co, normal, idx = source_closest_point_on_mesh(obj, point_local)
-        if not result: continue
-        co_world = xform_point(M, co)
-        no_world = xform_normal(Mit, normal)
+        found = source_nearest_point_normal(context, obj, M, Mi, point_world)
+        if not found: continue
+        co_world, no_world = found
         dist = distance_between_locations(point_world, co_world)
         # print(f'  HIT {obj.name} {co_world} {dist}')
         if dist >= best_dist: continue
         best_no_world = no_world
         best_dist = dist
+        best_obj = obj
+    if best_obj: note_snapped_source(best_obj)
     if not best_no_world: return None
 
     if world: return best_no_world
@@ -809,22 +887,24 @@ def nearest_point_normal_valid_sources(
 
     best_co_world = None
     best_no_world = None
+    best_obj = None
     best_dist = float('inf')
     for obj in iter_all_valid_sources(context):
         M = obj.matrix_world
         Mi = M.inverted_safe()
-        Mit = Mi.transposed()
-        point_local = point_to_bvec3(xform_point(Mi, point_world))
-        result, co, normal, idx = source_closest_point_on_mesh(obj, point_local)
-        if not result: continue
-        co_world = xform_point(M, co)
+        found = source_nearest_point_normal(context, obj, M, Mi, point_world)
+        if not found: continue
+        co_world, no_world = found
         if respect_clip_planes and not is_point_in_clip_region(context, co_world):
             continue
         dist = distance_between_locations(point_world, co_world)
         if dist >= best_dist: continue
         best_co_world = co_world
-        best_no_world = xform_normal(Mit, normal)
+        best_no_world = no_world
         best_dist = dist
+        best_obj = obj
+
+    if best_obj: note_snapped_source(best_obj)
 
     if best_co_world is None or best_no_world is None:
         return None
