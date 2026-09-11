@@ -30,13 +30,30 @@ def on_source_obj_changed(self, context):
 def on_source_feature_changed(self, context):
     SourceCache.mark_dirty_settings_changed(context)
 
+def on_projection_changed(self, context):
+    ''' Carry the Projection choice into Blender's snap elements. '''
+    # deferred: transform reaches back into these props
+    from ..rfoperators.transform import native_snap_elements
+    ts = context.scene.tool_settings
+    projection = (
+        {'FACE_PROJECT'} if self.projection == 'SCREEN_SPACE' else
+        {'FACE_NEAREST'} if self.projection in ('AUTO', 'WORLD_SPACE') else
+        set(ts.snap_elements_individual)   # FOLLOW_BLENDER: leave whatever the artist picked
+    )
+    # Writing snap_elements_individual would write the whole field and drop the Also Snap To toggles
+    # with it, so the toggles get rebuilt and merged in rather than assumed to survive.
+    ts.snap_elements = native_snap_elements(context) | projection
+
+
 def on_snap_element_changed(prop_name, element):
     ''' Update callback for one snap element toggle. Returns the callback, so each property
-    supplies its own RF property name and matching Blender snap_elements_base flag. '''
+    supplies its own RF property name and matching Blender snap element flag. '''
     def update(self, context):
         ts = context.scene.tool_settings
-        base = ts.snap_elements_base
-        ts.snap_elements_base = (base | {element}) if getattr(self, prop_name) else (base - {element})
+        # snap_elements_base reads as a masked view but writes the whole field, so going through it
+        # drops FACE_PROJECT / FACE_NEAREST, which is RetopoFlow's own surface projection.
+        elements = set(ts.snap_elements)
+        ts.snap_elements = (elements | {element}) if getattr(self, prop_name) else (elements - {element})
         # The native transform path never touches SourceCache. So the cache can sit stale while native is on.
         # Now that RF's translate is back in play, kick a rebuild if needed.
         from ..rfoperators.transform import translate_uses_native
@@ -177,13 +194,7 @@ class RFProps_Snapping(bpy.types.PropertyGroup):
             ('FOLLOW_BLENDER', 'Follow Blender', "Use Blender's current snap_elements_individual setting without overriding it",       'BLENDER', 3),
         ],
         default='AUTO',
-        update=lambda self, context: setattr(
-            context.scene.tool_settings,
-            'snap_elements_individual',
-            {'FACE_PROJECT'} if self.projection == 'SCREEN_SPACE' else
-            {'FACE_NEAREST'} if self.projection in ('AUTO', 'WORLD_SPACE') else
-            context.scene.tool_settings.snap_elements_individual
-        ),
+        update=on_projection_changed,
     )
 
     """ Face Normals """

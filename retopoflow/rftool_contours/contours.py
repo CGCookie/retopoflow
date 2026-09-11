@@ -60,7 +60,7 @@ from ...addon_common.common.maths import Plane, Point
 from ...addon_common.common.resetter import Resetter
 
 from ..rfoperators.quickswitch import RFOperator_Relax_QuickSwitch, RFOperator_Tweak_QuickSwitch, RFOperator_LegacyPatches_QuickSwitch
-from ..rfoperators.transform import RFOperator_Translate, sync_projection_from_blender
+from ..rfoperators.transform import native_snap_elements, RFOperator_Translate, sync_projection_from_blender
 from ..rfoperators.select import RFOperator_ClickSelect
 from ..rfoperators.adjust_segment_count import adjust_selected_strip
 from ..rfoperators.twist import RFOperator_TwistLoop
@@ -877,9 +877,8 @@ class RFTool_Contours(RFTool_Base):
         if prefs.setup_automerge:
             cls.resetter['context.tool_settings.use_mesh_automerge'] = True
         if context.scene.retopoflow.snapping.projection != 'FOLLOW_BLENDER':
-            cls.resetter.store('context.tool_settings.snap_elements_base')
             snap_elem = 'FACE_PROJECT' if context.scene.retopoflow.snapping.projection == 'SCREEN_SPACE' else 'FACE_NEAREST'
-            cls.resetter['context.tool_settings.snap_elements_individual'] = {snap_elem}
+            context.tool_settings.snap_elements = {snap_elem} | native_snap_elements(context)
         if prefs.setup_selection_mode:
             cls.resetter['context.tool_settings.mesh_select_mode'] = [True, True, False]
 

@@ -23,6 +23,8 @@ import math
 import bpy
 
 from ..common.accel import SourceCache, SourceMeshCache
+from ..common.interface import draw_info_notice
+from ..rfoperators.transform import translate_uses_native
 
 
 def draw_source_build_button(layout, cached_names):
@@ -124,6 +126,17 @@ def draw_hard_surface_snapping(layout, context, props, guide_loops:bool=False, s
     draw_source_cache_controls(context, layout)
 
 
+NATIVE_TRANSFORM_INFO = (
+    "In order to efficiently snap to source verts or edges, Retopoflow uses Blender's transform \n"
+    "operator instead of our custom one. This means that, while grabbing: \n"
+    "\u2022 Source filtering is not available.\n"
+    "\u2022 Source feature snapping is not available.\n"
+    "\u2022 Snapping is the same for the target and source objects.\n"
+    "\u2022 Auto Merge uses a world space rather than a screen space distance.\n"
+    "\n\n"
+    "All operations besides grabbing remain unchanged."
+)
+
 def draw_native_snapping_options(context, layout):
     snapping = context.scene.retopoflow.snapping
     layout.use_property_split = False
@@ -148,11 +161,11 @@ def draw_native_snapping_options(context, layout):
         row.prop(snapping, 'snap_face_center',    text='', icon='SNAP_FACE_CENTER',   toggle=True, expand=True)
     layout.use_property_split = True
 
-    if (
-        snapping.snap_vertex or snapping.snap_edge or snapping.snap_edge_center
-        or snapping.snap_edge_perpendicular or snapping.snap_face_center
-    ):
+    if translate_uses_native(context):
         layout.column().prop(context.scene.tool_settings, 'snap_target', text='From', expand=True)
+        layout.separator(factor=0.5)
+        draw_info_notice(layout, 'Using native transform', NATIVE_TRANSFORM_INFO, title='Using Native Transform')
+        layout.separator()
 
 
 def draw_snapping_options(context, layout, *, guide_loops: bool = False):
@@ -168,40 +181,32 @@ def draw_snapping_options(context, layout, *, guide_loops: bool = False):
     row.prop(context.scene.tool_settings, 'snap_face_nearest_steps', text='Steps')
 
     draw_native_snapping_options(context, layout)
-    use_native = (
-        snapping.snap_vertex or snapping.snap_edge or snapping.snap_edge_center
-        or snapping.snap_edge_perpendicular or snapping.snap_face_center
-    )
     # layout.separator(factor=0.5)
 
-    if not use_native:
-        layout.prop(snapping, 'snap_object', text='Only Include')
-        col = layout.column()
-        col.enabled = snapping.snap_object is None
-        col.prop(snapping, 'snap_collection', text=' ')
-        col.prop(snapping, 'snap_only_selected', text='Selected')
-        col.prop(context.tool_settings, 'use_snap_selectable', text='Selectable')
-        layout.row(heading='Normals').prop(snapping, 'correct_face_normals', text='Correct')
-    else:
-        layout.row(heading='Only Include').prop(context.tool_settings, 'use_snap_selectable', text='Selectable')
-    layout.separator(factor=0.5)
+    layout.prop(snapping, 'snap_object', text='Only Include')
+    col = layout.column()
+    col.enabled = snapping.snap_object is None
+    col.prop(snapping, 'snap_collection', text=' ')
+    col.prop(snapping, 'snap_only_selected', text='Selected')
+    col.prop(context.tool_settings, 'use_snap_selectable', text='Selectable')
+    layout.row(heading='Normals').prop(snapping, 'correct_face_normals', text='Correct')
+    # layout.separator(factor=0.5)
 
-    if not use_native:
-        # tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
-        # if tool.idname not in ['retopoflow.relax', 'retopoflow.tweak']:
-        #     return
-        layout.separator()
-        feat_header, feat_panel = layout.panel(idname='RF_feature_detection', default_closed=True)
-        feat_header.label(text='Source Feature Detection (Experimental)')
-        if feat_panel:
-            props = context.scene.retopoflow.snapping
-            row = feat_panel.row()
-            row.use_property_split = False
-            row.alignment = 'CENTER'
-            row.label(text='Enabling in heavy scenes is very slow', icon='ERROR')
-            feat_panel.use_property_split = True
-            feat_panel.use_property_decorate = False
-            draw_hard_surface_snapping(feat_panel, context, props, guide_loops, show_cache_controls=True)
+    # tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
+    # if tool.idname not in ['retopoflow.relax', 'retopoflow.tweak']:
+    #     return
+    layout.separator()
+    feat_header, feat_panel = layout.panel(idname='RF_feature_detection', default_closed=True)
+    feat_header.label(text='Source Feature Detection (Experimental)')
+    if feat_panel:
+        props = context.scene.retopoflow.snapping
+        row = feat_panel.row()
+        row.use_property_split = False
+        row.alignment = 'CENTER'
+        row.label(text='Enabling in heavy scenes is very slow', icon='ERROR')
+        feat_panel.use_property_split = True
+        feat_panel.use_property_decorate = False
+        draw_hard_surface_snapping(feat_panel, context, props, guide_loops, show_cache_controls=True)
 
 
 def draw_snapping_panel(context, layout, *, idname: str, guide_loops: bool = False):

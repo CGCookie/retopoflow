@@ -68,7 +68,7 @@ from ...addon_common.common.timerhandler import TimerHandler
 from .relax_logic import Relax_Logic
 
 from ..rfoperators.quickswitch import RFOperator_Tweak_QuickSwitch
-from ..rfoperators.transform import sync_projection_from_blender
+from ..rfoperators.transform import native_snap_elements, sync_projection_from_blender
 from ..rfoperators.topo_rotate import RFOperator_TopoRotate
 from ..rfbrushes.falloff_brush import create_falloff_brush
 
@@ -400,9 +400,8 @@ class RFTool_Relax(RFTool_Base):
             cls.resetter['context.tool_settings.use_mesh_automerge'] = False
         if context.scene.retopoflow.snapping.projection != 'FOLLOW_BLENDER':
             # cls.resetter['context.tool_settings.snap_elements_base'] = {'VERTEX'}
-            cls.resetter.store('context.tool_settings.snap_elements_base')
             snap_elem = 'FACE_PROJECT' if context.scene.retopoflow.snapping.projection == 'SCREEN_SPACE' else 'FACE_NEAREST'
-            cls.resetter['context.tool_settings.snap_elements_individual'] = {snap_elem}
+            context.tool_settings.snap_elements = {snap_elem} | native_snap_elements(context)
 
     @classmethod
     def deactivate(cls, context):
