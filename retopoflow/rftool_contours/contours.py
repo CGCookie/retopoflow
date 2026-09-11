@@ -76,6 +76,15 @@ from functools import wraps
 import itertools
 
 
+class Contours_Source_Method:
+    ''' What Contours processes sources with, readable while another tool is active. '''
+    current : str = 'sdf'
+
+
+def publish_source_method(props):
+    Contours_Source_Method.current = props.process_source_method
+
+
 def warmup_cache_on_change(cls):
     # Skip warmup when the property changes via the redo panel (insert operator)
     if type(cls).__name__ == 'RETOPOFLOW_OT_contours_insert': return
@@ -210,6 +219,7 @@ class RFOperator_Contours_Insert_Properties:
             ),
         ],
         default='sdf',
+        update=lambda self, ctx: publish_source_method(self),
         # update=lambda self, ctx: warmup_cache_on_change(self),
     )
     cut_orientation: bpy.props.EnumProperty(                  # pyright: ignore [reportUninitializedInstanceVariable]
@@ -882,11 +892,13 @@ class RFTool_Contours(RFTool_Base):
         if prefs.setup_selection_mode:
             cls.resetter['context.tool_settings.mesh_select_mode'] = [True, True, False]
 
-        # Kick SourceMeshCache warmup when Walk is the active method
         tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH')
         props = tool.operator_properties('retopoflow.contours') if tool else None
-        if props and props.process_source_method == 'walk':
-            warmup_cache_on_change(cls)
+        if props:
+            publish_source_method(props)   # covers a file load, where no update callback fires
+            # Kick SourceMeshCache warmup when Walk is the active method
+            if props.process_source_method == 'walk':
+                warmup_cache_on_change(cls)
 
     @classmethod
     def deactivate(cls, context):
