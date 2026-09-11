@@ -375,7 +375,7 @@ class Strokes_Logic:
             case 'FIXED':
                 spacing3D = self.length3D / max(1, self.fixed_span_count)
             case 'LENGTH':
-                spacing3D = self.span_length
+                spacing3D = self.span_length / max(self.scale_avg, 1e-9)
             case 'AVERAGE' if self.average_length > 0:
                 spacing3D = self.average_length
             case _:  # BRUSH (and AVERAGE with nothing selected, which falls back to the brush)
@@ -384,7 +384,7 @@ class Strokes_Logic:
         self.spacing3D = spacing3D
         use_fixed, fixed_distance, proximity = source_snap_settings(context)
         self.feature_radius = source_snap_radius(
-            spacing3D, use_fixed=use_fixed, fixed_distance=fixed_distance, avg_edge_factor=proximity,
+            spacing3D * self.scale_avg, use_fixed=use_fixed, fixed_distance=fixed_distance, avg_edge_factor=proximity,
         )
 
         self.process_snap_runs()
@@ -413,7 +413,7 @@ class Strokes_Logic:
         if not approach: return
 
         # one labeling pass for the whole stroke, so run keys are comparable across every vert it creates
-        _, run_segs = accel.local_runs(set(approach), 2 * self.spacing3D)
+        _, run_segs = accel.local_runs(set(approach), 2 * self.spacing3D * self.scale_avg)  # local_runs measures in world space
         segs_of = {} # run key -> that run's segment indices
         for run_id, segs in run_segs.items():
             segs_of[('run', run_id)] = segs
