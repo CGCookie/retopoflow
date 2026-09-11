@@ -437,7 +437,6 @@ def harvest_line_faces(hs, bend_ok, adj_e, t_areas, t_centers,
                 r, r2 = r2, r
             parent[r2] = r
             w_lock.pop(r2, None)
-            ck.pop(r2, None)
             if wl is not None:
                 w_lock[r] = wl
             state[r] = max(state[r], state.pop(r2))
@@ -1226,6 +1225,7 @@ def sweep_crest_curves(hs, bend_ok, adj_e, t_areas, t_centers,
                 if (wl1 is not None and wl2 is not None) \
                 else (wl1 if wl1 is not None else wl2)
             w_lock.pop(r2, None)
+            ck.pop(r2, None)   # r2 is no longer a root, so its rate-window baseline is unreachable
             if wl is not None:
                 w_lock[r] = wl
             state[r] = max(state[r], state.pop(r2))
