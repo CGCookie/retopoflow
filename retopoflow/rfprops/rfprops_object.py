@@ -41,7 +41,7 @@ class RFProps_Object(bpy.types.PropertyGroup):
     mirror_clipping: bpy.props.BoolProperty(
         name='Clipping',
         description='Keeps vertices stuck to the mirror axis during transforms',
-        default=True, 
+        default=True,
         update=lambda self, context: update_mirror_mod(context)
     )
     mirror_prev_edit: bpy.props.BoolProperty(default=True)
@@ -51,4 +51,5 @@ def register():
     bpy.types.Object.retopoflow = bpy.props.PointerProperty(type=RFProps_Object)
 
 def unregister():
+    del bpy.types.Object.retopoflow   # before the class
     bpy.utils.unregister_class(RFProps_Object)
