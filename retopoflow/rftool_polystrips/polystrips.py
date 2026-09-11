@@ -240,7 +240,7 @@ class RFOperator_PolyStrips_Insert(
                 layout.prop(self, 'count')
             layout.prop(self, 'scale_start')
             layout.prop(self, 'scale_end')
-            layout.prop(self, 'width_interpolation')
+            layout.row().prop(self, 'width_interpolation', expand=True)
             if getattr(logic, 'attached', False): # only relevant where the strip welds to existing edges
                 layout.prop(self, 'interpolate_rungs')
             layout.prop(self, 'split_angle')
@@ -685,7 +685,7 @@ def draw_polystrips_options(context, layout, props):
     layout = layout.column()
     layout.use_property_split = True
     layout.use_property_decorate = False
-    layout.prop(props, 'size_mode', text='Method')
+    layout.prop(props, 'size_mode', text='Method', expand=True)
     if props.size_mode == 'FIXED':
         layout.prop(props, 'fixed_count', text="Count")
     elif props.size_mode == 'LENGTH':

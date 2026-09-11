@@ -8,7 +8,7 @@ Entering a Retopoflow tool will adjust Blender's settings for:
 - Auto-merging vertices
 - The retopology overlay
 - Fading inactive geometry
-- The theme for mesh components
+- The color and size of mesh components
 - Vertex creases
   - This enables pinning in Tweak and Relax
 - Object wireframes
@@ -24,14 +24,26 @@ Switching out of a Retopoflow tool will restore all of your previous settings. Y
 | Source Object(s) | : | The original object(s) that you are re-creating.  These meshes typically have a high polygon count with poor topology and edge flow (ex: result of Dyntopo in Sculpt Mode) |
 | Retopology Object    | : | The new object that stores the retopologized surface.  This mesh typically has a low polygon count with good topology and edge flow. |
 
-You must have at least one source object to draw on for the Retopoflow tools to function.
+**You must have at least one source object to draw on for the Retopoflow tools to function.**
 
-Any mesh object that is visible and not the active retopolgoy object is considered a source object.
+Any mesh object that is visible and not the active retopolgoy object is considered a source object by default.
 This means that you can hide or move objects to different scenes to change which source objects will be retopologized.
 
-To keep objects visible but not acting as sources, mark objects as non-selectable in the Outliner and, in Retopoflow's Options menu (far right in the tool header), choose Exclude Non-Selectable.
+## Overlay
 
-Or, you can also mark a specific object or collection as the designated source.
+Retopoflow uses Blender's native retopology overlay.
+
+**If you are seeing the retopology object poke too far through the source object, decrease the retopology offset distance.** Choosing an appropriate distance is important not just for visual clarity but also for not accidentally grabbing or snapping to the wrong verts. This setting has been added to the tool settings header for convenience.
+
+## Snapping
+
+You can be more specific about which objects are considered sources in the Snapping menu. There, you can set a specific object, specific collection, filter to only selected objects, or filter to objects marked as selectable in the outliner.
+
+Retopoflow does not snap the same way as Blender, since Blender's snapping is not great for retopology. In Blender, you cannot snap to a vertex of the low poly without also allowing snapping to all of the high poly vertices. In Retopoflow, that's no issue! Retopoflow also helps by recalculating the normals when needed, merging verts by pixel distance so object scale isn't an issue, allowing source filtering, and switching between screen space and world space snapping methods automatically.
+
+But, if you would prefer to snap to the verts or other components of the high poly, you can do so in in the snapping menu. Enabling source vertex snapping switches Retopoflow to use Blender's native snapping. Blender's snapping does not allow for source filtering, so those options disappear when the native transform is being used.
+
+There is a section in the Snapping panel called **Source Feature Detection**, which is currently experimental (feedback encouraged!). When you enable detection of any of the features, Retopoflow will process all the source objects and allow you to snap to whichever edges are included. This snapping works across tools whenever moving or creating geometry, and helps with retopologizing hard surface objects, especially those created in CAD programs. It is not available when using Blender's native transform.
 
 ## Selection
 
@@ -49,11 +61,9 @@ The tools in Retopoflow can be used in any selection mode, but are generally mor
 
 Blender's default shortcut for loop selection is `Alt Left Click` or `Double Click` depending on your preferences. In Retopoflow, you can always use both!
 
-## Altered Operators
+A `LMB Drag` that is not near any geometry will perform a box, lasso, or paint selection based on whichever selection tool is active at the top of the toolbar. This fallback tool can also be changed using Blender's `Alt W` hotkey. You can turn this selection fallback off in the Tweaking menu. It is only available when Mouse Auto Selection is on, which it is by default.
 
-Retopoflow has slightly altered versions of a few Blender operators in order to make them more useful for retopology.
-
-- **Translate** (`G`) has been modified slighly to improve snapping behavior, but you should not need to think about this and can use it just like Blender's Translate.
+A `LMB` click away from geometry in any tool will clear the selection.
 
 ## Common Settings
 
@@ -61,7 +71,7 @@ All settings for the Retopoflow tools can be found in the 3D View tool header, t
 
 The insert tools share the same **Tweaking** settings for how big the selection hitbox is, whether vertices are auto-merged, and how big the auto-merge threshold is while using `LMB Drag` on geometry to tweak it. *These settings are not the same as the Tweak Brush tool settings.*
 
-Tools that commonly work with edge loops, such as Contours, have a Tweak Loops mode that replaces edge grab with a loop select and slide.
+The non-brush tools have a **Tweak Loops** mode that replaces edge grab with a loop select and slide. It is off by default in all tools except Contours.
 
 Brush tools have the same **Brush** settings, though they are not shared across the tools. That way, you can use a small Tweak brush with a large Relax brush if you prefer.
 
@@ -75,14 +85,11 @@ Brush tools share the same **Masking** settings, so masking seams for Tweak will
 
 The far right side of the tool settings in any Retopoflow tool is the General Options dropdown. In it, you can:
 
-- Choose to exclude non-selectable objects from being a snapping source
-    - This is the same as Blender's option of the same name in the Snapping settings
 - Adjust the retopology overlay's color and offset distance
+- Adjust the display size of vertices and edges
 - Adjust how much non-active objects are faded
 - Choose to expand or collapse the Retopoflow tools in the toolbar
 - Choose to expand or collapse the masking options in the tool header for the brush tools
-
-If you are seeing the retopology object through the source object, decrease the retopology offset distance.
 
 ## Switching Tools
 
