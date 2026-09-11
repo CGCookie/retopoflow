@@ -233,10 +233,13 @@ class RFOperator_Translate(SourceSnapMixin, RFOperator):
         if not (self.move_hovered and auto_select): return True
         self.hovered, co = hovered_bmelem(context, event, prefs.tweaking_distance, self.nearest_bmv, self.nearest_bme, self.nearest_bmf)
         if self.hovered or self.used_keyboard: return True
-        return not try_drag_select(
+        if try_drag_select(
             context, event,
             hovering_selected=self.is_hovering_selected(context, co, prefs.tweaking_distance),
-        )
+        ):
+            self.release_bmesh_refs()
+            return False # makes operator return CANCELLED
+        return True
 
     def init(self, context, event):
         # print(f'STARTING TRANSLATE')
@@ -394,9 +397,9 @@ class RFOperator_Translate(SourceSnapMixin, RFOperator):
 
         # Cursors.set('NONE')  # PAINT_CROSS
 
-    def finish(self, context):
-        # Drop every BMesh reference while the bmesh is still alive.
-        # Nothing reads these after finish() but it can crash if released by Blender after the bmesh is gone.
+    def release_bmesh_refs(self):
+        ''' Drop every BMesh reference while the bmesh is still alive. '''
+        # Nothing reads these afterwards but it can crash if released by Blender once the bmesh is gone.
         self.bm, self.em = None, None
         self.bmvs = ()
         self.data = {}
@@ -412,6 +415,9 @@ class RFOperator_Translate(SourceSnapMixin, RFOperator):
         self.vert_accel = None
         self.source_edge_accel = None
         self.proportional_edit_overlay = None
+
+    def finish(self, context):
+        self.release_bmesh_refs()
         self.snap_release_state()
 
     def update(self, context, event):
