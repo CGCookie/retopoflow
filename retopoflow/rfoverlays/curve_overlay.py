@@ -287,14 +287,7 @@ def create_curve_overlay_logic(
             version = self._dirty_version()
             if version is None: return False
 
-            if not self._curve_handles_enabled(context):
-                cls = type(self)
-                if self.curves or self.chains or self.label_data:
-                    cls.depsgraph_version = -42  # force rebuild when re-enabled
-                    self.curves = []
-                    self.chains = []
-                    self.label_data = []
-                return True
+            handles_on = self._curve_handles_enabled(context)
 
             # Some other modal op (transform, box select, loop cut, etc.) has control
             # so skip rather than rebuild on every frame of its drag.
@@ -313,11 +306,15 @@ def create_curve_overlay_logic(
                 # throttle during the drag
                 tunables_changed = False
 
-            if not tunables_changed and self.depsgraph_version == version and hasattr(self, 'curves'): return True
+            # Kept out of tunables because that path is throttled for slider drags, and this is a click
+            handles_changed = handles_on != getattr(self, '_last_handles_on', None)
+
+            if not tunables_changed and not handles_changed and self.depsgraph_version == version and hasattr(self, 'curves'): return True
             if self.paused_update: return False
 
             cls = type(self)
             cls.depsgraph_version = version
+            self._last_handles_on = handles_on
             self._last_tunables = tunables
             self._last_tunables_rebuild_time = time.monotonic()
             bend_tolerance_factor, sharp_angle = tunables
@@ -342,14 +339,17 @@ def create_curve_overlay_logic(
 
             active_keys = set()
             for spec in specs:
-                self._add_chain(spec, bm=bm, bend_tolerance_factor=bend_tolerance_factor,
-                                sharp_angle=sharp_angle, active_keys=active_keys)
+                if handles_on:
+                    self._add_chain(spec, bm=bm, bend_tolerance_factor=bend_tolerance_factor,
+                                    sharp_angle=sharp_angle, active_keys=active_keys)
+                elif spec.label[0]:
+                    # what _add_chain does first, without paying for the splines nothing will draw
+                    self.label_data.append((spec.label[0], spec.label[1], spec.points))
 
             # Hide handles when there are too many segments to be usable
             if sum(len(spline.cbs) for spline in self.curves) > MAX_HANDLE_SEGMENTS:
                 self.curves = []
                 self.chains = []
-                self.label_data = []
                 return True
 
             # drop cached structure for chains that are no longer selected
