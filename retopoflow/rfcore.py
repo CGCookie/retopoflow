@@ -218,6 +218,7 @@ class RFCore:
         bpy.types.VIEW3D_MT_edit_mesh_faces.append(menu_mesh.draw_face_menu_items)
         rfmenu_context.register()
         bpy.app.handlers.load_post.append(RFCore.handle_load_post)
+        bpy.app.handlers.load_pre.append(RFCore.handle_load_pre_caches)
 
         # track when RF modifies the mesh vs built-in Blender operator
         update_em_original = bmesh.update_edit_mesh
@@ -285,6 +286,8 @@ class RFCore:
         bpy.types.VIEW3D_MT_edit_mesh_faces.remove(menu_mesh.draw_face_menu_items)
         rfmenu_context.unregister()
         bpy.app.handlers.load_post.remove(RFCore.handle_load_post)
+        if RFCore.handle_load_pre_caches in bpy.app.handlers.load_pre:
+            bpy.app.handlers.load_pre.remove(RFCore.handle_load_pre_caches)
 
         AutoSave.unregister()
 
@@ -554,6 +557,7 @@ class RFCore:
         RFCore.is_controlling = True
 
         versioning.stamp_version(context.scene)
+        SourceCache.apply_pending_transforms()
         RFCore._last_rf_mesh_update_time = time.monotonic() # Reset timestamp so a startup geometry event never triggers a suppression window
 
         wm_type, space_type = bpy.types.WindowManager, bpy.types.SpaceView3D
@@ -786,7 +790,6 @@ class RFCore:
             attempt('remove RetopoFlow app handlers', remove_app_handlers)
             attempt('remove RetopoFlow draw handlers', RFCore.remove_handlers)
             attempt('clear the running areas', RFCore.running_in_areas.clear)
-            attempt('free the cached object bmeshes', free_object_bmeshes)
             attempt('clear the saved tool', clear_saved_tool)
             attempt('restore pinning', lambda: pinning.restore_pinning(bpy.context))
             attempt('clean up the mirror', lambda: mirror.cleanup_mirror(bpy.context))
@@ -985,6 +988,13 @@ class RFCore:
 
     @staticmethod
     @bpy.app.handlers.persistent
+    def handle_load_pre_caches(_path_blend : str):
+        ''' Drop every source cache before a different file replaces the one they describe. '''
+        clear_object_bmesh()   # owned bmesh.new() copies, plus SourceMeshCache
+        SourceCache.clear()    # cancels any in-flight build before its source data goes away
+
+    @staticmethod
+    @bpy.app.handlers.persistent
     def handle_load_post(_path_blend : str):
         if not hasattr(bpy.context.scene, 'retopoflow'): return
         if not getattr(bpy.context.scene.retopoflow, 'saved_tool', ''): return
@@ -1124,7 +1134,7 @@ class RFCore:
 
         RFCore.depsgraph_version += 1
 
-        SourceCache.note_depsgraph_update(bpy.context, depsgraph) # Auto source cache rebuild trigger
+        SourceCache.apply_pending_transforms()
 
         # print(f"{bpy.data.window_managers[0].windows[0].screen.show_fullscreen=}")
         # print(f'handle_depsgraph_update({scene}, {depsgraph})')
