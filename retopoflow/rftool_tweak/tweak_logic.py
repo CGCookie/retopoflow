@@ -34,6 +34,7 @@ from ..common.accel import EdgeMarkAccel, SourceAccel, Accel, SourceCache
 from ..common.drawing import Drawing, CC_2D_POINTS
 from ...addon_common.common.colors import Color4
 from ..common.bmesh import get_bmesh_emesh, is_bmvert_boundary, is_bmvert_corner, bmv_co_isnan, get_bmv_avg_edge_len, get_bmv_next_loop_vert
+from ..common.object import mirror_settings
 from ..common.bmesh_maths import (
     is_bmvert_on_edgemark, is_bmedge_edgemark, BMMarking,
     is_bmvert_pinned, is_bmvert_creased,
@@ -124,18 +125,7 @@ class Tweak_Logic(SourceSnapMixin):
         self.matrix_world = context.edit_object.matrix_world
         self.matrix_world_inv = self.matrix_world.inverted_safe()
 
-        self.mirror = set()
-        self.mirror_clip = False
-        self.mirror_threshold = Vector((0, 0, 0))
-        for mod in context.edit_object.modifiers:
-            if mod.type != 'MIRROR': continue
-            if not mod.use_clip: continue
-            if mod.use_axis[0]: self.mirror.add('x')
-            if mod.use_axis[1]: self.mirror.add('y')
-            if mod.use_axis[2]: self.mirror.add('z')
-            mt, scale = mod.merge_threshold, context.edit_object.scale
-            self.mirror_threshold = Vector(( mt / scale.x, mt / scale.y, mt / scale.z ))
-            self.mirror_clip = mod.use_clip
+        self.mirror, self.mirror_threshold, self.mirror_clip = mirror_settings(context)
 
         boundary, crease, sharp, seam = EdgeMarkAccel.build_all(
             self.bm, self.mirror, self.mirror_threshold, self.mirror_clip,

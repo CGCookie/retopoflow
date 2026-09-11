@@ -46,9 +46,10 @@ from ...addon_common.common.colors import Color4
 from ...addon_common.common.maths import sign_threshold, point_inside_face_2d
 from ...addon_common.common.blender_preferences import mouse_drag
 from ..common.bmesh import (
-    get_bmesh_emesh, BMVertLayer_Int, mirror_threshold, is_bmvert_corner,
+    get_bmesh_emesh, BMVertLayer_Int, is_bmvert_corner,
     bmes_shared_bmv, bme_unshared_bmv, bmvs_shared_bme, wind_bmfs_to_match_neighbors,
 )
+from ..common.object import mirror_threshold
 from ..common.bmesh_maths import orient_bmf_normals, check_bmf_normals, fit_plane_of_verts, compute_n
 from ..common.bpy_helper import bpy_ops_retopoflow
 from ..common.drawing import Drawing, CC_2D_LINES, CC_2D_TRIANGLES

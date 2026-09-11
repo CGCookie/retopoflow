@@ -47,9 +47,9 @@ from ..common.bmesh import (
     get_bmesh_emesh, get_bmv_avg_edge_len,
     clean_select_layers,
     NearestBMVert, NearestBMEdge, NearestBMFace,
-    has_mirror_x, has_mirror_y, has_mirror_z, mirror_threshold,
     bme_is_interior, bmv_is_interior,
 )
+from ..common.object import has_mirror_x, has_mirror_y, has_mirror_z, mirror_threshold
 from ..common.accel import SourceCache
 from ..common.snapping import source_snap_radius, source_snap_settings
 from ..common.bmesh_maths import is_bmvert_hidden, orient_bmf_normals

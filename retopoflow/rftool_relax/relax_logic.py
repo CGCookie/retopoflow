@@ -48,6 +48,7 @@ from ..common.bmesh import (
     bme_vector, bme_length,
     bmf_is_flipped,
 )
+from ..common.object import mirror_settings
 from ..common.bmesh_maths import (
     is_bmvert_on_edgemark, is_bmedge_edgemark, BMMarking,
     is_bmvert_pinned,
@@ -354,19 +355,7 @@ class Relax_Logic(FeatureRunsMixin):
             self.up      = xform_direction(Mi, Vector((0, 1,  0)))
         self.scale_avg = sum(self.matrix_world.to_scale()) / 3
 
-        self.mirror = set()
-        self.mirror_clip = False
-        self.mirror_threshold = Vector((0, 0, 0))
-        for mod in context.edit_object.modifiers:
-            # last one in stack is the one that shows up
-            if mod.type != 'MIRROR': continue
-            if not mod.use_clip: continue
-            if mod.use_axis[0]: self.mirror.add('x')
-            if mod.use_axis[1]: self.mirror.add('y')
-            if mod.use_axis[2]: self.mirror.add('z')
-            mt, scale = mod.merge_threshold, context.edit_object.scale
-            self.mirror_threshold = Vector(( mt / scale.x, mt / scale.y, mt / scale.z ))
-            self.mirror_clip = mod.use_clip
+        self.mirror, self.mirror_threshold, self.mirror_clip = mirror_settings(context)
 
         boundary, crease, sharp, seam = EdgeMarkAccel.build_all(
             self.bm, self.mirror, self.mirror_threshold, self.mirror_clip,

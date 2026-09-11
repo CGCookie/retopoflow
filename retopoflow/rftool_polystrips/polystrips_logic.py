@@ -33,8 +33,8 @@ from ..common.bmesh import (
     bmvs_shared_bme,
     bme_vector,
     bme_length,
-    has_mirror_x, has_mirror_y, has_mirror_z, mirror_threshold,
 )
+from ..common.object import has_mirror_x, has_mirror_y, has_mirror_z, mirror_threshold
 from ..common.bmesh_maths import (
     find_point_at,
     find_closest_point,
