@@ -48,6 +48,7 @@ from ..common.bmesh import (
     is_bmedge_boundary,
     is_bmvert_boundary,
 )
+from ..common.object import mirror_settings
 from ..common.bmesh_maths import is_bmvert_hidden
 from ..common.maths import point_to_bvec4
 from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, nearest_point_valid_sources, mouse_from_event
@@ -77,18 +78,7 @@ class Zipper_Logic:
     def __init__(self, context, event):
         self.mouse = Vector((event.mouse_region_x, event.mouse_region_y))
 
-        self.mirror = set()
-        self.mirror_clip = False
-        self.mirror_threshold = Vector((0, 0, 0))
-        for mod in context.edit_object.modifiers:
-            if mod.type != 'MIRROR': continue
-            if not mod.use_clip: continue
-            if mod.use_axis[0]: self.mirror.add('x')
-            if mod.use_axis[1]: self.mirror.add('y')
-            if mod.use_axis[2]: self.mirror.add('z')
-            mt, scale = mod.merge_threshold, context.edit_object.scale
-            self.mirror_threshold = Vector(( mt / scale.x, mt / scale.y, mt / scale.z ))
-            self.mirror_clip = mod.use_clip
+        self.mirror, self.mirror_threshold, self.mirror_clip = mirror_settings(context)
 
         self._init(context, event)
         self.lmb_down = False

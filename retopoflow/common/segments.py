@@ -30,8 +30,8 @@ from ..common.bmesh import (
     bme_midpoint,
     bme_length,
     get_boundary_strips_cycles,
-    has_mirror_x, has_mirror_y, has_mirror_z, mirror_threshold,
 )
+from ..common.object import has_mirror_x, has_mirror_y, has_mirror_z, mirror_threshold
 from ..common.bmesh_maths import orient_bmf_normals
 from ..common.curves import (
     find_quadstrip_chains, fit_centerline_spline, ordered_rung_rails, ordered_rungs,

@@ -22,7 +22,7 @@ Created by Jonathan Denning, Jonathan Lampel
 import bpy
 import bmesh
 import heapq
-from bpy.types import Mesh, Context, MirrorModifier
+from bpy.types import Mesh, Context
 from bmesh.types import BMVert, BMEdge, BMFace, BMesh, BMLayerCollection, BMLayerItem
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 from mathutils.bvhtree import BVHTree
@@ -31,6 +31,8 @@ from enum import IntEnum
 from math import inf, isnan, cos, radians
 from typing import cast, TypeVar, TypeAlias, Generic
 from collections.abc import Sequence, Iterator, Callable
+
+from .object import has_mirror_x, mirror_threshold
 
 from ...addon_common.common.decorators import add_cache
 from ...addon_common.common import bmesh_ops as bmops
@@ -63,23 +65,6 @@ def get_bmesh_emesh(context:Context, *, ensure_lookup_tables:bool=False) -> tupl
         bm.faces.ensure_lookup_table()
         bm.faces.index_update()
     return (bm, em)
-
-def iter_mirror_modifiers(obj : bpy.types.Object|None) -> Iterator[MirrorModifier]:
-    if not obj: return
-    for mod in obj.modifiers:
-        if mod.type != 'MIRROR': continue
-        # if not isinstance(mod, MirrorModifier): continue
-        if not mod.show_render and not mod.show_viewport: continue
-        yield mod                                                                       # pyright: ignore [reportReturnType]
-
-def mirror_threshold(context: Context) -> float|None:
-    return next((mod.merge_threshold for mod in iter_mirror_modifiers(context.edit_object)), None)
-def has_mirror_x(context:Context) -> bool:
-    return any(mod.use_axis[0] for mod in iter_mirror_modifiers(context.edit_object))   # pyright: ignore [reportIndexIssue]
-def has_mirror_y(context:Context) -> bool:
-    return any(mod.use_axis[1] for mod in iter_mirror_modifiers(context.edit_object))   # pyright: ignore [reportIndexIssue]
-def has_mirror_z(context:Context) -> bool:
-    return any(mod.use_axis[2] for mod in iter_mirror_modifiers(context.edit_object))   # pyright: ignore [reportIndexIssue]
 
 @add_cache('cache', {})
 def get_object_bmesh(obj):

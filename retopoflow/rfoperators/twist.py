@@ -31,8 +31,8 @@ from ..common.bmesh import (
     get_faces_of_verts,
     get_falloff_verts,
     get_vert_connected,
-    has_mirror_x, has_mirror_y, has_mirror_z,
 )
+from ..common.object import has_mirror_x, has_mirror_y, has_mirror_z
 from ..common.bmesh_maths import (
     bary_reconstruct,
     fit_plane_of_verts,

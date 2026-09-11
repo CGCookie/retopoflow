@@ -36,6 +36,7 @@ from ..common.bmesh import (
     get_bmv_avg_edge_len,
     NearestBMVert, NearestBMEdge, NearestBMFace,
 )
+from ..common.object import mirror_settings
 from ..common.bmesh_maths import is_bmvert_hidden, orient_bmf_normals
 from ..common.operator import execute_operator, RFOperator, RFKeyMaps
 from ..common.raycast import (
@@ -369,18 +370,7 @@ class RFOperator_Translate(SourceSnapMixin, RFOperator):
         self.moving = None
         self.bmfs_moving = None
 
-        self.mirror = set()
-        self.mirror_clip = False
-        self.mirror_threshold = Vector((0, 0, 0))
-        for mod in context.edit_object.modifiers:
-            if mod.type != 'MIRROR': continue
-            if not mod.use_clip: continue
-            if mod.use_axis[0]: self.mirror.add('x')
-            if mod.use_axis[1]: self.mirror.add('y')
-            if mod.use_axis[2]: self.mirror.add('z')
-            mt, scale = mod.merge_threshold, context.edit_object.scale
-            self.mirror_threshold = Vector(( mt / scale.x, mt / scale.y, mt / scale.z ))
-            self.mirror_clip = mod.use_clip
+        self.mirror, self.mirror_threshold, self.mirror_clip = mirror_settings(context)
 
         self.bmfs = [(bmf, Vector(bmf.normal)) for bmf in { bmf for bmv in self.bmvs for bmf in bmv.link_faces }]
         self.mouse = Vector((event.mouse_region_x, event.mouse_region_y))

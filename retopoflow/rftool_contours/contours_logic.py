@@ -35,11 +35,11 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d
 from mathutils import Matrix, Vector, kdtree
 from ..common.bmesh import (
     get_bmesh_emesh, get_object_bmesh, evict_object_bmesh,
-    has_mirror_x, has_mirror_y, has_mirror_z, mirror_threshold,
     bmf_midpoint_radius, bme_other_bmf, bmf_is_quad, quad_bmf_opposite_bme,
     ensure_correct_normals,
     find_selected_cycle_or_path,
 )
+from ..common.object import has_mirror_x, has_mirror_y, has_mirror_z, mirror_threshold
 from ..common.maths import (
     bvec_to_point, point_to_bvec3,
     pt_x0, pt_y0, pt_z0,
