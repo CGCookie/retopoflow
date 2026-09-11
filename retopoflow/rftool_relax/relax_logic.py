@@ -1741,12 +1741,12 @@ class Relax_Logic(FeatureRunsMixin):
         clip_planes = [tuple(p) for p in rv3d_clip.clip_planes] if clip_active else None
         # Each tuple is (source-local <- world, world <- source-local)
         # single_source below combines both with M/Mi so the snap loop never needs to build them per vert.
-        source_xforms = [(obj_s, Mi_s @ M, M_s) for (obj_s, M_s, Mi_s, _) in self.sources]
+        source_xforms = [(obj_s, Mi_s @ M, M_s) for (obj_s, M_s, Mi_s, *_) in self.sources]
         single_source = None
         # Feature snapping does not disable this. The feature block above runs first and the one
         # later reader of co_world_snapped already falls back to M @ co_local_snapped.
         if len(self.sources) == 1 and not clip_active and snap_bvh is None:
-            obj_s, M_s, Mi_s, _ = self.sources[0]
+            obj_s, M_s, Mi_s, *_ = self.sources[0]
             single_source = (obj_s, Mi_s @ M, Mi @ M_s)
 
         #MARK: Batched forces
@@ -2049,7 +2049,7 @@ class Relax_Logic(FeatureRunsMixin):
                         # the normals can graze a 90 degree angle.
                         normal_world = (Mi.transposed().to_3x3() @ bmv.normal).normalized()
                         best_dist = inf
-                        for obj, M_obj, Mi_obj, Mi_obj_3x3 in self.sources:
+                        for obj, M_obj, Mi_obj, Mi_obj_3x3, *_ in self.sources:
                             ray_o  = (Mi_obj @ Vector((*co_pt, 1.0))).xyz
                             ray_d  = (Mi_obj_3x3 @ normal_world).normalized()
                             for d in (ray_d, -ray_d):
