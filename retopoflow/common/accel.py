@@ -511,6 +511,7 @@ class SourceAccel:
         feature_edges: set[int] = set()
         feature_adj: dict[int, list[int]] = {}
         pole_corners: set[int] = set()
+        Mn = world_normal_matrix(M)
         bm = bmesh.new()
         try:
             bm.from_object(obj.evaluated_get(depsgraph), depsgraph)
@@ -523,8 +524,8 @@ class SourceAccel:
                 if not is_feature and include_creases:
                     is_feature = is_bmedge_edgemark(bm, bme, BMMarking.crease)
                 if not is_feature and len(bme.link_faces) == 2:
-                    n0 = bme.link_faces[0].normal
-                    n1 = bme.link_faces[1].normal
+                    n0 = Mn @ bme.link_faces[0].normal
+                    n1 = Mn @ bme.link_faces[1].normal
                     if n0.length > 0 and n1.length > 0:
                         is_feature = n0.normalized().dot(n1.normalized()) < cos_threshold
                 if is_feature:
@@ -619,6 +620,7 @@ class SourceAccel:
         feature_edges: set[int] = set()
         feature_adj: dict[int, list[int]] = {}
         pole_corners: set[int] = set()
+        Mn = world_normal_matrix(M)
 
         bm = bmesh.new()
         try:
@@ -640,8 +642,8 @@ class SourceAccel:
                     if not is_feature and include_creases:
                         is_feature = is_bmedge_edgemark(bm, bme, BMMarking.crease)
                     if not is_feature and len(bme.link_faces) == 2:
-                        n0 = bme.link_faces[0].normal
-                        n1 = bme.link_faces[1].normal
+                        n0 = Mn @ bme.link_faces[0].normal
+                        n1 = Mn @ bme.link_faces[1].normal
                         if n0.length > 0 and n1.length > 0:
                             is_feature = n0.normalized().dot(n1.normalized()) < cos_threshold
                     if is_feature:
@@ -774,7 +776,7 @@ class SourceAccel:
                 loop_poly = np.repeat(np.arange(n_polys, dtype=np.int64), loop_total)
                 pn = np.empty(n_polys * 3, dtype=np.float64)
                 mesh.polygons.foreach_get('normal', pn)
-                pn = pn.reshape(n_polys, 3)
+                pn = normals_to_world(pn.reshape(n_polys, 3), M)
                 yield _yield_setup(), None, None
 
                 counts = np.bincount(loop_edge, minlength=n_edges)
@@ -889,7 +891,7 @@ class SourceAccel:
                 loop_poly = np.repeat(np.arange(n_polys, dtype=np.int64), loop_total)
                 pn = np.empty(n_polys * 3, dtype=np.float64)
                 mesh.polygons.foreach_get('normal', pn) # polygon normals are unit length
-                pn = pn.reshape(n_polys, 3)
+                pn = normals_to_world(pn.reshape(n_polys, 3), M)
 
                 counts = np.bincount(loop_edge, minlength=n_edges)
                 order = np.argsort(loop_edge, kind='stable')  # loop indices grouped by edge
@@ -1068,6 +1070,7 @@ class SourceMeshCache:
         data = cls._build(obj, depsgraph)
         if data is not None:
             cls._cache[key] = data
+            _sync_source_cache_handler()   # now there is something to keep honest
         return data
 
     @classmethod
@@ -1147,19 +1150,30 @@ class SourceMeshCache:
         ''' Carry a moved source's baked world coordinates onto its new matrix. Returns True if transformed. '''
         M_new = np.array(matrix_world, dtype=np.float64)
         rebaked = False
-        for (name, _mesh_name), data in cls._cache.items():
-            if name != obj_name or np.array_equal(data.matrix, M_new):
+        unbakeable = []
+        for key, data in cls._cache.items():
+            if key[0] != obj_name or np.array_equal(data.matrix, M_new):
                 continue
             # Compose new-from-old rather than unbaking: one affine op, and the mesh stays unread.
-            D = M_new @ np.linalg.inv(data.matrix)
+            try:
+                D = M_new @ np.linalg.inv(data.matrix)
+            except np.linalg.LinAlgError:
+                D = None
+            if D is None or not np.all(np.isfinite(D)):
+                # A source was scaled to 0 on an axis
+                unbakeable.append(key)
+                continue
             data.world  = data.world @ D[:3, :3].T + D[:3, 3]
             data.matrix = M_new
             rebaked = True
+        for key in unbakeable:
+            del cls._cache[key]
         return rebaked
 
     @classmethod
     def evict(cls, obj_name: str):
         cls._cache = {k: v for k, v in cls._cache.items() if k[0] != obj_name}
+        _sync_source_cache_handler()
         # Also remove from warmup queue in case it was pending.
         cls._warmup_queue = [o for o in cls._warmup_queue if getattr(o, 'name', None) != obj_name]
 
@@ -1204,6 +1218,7 @@ class SourceMeshCache:
                 data = cls._build(obj, depsgraph)
                 if data:
                     cls._cache[key] = data
+                    _sync_source_cache_handler()   # now there is something to keep honest
                     print(f'SourceMeshCache: warmed {name!r}')
             except Exception as e:
                 print(f'SourceMeshCache: warmup failed for {name!r}: {e}')
@@ -1215,6 +1230,7 @@ class SourceMeshCache:
     def clear(cls):
         cls._cache.clear()
         cls._warmup_queue.clear()
+        _sync_source_cache_handler()
 
 
 
@@ -1224,10 +1240,56 @@ def _source_mesh_cache_warmup_timer():
     return SourceMeshCache._warmup_step()
 
 
+def world_normal_matrix(M : Matrix) -> Matrix:
+    """The 3x3 that carries a local normal into world space."""
+    return M.inverted_safe().to_3x3().transposed()
+
+
+def normals_to_world(pn, M):
+    """Carry an (n, 3) array of local face normals into world space, unit length."""
+    # The inverse transpose does not preserve length, so these have to be renormalised before any
+    # dot product. A uniform scale reduces to a pure rotation here, leaving angles untouched.
+    N = np.array(world_normal_matrix(M), dtype=np.float64)
+    pn = pn @ N.T
+    lens = np.linalg.norm(pn, axis=1, keepdims=True)
+    return pn / np.where(lens > 1e-12, lens, 1.0)
+
+
 def _source_cache_timer():
     ''' Module level timer entry point. Kept as a plain function so it can
     be reliably registered/unregistered with bpy.app.timers. '''
     return SourceCache._step()
+
+
+@bpy.app.handlers.persistent
+def _source_cache_depsgraph_handler(_scene, depsgraph):
+    ''' Keeps the source caches honest whether or not RetopoFlow is running. '''
+    # RF's own depsgraph handler is added in start(), removed in stop(), and gated on is_running, so
+    # a source edited between leaving RF and coming back would go unnoticed and be served stale.
+    # Only invalidation happens here: a moved source is noted and paid for on RF enter.
+    if not depsgraph.updates:
+        return  # evaluation-only event, e.g. a hover raycast. Nothing actually changed.
+    try:
+        SourceCache.note_depsgraph_update(bpy.context, depsgraph)
+    except Exception as e:
+        # Blender does not drop an app handler that raises, so without this one bad event would
+        # print a traceback on every depsgraph update from here on.
+        print(f'SourceCache: depsgraph handler error ({e})')
+
+
+def _sync_source_cache_handler():
+    ''' Register the depsgraph handler exactly while some cache has something to protect.
+    Call after anything that fills or empties a cache. Safe to call often. '''
+    handlers = bpy.app.handlers.depsgraph_update_post
+    wanted = bool(
+        SourceMeshCache._cache or SourceCache._obj_type_cache
+        or SourceCache.source_datablock_names or SourceCache.building
+    )
+    present = _source_cache_depsgraph_handler in handlers
+    if wanted and not present:
+        handlers.append(_source_cache_depsgraph_handler)
+    elif not wanted and present:
+        handlers.remove(_source_cache_depsgraph_handler)
 
 
 class SourceCache:
@@ -1242,6 +1304,7 @@ class SourceCache:
     progress : float = 0.0
     _gen = None                                # active build generator, or None
     _cancel : bool = False
+    _pending_transforms : set = set()          # sources moved while RF was away, applied on enter
     _dirty_token : int = 0                     # bumped on every mark_dirty
     _build_token : int = 0                     # _dirty_token captured when the in-flight build started
     _build_settings : tuple = ()
@@ -1302,13 +1365,26 @@ class SourceCache:
     @classmethod
     def note_transform_changed(cls, obj_name: str):
         ''' A source moved, rotated, or scaled without its geo being edited. '''
-        obj = bpy.data.objects.get(obj_name)
-        if obj is None:
+        cls._pending_transforms.add(obj_name)
+
+    @classmethod
+    def apply_pending_transforms(cls):
+        ''' Carry every source moved since the last call onto its current matrix. '''
+        # Both caches bake world-space coordinates, so a moved source leaves them stale even though
+        # nothing was edited. Rebake rather than evict, then mark dirty so the combined accel -- its
+        # dedupe, BVH, corner KDTree and run topology, all keyed on coordinates -- is reassembled.
+        if not cls._pending_transforms:
             return
-        M = obj.matrix_world
-        SourceMeshCache.rebake(obj_name, M)
-        if cls.retransform_object(obj_name, M):
-            cls.mark_dirty(f'source moved ({obj_name})')
+        pending, cls._pending_transforms = cls._pending_transforms, set()
+        for obj_name in pending:
+            obj = bpy.data.objects.get(obj_name)
+            if obj is None:
+                continue
+            # Read the matrix now rather than when the move was noted: only the last one matters
+            M = obj.matrix_world
+            SourceMeshCache.rebake(obj_name, M)
+            if cls.retransform_object(obj_name, M):
+                cls.mark_dirty(f'source moved ({obj_name})')
 
     @classmethod
     def mark_dirty_geometry_changed(cls, reason: str = '', *, obj_name: str = ''):
@@ -1422,6 +1498,7 @@ class SourceCache:
         cls._gen = cls._build_steps()
         cls.building = True
         cls.progress = 0.0
+        _sync_source_cache_handler()   # watch from the start of the build, not just its commit
         if not bpy.app.timers.is_registered(_source_cache_timer):
             bpy.app.timers.register(_source_cache_timer)
 
@@ -1520,6 +1597,7 @@ class SourceCache:
         if commit and cls._pending_accel is not None:
             cls.accel = cls._pending_accel
             cls.source_datablock_names = cls._pending_names
+            _sync_source_cache_handler()
             # Merge newly scanned per-object data into the persistent per-object cache.
             for key, entry in cls._pending_obj_data.items():
                 cls._obj_type_cache[key] = entry
@@ -1613,12 +1691,14 @@ class SourceCache:
         cls._committed_detection_settings = None
         cls._obj_type_cache.clear()
         cls._pending_obj_data.clear()
+        cls._pending_transforms.clear()
         if bpy.app.timers.is_registered(_source_cache_timer):
             try: bpy.app.timers.unregister(_source_cache_timer)
             except Exception: pass
         cls.accel = None
         cls.dirty = True
         cls.source_datablock_names = frozenset()
+        _sync_source_cache_handler()
         cls._pending_accel = None
         cls._pending_names = frozenset()
         SourceMeshCache.clear()
