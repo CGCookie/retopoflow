@@ -1021,16 +1021,17 @@ class SourceMeshData:
     ''' Flat numpy arrays for one evaluated source object, used by the Contours Walk method.
     All geometry is stored in world space so no per-stroke matrix math is needed. '''
     __slots__ = (
-        'world', 'edge_verts',
+        'world', 'matrix', 'edge_verts',
         'loop_edge', 'loop_face', 'face_start', 'face_total',
         'sorted_faces', 'edge_face_offsets', 'edge_face_counts', 'boundary',
         'vert_sorted_faces', 'vert_face_offsets', 'vert_face_counts',
         'n_verts', 'n_edges', 'n_faces',
     )
 
-    def __init__( self, world, edge_verts, loop_edge, loop_face, face_start, face_total, sorted_faces,
+    def __init__( self, world, matrix, edge_verts, loop_edge, loop_face, face_start, face_total, sorted_faces,
                  edge_face_offsets, edge_face_counts, boundary, vert_sorted_faces, vert_face_offsets, vert_face_counts):
         self.world             = world
+        self.matrix            = matrix
         self.edge_verts        = edge_verts
         self.loop_edge         = loop_edge
         self.loop_face         = loop_face
@@ -1130,7 +1131,7 @@ class SourceMeshCache:
                 np.cumsum(vert_face_counts[:-1], out=vert_face_offsets[1:])
 
             return SourceMeshData(
-                world, edge_verts,
+                world, M, edge_verts,
                 loop_edge, loop_face, face_start, face_total,
                 sorted_faces, edge_face_offsets, edge_face_counts, boundary,
                 vert_sorted_faces, vert_face_offsets, vert_face_counts,
@@ -1140,6 +1141,21 @@ class SourceMeshCache:
             return None
         finally:
             clear_mesh()
+
+    @classmethod
+    def rebake(cls, obj_name: str, matrix_world) -> bool:
+        ''' Carry a moved source's baked world coordinates onto its new matrix. Returns True if transformed. '''
+        M_new = np.array(matrix_world, dtype=np.float64)
+        rebaked = False
+        for (name, _mesh_name), data in cls._cache.items():
+            if name != obj_name or np.array_equal(data.matrix, M_new):
+                continue
+            # Compose new-from-old rather than unbaking: one affine op, and the mesh stays unread.
+            D = M_new @ np.linalg.inv(data.matrix)
+            data.world  = data.world @ D[:3, :3].T + D[:3, 3]
+            data.matrix = M_new
+            rebaked = True
+        return rebaked
 
     @classmethod
     def evict(cls, obj_name: str):
@@ -1262,6 +1278,37 @@ class SourceCache:
         cls._dirty_token += 1
         if DEBUG_SOURCE_CACHE:
             print(f'SourceCache: marked dirty ({reason})')
+
+    @classmethod
+    def retransform_object(cls, obj_name: str, matrix_world) -> bool:
+        ''' Carry one object's cached feature segments and corners onto its new matrix.
+        Returns True if anything moved. '''
+        moved = False
+        for key, entry in list(cls._obj_type_cache.items()):
+            if key[1] != obj_name or len(entry) < 3:
+                continue
+            segs, crns, M_old = entry
+            if M_old == matrix_world:
+                continue
+            D = matrix_world @ M_old.inverted_safe()
+            cls._obj_type_cache[key] = (
+                [(D @ a, D @ b) for (a, b) in segs],
+                [D @ p for p in crns],
+                matrix_world.copy(),
+            )
+            moved = True
+        return moved
+
+    @classmethod
+    def note_transform_changed(cls, obj_name: str):
+        ''' A source moved, rotated, or scaled without its geo being edited. '''
+        obj = bpy.data.objects.get(obj_name)
+        if obj is None:
+            return
+        M = obj.matrix_world
+        SourceMeshCache.rebake(obj_name, M)
+        if cls.retransform_object(obj_name, M):
+            cls.mark_dirty(f'source moved ({obj_name})')
 
     @classmethod
     def mark_dirty_geometry_changed(cls, reason: str = '', *, obj_name: str = ''):
@@ -1442,7 +1489,7 @@ class SourceCache:
                     print(f'SourceCache: skipping source {getattr(obj, "name", "?")!r} ({e})')
                 all_segments.extend(obj_segs)
                 all_corners.extend(obj_crns)
-                cls._pending_obj_data[cache_key] = (obj_segs, obj_crns)
+                cls._pending_obj_data[cache_key] = (obj_segs, obj_crns, M.copy())
 
         cls._pending_accel = SourceAccel.finalize(all_segments, all_corners)
         cls._pending_names = names
@@ -1474,8 +1521,8 @@ class SourceCache:
             cls.accel = cls._pending_accel
             cls.source_datablock_names = cls._pending_names
             # Merge newly scanned per-object data into the persistent per-object cache.
-            for key, (segs, crns) in cls._pending_obj_data.items():
-                cls._obj_type_cache[key] = (segs, crns)
+            for key, entry in cls._pending_obj_data.items():
+                cls._obj_type_cache[key] = entry
             # Prune cache entries for objects no longer in the source set.
             current_obj_names = {obj.name for obj in cls._build_sources}
             cls._obj_type_cache = {k: v for k, v in cls._obj_type_cache.items()
@@ -1547,12 +1594,14 @@ class SourceCache:
         if not cls.auto_rebuild_enabled(context): return
         if not cls.source_datablock_names: return
         for update in depsgraph.updates:
-            if not getattr(update, 'is_updated_geometry', False): continue
             name = getattr(getattr(update, 'id', None), 'name', None)
-            if name and name in cls.source_datablock_names:
+            if not name or name not in cls.source_datablock_names: continue
+            if getattr(update, 'is_updated_geometry', False):
                 cls.mark_dirty_geometry_changed(f'source geometry edited ({name})', obj_name=name)
                 SourceMeshCache.evict(name)
                 return
+            if getattr(update, 'is_updated_transform', False):
+                cls.note_transform_changed(name)
 
     @classmethod
     def clear(cls):
