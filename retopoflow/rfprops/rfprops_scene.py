@@ -334,6 +334,7 @@ def register():
     bpy.types.Scene.retopoflow = bpy.props.PointerProperty(type=RFProps_Scene)
 
 def unregister():
+    del bpy.types.Scene.retopoflow # Before the props
     bpy.utils.unregister_class(RFProps_Scene)
     bpy.utils.unregister_class(RFProps_CurveHandles)
     bpy.utils.unregister_class(RFProps_Snapping)
