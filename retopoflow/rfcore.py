@@ -88,7 +88,7 @@ from . import versioning
 
 # Operator files need to be imported here in order to be registered, even if they are not used in this file
 from .rfoperators import (mesh_cleanup, mirror, pinning, reset_tool_settings, launch_browser, relax_selected, space_evenly,
-    insert_diamond_junction, twist, rebuild_sources, separate_feature_regions, curve_edit, topo_rotate,
+    insert_diamond_junction, twist, rebuild_sources, separate_feature_regions, curve_edit, topo_rotate, info,
     select)
 from .rfoperators.apply_retopo_settings import RFOperator_ApplyRetopoSettings, RFOperator_RestoreRetopoSettings
 from .rfoperators.newtarget import RFCore_NewTarget_Cursor, RFCore_NewTarget_Active
@@ -290,6 +290,7 @@ class RFCore:
             bpy.app.handlers.load_pre.remove(RFCore.handle_load_pre_caches)
 
         AutoSave.unregister()
+        SourceCache.clear()  # An addon reload should start clean. Do before the props below!
 
         # unregister RF operator and RF tools
         RFAssetShelf.unregister_all()
@@ -325,8 +326,6 @@ class RFCore:
 
         free_shaders_and_batches()
         free_ui_draw_shaders_and_batches()
-
-        SourceCache.clear() # An addon reload should start clean
 
     @staticmethod
     def draw_menu_items(menu : Menu, context : Context):
@@ -583,6 +582,7 @@ class RFCore:
         snapping = props.snapping
         if not prefs.setup_snapping:
             snapping.projection = 'FOLLOW_BLENDER'
+        RFCore.resetter.store('context.tool_settings.snap_elements')
 
         # Setup tool settings
         if snapping.projection != 'FOLLOW_BLENDER':
@@ -594,9 +594,8 @@ class RFCore:
             RFCore.resetter['context.scene.tool_settings.use_snap_translate'] = True
             RFCore.resetter['context.scene.tool_settings.use_snap_rotate'] = True
             RFCore.resetter['context.scene.tool_settings.use_snap_scale'] = True
-            RFCore.resetter.store('context.tool_settings.snap_elements_base')
             snap_elem = 'FACE_PROJECT' if snapping.projection == 'SCREEN_SPACE' else 'FACE_NEAREST'
-            RFCore.resetter['context.tool_settings.snap_elements_individual'] = {snap_elem}
+            RFCore.resetter['context.tool_settings.snap_elements'] = {snap_elem}
             if context.scene.tool_settings.snap_face_nearest_steps < 6:
                 RFCore.resetter['context.scene.tool_settings.snap_face_nearest_steps'] = 6
 

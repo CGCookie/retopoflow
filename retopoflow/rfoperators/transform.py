@@ -82,11 +82,20 @@ from ..rfoverlays.proportional_edit_overlay import ProportionalEditOverlay
 def translate_uses_native(context):
     ''' Whether Translate hands off to Blender's transform rather than running RF's own. Shared with
     the UI so a panel can show whichever Auto Merge setting is actually going to apply. '''
+    return bool(context.scene.retopoflow.snapping.snap_vertex) # Vertex is the master toggle
+
+
+def native_snap_elements(context) -> set[str]:
+    ''' The snap element flags the Also Snap To toggles ask for, under Blender's names. '''
     snapping = context.scene.retopoflow.snapping
-    return bool(snapping.snap_vertex and (
-        snapping.snap_vertex or snapping.snap_edge or snapping.snap_edge_center
-        or snapping.snap_edge_perpendicular or snapping.snap_face_center
-    ))
+    elements = set()
+    if snapping.snap_vertex:             elements.add('VERTEX')
+    if snapping.snap_edge:               elements.add('EDGE')
+    if snapping.snap_edge_center:        elements.add('EDGE_MIDPOINT')
+    if snapping.snap_edge_perpendicular: elements.add('EDGE_PERPENDICULAR')
+    if snapping.snap_face_center and bpy.app.version >= (5, 1, 0):
+        elements.add('FACE_MIDPOINT')
+    return elements
 
 
 class RFOperator_Slide(RFOperator):
@@ -283,16 +292,7 @@ class RFOperator_Translate(SourceSnapMixin, RFOperator):
                 self.use_slide = True
 
         if self.use_native == 'TRUE' and self.use_slide == False:
-            snapping = context.scene.retopoflow.snapping
-
-            # Build snap_elements from RF's settings
-            new_base = set()
-            if snapping.snap_vertex:             new_base.add('VERTEX')
-            if snapping.snap_edge:               new_base.add('EDGE')
-            if snapping.snap_edge_center:        new_base.add('EDGE_MIDPOINT')
-            if snapping.snap_edge_perpendicular: new_base.add('EDGE_PERPENDICULAR')
-            if snapping.snap_face_center and bpy.app.version >= (5, 1, 0):
-                new_base.add('FACE_MIDPOINT')
+            new_base = native_snap_elements(context)
 
             if self.tweaking_projection == 'FOLLOW_BLENDER':
                 bpy.ops.transform.translate('INVOKE_DEFAULT')

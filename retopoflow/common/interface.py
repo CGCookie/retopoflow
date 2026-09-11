@@ -172,6 +172,29 @@ def show_message(message: str, title: str, icon: str = "INFO"):
     bpy.context.window_manager.popup_menu(popup_handler, title=title, icon=icon)
 
 
+def draw_info_notice(layout : UILayout, text : str, message : str, *, title : str = '', icon : str = 'ERROR', width : int = 500):
+    ''' A one-line notice with a `?` button beside it that opens the long form. '''
+    row = layout.row(align=True)
+    row.use_property_split = False
+    row.separator(factor=1)
+
+    row.label(text='', icon=icon)
+    row.separator()
+
+    subrow = row.row()
+    # subrow.alignment='RIGHT'
+    subrow.label(text=text)
+    row.separator()
+
+    op = row.operator('retopoflow.show_info', text='', icon=icon, emboss=True)
+    op.title   = title
+    op.message = message
+    op.width   = width
+    row.separator()
+
+    return row
+
+
 def update_toolbar():
     from ..rftool_base import RFTool_Base
     RFTool_Base.unregister_all()
