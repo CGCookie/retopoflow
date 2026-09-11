@@ -64,6 +64,7 @@ class Hasher:
         self._digest = None
         for arg in args:
             match arg:
+                # Color subclasses Vector and bool subclasses int, so they don't get their own entry
                 case Vector():
                     self._hasher.update(bytes(f'Vector {len(arg)}', 'utf8'))
                     self.add(*arg)
@@ -72,9 +73,6 @@ class Hasher:
                     l1 = len(arg[0])
                     self._hasher.update(bytes(f'Matrix {l0} {l1}', 'utf8'))
                     self.add_list([v for r in arg for v in r])
-                case Color():
-                        self._hasher.update(bytes(f'Color', 'utf8'))
-                        self.add_list([arg.r, arg.g, arg.b, arg.a])
                 case list():
                     self._hasher.update(bytes(f'list {len(arg)}', 'utf8'))
                     self.add_list(arg)
@@ -88,8 +86,6 @@ class Hasher:
                     self._hasher.update(pack('i', arg))
                 case float():
                     self._hasher.update(pack('f', arg))
-                case bool():
-                    self._hasher.update(pack('b', arg))
                 case str() | None | dict():
                     self._hasher.update(bytes(str(arg), 'utf8'))
                 case _:
