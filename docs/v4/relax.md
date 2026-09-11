@@ -91,6 +91,6 @@ The Relax Brush is not just averaging vertex locations like a simple smooth brus
 
 ## Selection
 
-Even though `LMB` to select is not available while using the Tweak Brush, you can still select and deselect by using `Shift LMB`. Box Select `B` and Lasso Select `Ctrl Right Mouse Drag` are always available as well.
+Even though `LMB` to select is not available while using the Tweak Brush, you can still select and deselect by using `Shift LMB`. You can deselect all by clicking in empty space outside of the source object. Box Select `B` and Lasso Select `Ctrl Right Mouse Drag` are always available as well.
 
 General selection options for all tools can be read about on the [Retopoflow Mode](general.html) docs page under Selection.

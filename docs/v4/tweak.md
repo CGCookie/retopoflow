@@ -26,6 +26,13 @@ These options can also be stored as presets in the Brush Options panel.
 To quickly switch between presets, use the {{ site.data.keymaps.pie_menu_alt0 }} pie menu.
 -->
 
+## Brush Types
+
+- **Grab** transforms the vertices under the brush the same as pressing `G` to grab, but with a falloff.
+- **Nudge** pushes vertices around. This creates less overlapping than Grab, but is less reversible.
+    - Nudge's Loops mode pushes around whole loops at a time and can be toggled by holding `Alt`.
+- **Pinch/Magnify** expands or contracts vertices in an area like Blender's sculpt brush of the same name.
+
 
 ## Pinning
 
@@ -67,6 +74,6 @@ The Tweak Brush has several options to control which vertices are moved and how.
 
 ## Selection
 
-Even though `LMB` to select is not available while using the Tweak Brush, you can still select and deselect by using `Shift LMB`. Box Select `B` and Lasso Select `Ctrl Right Mouse Drag` are always available as well.
+Even though `LMB` to select is not available while using the Tweak Brush, you can still select and deselect by using `Shift LMB`. You can deselect all by clicking in empty space outside of the source object. Box Select `B` and Lasso Select `Ctrl Right Mouse Drag` are always available as well.
 
 General selection options for all tools can be read about on the [Retopoflow Mode](general.html) docs page under Selection.
