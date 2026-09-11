@@ -44,7 +44,7 @@ from ..config.keymaps import (
 from .common.bmesh import get_object_bmesh, get_bmesh_emesh, clear_object_bmesh, free_object_bmeshes
 from .common.bpy_helper import bpy_ops_retopoflow, BL_SPACE_TYPES
 from .common.operator import RFOperator_Base, RFOperator, RFOperator_Execute, RFRegisterClass, RFAssetShelf
-from .common.raycast import prep_raycast_valid_sources, iter_all_valid_sources
+from .common.raycast import prep_raycast_valid_sources, iter_all_valid_sources, invalidate_source_caches
 from .common.accel import SourceCache
 from .common.interface import show_message
 from .common import icons as icons_module
@@ -1134,6 +1134,11 @@ class RFCore:
         RFCore.depsgraph_version += 1
 
         SourceCache.apply_pending_transforms()
+
+        for update in depsgraph.updates:
+            if not getattr(update, 'is_updated_geometry', False): continue
+            if name := getattr(getattr(update, 'id', None), 'name', None):
+                invalidate_source_caches(name)
 
         # print(f"{bpy.data.window_managers[0].windows[0].screen.show_fullscreen=}")
         # print(f'handle_depsgraph_update({scene}, {depsgraph})')

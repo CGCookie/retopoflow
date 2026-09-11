@@ -352,6 +352,11 @@ source_world_bvh_cache : dict[str, tuple[Matrix, int, BVHTree]] = {}
 def clear_source_world_bvh_cache():
     source_world_bvh_cache.clear()
 
+def invalidate_source_caches(obj_name : str):
+    ''' Drop what this module cached about one object after its geometry changed. '''
+    has_faces_cache.pop(obj_name, None)
+    source_world_bvh_cache.pop(obj_name, None)
+
 # Which source the user is currently working on
 _snapped_source : tuple[str, bool] = ('', False)   # (name, carries unapplied non-uniform scale)
 
