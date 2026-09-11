@@ -83,7 +83,7 @@ class PatchSettings:
     defaults here are also the defaults of the matching tool properties. '''
     split_angle      : float = math.radians(60)   # deviation from straight that makes a boundary vert a corner
     smooth           : int = 3
-    span_insert_mode : str = 'AVERAGE'
+    span_insert_mode : str = 'FIXED'
     crosses          : int = 0
     span_length      : float = 0.1
     solution         : int = 1      # which of a loop's ranked fills, 1 the best, wrapping
