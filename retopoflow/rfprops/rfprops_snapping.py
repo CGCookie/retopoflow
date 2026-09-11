@@ -49,6 +49,7 @@ def on_snap_element_changed(prop_name, element):
     ''' Update callback for one snap element toggle. Returns the callback, so each property
     supplies its own RF property name and matching Blender snap element flag. '''
     def update(self, context):
+        if element == 'FACE_MIDPOINT' and bpy.app.version < (5, 1, 0): return
         ts = context.scene.tool_settings
         # snap_elements_base reads as a masked view but writes the whole field, so going through it
         # drops FACE_PROJECT / FACE_NEAREST, which is RetopoFlow's own surface projection.
