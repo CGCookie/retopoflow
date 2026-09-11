@@ -769,15 +769,15 @@ def draw_patches_props(layout : UILayout, props, *, header : bool, redo : bool =
             layout.separator(type='LINE')
         elif not redo:
             layout.separator()
+        if has_grid:
+            layout.prop(props, 'solution', text='Solution')
+            layout.prop(props, 'offset', text='Offset')
         if has_quad:
             layout.prop(props, 'crosses', text='Cuts')
         if has_offset:
             layout.prop(props, 'steps')
         if (L.filled_free_step if redo else L.has_free_step):
             layout.prop(props, 'step_scale')
-        if has_grid:
-            layout.prop(props, 'solution', text='Solution')
-            layout.prop(props, 'offset', text='Offset')
         if has_loft:
             layout.prop(props, 'twist')
         if not header and not redo:
