@@ -27,7 +27,7 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d
 
 from .bmesh import get_bmv_avg_edge_len, get_bmv_next_loop_vert, is_bmvert_corner
 from .maths import local_to_world, point_to_bvec3
-from .raycast import raycast_valid_sources, raycast_ray_valid_sources, nearest_point_valid_sources
+from .raycast import raycast_valid_sources, raycast_ray_valid_sources, nearest_point_valid_sources, source_xform_tuple
 
 
 FEATURE_RUN_MARGIN_FACTOR = 2.0 # How far beyond the brush in avg edge lengths to classify feature edges
@@ -69,12 +69,6 @@ SNAP_TO_ITEMS = [
 ]
 
 
-def source_tuple(obj):
-    M  = obj.matrix_world
-    Mi = M.inverted_safe()
-    return (obj, M, Mi, Mi.to_3x3())
-
-
 def is_snap_candidate(context, obj) -> bool:
     return (
         obj != context.edit_object
@@ -86,7 +80,7 @@ def is_snap_candidate(context, obj) -> bool:
 
 
 def build_snap_sources(context, snap_to, *, snap_object='', snap_collection='') -> list:
-    ''' [(obj, M, Mi, Mi_3x3), ...] for a `snap_to` choice, for operators that pick their
+    ''' [(obj, M, Mi, Mi_3x3, nonuniform_scale), ...] for a `snap_to` choice, for operators that pick their
     own sources while Retopoflow is not running. Empty for NONE and ORIGINAL_MESH, which
     need no external source. Also used by draw() to warn when a choice finds nothing. '''
     match snap_to:
@@ -108,7 +102,7 @@ def build_snap_sources(context, snap_to, *, snap_object='', snap_collection='') 
             ] if collection else []
         case _:
             objs = []
-    return [source_tuple(obj) for obj in objs]
+    return [source_xform_tuple(obj) for obj in objs]
 
 
 def draw_snap_to_props(props, context, layout, draw_warning):

@@ -26,7 +26,7 @@ from mathutils import Vector
 from mathutils.geometry import intersect_line_line
 
 from ..common.operator import RFRegisterClass, hotkey_owns_context
-from ..common.raycast import iter_all_valid_sources, nearest_point_valid_sources
+from ..common.raycast import iter_all_valid_sources, nearest_point_valid_sources, source_xform_tuple
 from ..rfglobals import RFGlobals
 
 
@@ -182,10 +182,7 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
 
     def snap_to_sources(self, context, verts):
         ''' Pull the verts this operator created or moved onto the nearest source surface. '''
-        sources = [
-            (obj, obj.matrix_world, obj.matrix_world.inverted_safe())
-            for obj in iter_all_valid_sources(context)
-        ]
+        sources = [source_xform_tuple(obj) for obj in iter_all_valid_sources(context)]
         if not sources:
             return
         M = context.edit_object.matrix_world
