@@ -906,6 +906,16 @@ class CC_2D_LINES(CC_DRAW):
         ubos_2D_lineseg.options.color0 = c
 
     @classmethod
+    def advance_stipple(cls, p0, p1):
+        ''' Carry the dash phase along a connected run of segments. '''
+        # The shader seeds each segment's phase from stipple_width.z and measures forward from there,
+        # so a strip has to hand the running length on to the next segment.
+        if cls._stipple_pattern[1] <= 0: return   # solid: the shader ignores the phase entirely
+        dx, dy = p1[0] - p0[0], p1[1] - p0[1]
+        cls._stipple_offset += math.sqrt(dx * dx + dy * dy)
+        cls.update()
+
+    @classmethod
     def vertex(cls, p:Point2D):
         if p: ubos_2D_lineseg.options.assign(f'pos{cls._c}', (*p, 0, 1))
         cls._c = (cls._c + 1) % 2
@@ -930,6 +940,7 @@ class CC_2D_LINE_STRIP(CC_2D_LINES):
                 ubos_2D_lineseg.options.pos1 = (*p, 0, 1)
                 ubos_2D_lineseg.update_shader()
                 batch_2D_lineseg.draw(shader_2D_lineseg)
+                cls.advance_stipple(cls._last_p, p)
             cls._last_p = p
 
 class CC_2D_LINE_LOOP(CC_2D_LINES):
@@ -949,6 +960,7 @@ class CC_2D_LINE_LOOP(CC_2D_LINES):
                 ubos_2D_lineseg.options.pos1 = (*p, 0, 1)
                 ubos_2D_lineseg.update_shader()
                 batch_2D_lineseg.draw(shader_2D_lineseg)
+                cls.advance_stipple(cls._last_p, p)
             cls._last_p = p
 
     @classmethod
