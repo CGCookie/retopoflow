@@ -84,6 +84,7 @@ from .rfpanels import (
 
 from . import preferences
 from .rfprops import rfprops_scene, rfprops_object
+from . import versioning
 
 # Operator files need to be imported here in order to be registered, even if they are not used in this file
 from .rfoperators import (mesh_cleanup, mirror, pinning, reset_tool_settings, launch_browser, relax_selected, space_evenly,
@@ -169,6 +170,7 @@ class RFCore:
         preferences.register()
         rfprops_scene.register()
         rfprops_object.register()
+        versioning.register()   # after the props it writes
         RFTool_Base.register_all()
         RFOperator_Base.register_all()
         RFRegisterClass.register_all()
@@ -303,6 +305,7 @@ class RFCore:
         rfpanel_countours_method.unregister()
         rfpanel_stroke.unregister()
         tools_pie.unregister()
+        versioning.unregister()   # before the props it reads
         rfprops_scene.unregister()
         rfprops_object.unregister()
         pinning.unregister()
@@ -549,6 +552,8 @@ class RFCore:
         RFCore.is_running = True
         RFCore.event_mouse = None
         RFCore.is_controlling = True
+
+        versioning.stamp_version(context.scene)
         RFCore._last_rf_mesh_update_time = time.monotonic() # Reset timestamp so a startup geometry event never triggers a suppression window
 
         wm_type, space_type = bpy.types.WindowManager, bpy.types.SpaceView3D

@@ -39,6 +39,13 @@ class RFProps_Scene(bpy.types.PropertyGroup):
         name='RetopoFlow Tool',
         description='RetopoFlow Tool to select after loading from file',
     )
+    rf_version: bpy.props.IntVectorProperty(
+        name='RetopoFlow Version',
+        description='Version of RetopoFlow that last wrote this scene, used to migrate its settings',
+        size=3,
+        default=(0, 0, 0),
+        options={'HIDDEN'},
+    )
 
     """ Display """
     retopo_offset: bpy.props.FloatProperty(
