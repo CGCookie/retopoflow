@@ -12,6 +12,7 @@ To turn the previous stroke into a patch of quads, keep the newly created geomet
 
 After creating a new or extruded stroke, you can scroll with `Ctrl Mouse Wheel` to increase or decrease the number of interpolated verts or loops.
 
+When extruding, Strokes will attempt to merge the sides of the extrusion to nearby geometry so that you can use it to quickly fill holes.
 
 ## Stroke Types
 
@@ -67,6 +68,8 @@ A Loop is created by drawing a stroke that ends in the same place that it starts
 
 ![](images/strokes_loop.jpg)
 
+**Circle** can be used in the redo panel to reshape a closed loop into perfect circle.
+
 ### Equals Loop
 
 An Equals Loop is created by drawing a second loop inside or outside a selected loop.
@@ -82,13 +85,15 @@ A T Loop is created by drawing a stroke that starts at a vertex in a selected lo
 
 ## Settings
 
-**Count** determines how many vertices or loops are created when inserting a stroke.
+The **Count Method** determines how many vertices or loops are created when inserting a stroke.
 
 - **Fixed** uses a set number. Setting this to zero is an interesting way of quickly drawing quads that do not need to be evenly spaced.
 
-- **Brush Size** uses the Strokes brush, which can be seen while drawing a stroke. Like any other brush in Blender, you can quickly change the size with the hotkey `F`. A smaller brush size will result in more dense geometry and a larger brush size will result in less dense geometry.
+- **Brush** uses the Strokes brush, which can be seen while drawing a stroke. You can quickly change the size with the hotkey `Shift F` or the bracket keys (`[`, `]`). A smaller brush size will result in more dense geometry and a larger brush size will result in less dense geometry.
 
 - **Average** uses the average width of the selected edges, which automatically gives you as perfectly square quads as possible. When creating a stroke with no edges selected, the brush size is used as a fallback.
+
+- **Length** uses a fixed world space distance as the spacing between segments.
 
 **Extrapolation** determines whether or not the newly created geometry follows the curve of the selected geometry when creating T Strips. **Flat** will extrude all of the edges in a straight line while **Adapt** will fan out the edges to maintain the original curvature.
 
@@ -110,6 +115,4 @@ General selection options for all tools can be read about on the [Retopoflow Mod
 
 A `LMB Drag` on components in Strokes will perform a tweak action similar to Blender's Tweak tool. The tweaking settings are shared across multiple tools and can be read about on the [Retopoflow Mode](general.html) docs page under Common Settings.
 
-## Limitations
-
-Strokes works in screen space and cannot create geometry past the edge of the source mesh, so drawing a stroke towards the edge of the source mesh can cause some verts to get cut off.
+Strokes also has [Curve Handles](curve_handles.html) enabled by default, which are useful for quickly positioning edge strips.
