@@ -676,7 +676,8 @@ class RFOperator(RFOperator_KeymapContext):
                 self._foreign_modal_ran = False
                 self.reset()
                 self.last_op = last_op
-                context.area.tag_redraw()
+                if context.area:
+                    context.area.tag_redraw()
 
             if not context.area:
                 # this can happen if an area is fullscreened :(
