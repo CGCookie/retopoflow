@@ -35,7 +35,7 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d
 from mathutils import Matrix, Vector, kdtree
 from ..common.bmesh import (
     get_bmesh_emesh, get_object_bmesh, evict_object_bmesh,
-    has_mirror_x, has_mirror_y, has_mirror_z,
+    has_mirror_x, has_mirror_y, has_mirror_z, mirror_threshold,
     bmf_midpoint_radius, bme_other_bmf, bmf_is_quad, quad_bmf_opposite_bme,
     ensure_correct_normals,
     find_selected_cycle_or_path,
@@ -222,13 +222,17 @@ class Contours_Logic:
         self.mirror_clipped_loop = None
         self.ring_sharp_verts = set()
         self.twist_ring_count = 0
-        self.mirror_threshold = 1e-4
+        self.mirror_threshold = Vector((0, 0, 0))   # set per update() from the Mirror modifier
 
     def update(self, context:Context):
         self.bm, self.em = get_bmesh_emesh(context)
         bmops.flush_selection(self.bm, self.em)
         self.matrix_world = context.edit_object.matrix_world
         self.matrix_world_inv = self.matrix_world.inverted_safe() if self.matrix_world else None
+
+        mt = mirror_threshold(context)
+        scale = context.edit_object.scale
+        self.mirror_threshold = Vector((mt / scale.x, mt / scale.y, mt / scale.z)) if mt else Vector((0, 0, 0))
 
         try:
             if not self.process_source(context): return
@@ -473,9 +477,9 @@ class Contours_Logic:
         mx, my, mz = has_mirror_x(context), has_mirror_y(context), has_mirror_z(context)
         sym_verts = {
             bmv for bmv in ordered_nbmvs
-            if (mx and abs(bmv.co.x) < self.mirror_threshold)
-            or (my and abs(bmv.co.y) < self.mirror_threshold)
-            or (mz and abs(bmv.co.z) < self.mirror_threshold)
+            if (mx and abs(bmv.co.x) < self.mirror_threshold.x)
+            or (my and abs(bmv.co.y) < self.mirror_threshold.y)
+            or (mz and abs(bmv.co.z) < self.mirror_threshold.z)
         }
 
         base = [project_to_path_fac(Vector(v.co), self.points, self.cyclic, point_path_facs) for v in ordered_nbmvs]
@@ -726,9 +730,9 @@ class Contours_Logic:
         mx, my, mz = has_mirror_x(context), has_mirror_y(context), has_mirror_z(context)
         sym_verts = {
             bmv for bmv in new_bmvs
-            if (mx and abs(bmv.co.x) < self.mirror_threshold)
-            or (my and abs(bmv.co.y) < self.mirror_threshold)
-            or (mz and abs(bmv.co.z) < self.mirror_threshold)
+            if (mx and abs(bmv.co.x) < self.mirror_threshold.x)
+            or (my and abs(bmv.co.y) < self.mirror_threshold.y)
+            or (mz and abs(bmv.co.z) < self.mirror_threshold.z)
         }
 
         # Use world-space bbox center for both rings so T0 and T1 use the same center type.
