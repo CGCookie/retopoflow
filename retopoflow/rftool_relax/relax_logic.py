@@ -67,6 +67,7 @@ from ..common.raycast import (
     make_hidden_tester,
     source_ray_cast,
     source_closest_point_on_mesh,
+    source_world_bvh,
 )
 from ..common.drawing import (
     Drawing,
@@ -1739,13 +1740,17 @@ class Relax_Logic(FeatureRunsMixin):
         rv3d_clip = context.region_data
         clip_active = bool(rv3d_clip and rv3d_clip.use_clip_planes)
         clip_planes = [tuple(p) for p in rv3d_clip.clip_planes] if clip_active else None
-        # Each tuple is (source-local <- world, world <- source-local)
-        # single_source below combines both with M/Mi so the snap loop never needs to build them per vert.
-        source_xforms = [(obj_s, Mi_s @ M, M_s) for (obj_s, M_s, Mi_s, *_) in self.sources]
+        # Each tuple is (source, source-local <- world, world <- source-local, world BVH or None)
+        # single_source below combines the first two with M/Mi so the snap loop never needs to build them per vert.
+        # A non-uniformly scaled source carries a world-space BVH instead.
+        source_xforms = [
+            (obj_s, Mi_s @ M, M_s, source_world_bvh(context, obj_s, M_s) if nonuniform_s else None)
+            for (obj_s, M_s, Mi_s, _, nonuniform_s) in self.sources
+        ]
         single_source = None
         # Feature snapping does not disable this. The feature block above runs first and the one
         # later reader of co_world_snapped already falls back to M @ co_local_snapped.
-        if len(self.sources) == 1 and not clip_active and snap_bvh is None:
+        if len(self.sources) == 1 and not clip_active and snap_bvh is None and source_xforms[0][3] is None:
             obj_s, M_s, Mi_s, *_ = self.sources[0]
             single_source = (obj_s, Mi_s @ M, Mi @ M_s)
 
@@ -2074,10 +2079,15 @@ class Relax_Logic(FeatureRunsMixin):
                         co_world_q = M @ co
                         best_hit = None
                         best_dist = inf
-                        for src_obj, to_src, src_to_world in source_xforms:
-                            ok, hit_co, _n, _i = source_closest_point_on_mesh(src_obj, to_src @ co)
-                            if not ok: continue
-                            hit_world = src_to_world @ hit_co
+                        for src_obj, to_src, src_to_world, world_tree in source_xforms:
+                            if world_tree is not None:
+                                # Non-uniform scale: query in world space, where the answer is the real nearest
+                                hit_world, _n, _i, _d = world_tree.find_nearest(co_world_q)
+                                if hit_world is None: continue
+                            else:
+                                ok, hit_co, _n, _i = source_closest_point_on_mesh(src_obj, to_src @ co)
+                                if not ok: continue
+                                hit_world = src_to_world @ hit_co
                             if clip_active:
                                 hx, hy, hz = hit_world
                                 if any(p0*hx + p1*hy + p2*hz + p3 < 0 for (p0, p1, p2, p3) in clip_planes):
