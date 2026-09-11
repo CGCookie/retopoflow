@@ -1701,6 +1701,9 @@ class PolyStrips_Logic:
             if bmf.select and bmf not in strip_bmfs: bmf.select = False
         for bme in {e for bmv in sel_bmvs for e in bmv.link_edges}:
             if bme.select and bme not in strip_bmes: bme.select = False
+        for bmv in sel_bmvs:   bmv.select = True
+        for bme in strip_bmes: bme.select = True
+        for bmf in strip_bmfs: bmf.select = True
         bmesh.update_edit_mesh(self.em)
 
         ncount_pairs = [ncounts_by_sec[si] for si in sorted(ncounts_by_sec)]
