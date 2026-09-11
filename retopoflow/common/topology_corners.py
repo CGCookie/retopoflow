@@ -136,7 +136,7 @@ def insert_corner(bm : BMesh, faces, rungs, k) -> dict | None:
         nf = bm.faces.new(new_verts)
     except ValueError:
         # degenerate / already-existing face on a tight bend: restore the original
-        try: bm.faces.new([P[1], P[2], Q[2], Q[1]])
+        try: bm.faces.new([P[1], P[2], Q[2], Q[1]]).normal_update()
         except ValueError: pass
         return None
     for e in loose_edges:
@@ -254,7 +254,7 @@ def remove_corner(bm : BMesh, faces, rungs, k) -> dict | None:
         nf = bm.faces.new(new_verts)
     except ValueError:
         # restore the original elbow face on failure
-        try: bm.faces.new([pivot, elbow, p_next, q_next])
+        try: bm.faces.new([pivot, elbow, p_next, q_next]).normal_update()
         except ValueError: pass
         return None
     for e in loose_edges:

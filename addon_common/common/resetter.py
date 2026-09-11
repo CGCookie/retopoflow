@@ -20,6 +20,7 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import re
+import sys
 import inspect
 from collections import ChainMap
 from bpy.types import bpy_prop_array
@@ -70,6 +71,10 @@ class Resetter:
         # print(f'Resetter: new {self._label}')
 
     def __del__(self):
+        # Resetting writes through bpy structs. Once the interpreter is finalising, Blender's data may
+        # already be freed, and writing to a dead struct segfaults instead of raising.
+        # Anything that still needed resetting by then is moot anyway.
+        if sys.is_finalizing(): return
         self.reset()
 
     def store(self, key : Key, *, depth : int = 1):
