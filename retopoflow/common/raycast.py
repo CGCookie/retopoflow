@@ -968,7 +968,6 @@ class FindNearest:
 
     distance_world : float
     object         : BObject | None
-    face_index     : int    | None
     point_world    : Vector | None
     normal_world   : Vector | None
     point_local    : Vector | None
@@ -992,7 +991,6 @@ class FindNearest:
 
         self.distance_world = float('inf')
         self.object         = None
-        self.face_index     = None
         self.point_world    = None
         self.normal_world   = None
         self.point_local    = None
@@ -1000,17 +998,14 @@ class FindNearest:
 
         # print(f'RAY {ray_world}')
         for obj in iter_all_valid_sources(context):
-            matinfo_obj = MatrixInfo(object=obj)
-            point_local_obj = matinfo_obj.w2l_point(point_world)
-            result, co, normal, idx = source_closest_point_on_mesh(obj, point_local_obj)
-            if not result: continue
-            co_world = matinfo_obj.l2w_point(co)
-            no_world = matinfo_obj.l2w_normal(normal)
-            dist = distance_between_locations(point_world, co_world)
+            M = obj.matrix_world
+            found = source_nearest_point_normal(context, obj, M, M.inverted_safe(), self.from_point_world)
+            if not found: continue
+            co_world, no_world = found
+            dist = distance_between_locations(self.from_point_world, co_world)
             if dist < self.distance_world:
                 self.distance_world = dist
                 self.object         = obj
-                self.face_index     = idx
                 self.point_world    = co_world
                 self.normal_world   = no_world
                 self.point_local    = self.matinfo.w2l_point(co_world)
