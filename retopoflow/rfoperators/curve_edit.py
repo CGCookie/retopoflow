@@ -44,7 +44,7 @@ from ..common.operator import RFOperator, RFOperator_Invoke, RFKeyMaps, execute_
 from ..common.orientation import cycle_axis_constraint, reset_axis_constraint
 from ..common.raycast import (
     raycast_point_valid_sources, nearest_point_valid_sources, iter_all_valid_sources,
-    mouse_from_event, region_2d_to_location_3d_stable, ray_from_point
+    mouse_from_event, region_2d_to_location_3d_stable, ray_from_point, source_xform_tuple,
 )
 from ..common.curves import (
     QuadStripChainProvider, LoopStripChainProvider,
@@ -94,10 +94,7 @@ def create_curve_edit_logic(idname : str, label : str, description : str, *,
             return False if not i else bool(getattr(i, 'hovering', False))
 
         def _gather_sources(self, context):
-            return [
-                (obj, obj.matrix_world, (mi := obj.matrix_world.inverted_safe()), mi.to_3x3())
-                for obj in iter_all_valid_sources(context)
-            ]
+            return [source_xform_tuple(obj) for obj in iter_all_valid_sources(context)]
 
         def _place_knot(self, context, new_screen, pt_orig):
             ''' New local-space position for a dragged knot, or None to leave it put. '''
