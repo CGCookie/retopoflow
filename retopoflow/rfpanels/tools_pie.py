@@ -338,15 +338,15 @@ class RFMenu_MT_ToolPie(Menu):
                         draw_prop_steps(section, props, 'step_scale', (0.5, 1.0, 2.0), text='Distance')
 
 
-    def draw_pie_button(self, context, pie, name: str):
+    def draw_pie_button(self, context, pie, name: str, *, switch_idname: str | None = None, tool_idname: str | None = None):
         tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
         toolname = name.lower()
         spacing = '     '
         return pie.operator(
-            f'retopoflow.switch_to_{toolname}',
+            switch_idname or f'retopoflow.switch_to_{toolname}',
             text=spacing+name,
             icon_value=get_icon_value_from_icon_handle(toolname),
-            depress=tool.idname==f'retopoflow.{toolname}'
+            depress=tool.idname == (tool_idname or f'retopoflow.{toolname}')
         )
 
     def draw(self, context):
@@ -369,7 +369,7 @@ class RFMenu_MT_ToolPie(Menu):
         self.draw_pie_button(context, pie, 'Strokes')
 
         # Northeast
-        self.draw_pie_button(context, pie, 'Patches')
+        self.draw_pie_button(context, pie, 'Patches', switch_idname=PATCHES_SWITCH_IDNAME, tool_idname=PATCHES_IDNAME)
 
         # Southwest
         self.draw_pie_button(context, pie, 'PolyPen')
