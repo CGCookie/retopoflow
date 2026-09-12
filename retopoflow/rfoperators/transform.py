@@ -99,6 +99,22 @@ def native_snap_elements(context) -> set[str]:
     return elements
 
 
+def slide_plan(bm):
+    """ The Blender slide operator that fits the current selection, paired with its clamp setting.
+    None when the selection has no direction to slide along. """
+    selected_edges = bmops.get_all_selected_bmedges(bm)
+    selected_verts = bmops.get_all_selected_bmverts(bm)
+    verts_in_selected_edges = {bmv for bme in selected_edges for bmv in bme.verts}
+    has_unconnected_vert = any(bmv not in verts_in_selected_edges for bmv in selected_verts)
+    # vert slide walks the edges connected to each vert, so it works without faces
+    use_vert_slide = not bool(selected_edges) or has_unconnected_vert
+    if not use_vert_slide and not any(len(bme.link_faces) for bme in selected_edges):
+        return None
+    slide_op = bpy.ops.transform.vert_slide if use_vert_slide else bpy.ops.transform.edge_slide
+    clamp = use_vert_slide or not any([e.is_boundary for e in selected_edges])
+    return (slide_op, clamp)
+
+
 class RFOperator_Slide(RFOperator):
     # Registered as a separate operator because it needs 'UNDO' on while Translate needs it off
     bl_idname = "retopoflow.slide"
@@ -107,6 +123,11 @@ class RFOperator_Slide(RFOperator):
     bl_region_type = "TOOLS"
     bl_options = {'UNDO'}
 
+    def can_init(self, context, event) -> bool:
+        # Cancel rather than start and do nothing, so the caller can fall back to a regular grab
+        bm, _ = get_bmesh_emesh(context, ensure_lookup_tables=True)
+        return slide_plan(bm) is not None
+
     def init(self, context, event):
         self.bm, self.em = get_bmesh_emesh(context, ensure_lookup_tables=True)
 
@@ -114,13 +135,9 @@ class RFOperator_Slide(RFOperator):
         self.bm, self.em = None, None # Clear now, otherwise Blender can crash trying to clear them after the bmesh is destroyed
 
     def update(self, context, event):
-        selected_edges = bmops.get_all_selected_bmedges(self.bm)
-        selected_verts = bmops.get_all_selected_bmverts(self.bm)
-        verts_in_selected_edges = {bmv for bme in selected_edges for bmv in bme.verts}
-        has_unconnected_vert = any(bmv not in verts_in_selected_edges for bmv in selected_verts)
-        use_vert_slide = not bool(selected_edges) or (bool(selected_edges) and has_unconnected_vert)
-        slide_op = bpy.ops.transform.vert_slide if use_vert_slide else bpy.ops.transform.edge_slide
-        clamp = use_vert_slide or not any([e.is_boundary for e in selected_edges])
+        plan = slide_plan(self.bm)
+        if plan is None: return {'CANCELLED'}
+        slide_op, clamp = plan
         prev_nearest_steps = context.scene.tool_settings.snap_face_nearest_steps
         context.scene.tool_settings.snap_face_nearest_steps = 1 # needed to merge properly
         slide_op('INVOKE_DEFAULT', use_clamp=clamp, use_snap_self=False, use_snap_edit=False)
@@ -260,22 +277,6 @@ class RFOperator_Translate(SourceSnapMixin, RFOperator):
         # self.bmvs_co_orig = [Vector(bmv.co) for bmv in self.bmvs]
         # self.bmvs_co2d_orig = [location_3d_to_region_2d(context.region, context.region_data, (self.matrix_world @ Vector((*bmv.co, 1.0))).xyz) for bmv in self.bmvs]
 
-        if self.tweaking_projection == 'AUTO':
-            if self.snap_method == 'AUTO':
-                if self.use_screen_space(context, self.bmvs):
-                    self.snap_method = 'PROJECTED'
-                else:
-                    self.snap_method = 'NEAREST'
-        elif self.tweaking_projection == 'SCREEN_SPACE':
-            self.snap_method = 'PROJECTED'
-        elif self.tweaking_projection == 'WORLD_SPACE':
-            self.snap_method = 'NEAREST'
-        else:  # FOLLOW_BLENDER
-            if 'FACE_PROJECT' in context.scene.tool_settings.snap_elements_individual:
-                self.snap_method = 'PROJECTED'
-            else:
-                self.snap_method = 'NEAREST'
-
         # Handle loop selection
         active_tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
         if active_tool and self.used_keyboard == False:
@@ -293,7 +294,28 @@ class RFOperator_Translate(SourceSnapMixin, RFOperator):
                     bpy.ops.mesh.loop_multi_select(ring=False)
                 context.tool_settings.mesh_select_mode = prev_mode
                 bmops.flush_selection(self.bm, self.em)
-                self.use_slide = True
+                # A wire loop has no direction to slide along, so grab it instead
+                self.use_slide = slide_plan(self.bm) is not None
+                if not self.use_slide:
+                    # self.bmvs was captured before the loop was selected, so pick up the rest of it
+                    self.bmvs = list(bmops.get_all_selected_bmverts(self.bm))
+
+        # After loop selection so Auto reads every vert that will move, not just the hovered edge
+        if self.tweaking_projection == 'AUTO':
+            if self.snap_method == 'AUTO':
+                if self.use_screen_space(context, self.bmvs):
+                    self.snap_method = 'PROJECTED'
+                else:
+                    self.snap_method = 'NEAREST'
+        elif self.tweaking_projection == 'SCREEN_SPACE':
+            self.snap_method = 'PROJECTED'
+        elif self.tweaking_projection == 'WORLD_SPACE':
+            self.snap_method = 'NEAREST'
+        else:  # FOLLOW_BLENDER
+            if 'FACE_PROJECT' in context.scene.tool_settings.snap_elements_individual:
+                self.snap_method = 'PROJECTED'
+            else:
+                self.snap_method = 'NEAREST'
 
         if self.use_native == 'TRUE' and self.use_slide == False:
             new_base = native_snap_elements(context)
@@ -413,9 +435,11 @@ class RFOperator_Translate(SourceSnapMixin, RFOperator):
     def update(self, context, event):
 
         if self.use_slide or (event.type == 'G' and event.value == 'PRESS'):
-            bpy.ops.retopoflow.slide('INVOKE_DEFAULT')
-            self.automerge(context, event)
-            return {'FINISHED'}
+            if slide_plan(self.bm) is not None:
+                bpy.ops.retopoflow.slide('INVOKE_DEFAULT')
+                self.automerge(context, event)
+                return {'FINISHED'}
+            self.use_slide = False
 
         if self.use_native == 'TRUE':
             return {'FINISHED'}
