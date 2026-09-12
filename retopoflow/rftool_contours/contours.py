@@ -28,9 +28,7 @@ from bpy.types import Context
 
 from ..rfglobals import RFGlobals
 from ..rfbrushes.cut_brush import RFBrush_Cut
-from ..rfoverlays.loopstrip_selection_overlay import draw_loopstrip_selection_labels
-from ..rfoverlays.curve_overlay import create_curve_overlay_logic
-from ..rfoverlays.overlays import overlay_names
+from ..rfoverlays.curve_overlay import create_curve_overlay
 from ..common.curves import QuadStripChainProvider, LoopStripChainProvider
 from ..rfoperators.curve_edit import create_curve_edit_operator, create_curve_toggle_handle_type_operator
 
@@ -750,10 +748,8 @@ class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
         return {'PASS_THROUGH'} # allow other operators, such as UNDO!!!
 
 
-# The curve handle overlay, as the logic class rather than the finished operator that
-# create_curve_overlay would hand back. A tool only gets one rf_overlay slot, so the selection
-# count labels subclass this instead of running alongside it.
-_Contours_Curve_Overlay = create_curve_overlay_logic(
+RFOperator_Contours_Overlay = create_curve_overlay(
+    'RFOperator_Contours_Selection_Overlay',
     'retopoflow.contours',  # must match RFTool_base.bl_idname
     'contours_overlay',
     'Contours Selected Overlay',
@@ -761,35 +757,6 @@ _Contours_Curve_Overlay = create_curve_overlay_logic(
     # curves only appear when the selection is edges-only
     [QuadStripChainProvider(), LoopStripChainProvider(only_boundary=True)],
 )
-
-
-class RFOperator_Contours_Overlay(_Contours_Curve_Overlay, RFOperator):
-    ''' The selection count labels and the shared curve handle overlay in one modal. '''
-    bl_description : str = 'Overlay info about selected loops and strips, and their curve handles'
-
-    # cache for draw_loopstrip_selection_labels; named apart from the curve overlay's own
-    # depsgraph_version, which is a different counter with a different sentinel
-    loopstrip_depsgraph_version : int | None = None
-    loopstrip_boundaries : tuple = ([], [])
-
-    def is_done(self):
-        RFCore = RFGlobals.RFCore_None
-        return RFCore.selected_RFTool_idname != RFTool_Contours.bl_idname if RFCore else True
-
-    def init(self, context, event):
-        super().init(context, event)
-        self.loopstrip_depsgraph_version = None
-
-    def draw_postpixel_overlay(self):
-        super().draw_postpixel_overlay()    # curve handles, no-ops while show_curve_handles is off
-        if self.is_done(): return
-        # the curve overlay draws its own Strip/Loop counts from the same selection, so only one
-        # of the two label sets is ever on screen
-        if self._curve_handles_enabled(bpy.context): return
-        draw_loopstrip_selection_labels(self, only_boundary=False)
-
-# AutoSave skips saving while a modal operator is top-most unless it is a known overlay (keyed by label)
-overlay_names.add(RFOperator_Contours_Overlay.bl_label)
 
 
 RFOperator_Contours_Edit = create_curve_edit_operator(
