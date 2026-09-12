@@ -1677,7 +1677,7 @@ class SourceCache:
             if getattr(update, 'is_updated_geometry', False):
                 cls.mark_dirty_geometry_changed(f'source geometry edited ({name})', obj_name=name)
                 SourceMeshCache.evict(name)
-                return
+                continue   # another source may have changed in the same event
             if getattr(update, 'is_updated_transform', False):
                 cls.note_transform_changed(name)
 

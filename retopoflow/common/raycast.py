@@ -374,15 +374,21 @@ def source_world_bvh(context:Context, obj:BObject, M:Matrix) -> 'BVHTree | None'
     cached = source_world_bvh_cache.get(obj.name)
     try:
         eval_obj = obj.evaluated_get(context.evaluated_depsgraph_get())
+        # Cache hit check has to be cheap: Relax and Tweak call this once per vert per pass.
+        # The evaluated mesh's counts are free to read, whereas to_mesh() copies the whole mesh.
+        data = eval_obj.data
+        if cached and cached[0] == M and isinstance(data, bpy.types.Mesh):
+            if (len(data.vertices), len(data.polygons)) == cached[1]:
+                return cached[2]
         mesh = eval_obj.to_mesh()
         if not mesh or not mesh.polygons:
             eval_obj.to_mesh_clear()
             return None
-        mesh.calc_loop_triangles()
-        ntris = len(mesh.loop_triangles)
-        if cached and cached[0] == M and cached[1] == ntris:
+        sig = (len(mesh.vertices), len(mesh.polygons))
+        if cached and cached[0] == M and cached[1] == sig:
             eval_obj.to_mesh_clear()
             return cached[2]
+        mesh.calc_loop_triangles()
         verts = [M @ v.co for v in mesh.vertices]
         tris  = [tuple(t.vertices) for t in mesh.loop_triangles]
         eval_obj.to_mesh_clear()
@@ -390,7 +396,7 @@ def source_world_bvh(context:Context, obj:BObject, M:Matrix) -> 'BVHTree | None'
         has_faces_cache.pop(obj.name, None)  # stale: re-test faces on the next pass
         return None
     tree = BVHTree.FromPolygons(verts, tris, all_triangles=True)  # pyright: ignore [reportArgumentType]
-    source_world_bvh_cache[obj.name] = (M.copy(), ntris, tree)
+    source_world_bvh_cache[obj.name] = (M.copy(), sig, tree)
     return tree
 
 def source_nearest_point_normal(context:Context, obj:BObject, M:Matrix, Mi:Matrix, point_world:Vector, *, nonuniform:'bool | None'=None, need_normal:bool=True) -> 'tuple[Vector, Vector | None] | None':
