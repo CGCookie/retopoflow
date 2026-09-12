@@ -1455,7 +1455,7 @@ class LegacyPatches_Logic:
             shared_verts = sum(1 for e0 in s0 for e1 in s1 if bmes_shared_bmv(e0, e1))
             if len(loop_strips) == 2 and shared_verts != 2: continue   # not closed
             if len(loop_strips) > 2 and shared_verts != 1: continue
-            kind = { 2: 'eye', 3: 'tri', 4: 'rect' }.get(len(loop_strips), 'ngon')
+            kind = { 1: 'eye', 2: 'eye', 3: 'tri', 4: 'rect' }.get(len(loop_strips), 'ngon')
             shapes[kind].append(loop_strips)
 
         L.corner_indices = { c.index for c in (string_corners | loop_corners) }
@@ -1766,7 +1766,10 @@ class LegacyPatches_Logic:
             sides[k+1][0]. None when the strips do not chain. '''
             sides = [ get_verts(strip) for strip in shape ]
             n = len(sides)
-            if n < 2: return None
+            if n < 1:
+                return None
+            if n == 1:
+                return sides if sides[0][0] == sides[0][-1] else None
             if sides[0][-1] not in (sides[1][0], sides[1][-1]): sides[0].reverse()
             for k in range(1, n):
                 if sides[k][0] != sides[k - 1][-1]: sides[k].reverse()
