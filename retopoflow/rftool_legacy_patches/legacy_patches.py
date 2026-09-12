@@ -458,6 +458,30 @@ def last_fill(context : Context):
     last = ops[-1] if ops else None
     return last if last is not None and last.name == RFOperator_LegacyPatches_Fill.bl_label else None
 
+
+def patches_redo_owns_scroll(context : Context) -> bool:
+    ''' Whether a standalone Ctrl or Shift+Scroll belongs to Patches. Only where F did, and only while
+    a Patches fill is the operator a redo would re-run: everywhere else the wheel is the viewport's. '''
+    return fill_patches_owns_f(context) and last_fill(context) is not None
+
+
+class LegacyPatches_ScrollHotkey:
+    ''' The standalone half of a scroll knob. Its keymap item sits in the Mesh keymap, in front of the
+    viewport's own Ctrl/Shift+Wheel pan, so it hands the event straight back whenever there is no fill
+    of ours to re-run. The tool keymap's items carry no flag and never ask. '''
+
+    hotkey: bpy.props.BoolProperty(
+        name='From Hotkey',
+        default=False,
+        options={'HIDDEN', 'SKIP_SAVE'},
+    )
+
+    def invoke(self, context : Context, event : Event) -> set[str]:
+        if self.hotkey and not patches_redo_owns_scroll(context):
+            return { 'PASS_THROUGH' }
+        return self.execute(context)
+
+
 def scroll_count(context : Context, sign : int):
     L = LegacyPatches_Logic
     if L.adjust_count(context, sign): return
@@ -473,7 +497,7 @@ def scroll_count(context : Context, sign : int):
     elif was_offset:
         refill_with(context, last, steps=max(1, last.steps + sign))   # a step normally leaves its next step previewed, so this only runs when that was refused
 
-def scroll_offset(context : Context, sign : int):
+def scroll_offset(context : Context, sign : int, *, allow_toporotate : bool = True):
     L = LegacyPatches_Logic
     if L.adjust_offset(context, sign): return
     last = last_fill(context)
@@ -488,6 +512,7 @@ def scroll_offset(context : Context, sign : int):
             return
     # nothing of ours to turn: topo-rotate the selection, when that can actually happen (it needs
     # selected faces with one closed perimeter, and raises or reports otherwise)
+    if not allow_toporotate: return
     if not bpy.ops.retopoflow.toporotate.poll(): return
     bm, _ = get_bmesh_emesh(context)
     bmfs = bmops.get_all_selected_bmfaces(bm)
@@ -504,7 +529,7 @@ def scroll_offset(context : Context, sign : int):
         pass
 
 
-class RFOperator_LegacyPatches_CountDecrease(RFOperator_Execute):
+class RFOperator_LegacyPatches_CountDecrease(LegacyPatches_ScrollHotkey, RFOperator_Execute):
     bl_idname : str = 'retopoflow.legacy_patches_count_decrease'
     bl_label : str = 'Decrease Count'
     bl_description : str = 'Fill with one fewer segment across'
@@ -525,7 +550,7 @@ class RFOperator_LegacyPatches_CountDecrease(RFOperator_Execute):
         return { 'FINISHED' }
 
 
-class RFOperator_LegacyPatches_CountIncrease(RFOperator_Execute):
+class RFOperator_LegacyPatches_CountIncrease(LegacyPatches_ScrollHotkey, RFOperator_Execute):
     bl_idname : str = 'retopoflow.legacy_patches_count_increase'
     bl_label : str = 'Increase Count'
     bl_description : str = 'Fill with one more segment across'
@@ -542,7 +567,7 @@ class RFOperator_LegacyPatches_CountIncrease(RFOperator_Execute):
         return { 'FINISHED' }
 
 
-class RFOperator_LegacyPatches_OffsetDecrease(RFOperator_Execute):
+class RFOperator_LegacyPatches_OffsetDecrease(LegacyPatches_ScrollHotkey, RFOperator_Execute):
     bl_idname : str = 'retopoflow.legacy_patches_offset_decrease'
     bl_label : str = 'Decrease Offset'
     bl_description : str = ('Rotate the loft pairing or grid fill corners one vertex back, shorten a stepped row '
@@ -554,12 +579,12 @@ class RFOperator_LegacyPatches_OffsetDecrease(RFOperator_Execute):
     ]
 
     def execute(self, context : Context) -> set[str]:
-        scroll_offset(context, -1)
+        scroll_offset(context, -1, allow_toporotate=not self.hotkey)
         context.area.tag_redraw()
         return { 'FINISHED' }
 
 
-class RFOperator_LegacyPatches_OffsetIncrease(RFOperator_Execute):
+class RFOperator_LegacyPatches_OffsetIncrease(LegacyPatches_ScrollHotkey, RFOperator_Execute):
     bl_idname : str = 'retopoflow.legacy_patches_offset_increase'
     bl_label : str = 'Increase Offset'
     bl_description : str = ('Rotate the loft pairing or grid fill corners one vertex forward, lengthen a stepped row '
@@ -571,7 +596,7 @@ class RFOperator_LegacyPatches_OffsetIncrease(RFOperator_Execute):
     ]
 
     def execute(self, context : Context) -> set[str]:
-        scroll_offset(context, +1)
+        scroll_offset(context, +1, allow_toporotate=not self.hotkey)
         context.area.tag_redraw()
         return { 'FINISHED' }
 
@@ -874,6 +899,15 @@ def register():
     # Blender puts Fill on Alt+F, but with F taken there is nowhere else for New Edge/Face to go
     kmi = km.keymap_items.new(RFOperator_LegacyPatches_EdgeFaceAdd.bl_idname, 'F', 'PRESS', ctrl=False, shift=False, alt=True)
     keymaps.append((km, kmi))
+    for op, wheel, modifier in (
+        (RFOperator_LegacyPatches_CountDecrease,  'WHEELDOWNMOUSE', 'ctrl'),
+        (RFOperator_LegacyPatches_CountIncrease,  'WHEELUPMOUSE',   'ctrl'),
+        (RFOperator_LegacyPatches_OffsetDecrease, 'WHEELDOWNMOUSE', 'shift'),
+        (RFOperator_LegacyPatches_OffsetIncrease, 'WHEELUPMOUSE',   'shift'),
+    ):
+        kmi = km.keymap_items.new(op.bl_idname, wheel, 'PRESS', **{ modifier: True })
+        kmi.properties.hotkey = True
+        keymaps.append((km, kmi))
 
 def unregister():
     for km, kmi in keymaps:
