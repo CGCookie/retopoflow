@@ -100,7 +100,10 @@ def draw_loopstrip_selection_labels(host, *, only_boundary : bool):
 
     # draw info about each selected boundary strip
     is_vertex_select = bpy.context.tool_settings.mesh_select_mode[0]
-    for (lbl, boundaries) in zip(['Strip', 'Loop'], host.loopstrip_boundaries):
+    strips, cycles = host.loopstrip_boundaries
+    # Count for small segments is only useful if multiple strips are selected
+    min_count = 5 if (len(strips) == 1 and not cycles) else 2
+    for (lbl, boundaries) in zip(['Strip', 'Loop'], (strips, cycles)):
         for (mids, corners) in boundaries:
             lbl_pos = get_label_pos(bpy.context, lbl, mids, corners)
             if not lbl_pos:
@@ -108,7 +111,7 @@ def draw_loopstrip_selection_labels(host, *, only_boundary : bool):
             count = len(mids)
             if is_vertex_select and lbl != 'Loop':
                 count += 1
-            if count == 1:
+            if count < min_count:
                 continue
             text = f'{lbl}: {count}' if lbl == 'Loop' else str(count)
             tw, th = Drawing.get_text_width(text), Drawing.get_text_height(text)
