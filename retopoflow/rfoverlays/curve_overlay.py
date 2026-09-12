@@ -352,13 +352,14 @@ def create_curve_overlay_logic(
                 self.chains = []
                 return True
 
-            # drop cached structure for chains that are no longer selected
-            self._curve_struct_cache = {
-                k: v for k, v in self._curve_struct_cache.items() if k in active_keys
-            }
-            self._handle_type_overrides = {
-                k: v for k, v in self._handle_type_overrides.items() if k in active_keys
-            }
+            # drop cached structure for chains that are no longer selected. Skipped while handles are hidden.
+            if handles_on:
+                self._curve_struct_cache = {
+                    k: v for k, v in self._curve_struct_cache.items() if k in active_keys
+                }
+                self._handle_type_overrides = {
+                    k: v for k, v in self._handle_type_overrides.items() if k in active_keys
+                }
 
             return True
 

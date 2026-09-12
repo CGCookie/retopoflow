@@ -1436,7 +1436,13 @@ class EditAsCurveDragBase(RFOperator_Invoke):
         if context.mode != 'EDIT_MESH':
             self._teardown(context)
             return {'CANCELLED'}
-        ret = self.update(context, event)
+        try:
+            ret = self.update(context, event)
+        except Exception:
+            # Blender doesn't call cancel() when modal() raises, and the draw handler is a bound
+            # method, so leaving it registered would raise on every redraw after this op dies
+            self._teardown(context)
+            raise
         if ret & {'FINISHED', 'CANCELLED'}:
             host = RFOperator_EditAsCurve.active
             if host is not None:
@@ -1643,7 +1649,9 @@ class RFOperator_EditAsCurve(RFOperator_Invoke):
             tool_props.show_curve_handles = not tool_props.show_curve_handles
             if context.area:
                 context.area.tag_redraw()
-            return {'FINISHED'}
+            # CANCELLED: the tool prop is already changed, and FINISHED on a REGISTER|UNDO op
+            # would push an empty undo step and replace the tool's redo op as "last operator"
+            return {'CANCELLED'}
 
         if not context.region_data:
             self.report({'ERROR'}, 'Edit as Curve: needs a 3D viewport')
