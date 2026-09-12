@@ -580,9 +580,10 @@ class RFCore:
 
         # Apply setup_snapping preference to projection before touching any snap settings
         snapping = props.snapping
+        # store first: writing projection runs on_projection_changed, which rewrites snap_elements
+        RFCore.resetter.store('context.tool_settings.snap_elements')
         if not prefs.setup_snapping:
             snapping.projection = 'FOLLOW_BLENDER'
-        RFCore.resetter.store('context.tool_settings.snap_elements')
 
         # Setup tool settings
         if snapping.projection != 'FOLLOW_BLENDER':
@@ -789,6 +790,7 @@ class RFCore:
             attempt('remove RetopoFlow app handlers', remove_app_handlers)
             attempt('remove RetopoFlow draw handlers', RFCore.remove_handlers)
             attempt('clear the running areas', RFCore.running_in_areas.clear)
+            attempt('free the cached object bmeshes', free_object_bmeshes)  # only a face-count check would catch edits made between sessions
             attempt('clear the saved tool', clear_saved_tool)
             attempt('restore pinning', lambda: pinning.restore_pinning(bpy.context))
             attempt('clean up the mirror', lambda: mirror.cleanup_mirror(bpy.context))
