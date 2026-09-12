@@ -1662,11 +1662,12 @@ class LegacyPatches_Logic:
             L.error = 'Patches: selection too large to preview'
             return False
 
-        def build_grid(kind, l0, l1, boundary_at, interior_at, side, cap, *, cyclic_i=False, pin=None, checks=True):
+        def build_grid(kind, l0, l1, boundary_at, interior_at, side, cap, *, cyclic_i=False, pin=None, checks=True, hold=()):
             ''' Fill an l0 x l1 grid and add it to the preview. boundary_at(i, j) returns the existing
             corner there or None; interior_at(i, j) returns (blended co, normal) for the rest. pin, if
-            given, adjusts a new interior point after snapping. With checks, a patch that snapped too
-            noisily or that would sit over existing faces is dropped. '''
+            given, adjusts a new interior point after snapping. `hold` names new verts that smoothing
+            leaves where the blend put them. With checks, a patch that snapped too noisily or that
+            would sit over existing faces is dropped. '''
             verts, normals, raws, fixed = [], [], [], set()
             for i in range(l0):
                 for j in range(l1):
@@ -1681,12 +1682,13 @@ class LegacyPatches_Logic:
                     verts.append(pt); normals.append(n); raws.append(co)
             if checks and sources and grid_snap_noise([ co_of(v) for v in verts ], raws, l0, l1, cyclic_i=cyclic_i) > MAX_SNAP_NOISE:
                 return
-            smooth_grid(verts, normals, l0, l1, side, cap, fixed, cyclic_i=cyclic_i)
+            held = fixed | set(hold)
+            smooth_grid(verts, normals, l0, l1, side, cap, held, cyclic_i=cyclic_i)
             edges, faces = grid_topology(verts, l0, l1, cyclic_i=cyclic_i)
             if checks and over_existing_faces(verts, faces): return
             # the same test smooth_grid moves a vert on, so Smooth is only offered where it does something
             if any((cyclic_i or 0 < i < l0 - 1) or (0 < j < l1 - 1)
-                   for i in range(l0) for j in range(l1) if i * l1 + j not in fixed):
+                   for i in range(l0) for j in range(l1) if i * l1 + j not in held):
                 L.has_smoothing = True
             # new boundary verts belong to a side this fill creates; without them the quads there read as triangles
             open_idx = [ k for k in sorted(fixed) if not isinstance(verts[k], BMVert) ]
@@ -1903,9 +1905,10 @@ class LegacyPatches_Logic:
             build_grid(kind, l0, l1, boundary_at, interior_at, shape_side(boundary), shape_cap(boundary))
             return True
 
-        def emit_span(kind, sv0, sv1, l1, boundary, *, cyclic_i=False, checks=True):
+        def emit_span(kind, sv0, sv1, l1, boundary, *, cyclic_i=False, checks=True, hold_i=()):
             ''' Straight blend between two sides of equal count, sv0[i] paired with sv1[i], with l1 - 2
-            new verts across. `boundary` is what the snap cap, mirror side and normals are taken from. '''
+            new verts across. `boundary` is what the snap cap, mirror side and normals are taken from.
+            `hold_i` names rows whose run across stays on the blend rather than being smoothed. '''
             l0 = len(sv0)
             if not budget(l0 * max(0, l1 - 2)): return False
             nrm = normal_fn(boundary)
@@ -1919,7 +1922,8 @@ class LegacyPatches_Logic:
                 return co, blend_pair(nrm(sv0[i]), nrm(sv1[i]), pj)
 
             build_grid(kind, l0, l1, boundary_at, interior_at, shape_side(boundary), shape_cap(boundary),
-                       cyclic_i=cyclic_i, checks=checks)
+                       cyclic_i=cyclic_i, checks=checks,
+                       hold={ i * l1 + j for i in hold_i for j in range(l1) })
             return True
 
         def cycle_bmvs(bmes):
@@ -1977,7 +1981,12 @@ class LegacyPatches_Logic:
             loops = derive_loops(dist, (per0 + per1) / (2 * n))
             L.has_bridge = L.has_loft = True
             L.loops_last = loops
-            return emit_span('loft', bmvs0, bmvs1, loops + 2, bmvs0 + bmvs1, cyclic_i=True)
+            # A run joining a corner of one loop to a corner of the other is the shape's sharp edge.
+            # Don't let smoothing collapse it
+            def loop_corner(bmvs, i):
+                return is_corner(bmvs[i], bmvs[(i - 1) % n], bmvs[(i + 1) % n])
+            hold_i = [ i for i in range(n) if loop_corner(bmvs0, i) and loop_corner(bmvs1, i) ]
+            return emit_span('loft', bmvs0, bmvs1, loops + 2, bmvs0 + bmvs1, cyclic_i=True, hold_i=hold_i)
 
         def rank_grid_splits(bmvs):
             ''' Every distinct way to fill a closed even loop the way Blender's Grid Fill does, as a
