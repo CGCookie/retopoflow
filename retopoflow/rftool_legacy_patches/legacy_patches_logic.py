@@ -591,6 +591,19 @@ def layout_snap_noise(cos, raws, edges):
     return (sum(diffs) / len(diffs)) / spacing
 
 
+def snap_drift(cos, raws, plane_n, steps):
+    ''' How far the worst new vert had to slide across the patch to find the source, in quad widths. '''
+    if plane_n is None or plane_n.length_squared < 1e-12: return 0.0
+    spacing = (sum(steps) / len(steps)) if steps else 0.0
+    if spacing <= 1e-9: return 0.0
+    worst = 0.0
+    for k, raw in enumerate(raws):
+        if raw is None: continue
+        d = cos[k] - raw
+        worst = max(worst, (d - plane_n * d.dot(plane_n)).length)
+    return worst / spacing
+
+
 def shared_side_fold(idx_a, cos_a, idx_b, cos_b):
     ''' Whether two faces sharing a side lie on the same side of it, a fold; None when they share no
     side. Faces are vert indices (None for a vert not yet made) and positions. '''
@@ -1155,10 +1168,11 @@ class LegacyPatches_Logic:
     @staticmethod
     def _recompute(context : Context, settings : PatchSettings, *, live : bool = False, stroke_offer : str | None = 'pick'):
         L = LegacyPatches_Logic
-        MAX_SELECTED_EDGES = 1000       # same bail-out as the loop/strip selection overlay
-        MAX_NEW_VERTS = 20000           # each new vert costs one closest-point query per source
+        MAX_SELECTED_EDGES = 250       # same bail-out as the loop/strip selection overlay
+        MAX_NEW_VERTS = 500           # each new vert costs one closest-point query per source
         SNAP_CAP_EDGES = 2.0            # how far a new vert may be projected, in mean boundary edge lengths, so it cannot land on the far side of a form
         MAX_SNAP_NOISE = 0.7            # grid_snap_noise above this means the fill bears no relation to the source
+        MAX_SNAP_DRIFT = 0.75           # snap_drift above this: the fill spans nothing and the loop is better stepped. Source feature snapping drifts a quarter quad at the default proximity; the coarse fills grid_snap_noise still reads as clean drift well past that (an 8-vert belt round a cube reads 0.88, a 3x3 ring round the mouth of a tube 1.02)
         GUIDE_MAX_ALONG = 0.7           # |cos| above which an existing edge runs along the strip and cannot guide a new side
         WELD_FIT_RADIUS = 0.6           # how far from where a new vert would land an existing one may sit, in step lengths
         WELD_FIT_MIN_SQUARENESS = 0.45  # below this a fresh vert makes a better quad than the existing one would
@@ -1662,12 +1676,13 @@ class LegacyPatches_Logic:
             L.error = 'Patches: selection too large to preview'
             return False
 
-        def build_grid(kind, l0, l1, boundary_at, interior_at, side, cap, *, cyclic_i=False, pin=None, checks=True, hold=()):
+        def build_grid(kind, l0, l1, boundary_at, interior_at, side, cap, *, cyclic_i=False, pin=None, checks=True, hold=(), plane=None):
             ''' Fill an l0 x l1 grid and add it to the preview. boundary_at(i, j) returns the existing
             corner there or None; interior_at(i, j) returns (blended co, normal) for the rest. pin, if
             given, adjusts a new interior point after snapping. `hold` names new verts that smoothing
-            leaves where the blend put them. With checks, a patch that snapped too noisily or that
-            would sit over existing faces is dropped. '''
+            leaves where the blend put them. `plane` is the normal of the closed boundary, which is what
+            snap_drift measures across. With checks, a patch that snapped too noisily, whose verts slid
+            across the form to reach it, or that would sit over existing faces is dropped. '''
             verts, normals, raws, fixed = [], [], [], set()
             for i in range(l0):
                 for j in range(l1):
@@ -1680,8 +1695,11 @@ class LegacyPatches_Logic:
                     pt = new_point(co, side, n, cap)
                     if pin: pt = pin(i, j, pt)
                     verts.append(pt); normals.append(n); raws.append(co)
-            if checks and sources and grid_snap_noise([ co_of(v) for v in verts ], raws, l0, l1, cyclic_i=cyclic_i) > MAX_SNAP_NOISE:
-                return
+            if checks and sources:
+                cos = [ co_of(v) for v in verts ]
+                if grid_snap_noise(cos, raws, l0, l1, cyclic_i=cyclic_i) > MAX_SNAP_NOISE: return
+                spans = [ (cos[i*l1+j] - cos[i*l1+j+1]).length for i in range(l0) for j in range(l1 - 1) ]
+                if snap_drift(cos, raws, plane, spans) > MAX_SNAP_DRIFT: return
             held = fixed | set(hold)
             smooth_grid(verts, normals, l0, l1, side, cap, held, cyclic_i=cyclic_i)
             edges, faces = grid_topology(verts, l0, l1, cyclic_i=cyclic_i)
@@ -1850,6 +1868,9 @@ class LegacyPatches_Logic:
 
             cos = [ co_of(v) for v in verts ]
             if checks and sources and layout_snap_noise(cos, raws, layout.edges) > MAX_SNAP_NOISE: return False
+            if checks and sources and snap_drift(cos, raws, compute_n([ co_of(v) for v in boundary ]),
+                                                 [ (cos[a] - cos[b]).length for a, b in layout.edges ]) > MAX_SNAP_DRIFT:
+                return False
             if checks and over_existing_faces(verts, list(layout.faces)): return False
             if checks and all(n is not None for n in normals):
                 # a folded fill has quads facing both ways; the loop's own winding is not known, so count the minority
@@ -1902,7 +1923,10 @@ class LegacyPatches_Logic:
                 co = coons(co_of(l), co_of(r), co_of(b), co_of(t), co_of(c00), co_of(c10), co_of(c01), co_of(c11), pi, pj)
                 return co, n
 
-            build_grid(kind, l0, l1, boundary_at, interior_at, shape_side(boundary), shape_cap(boundary))
+            # the rim walked round, c00 -> c10 -> c11 -> c01, for the plane snap_drift measures across
+            rim = [ co_of(v) for v in sv0 + sv1[1:] + sv2[::-1][1:] + sv3[::-1][1:-1] ]
+            build_grid(kind, l0, l1, boundary_at, interior_at, shape_side(boundary), shape_cap(boundary),
+                       plane=compute_n(rim))
             return True
 
         def emit_span(kind, sv0, sv1, l1, boundary, *, cyclic_i=False, checks=True, hold_i=()):
@@ -3209,6 +3233,7 @@ class LegacyPatches_Logic:
                         emit_loft(bmvs_a, bmvs_b, axis)
 
         if not lofted:
+            filled = stepped = False
             for kind, shape, bmvs in cycles:
                 before = len(L.previz)
                 if kind in ('tri', 'rect', 'ngon'):
@@ -3217,12 +3242,21 @@ class LegacyPatches_Logic:
                 else:
                     # no corners to speak of: grid fill
                     if not emit_grid_fill(bmvs, 'grid'): break
-                if len(L.previz) > before: continue
-                # nothing to fill inside (already faces, or not griddable): step the loop outward instead.
+                if len(L.previz) > before:
+                    filled = True
+                    continue
+                # Nothing to fill inside: already faces, not griddable, or every Solution refused because
+                # it spans nothing -- a loop round the mouth of a form has its verts dragged out to the rim
+                # rather than onto anything the patch could cover. Step the loop outward instead.
                 # Not round an n-gon's perimeter, where a ring would leave a smaller hole and no patch
                 if L.ngon_verts is not None: continue
                 bmes = cycle_bmes(bmvs)
                 if bmes and not emit_offset(bmvs, bmes, cyclic=True): break
+                stepped = stepped or len(L.previz) > before
+            if stepped and not filled:
+                # the Solutions were ranked before they were tried and none of them built: they are not
+                # on offer, so the count knob and the redo panel belong to the step that replaced them
+                L.has_grid, L.grid_ranked = False, []
 
         ##############################################
         # L: two strips meeting at a corner; the other two sides are created
