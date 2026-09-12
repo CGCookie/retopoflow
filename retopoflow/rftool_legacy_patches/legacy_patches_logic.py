@@ -1294,6 +1294,27 @@ class LegacyPatches_Logic:
                 L.push_prop('step_scale', 1.0)
                 settings = replace(settings, step_scale=1.0)
 
+        # Patches acts on one shape, or on the two that pair into a loft or a bridge. Anything past that
+        # should return early so that select all doesn't slow things to a crawl.
+        met = {}
+        for bme in edges:
+            for bmv in bme.verts: met[bmv] = met.get(bmv, 0) + 1
+        root = { bmv: bmv for bmv in met }
+        def root_of(bmv):
+            while root[bmv] is not bmv:
+                root[bmv] = root[root[bmv]]     # halving the path as it goes keeps this all but linear
+                bmv = root[bmv]
+            return bmv
+        for bme in edges:
+            a, b = root_of(bme.verts[0]), root_of(bme.verts[1])
+            if a is not b: root[a] = b
+        runs = {}
+        for bmv, n in met.items(): runs.setdefault(root_of(bmv), []).append(n)
+        if len(runs) > 2: return
+        # a run closes when every vert on it meets two of the edges
+        # a loop and a strip do not pair
+        if len({ all(n == 2 for n in ns) for ns in runs.values() }) > 1: return
+
         L.boundary_verts = { v.index: v.co.copy() for e in edges for v in e.verts }
 
         shapes = {
