@@ -34,7 +34,7 @@ from .bmesh import (
     wind_bmfs_to_match_neighbors,
 )
 from .raycast import is_point_occluded, MatrixInfo, FindNearest
-from .maths import point_to_bvec4, view_forward_direction
+from .maths import point_to_bvec4
 from ...addon_common.common.maths import closest_point_segment, Point, Direction, Plane
 from ...addon_common.ext.circle_fit import hyperLSQ
 from ...addon_common.common.utils import iter_pairs
@@ -177,11 +177,55 @@ def get_strip_bmvs(strip, bmv_start):
         bmvs.append(bmv)
     return bmvs
 
-def check_bmf_normals(fwd, bmfs):
-    for bmf in bmfs:
-        bmf.normal_update()
-        if fwd.dot(bmf.normal) > 0:
-            bmf.normal_flip()
+def bmfs_outwardness(group):
+    org = next(iter(group)).verts[0].co.copy()   # only to keep the arithmetic near zero; once the
+    mag = vol = 0.0                              # surface is closed the sum is the same from anywhere
+    def add(cos):
+        nonlocal mag, vol
+        for i in range(1, len(cos) - 1):
+            t = cos[0].dot(cos[i].cross(cos[i + 1]))
+            vol += t
+            mag += abs(t)
+    for bmf in group: add([ bmv.co - org for bmv in bmf.verts ])
+
+    # A cap walks its loop the way the one face on those edges does not, as any two faces sharing an
+    # edge do. loop.vert is the vert its face walks from, so the cap walks back to it.
+    nxt = {}
+    for bmf in group:
+        for loop in bmf.loops:
+            if len(loop.edge.link_faces) == 1:
+                nxt.setdefault(loop.edge.other_vert(loop.vert), loop.vert)
+    while nxt:
+        start = bmv = next(iter(nxt))
+        ring = []
+        while bmv in nxt:
+            ring.append(bmv)
+            bmv = nxt.pop(bmv)
+        # a boundary that pinches on itself caps no better than it closes, and a wrong answer here
+        # flips real geometry: leave the group as it is instead
+        if bmv is not start or len(ring) < 3: return 0.0
+        add([ v.co - org for v in ring ])
+    return vol if abs(vol) > 1e-6 * mag else 0.0
+
+def check_bmf_normals(bmfs):
+    for bmf in bmfs: bmf.normal_update()
+    left = set(bmfs)
+    while left:
+        group, stack = set(), [next(iter(left))]
+        while stack:
+            bmf = stack.pop()
+            if bmf in group: continue
+            group.add(bmf)
+            stack += [ loop_n.face for loop in bmf.loops for loop_n in loop.edge.link_loops
+                       if loop_n.face in left and loop_n.face not in group ]
+        left -= group
+        # loop.vert is the vert each face walks *from*, so sharing it means sharing a direction
+        vote = sum(-1 if loop_n.vert == loop.vert else 1
+                   for bmf in group for loop in bmf.loops
+                   for loop_n in loop.edge.link_loops if loop_n.face not in group)
+        if vote == 0: vote = bmfs_outwardness(group)
+        if vote < 0:
+            for bmf in group: bmf.normal_flip()
 
 def orient_bmf_normals(
     context : Context,
@@ -229,7 +273,7 @@ def orient_bmf_normals(
     bmfs = wind_bmfs_to_match_neighbors(bmfs_unresolved)
     if not bmfs or not new_faces: return  # whatever is left is attached to nothing settled
 
-    check_bmf_normals(matinfo.w2l_direction(view_forward_direction(context)), bmfs)
+    check_bmf_normals(bmfs)
 
 def fit_template2D(template, p0, *, target=None, along=None):
     t0, t1 = template[0], template[-1]
@@ -580,6 +624,8 @@ def order_rings_along_axis(centroids, normals, *, align=0.5, start=0):
         chain, cur = [], start
         while True:
             here, ax = centroids[cur], axis_of(cur)
+            # NOTE: fit_plane_of_verts signs each normal arbitrarily, so one disagreeing sign truncates
+            # the chain here. i.e. a bent stack orders only its first pair.
             ahead = ax * sign
             best, best_d = None, float('inf')
             for i in range(n_rings):

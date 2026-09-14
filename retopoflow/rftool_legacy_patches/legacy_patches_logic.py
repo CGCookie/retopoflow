@@ -4537,10 +4537,9 @@ class LegacyPatches_Logic:
         if rf_is_running():
             orient_bmf_normals(context, new_bmfs, new_faces=True)
         else:
-            # a wire run steps out with nothing attached to agree with, so what is left over faces the view
+            # a wire run steps out with nothing attached to agree with, so what is left over faces outwards
             unsettled = wind_bmfs_to_match_neighbors(new_bmfs)
-            if unsettled and context.region_data:
-                check_bmf_normals(Mi_build.to_3x3() @ view_forward_direction(context), unsettled)
+            if unsettled: check_bmf_normals(unsettled)
 
         stepped = [ (pv, bmvs) for pv, bmvs in zip(previz, built) if pv.kind == 'offset' ]
         cornered = [ (pv, bmvs) for pv, bmvs in zip(previz, built) if pv.kind == 'corner' ]
