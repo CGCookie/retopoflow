@@ -487,20 +487,28 @@ def fit_plane_of_verts(verts : Sequence[BMVert]) -> tuple[Vector|None, Vector|No
     ''' Best-fit plane and center for a collection of BMVerts. '''
     from ...addon_common.common.maths import Plane, Point
     from ...addon_common.ext.circle_fit import hyperLSQ
+    import numpy as np
     points = [ Point(v.co) for v in verts ]
+    middle = sum((v.co for v in verts), Vector()) / len(verts)
     try:
         plane  = Plane.fit_to_points(points)
         if not plane:
             return (None, None)
         normal = plane.n.copy()
+        center = middle
         try:
-            circle = hyperLSQ([list(plane.w2l_point(p).xy) for p in points])
-            center = Vector(plane.l2w_point(Point((circle[0], circle[1], 0))))
+            # Points with no width in the plane -- collinear, or all the same -- describe no circle:
+            # the fit divides by zero there and hands back nan instead of raising, so what comes out
+            # is checked rather than trusted, and numpy is told not to shout about a handled case.
+            with np.errstate(invalid='ignore', divide='ignore'):
+                circle = hyperLSQ([list(plane.w2l_point(p).xy) for p in points])
+            if all(math.isfinite(c) for c in circle[:2]):
+                center = Vector(plane.l2w_point(Point((circle[0], circle[1], 0))))
         except Exception:
-            center = sum((v.co for v in verts), Vector()) / len(verts)
+            pass
     except Exception:
         normal = None
-        center = sum((v.co for v in verts), Vector()) / len(verts)
+        center = middle
     return normal, center
 
 

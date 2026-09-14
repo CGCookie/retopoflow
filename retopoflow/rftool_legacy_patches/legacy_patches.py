@@ -72,6 +72,26 @@ from ..preferences import RF_Prefs
 from .legacy_patches_logic import LegacyPatches_Logic, DrawGesture, PatchSettings, MAIN_OP_IDNAME, PATCH_SETTING_NAMES
 
 
+_solve_items = []   # Blender keeps no reference to the strings a dynamic enum hands back, so this does
+
+def setting_values(src):
+    ''' PATCH_SETTING_NAMES read off `src`. Solve is a dynamic enum, which keeps its index when the items
+    change under it, so reading one can fail outright; its automatic choice stands in until the next
+    rebuild puts the index back. '''
+    out = {}
+    for name in PATCH_SETTING_NAMES:
+        try: out[name] = getattr(src, name)
+        except Exception: out[name] = getattr(PatchSettings, name)
+    return out
+
+
+def solve_items(self, context):
+    ''' The kinds of fill the current selection could take, ranked, best first. '''
+    global _solve_items
+    _solve_items = LegacyPatches_Logic.solve_items()
+    return _solve_items or [('NONE', 'None', 'Nothing to fill', 0)]
+
+
 # The main operator never runs (there is no stroke or brush), so RFCore.km_context stays 'init' and
 # every keymap entry that should show in the status bar needs km_context 'init'.
 
@@ -123,6 +143,11 @@ class LegacyPatches_Properties:
         soft_max=10.0,
         subtype='DISTANCE',
     )
+    solve: bpy.props.EnumProperty(
+        name='Solve',
+        description='Which kind of fill the selection gets',
+        items=solve_items,
+    )
 
     # the fills LegacyPatches_Logic.solutions_for ranks for a loop, and the placement of the chosen one
     solution: bpy.props.IntProperty(
@@ -151,8 +176,8 @@ class LegacyPatches_Properties:
         name='Distance',
         description=('How far each stepped row reaches, against the spacing of the run it steps from. '
                      'Only the rows that extrude are affected: one that lands on existing geometry still lands on it'),
-        min=0.05,
-        soft_min=0.25,
+        min=0.01,
+        soft_min=0.05,
         soft_max=4.0,
         max=16.0,
         default=PatchSettings.step_scale,
@@ -273,13 +298,14 @@ class RFOperator_LegacyPatches_Fill(LegacyPatches_Properties, RFOperator_Execute
         # outside the tool the operator's own last values stand, at the automatic Solution and Offset
         src = LegacyPatches_Logic.tool_props(context)
         if src:
-            for name in PATCH_SETTING_NAMES:
-                setattr(self, name, getattr(src, name))
+            for name, value in setting_values(src).items():
+                try: setattr(self, name, value)
+                except Exception: pass      # a Solve this selection does not offer; the rebuild resets it
         else:
             self.steps = PatchSettings.steps
             self.step_scale = PatchSettings.step_scale
             self.solution, self.offset = 1, 0
-        settings = PatchSettings(**{ name: getattr(self, name) for name in PATCH_SETTING_NAMES })
+        settings = PatchSettings(**setting_values(self))
 
         # rebuild for the selection as it is now, with the settings the fill will use: outside the tool no overlay
         # keeps a preview alive, and inside it a preview left from the last selection must not decide the key's fate
@@ -309,8 +335,15 @@ class RFOperator_LegacyPatches_Fill(LegacyPatches_Properties, RFOperator_Execute
         return { 'FINISHED' }
 
     def _fill(self, context : Context) -> bool:
-        settings = PatchSettings(**{ name: getattr(self, name) for name in PATCH_SETTING_NAMES })
+        settings = PatchSettings(**setting_values(self))
         if not LegacyPatches_Logic.fill(context, settings): return False
+        # The rebuild may have landed on a different kind of fill than was asked for, a Solve that could
+        # not build having given way to one that could. It writes that back to the tool, but the redo
+        # panel here draws this operator's own properties, so they have to be told as well.
+        solved = LegacyPatches_Logic.solved_as
+        if solved and solved != settings.solve:
+            try: self.solve = solved
+            except Exception: pass
         context.area.tag_redraw()
         return True
 
@@ -763,19 +796,16 @@ def draw_patches_props(layout : UILayout, props, *, header : bool, redo : bool =
     L = LegacyPatches_Logic
     has_bridge, has_grid, has_loft, has_offset, has_quad = (
         L.filled_flags if redo else (L.has_bridge, L.has_grid, L.has_loft, L.has_offset, L.has_quad))
+    has_solves = len(LegacyPatches_Logic.solve_items()) > 1
+    has_options = has_quad or has_offset or has_grid or has_loft
+
+    if redo and has_solves:
+        layout.prop(props, 'solve', text='Type')
 
     if not header:
         layout = layout.column()
         layout.use_property_split = True
         layout.use_property_decorate = False
-        if redo and L.filled_action:
-            # what the fill settled on, named the way Strokes names its insert
-            split = layout.split(factor=0.4)
-            col = split.column()
-            col.alignment = 'RIGHT'
-            col.label(text='Filled')
-            split.label(text=L.filled_action)
-
     if header:
         row = layout.row(align=True)
         row.prop(props, 'span_insert_mode', text='')
@@ -796,13 +826,13 @@ def draw_patches_props(layout : UILayout, props, *, header : bool, redo : bool =
         row = layout.row()
         row.enabled = not (has_bridge and props.span_insert_mode == 'FIXED' and props.crosses == 0)
         row.prop(props, 'smooth')
-
-    has_options = has_quad or has_offset or has_grid or has_loft
     if has_options:
         if header:
             layout.separator(type='LINE')
         elif not redo:
             layout.separator()
+        if not redo and has_solves:
+            layout.prop(props, 'solve', text='Type')
         if has_grid:
             layout.prop(props, 'solution', text='Solution')
             layout.prop(props, 'offset', text='Offset')

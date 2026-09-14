@@ -89,8 +89,32 @@ class PatchSettings:
     twist            : int = 0      # loft: rotate the loop pairing this many verts
     steps            : int = 1      # offset: rows of quads to step outward
     step_scale       : float = 1.0  # offset: scales how far a row that extrudes freely reaches
+    solve            : str = ''     # which kind of fill, where the selection could take more than one
 
 PATCH_SETTING_NAMES = tuple(f.name for f in fields(PatchSettings))
+
+SOLVE_LABELS = {    # Solve enum: what each kind of fill is called and what it does
+    'LOFT':   ('Loft',      'Bridge each selected loop to the next'),
+    'BRIDGE': ('Bridge',    'Bridge the two selected strips to each other'),
+    'FILL':   ('Grid Fill', 'Fill the area the selection encloses with quads'),
+    'FACE':   ('N-Gon',     'Close the area the selection encloses with one face'),
+    'STEP':   ('Face Step', 'Step the selection outward into a new row of faces'),
+}
+
+LOOP_FLATNESS = 0.2     # how far off its own plane a loop may wander, against its width, and still read as flat
+
+def loop_is_flat(cos):
+    ''' Whether a closed run of points lies near enough to one plane to be worth covering with a patch.
+    A flat loop is a hole asking to be filled; one that wanders is the mouth of a form, where a fill
+    would cut the corner and stepping it outward is usually what was wanted. '''
+    n = len(cos)
+    if n < 3: return False
+    ctr = sum(cos, Vector()) / n
+    nrm = compute_n(cos)
+    if nrm.length_squared < 1e-12: return False
+    span = max((co - ctr).length for co in cos)
+    if span < 1e-9: return False
+    return max(abs((co - ctr).dot(nrm)) for co in cos) <= LOOP_FLATNESS * span
 
 
 ##############################################
@@ -959,33 +983,6 @@ class Previz:
     mark     : tuple = ()   # faces drawn in a warning colour: the one non-quad an odd loop is closed with
 
 
-FILL_NAMES = {      # Previz.kind in the redo panel's words
-    'I':        'Bridge',
-    'bridge':   'Bridge',
-    'loft':     'Loft',
-    'rect':     'Rectangle',
-    'grid':     'Grid',
-    'ngon':     'N-Gon',
-    'L':        'L-Patch',
-    'C':        'C-Patch',
-    'offset':   'Offset',
-    'quad':     'Quad',
-    'corner':   'Corner Quad',
-    'nearest':  'Quad',
-    'triangle': 'Triangle',
-}
-
-
-def fill_action(previz : list) -> str:
-    ''' What a fill built, for its redo panel: the patches named in the order they were built, each kind
-    once with a count where it repeats. Strokes reports its own insert the same way. '''
-    counts = {}
-    for pv in previz:
-        name = FILL_NAMES.get(pv.kind, pv.kind.title())
-        counts[name] = counts.get(name, 0) + 1
-    return ', '.join(f'{name} x{n}' if n > 1 else name for name, n in counts.items())
-
-
 def fuse_previz(previz : list) -> Previz:
     ''' One preview out of several sharing verts, existing ones by index and new ones by position, so
     a run's rung and the notch quad it was pinned to are one vert, drawn once and built once. '''
@@ -1068,7 +1065,10 @@ class LegacyPatches_Logic:
     filled_solutions : ClassVar[int] = 1
     filled_free_step : ClassVar[bool] = False                  # has_free_step of the last fill, for its redo panel
     filled_smoothing : ClassVar[bool] = False                  # has_smoothing of the last fill, likewise
-    filled_action  : ClassVar[str] = ''                        # what the last fill built, named for its redo panel
+    solved_as      : ClassVar[str] = ''                        # the kind the last rebuild actually built
+    solve_ranked   : ClassVar[list] = []                       # kinds of fill this selection could take, best first
+    solve_sig      : ClassVar[tuple | None] = None             # selection that ranking was made for
+    filled_solve_ranked : ClassVar[list] = []                  # solve_ranked of the last fill, for its redo panel
 
     # Cursor and Ctrl, in window space. The *_locked values are what they were when the last fill
     # started: a redo re-runs the whole rebuild later and must not read where the cursor has gone since,
@@ -1106,7 +1106,9 @@ class LegacyPatches_Logic:
         L.filled_flags = (False, False, False, False, False)
         L.filled_loops, L.filled_solutions = 0, 1
         L.filled_free_step = L.filled_smoothing = False
-        L.filled_action = ''
+        L.solve_ranked = L.filled_solve_ranked = []
+        L.solve_sig = None
+        L.solved_as = ''
         L.grid_sig = None
         L.ngon_cuts = {}
         L.pole_pos = {}
@@ -1142,6 +1144,7 @@ class LegacyPatches_Logic:
         L.has_manual_corners = False
         L.grid_last = None
         L.grid_ranked = []
+        L.solve_ranked = []
         L.loops_last = None
         L.wire_runs = []
         L.offer = None
@@ -1175,10 +1178,14 @@ class LegacyPatches_Logic:
         props = L.tool_props(context)
         if not props: return PatchSettings()
         try:
-            values = { name: getattr(props, name) for name in PATCH_SETTING_NAMES }
+            values = { name: getattr(props, name) for name in PATCH_SETTING_NAMES if name != 'solve' }
             values['steps'] = max(1, L.settled('steps', int(values['steps'])))
             values['step_scale'] = L.settled('step_scale', float(values['step_scale']))
             values['offset'] = int(L.settled('offset', int(values['offset'])))
+            # Solve is a dynamic enum, which keeps its index when the items change under it, so a read
+            # can fail outright. The best fill stands in until _recompute puts the index back.
+            try: values['solve'] = L.settled('solve', props.solve)
+            except Exception: values['solve'] = ''
             return PatchSettings(**values)
         except Exception:
             return PatchSettings()
@@ -1215,6 +1222,17 @@ class LegacyPatches_Logic:
     def push_prop(name : str, value):
         LegacyPatches_Logic.prop_pending[name] = value
         LegacyPatches_Logic._write_tool_prop_later(name, lambda: value)
+
+    @staticmethod
+    def solve_items():
+        ''' Items for the Solve enum: the live ranking while a selection previews, the last fill's
+        while its redo panel is up. Numbered by position, so index 0 is always the best fill on
+        offer and a fresh selection lands there. '''
+        L = LegacyPatches_Logic
+        ranked = L.solve_ranked or L.filled_solve_ranked
+        # a name it does not know would raise inside a draw callback, so unknown kinds drop out
+        return [ (kind, *SOLVE_LABELS[kind], i)
+                 for i, kind in enumerate(k for k in ranked if k in SOLVE_LABELS) ]
 
     @staticmethod
     def push_solution(value : int, stale : int):
@@ -2313,6 +2331,32 @@ class LegacyPatches_Logic:
             L.solution_seen = choice
             return choice
 
+        def strips_face(sv0, sv1):
+            ''' sv1 turned to run the same way as sv0, when the two strips face each other across a gap
+            rather than lying end to end. None when they do not, and so do not ask to be bridged. '''
+            dir0 = (sv0[0].co - sv0[-1].co).normalized()
+            dir1 = (sv1[0].co - sv1[-1].co).normalized()
+            if dir0.dot(dir1) < 0:
+                sv1 = list(reversed(sv1))
+                dir1 = -dir1
+            if angle_deg(dir0, (sv1[0].co - sv0[0].co).normalized()) < 45: return None
+            if angle_deg(dir1, (sv0[0].co - sv1[0].co).normalized()) < 45: return None
+            return sv1
+
+        def choose_solve(kinds):
+            ''' Which of `kinds` the Solve property picks, best first, and the ranking its own items are
+            built from. A new selection starts at the best, as a Solution does, and so does a choice
+            this selection cannot take; the property is brought back to it either way. '''
+            L.solve_ranked = list(kinds)
+            if not kinds: return None
+            sig = L.selection_signature(bm, sel_edges)
+            fresh = sig != L.solve_sig
+            L.solve_sig = sig
+            if fresh or settings.solve not in kinds:
+                if settings.solve != kinds[0]: L.push_prop('solve', kinds[0])
+                return kinds[0]
+            return settings.solve
+
         def emit_grid_split(bmvs, span, off, kind):
             ''' Coons-fill a closed loop as the span x (half - span) rectangle whose first corner is bmvs[off]. '''
             n = len(bmvs)
@@ -3225,6 +3269,19 @@ class LegacyPatches_Logic:
                           if bmvs_shared_bme(verts[a], verts[b]) is None ]
             add_previz('triangle', verts, new_edges, [(0, 1, 2)])
 
+        def emit_ngon_face(bmvs):
+            ''' Close a loop with one face. '''
+            bmvs = list(bmvs)
+            n = len(bmvs)
+            if n < 3 or len({ v.index for v in bmvs }) != n: return
+            if bm.faces.get(bmvs) is not None: return
+            new_edges = []
+            for i, (a, b) in enumerate(zip(bmvs, bmvs[1:] + bmvs[:1])):
+                bme = bmvs_shared_bme(a, b)
+                if bme is None: new_edges.append((i, (i + 1) % n))
+                elif len(bme.link_faces) >= 2: return
+            add_previz('ngon', bmvs, new_edges, [tuple(range(n))])
+
         def emit_corner_quad(bmv, pair=None):
             ''' F2's quad from a vertex: two open edges leaving a corner are two sides of a quad and the
             fourth corner is their parallelogram completion. Edges already sharing a face have no gap
@@ -3455,10 +3512,10 @@ class LegacyPatches_Logic:
                 bmvs = cycle_bmvs(bmes)
                 if bmvs: cycles.append((kind, shape, bmvs))
 
-        # Order the loops. A loop in the middle of a stack is the boundary of the loft on each side of it,
-        # so it belongs to both; every loop a loft claimed is out of the lone-loop fills below.
-        lofted = set()
-        before_lofts = len(L.previz)
+        # Which loops would loft with which, worked out before anything is built so the Solve property
+        # knows a loft is on offer. A loop in the middle of a stack is the boundary of the loft on each
+        # side of it, so it belongs to both.
+        loft_pairs = []
         if len(cycles) >= 2:
             planes = [ fit_plane_of_verts(bmvs) for _, _, bmvs in cycles ]
             order = order_rings_along_axis([ ctr for _, ctr in planes ],
@@ -3476,8 +3533,48 @@ class LegacyPatches_Logic:
                 if not (abs(na.dot(nb)) >= LOFT_PARALLEL
                         and abs(na.dot(axis)) >= LOFT_STACKED
                         and abs(nb.dot(axis)) >= LOFT_STACKED): continue
+                loft_pairs.append((ia, ib, axis))
+
+        # What this selection could be filled as, best first.
+        if cycles:
+            # A loop with no corners is filled by halving it into two equal sides, which an odd one
+            # cannot take at all; it is left off rather than offered and silently stepped instead.
+            kind0, _, bmvs0 = cycles[0]
+            cornered = kind0 in ('tri', 'rect', 'ngon')
+            quads = ['FILL'] if (cornered or (len(bmvs0) >= 4 and not len(bmvs0) % 2)) else []
+            if L.ngon_verts is not None:
+                # An n-gon being replaced by a patch. Closing it with one face is what is already there,
+                # and a ring stepped round its perimeter would leave a smaller hole and no patch, so a
+                # quad fill is the only thing on offer and neither of those is worth naming.
+                solve = choose_solve(quads)
+            else:
+                # One face always fits, and on a flat loop -- a hole rather than the mouth of a form --
+                # it beats stepping outward.
+                flat = loop_is_flat([ co_of(v) for v in bmvs0 ])
+                solve = choose_solve((['LOFT'] if loft_pairs else []) + quads
+                                     + (['FACE', 'STEP'] if flat else ['STEP', 'FACE']))
+        else:
+            pair = None
+            for shape_a, shape_b in combinations(shapes['I'], 2):
+                sv_a = get_verts(shape_a[0])
+                sv_b = strips_face(sv_a, get_verts(shape_b[0]))
+                if sv_b is not None:
+                    pair = sv_a + sv_b[::-1]
+                    break
+            if pair is None:
+                solve = choose_solve([])
+            elif loop_is_flat([ co_of(v) for v in pair ]):
+                solve = choose_solve(['BRIDGE', 'FACE', 'STEP'])
+            else:
+                solve = choose_solve(['BRIDGE', 'STEP', 'FACE'])
+        L.solved_as = solve or ''
+
+        lofted = set()
+        before_lofts = len(L.previz)
+        if solve == 'LOFT':
+            for ia, ib, axis in loft_pairs:
                 before_pair = len(L.previz)
-                if not emit_loft(bmvs_a, bmvs_b, axis):
+                if not emit_loft(cycles[ia][2], cycles[ib][2], axis):
                     # The stack came in as one fill, so half of it is not an answer: it would preview
                     # as a stack with gaps in it and commit that way. Drop back to the error alone.
                     del L.previz[before_lofts:]
@@ -3485,31 +3582,48 @@ class LegacyPatches_Logic:
                     break
                 if len(L.previz) > before_pair: lofted |= {ia, ib}
 
-        if len(lofted) < len(cycles) and not loft_stack:
+        if len(lofted) < len(cycles) and not (loft_stack and solve == 'LOFT'):
             # A stack of loops was admitted above as one fill of several lofts. Filling whatever the
             # chain did not claim on its own is the expensive path that limit exists to keep shut, and
             # a loop that would not loft with its neighbours is not part of what was asked for anyway.
-            filled = stepped = False
+            # The chosen fill first, then the rest of the ranking. One that cannot build is not the
+            # answer -- a patch whose every Solution refused it, a loop round the mouth of a form whose
+            # verts are dragged out to the rim rather than onto anything a patch could cover -- and the
+            # property follows whatever did build, so the panel never names a fill that is not there.
+            filled = stepped = spent = False
+            landed = solve
             for ci, (kind, shape, bmvs) in enumerate(cycles):
                 if ci in lofted: continue
                 before = len(L.previz)
-                if kind in ('tri', 'rect', 'ngon'):
-                    # by its corners: a rectangle as a grid, anything else round a pole
-                    if not emit_ngon(kind, shape): break
-                else:
-                    # no corners to speak of: grid fill
-                    if not emit_grid_fill(bmvs, 'grid'): break
+                # One face over the whole region is a deliberate act, so it is only ever built when it
+                # was asked for: falling back to it would cover a patch the checks just refused.
+                for want in [solve] + [ k for k in L.solve_ranked if k not in (solve, 'FACE') ]:
+                    if want == 'LOFT': continue
+                    if want == 'STEP':
+                        # not round an n-gon's perimeter, where a ring would leave a smaller hole and no patch
+                        if L.ngon_verts is not None: break
+                        bmes = cycle_bmes(bmvs)
+                        if bmes and not emit_offset(bmvs, bmes, cyclic=True): spent = True
+                    elif want == 'FACE':
+                        emit_ngon_face(bmvs)
+                    elif kind in ('tri', 'rect', 'ngon'):
+                        # by its corners: a rectangle as a grid, anything else round a pole
+                        if not emit_ngon(kind, shape): spent = True
+                    else:
+                        # no corners to speak of: grid fill
+                        if not emit_grid_fill(bmvs, 'grid'): spent = True
+                    if spent or len(L.previz) > before:
+                        landed = want
+                        break
+                if spent: break
                 if len(L.previz) > before:
-                    filled = True
-                    continue
-                # Nothing to fill inside: already faces, not griddable, or every Solution refused because
-                # it spans nothing -- a loop round the mouth of a form has its verts dragged out to the rim
-                # rather than onto anything the patch could cover. Step the loop outward instead.
-                # Not round an n-gon's perimeter, where a ring would leave a smaller hole and no patch
-                if L.ngon_verts is not None: continue
-                bmes = cycle_bmes(bmvs)
-                if bmes and not emit_offset(bmvs, bmes, cyclic=True): break
-                stepped = stepped or len(L.previz) > before
+                    if landed == 'STEP': stepped = True
+                    else: filled = True
+            # only when the whole selection went this way: a stray loop the stack would not loft is
+            # not the fill that was asked for, and must not drag the property off the loft
+            if landed != solve and L.solve_ranked and not lofted:
+                L.solved_as = solve = landed
+                L.push_prop('solve', landed)
             if stepped and not filled:
                 # the Solutions were ranked before they were tried and none of them built: they are not
                 # on offer, so the count knob and the redo panel belong to the step that replaced them
@@ -3705,20 +3819,13 @@ class LegacyPatches_Logic:
         # TODO (from v3): check that the bridge is not created on a side that already has geometry
         bridged = set()
         before_bridges = len(L.previz)
-        for i0, shape0 in enumerate(shapes['I']):
+        for i0, shape0 in enumerate(shapes['I'] if solve != 'STEP' else ()):
             sv0 = get_verts(shape0[0])
-            dir0 = (sv0[0].co - sv0[-1].co).normalized()
             best_sv1, best_dist, best_i1 = None, 0, None
             for i1, shape1 in enumerate(shapes['I']):
                 if i1 <= i0: continue
-                sv1 = get_verts(shape1[0])
-                dir1 = (sv1[0].co - sv1[-1].co).normalized()
-                if dir0.dot(dir1) < 0:
-                    sv1 = list(reversed(sv1))
-                    dir1 = -dir1
-                # the strips must face each other, not lie end to end
-                if angle_deg(dir0, (sv1[0].co - sv0[0].co).normalized()) < 45: continue
-                if angle_deg(dir1, (sv0[0].co - sv1[0].co).normalized()) < 45: continue
+                sv1 = strips_face(sv0, get_verts(shape1[0]))
+                if sv1 is None: continue
                 dist = min((v0.co - v1.co).length for v0 in sv0 for v1 in sv1)
                 if best_sv1 and best_dist < dist: continue
                 best_sv1 = sv1
@@ -3729,6 +3836,9 @@ class LegacyPatches_Logic:
             # for a bridge, not for each to step outward on its own
             bridged |= {i0, best_i1}
             sv1, dist = best_sv1, best_dist
+            if solve == 'FACE':
+                emit_ngon_face(sv0 + sv1[::-1])
+                continue
             avg0 = (sv0[0].co - sv0[-1].co).length / max(1, len(sv0) - 1)
             avg1 = (sv1[0].co - sv1[-1].co).length / max(1, len(sv1) - 1)
             gap = derive_loops(dist, max(avg0, avg1)) + 1    # edges across the gap
@@ -3775,7 +3885,8 @@ class LegacyPatches_Logic:
                              bow=run_bows(sv0, sv1), relax=False): break
 
         # Two separate boundary edges always bridge
-        if len(sel_verts) == 4 and len(shapes['I']) == 2 and len(L.previz) == before_bridges \
+        if solve != 'STEP' and len(sel_verts) == 4 and len(shapes['I']) == 2 \
+                and len(L.previz) == before_bridges \
                 and all(len(shape[0]) == 1 for shape in shapes['I']):
             sv0, sv1 = (get_verts(shape[0]) for shape in shapes['I'])
             # pair the near ends, so the rungs across do not cross
@@ -4465,7 +4576,7 @@ class LegacyPatches_Logic:
         L.filled_flags = (L.has_bridge, L.has_grid, L.has_loft, L.has_offset, L.has_quad)
         L.filled_free_step = L.has_free_step
         L.filled_smoothing = L.has_smoothing
-        L.filled_action = fill_action(L.previz)
+        L.filled_solve_ranked = list(L.solve_ranked)
         L.filled_loops = L.loops_last or 0
         L.filled_solutions = max(1, len(L.grid_ranked))
 
