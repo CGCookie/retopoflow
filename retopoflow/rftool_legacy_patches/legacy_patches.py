@@ -89,7 +89,7 @@ class LegacyPatches_Properties:
     )
     smooth: bpy.props.IntProperty(
         name='Smooth',
-        description='Relax passes applied to the new vertices before they are created, evening out the spacing of the interior loops. 0 keeps the pure interpolation',
+        description=('How smoothly the patch is interpolated. 0 keeps a linear blend.'),
         min=0,
         soft_max=10,
         max=50,
@@ -785,8 +785,10 @@ def draw_patches_props(layout : UILayout, props, *, header : bool, redo : bool =
                 layout.prop(props, 'crosses', text='Count')
     if not redo:
         layout.prop(props, 'split_angle', text='Split Angle')
-    if not redo or L.filled_smoothing:
-        layout.prop(props, 'smooth')
+    if not redo or L.filled_smoothing or has_bridge:
+        row = layout.row()
+        row.enabled = not (has_bridge and props.span_insert_mode == 'FIXED' and props.crosses == 0)
+        row.prop(props, 'smooth')
 
     has_options = has_quad or has_offset or has_grid or has_loft
     if has_options:

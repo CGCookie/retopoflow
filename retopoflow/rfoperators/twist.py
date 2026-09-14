@@ -38,6 +38,7 @@ from ..common.bmesh_maths import (
     fit_plane_of_verts,
     get_bary_triangle,
     loop_arc_params,
+    order_rings_along_axis,
 )
 from ..common.maths import closest_point_linesegment, get_co_on_arc
 from ..common.operator import RFOperator_Invoke, RFKeyMaps, hotkey_owns_context
@@ -450,50 +451,13 @@ def order_rings_by_axis(all_rings):
     def centroid(rd):
         cos = rd['initial_coords']
         return sum(cos.values(), Vector()) / len(cos)
-    cents = {id(rd): centroid(rd) for rd in rings}
 
-    # Global axis fallback for rings whose own normal failed to fit.
-    # Normals are already sign-aligned upstream, so summing them is meaningful.
-    gaxis = Vector((0.0, 0.0, 0.0))
-    for rd in rings:
-        if rd['normal'] is not None:
-            gaxis += rd['normal']
-    gaxis = gaxis.normalized() if gaxis.length > 1e-9 else Vector((0.0, 0.0, 1.0))
-    def axis_of(rd):
-        n = rd['normal']
-        return n.normalized() if (n is not None and n.length > 1e-9) else gaxis
-
-    start = next((rd for rd in rings if not rd.get('is_prop')), rings[0])
-    used  = {id(start)}
-
-    def walk(sign):
-        chain, cur = [], start
-        while True:
-            c   = cents[id(cur)]
-            ax  = axis_of(cur)
-            n   = ax * sign
-            best, best_d = None, float('inf')
-            for rd in rings:
-                if id(rd) in used:
-                    continue
-                d_vec = cents[id(rd)] - c
-                if d_vec.dot(n) <= 1e-9:
-                    continue  # not ahead along this ring's axis
-                if abs(axis_of(rd).dot(ax)) < RING_AXIS_ALIGN:
-                    continue   # not aligned with this ring
-                d = d_vec.length   # nearest aligned ring ahead
-                if d < best_d:
-                    best_d, best = d, rd
-            if best is None:
-                break
-            chain.append(best)
-            used.add(id(best))
-            cur = best
-        return chain
-
-    fwd = walk(+1)
-    bwd = walk(-1)
-    return list(reversed(bwd)) + [start] + fwd
+    # Ring normals are already sign-aligned upstream, so the shared walk's mean-normal
+    # fallback for a ring whose own normal failed to fit is meaningful here.
+    cents = [centroid(rd) for rd in rings]
+    nors  = [rd['normal'] for rd in rings]
+    start = next((i for i, rd in enumerate(rings) if not rd.get('is_prop')), 0)
+    return [rings[i] for i in order_rings_along_axis(cents, nors, align=RING_AXIS_ALIGN, start=start)]
 
 
 def get_loft_sequence(all_rings):

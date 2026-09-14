@@ -50,7 +50,9 @@ from ..common.bmesh import (
     bmes_shared_bmv, bme_unshared_bmv, bmvs_shared_bme, wind_bmfs_to_match_neighbors,
 )
 from ..common.object import mirror_threshold
-from ..common.bmesh_maths import orient_bmf_normals, check_bmf_normals, fit_plane_of_verts, compute_n
+from ..common.bmesh_maths import (
+    orient_bmf_normals, check_bmf_normals, fit_plane_of_verts, compute_n, order_rings_along_axis,
+)
 from ..common.bpy_helper import bpy_ops_retopoflow
 from ..common.drawing import Drawing, CC_2D_LINES, CC_2D_TRIANGLES
 from ..common.maths import view_forward_direction
@@ -207,6 +209,109 @@ def quad_squareness(q):
 
     score = (1.0 - worst_corner / 90.0) ** SKEW_WEIGHT * (min(lens) / max(lens)) ** ASPECT_WEIGHT
     return score if score >= MIN_SQUARENESS else None
+
+def solved_loft_band(bm, sel_bmes):
+    """ The loft already solved between selected closed loops, as (faces, inner edges) by vert index,
+    which Patches re-solves by deleting it and lofting the loops again. Empty unless the loops make a
+    plain stack: one region per gap, each fully enclosed by two of the loops, at least one of them
+    carrying faces on both sides. """
+    sel = set(sel_bmes)
+    NOTHING = ((), ())
+    if not sel: return NOTHING
+
+    # the selected edges as runs, each one a loop only when every vert on it meets two of them
+    run_of, met = {}, {}
+    for bme in sel:
+        for bmv in bme.verts: met[bmv] = met.get(bmv, 0) + 1
+    root = { bmv: bmv for bmv in met }
+    def root_of(bmv):
+        while root[bmv] is not bmv:
+            root[bmv] = root[root[bmv]]
+            bmv = root[bmv]
+        return bmv
+    for bme in sel:
+        a, b = root_of(bme.verts[0]), root_of(bme.verts[1])
+        if a is not b: root[a] = b
+    runs = {}
+    for bmv, n in met.items(): runs.setdefault(root_of(bmv), []).append(n)
+    closed = { r for r, ns in runs.items() if all(n == 2 for n in ns) }
+    if len(closed) < 2: return NOTHING
+    for bme in sel: run_of[bme] = root_of(bme.verts[0])
+
+    # Loops that are all open boundaries should fill their holes instead
+    if all(all(len(e.link_faces) < 2 for e in sel if run_of[e] is r) for r in closed):
+        return NOTHING
+
+    # face regions that stop at the selected edges, keeping the ones walled in by two or more loops
+    seen, kept = set(), []
+    for bme in sel:
+        for start in bme.link_faces:
+            if start in seen: continue
+            region, stack, touched, open_rim = set(), [start], set(), False
+            while stack:
+                bmf = stack.pop()
+                if bmf in region: continue
+                region.add(bmf)
+                for e in bmf.edges:
+                    if e in sel:
+                        touched.add(run_of[e])
+                        continue
+                    if len(e.link_faces) < 2: open_rim = True   # runs off a rim of its own, not walled in
+                    stack.extend(g for g in e.link_faces if g is not bmf)
+            seen |= region
+            if not open_rim and len(touched & closed) >= 2: kept.append(region)
+
+    # a stack of n loops has n - 1 gaps; more regions than that is not a stack
+    if len(kept) != len(closed) - 1: return NOTHING
+
+    # The old solution goes whole: its faces, and the edges inside it that the loops do not own. Any
+    # ring it left between the loops hangs off those alone, so it goes with them rather than staying
+    # behind as loose wire inside the new loft.
+    faces = [ f for region in kept for f in region ]
+    inner = { e for f in faces for e in f.edges if e not in sel }
+    return (tuple(tuple(v.index for v in f.verts) for f in faces),
+            tuple((e.verts[0].index, e.verts[1].index) for e in inner))
+
+
+def delete_band(bm, band, *, faces_only=False):
+    """ Remove a solved_loft_band from `bm`: its faces, then the edges inside it, which takes any ring
+    it held with them. False when a face of it is no longer there, so a stale preview can bail.
+    `faces_only` leaves the inside standing, which keeps every vert index where it was -- the preview
+    is built against a copy and its verts are named to the real mesh by index. """
+    faces, inner = band
+    doomed = []
+    for idxs in faces:
+        bmf = bm.faces.get([ bm.verts[i] for i in idxs ])
+        if bmf is None: return False
+        doomed.append(bmf)
+    bmesh.ops.delete(bm, geom=doomed, context='FACES_ONLY')
+    if faces_only: return True
+    bmes = [ e for a, b in inner if (e := bm.edges.get((bm.verts[a], bm.verts[b]))) ]
+    if bmes: bmesh.ops.delete(bm, geom=bmes, context='EDGES')
+    return True
+
+
+def blend_handle_length(co_a, no_a, co_b, no_b):
+    ''' Length for the two Bezier handles joining co_a to co_b along the tangents no_a and no_b,
+    both pointing at the other end. 4/3 is the cubic approximation of a quarter circle, so two
+    parallel tangents come out as a near-perfect arc; it eases to 0.75 as the tangents come to point
+    straight at each other, where 4/3 would overshoot. Blender's bridge sizes its handles the same
+    way. '''
+    ARC_FAC, FACING_FAC = 4.0 / 3.0, 0.75
+    dot = no_a.dot(no_b)
+    fac = ARC_FAC
+    if dot < 0.0:
+        t = 1.0 + dot
+        fac = ARC_FAC * t + FACING_FAC * (1.0 - t)
+    # across the plane the two tangents span, so the ends sitting off to one side of each other
+    # does not inflate the handles
+    d = co_b - co_a
+    perp = no_a.cross(no_b)
+    if perp.length_squared > 1e-12:
+        perp.normalize()
+        d = d - perp * d.dot(perp)
+    return d.length * 0.5 * fac
+
 
 def tri_shape_ok(cos):
     ''' Whether three points make a triangle worth filling rather than a sliver. '''
@@ -921,6 +1026,7 @@ class LegacyPatches_Logic:
     sel_sig        : ClassVar[tuple | None] = None             # selection the last live rebuild ran on
     filled_sig     : ClassVar[tuple | None] = None             # selection left behind by the last fill; not offered again
     ngon_verts     : ClassVar[tuple | None] = None             # vert indices of a lone selected n-gon the preview replaces
+    replaced_band  : ClassVar[tuple] = ((), ())                # (faces, inner edges) by vert index of the solved loft the preview replaces
     filled_flags   : ClassVar[tuple] = (False, False, False, False, False)   # (bridge, grid, loft, offset, quad) of the last fill, for its redo panel
     filled_loops   : ClassVar[int] = 0
     filled_solutions : ClassVar[int] = 1
@@ -1005,6 +1111,7 @@ class LegacyPatches_Logic:
         L.hint = None
         L.pole_handles = []
         L.ngon_verts = None
+        L.replaced_band = ((), ())
 
     @staticmethod
     def selection_signature(bm, edges) -> tuple:
@@ -1168,8 +1275,9 @@ class LegacyPatches_Logic:
     @staticmethod
     def _recompute(context : Context, settings : PatchSettings, *, live : bool = False, stroke_offer : str | None = 'pick'):
         L = LegacyPatches_Logic
-        MAX_SELECTED_EDGES = 250       # same bail-out as the loop/strip selection overlay
-        MAX_NEW_VERTS = 500           # each new vert costs one closest-point query per source
+        MAX_SELECTED_EDGES = 250        # same bail-out as the loop/strip selection overlay
+        MAX_LOFT_LOOPS = 12             # loops in one stack of lofts, the only selection of more than two shapes there is
+        MAX_NEW_VERTS = 5000            # each new vert costs one closest-point query per source
         SNAP_CAP_EDGES = 2.0            # how far a new vert may be projected, in mean boundary edge lengths, so it cannot land on the far side of a form
         MAX_SNAP_NOISE = 0.7            # grid_snap_noise above this means the fill bears no relation to the source
         MAX_SNAP_DRIFT = 0.75           # snap_drift above this: the fill spans nothing and the loop is better stepped. Source feature snapping drifts a quarter quad at the default proximity; the coarse fills grid_snap_noise still reads as clean drift well past that (an 8-vert belt round a cube reads 0.88, a 3x3 ring round the mouth of a tube 1.02)
@@ -1185,6 +1293,8 @@ class LegacyPatches_Logic:
         NGON_EQUALIZE = 0.5             # how much of each relax step pulls a vert toward equal distance from its face centres, against the plain average of its neighbours
         NGON_MAX_CUT_VERTS = 120        # boundary verts above which the cut search (roughly cubic in them, ~0.7s here) is skipped
         BOW_CORNER_MIN_DEG = 60.0       # a bow hangs off the short side only while both its corners are at least this open; see emit_junction
+        SMOOTH_ARC_UNIT = 3             # Smooth that bends a blend into the natural arc; PatchSettings.smooth defaults here, so the default Smooth is that arc
+        SMOOTH_BOW_MAX = 10             # the Smooth slider's own soft max: past it a bow only folds through itself
 
         # v3 compared the interior angle to a threshold; Split Angle states the same test as a deviation from straight
         min_angle = 180.0 - math.degrees(settings.split_angle)
@@ -1237,6 +1347,21 @@ class LegacyPatches_Logic:
                 edges = set(ngon.edges)
                 bm.faces.remove(ngon)
                 layer = bm.verts.layers.int.get(CORNER_LAYER)     # the copy's own
+        # Loops with faces between them are a loft that was already solved: drop the band on a copy so
+        # the rest of the rebuild reads bare loops and lofts them afresh, and remember it for the fill
+        # to delete for real. The copy is what the n-gon path above does, for the same reason.
+        if stroke is None and L.ngon_verts is None:
+            band = solved_loft_band(bm, sel_bmes)
+            if band[0]:
+                L.replaced_band = band
+                bm = bm.copy()
+                for seq in (bm.verts, bm.edges, bm.faces): seq.ensure_lookup_table()
+                delete_band(bm, band, faces_only=True)
+                for seq in (bm.verts, bm.edges, bm.faces): seq.ensure_lookup_table()
+                sel_bmes = [ e for e in bmops.get_all_selected_bmedges(bm) if not e.hide ]
+                edges = { e for e in sel_bmes if len(e.link_faces) < 2 }
+                layer = bm.verts.layers.int.get(CORNER_LAYER)     # the copy's own
+
         # only as many selected verts as it takes to tell none, one, three, four and more apart
         sel_verts = []
         for bmv in bm.verts:
@@ -1297,7 +1422,8 @@ class LegacyPatches_Logic:
                 settings = replace(settings, step_scale=1.0)
 
         # Patches acts on one shape, or on the two that pair into a loft or a bridge. Anything past that
-        # should return early so that select all doesn't slow things to a crawl.
+        # should return early so that select all doesn't slow things to a crawl. The one exception is a
+        # stack of closed loops, that should count as one loft shape.
         met = {}
         for bme in edges:
             for bmv in bme.verts: met[bmv] = met.get(bmv, 0) + 1
@@ -1312,8 +1438,10 @@ class LegacyPatches_Logic:
             if a is not b: root[a] = b
         runs = {}
         for bmv, n in met.items(): runs.setdefault(root_of(bmv), []).append(n)
-        if len(runs) > 2: return
         # a run closes when every vert on it meets two of the edges
+        loft_stack = (2 < len(runs) <= MAX_LOFT_LOOPS
+                      and all(all(n == 2 for n in ns) for ns in runs.values()))
+        if len(runs) > 2 and not loft_stack: return
         # a loop and a strip do not pair
         if len({ all(n == 2 for n in ns) for ns in runs.values() }) > 1: return
 
@@ -1699,13 +1827,15 @@ class LegacyPatches_Logic:
             L.error = 'Patches: selection too large to preview'
             return False
 
-        def build_grid(kind, l0, l1, boundary_at, interior_at, side, cap, *, cyclic_i=False, pin=None, checks=True, hold=(), plane=None):
+        def build_grid(kind, l0, l1, boundary_at, interior_at, side, cap, *, cyclic_i=False, pin=None, checks=True, hold=(), plane=None, relax=True):
             ''' Fill an l0 x l1 grid and add it to the preview. boundary_at(i, j) returns the existing
             corner there or None; interior_at(i, j) returns (blended co, normal) for the rest. pin, if
             given, adjusts a new interior point after snapping. `hold` names new verts that smoothing
             leaves where the blend put them. `plane` is the normal of the closed boundary, which is what
-            snap_drift measures across. With checks, a patch that snapped too noisily, whose verts slid
-            across the form to reach it, or that would sit over existing faces is dropped. '''
+            snap_drift measures across. Without `relax` the blend is the answer and Smooth means
+            something the caller has already applied to it. With checks, a patch that snapped too
+            noisily, whose verts slid across the form to reach it, or that would sit over existing
+            faces is dropped. '''
             verts, normals, raws, fixed = [], [], [], set()
             for i in range(l0):
                 for j in range(l1):
@@ -1724,12 +1854,12 @@ class LegacyPatches_Logic:
                 spans = [ (cos[i*l1+j] - cos[i*l1+j+1]).length for i in range(l0) for j in range(l1 - 1) ]
                 if snap_drift(cos, raws, plane, spans) > MAX_SNAP_DRIFT: return
             held = fixed | set(hold)
-            smooth_grid(verts, normals, l0, l1, side, cap, held, cyclic_i=cyclic_i)
+            if relax: smooth_grid(verts, normals, l0, l1, side, cap, held, cyclic_i=cyclic_i)
             edges, faces = grid_topology(verts, l0, l1, cyclic_i=cyclic_i)
             if checks and over_existing_faces(verts, faces): return
             # the same test smooth_grid moves a vert on, so Smooth is only offered where it does something
-            if any((cyclic_i or 0 < i < l0 - 1) or (0 < j < l1 - 1)
-                   for i in range(l0) for j in range(l1) if i * l1 + j not in held):
+            if relax and any((cyclic_i or 0 < i < l0 - 1) or (0 < j < l1 - 1)
+                             for i in range(l0) for j in range(l1) if i * l1 + j not in held):
                 L.has_smoothing = True
             # new boundary verts belong to a side this fill creates; without them the quads there read as triangles
             open_idx = [ k for k in sorted(fixed) if not isinstance(verts[k], BMVert) ]
@@ -1955,24 +2085,44 @@ class LegacyPatches_Logic:
                        plane=compute_n(rim))
             return True
 
-        def emit_span(kind, sv0, sv1, l1, boundary, *, cyclic_i=False, checks=True, hold_i=()):
-            ''' Straight blend between two sides of equal count, sv0[i] paired with sv1[i], with l1 - 2
-            new verts across. `boundary` is what the snap cap, mirror side and normals are taken from.
-            `hold_i` names rows whose run across stays on the blend rather than being smoothed. '''
+        def emit_span(kind, sv0, sv1, l1, boundary, *, cyclic_i=False, checks=True, hold_i=(), bow=None, relax=True):
+            ''' Blend between two sides of equal count, sv0[i] paired with sv1[i], with l1 - 2 new verts
+            across. `boundary` is what the snap cap, mirror side and normals are taken from. `hold_i`
+            names rows whose run across stays on the blend rather than being smoothed. `bow` is a pair
+            of unit tangents, each pointing at the other side, that the run leaves along: the blend then
+            follows a Bezier rather than the chord, scaled by Smooth. '''
             l0 = len(sv0)
             if not budget(l0 * max(0, l1 - 2)): return False
             nrm = normal_fn(boundary)
+            bow_fac = (min(settings.smooth, SMOOTH_BOW_MAX) / SMOOTH_ARC_UNIT) if bow else 0.0
+            if bow and l1 > 2: L.has_smoothing = True
 
             def boundary_at(i, j):
                 return sv0[i] if j == 0 else sv1[i] if j == l1 - 1 else None
 
+            def bow_offset(a, b, t):
+                ''' How far off the chord the Bezier sits at t, across the chord only: the run keeps the
+                chord's own even spacing and only bends away from it. '''
+                chord = b - a
+                if chord.length_squared < 1e-18: return Vector()
+                no_a, no_b = bow
+                h = blend_handle_length(a, no_a, b, no_b) * bow_fac
+                p1, p2 = a + no_a * h, b + no_b * h
+                mt = 1.0 - t
+                at = a * mt**3 + p1 * (3 * mt * mt * t) + p2 * (3 * mt * t * t) + b * t**3
+                d = at - (a * mt + b * t)
+                u = chord.normalized()
+                return d - u * d.dot(u)
+
             def interior_at(i, j):
                 pj = j / (l1 - 1)
-                co = co_of(sv0[i]) * (1 - pj) + co_of(sv1[i]) * pj
+                a, b = co_of(sv0[i]), co_of(sv1[i])
+                co = a * (1 - pj) + b * pj
+                if bow_fac: co = co + bow_offset(a, b, pj)
                 return co, blend_pair(nrm(sv0[i]), nrm(sv1[i]), pj)
 
             build_grid(kind, l0, l1, boundary_at, interior_at, shape_side(boundary), shape_cap(boundary),
-                       cyclic_i=cyclic_i, checks=checks,
+                       cyclic_i=cyclic_i, checks=checks, relax=relax,
                        hold={ i * l1 + j for i in hold_i for j in range(l1) })
             return True
 
@@ -2031,12 +2181,21 @@ class LegacyPatches_Logic:
             loops = derive_loops(dist, (per0 + per1) / (2 * n))
             L.has_bridge = L.has_loft = True
             L.loops_last = loops
-            # A run joining a corner of one loop to a corner of the other is the shape's sharp edge.
-            # Don't let smoothing collapse it
-            def loop_corner(bmvs, i):
-                return is_corner(bmvs[i], bmvs[(i - 1) % n], bmvs[(i + 1) % n])
-            hold_i = [ i for i in range(n) if loop_corner(bmvs0, i) and loop_corner(bmvs1, i) ]
-            return emit_span('loft', bmvs0, bmvs1, loops + 2, bmvs0 + bmvs1, cyclic_i=True, hold_i=hold_i)
+            # Smooth on a loft is how smoothly it blends between the two loops, not a relax pass over
+            # the verts between them: each run leaves its loop along that loop's own plane normal, so
+            # a loft round a bend curves through it instead of shearing across the chord. Relaxing
+            # here instead pulled every interior loop toward the mean of its neighbours, which shrinks
+            # a curved loop by (1 - cos(turn per edge)) a pass -- a waist on anything tightly curved,
+            # and nothing to pull it back out without a source under it. It also leaves the corner
+            # runs between matching sharp corners alone, which the relax pass had to be told to hold.
+            def toward(nrm_loop, sign):
+                if nrm_loop.length_squared < 1e-12: return None
+                nrm_loop = nrm_loop.normalized()
+                return nrm_loop if nrm_loop.dot(axis) * sign > 0 else -nrm_loop
+            bow_a, bow_b = toward(n0, 1), toward(n1, -1)
+            bow = (bow_a, bow_b) if (bow_a and bow_b) else None
+            return emit_span('loft', bmvs0, bmvs1, loops + 2, bmvs0 + bmvs1, cyclic_i=True,
+                             bow=bow, relax=False)
 
         def rank_grid_splits(bmvs):
             ''' Every distinct way to fill a closed even loop the way Blender's Grid Fill does, as a
@@ -3234,7 +3393,7 @@ class LegacyPatches_Logic:
                 L.corner_chains.append((verts, corners, False))
 
         ##############################################
-        # closed loops: loft a stacked pair, else fill each on its own
+        # closed loops: loft every stacked run of them, then fill what is left on its own
 
         cycles = []
         for kind in ('O', 'eye', 'tri', 'rect', 'ngon'):
@@ -3243,24 +3402,43 @@ class LegacyPatches_Logic:
                 bmvs = cycle_bmvs(bmes)
                 if bmvs: cycles.append((kind, shape, bmvs))
 
-        lofted = False
-        if len(cycles) == 2 and len(cycles[0][2]) == len(cycles[1][2]) >= 3:
-            bmvs_a, bmvs_b = cycles[0][2], cycles[1][2]
-            na, ctr_a = fit_plane_of_verts(bmvs_a)
-            nb, ctr_b = fit_plane_of_verts(bmvs_b)
-            if na and nb and ctr_a and ctr_b:
+        # Order the loops. A loop in the middle of a stack is the boundary of the loft on each side of it,
+        # so it belongs to both; every loop a loft claimed is out of the lone-loop fills below.
+        lofted = set()
+        before_lofts = len(L.previz)
+        if len(cycles) >= 2:
+            planes = [ fit_plane_of_verts(bmvs) for _, _, bmvs in cycles ]
+            order = order_rings_along_axis([ ctr for _, ctr in planes ],
+                                           [ nrm for nrm, _ in planes ], align=LOFT_PARALLEL)
+            for ia, ib in zip(order, order[1:]):
+                bmvs_a, bmvs_b = cycles[ia][2], cycles[ib][2]
+                if not (len(bmvs_a) == len(bmvs_b) >= 3): continue
+                (na, ctr_a), (nb, ctr_b) = planes[ia], planes[ib]
+                if not (na and nb and ctr_a and ctr_b): continue
                 axis = ctr_b - ctr_a
-                if axis.length > 1e-9:
-                    axis = axis.normalized()
-                    if (abs(na.dot(nb)) >= LOFT_PARALLEL
-                            and abs(na.dot(axis)) >= LOFT_STACKED
-                            and abs(nb.dot(axis)) >= LOFT_STACKED):
-                        lofted = True
-                        emit_loft(bmvs_a, bmvs_b, axis)
+                if axis.length <= 1e-9: continue
+                axis = axis.normalized()
+                # the walk already asked that the two face the same way; this asks that they are
+                # stacked along that facing rather than sitting side by side
+                if not (abs(na.dot(nb)) >= LOFT_PARALLEL
+                        and abs(na.dot(axis)) >= LOFT_STACKED
+                        and abs(nb.dot(axis)) >= LOFT_STACKED): continue
+                before_pair = len(L.previz)
+                if not emit_loft(bmvs_a, bmvs_b, axis):
+                    # The stack came in as one fill, so half of it is not an answer: it would preview
+                    # as a stack with gaps in it and commit that way. Drop back to the error alone.
+                    del L.previz[before_lofts:]
+                    lofted.clear()
+                    break
+                if len(L.previz) > before_pair: lofted |= {ia, ib}
 
-        if not lofted:
+        if len(lofted) < len(cycles) and not loft_stack:
+            # A stack of loops was admitted above as one fill of several lofts. Filling whatever the
+            # chain did not claim on its own is the expensive path that limit exists to keep shut, and
+            # a loop that would not loft with its neighbours is not part of what was asked for anyway.
             filled = stepped = False
-            for kind, shape, bmvs in cycles:
+            for ci, (kind, shape, bmvs) in enumerate(cycles):
+                if ci in lofted: continue
                 before = len(L.previz)
                 if kind in ('tri', 'rect', 'ngon'):
                     # by its corners: a rectangle as a grid, anything else round a pole
@@ -4264,6 +4442,13 @@ class LegacyPatches_Logic:
                     return False
                 row.append(bmv)
             existing.append(row)
+
+        # the band the loft re-solves goes first, so its loops are bare for the loft to build on
+        if L.replaced_band[0]:
+            if max(i for idxs in L.replaced_band[0] for i in idxs) >= nverts \
+                    or delete_band(bm, L.replaced_band) is False:
+                L.dirty = True      # stale preview; the next frame rebuilds it
+                return False
 
         # a lone n-gon goes first, and only the face: its edges stay for the patch to build on
         if L.ngon_verts is not None:

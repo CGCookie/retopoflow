@@ -554,3 +554,46 @@ def bary_reconstruct(v0, v1, v2, w0, w1, w2, offset):
     n     = (B - A).cross(C - A)
     n_len = n.length
     return base + offset * (n / n_len) if n_len > 1e-12 else base
+
+
+def order_rings_along_axis(centroids, normals, *, align=0.5, start=0):
+    ''' Order cross-section rings along the axis they stack on. Walked outward from `start`
+    in both directions, each step taking the nearest ring ahead of the current one along the current
+    one's own normal. A ring whose normal did not fit borrows the mean of the rest.
+    `align` is the smallest |dot| between two normals that still reads as the same run.
+    Returns indices into the inputs, leaving out any ring the walk never reaches. '''
+    n_rings = len(centroids)
+    if n_rings < 2: return list(range(n_rings))
+
+    mean = Vector((0.0, 0.0, 0.0))
+    for nrm in normals:
+        if nrm is not None: mean += nrm
+    mean = mean.normalized() if mean.length > 1e-9 else Vector((0.0, 0.0, 1.0))
+
+    def axis_of(i):
+        nrm = normals[i]
+        return nrm.normalized() if (nrm is not None and nrm.length > 1e-9) else mean
+
+    used = {start}
+
+    def walk(sign):
+        chain, cur = [], start
+        while True:
+            here, ax = centroids[cur], axis_of(cur)
+            ahead = ax * sign
+            best, best_d = None, float('inf')
+            for i in range(n_rings):
+                if i in used or centroids[i] is None: continue
+                d_vec = centroids[i] - here
+                if d_vec.dot(ahead) <= 1e-9: continue           # not ahead along this ring's axis
+                if abs(axis_of(i).dot(ax)) < align: continue    # not aligned with this ring
+                d = d_vec.length                                # nearest aligned ring ahead
+                if d < best_d: best_d, best = d, i
+            if best is None: return chain
+            chain.append(best)
+            used.add(best)
+            cur = best
+
+    fwd = walk(+1)
+    bwd = walk(-1)
+    return list(reversed(bwd)) + [start] + fwd
