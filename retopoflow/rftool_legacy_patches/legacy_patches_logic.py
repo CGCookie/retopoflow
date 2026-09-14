@@ -1257,9 +1257,11 @@ class LegacyPatches_Logic:
         # Four selected verts with at least one on no selected edge are a picked quad. Every vert of
         # an L or C is on a selected edge, and two separate edges are a bridge with its count knob.
         # A run of three edges can also be a good quad if the angles support it.
-        if len(sel_verts) == 4 and (any(not any(e in edges for e in v.link_edges) for v in sel_verts)
-                                    or run_turns(sel_verts, edges)):
-            sel_quad = L._selected_quad(bm, sel_verts, context.region, context.region_data, M)
+        # Loose corners are always filled with a quad.
+        loose_corners = any(not any(e in edges for e in v.link_edges) for v in sel_verts)
+        if len(sel_verts) == 4 and (loose_corners or run_turns(sel_verts, edges)):
+            sel_quad = L._selected_quad(bm, sel_verts, context.region, context.region_data, M,
+                                        fit=not loose_corners)
             if sel_quad is not None:
                 edges = set()   # the quad is the whole fill; a selected edge among the four must not also step
         # Three selected verts are a triangle whenever they make a real one, connected or not: an edge
@@ -3471,6 +3473,7 @@ class LegacyPatches_Logic:
 
         # TODO (from v3): check that the bridge is not created on a side that already has geometry
         bridged = set()
+        before_bridges = len(L.previz)
         for i0, shape0 in enumerate(shapes['I']):
             sv0 = get_verts(shape0[0])
             dir0 = (sv0[0].co - sv0[-1].co).normalized()
@@ -3535,6 +3538,26 @@ class LegacyPatches_Logic:
                 continue
 
             if not emit_span('I', sv0, sv1, gap + 1, boundary): break
+
+        # Two separate boundary edges always bridge
+        if len(sel_verts) == 4 and len(shapes['I']) == 2 and len(L.previz) == before_bridges \
+                and all(len(shape[0]) == 1 for shape in shapes['I']):
+            sv0, sv1 = (get_verts(shape[0]) for shape in shapes['I'])
+            # pair the near ends, so the rungs across do not cross
+            if ((sv0[0].co - sv1[0].co).length + (sv0[-1].co - sv1[-1].co).length
+                    > (sv0[0].co - sv1[-1].co).length + (sv0[-1].co - sv1[0].co).length):
+                sv1.reverse()
+            ring = sv0 + sv1[::-1]
+            if len({ v.index for v in ring }) == 4 and face_is_placeable(bm, ring):
+                # counted off the gap exactly as a facing pair is, so Span Insert Mode reads the same
+                # either side of the facing test
+                dist = min((v0.co - v1.co).length for v0 in sv0 for v1 in sv1)
+                avg = max((sv0[0].co - sv0[-1].co).length, (sv1[0].co - sv1[-1].co).length)
+                gap = derive_loops(dist, avg) + 1
+                L.has_bridge = True
+                L.loops_last = gap - 1
+                if emit_span('I', sv0, sv1, gap + 1, sv0 + sv1, checks=False):
+                    bridged |= {0, 1}
 
         for i0, shape0 in enumerate(shapes['I']):
             if i0 in bridged: continue
@@ -3982,30 +4005,39 @@ class LegacyPatches_Logic:
         return ('c', elem.index, pair[0].index, pair[1].index) if pair else None
 
     @staticmethod
-    def _selected_quad(bm, sel_verts, rgn, r3d, M : Matrix) -> list | None:
-        ''' Four selected verts as one quad in ring order, when they make a good and legal one. Ordered
-        on screen when there is a view, else in the plane the four roughly lie in. '''
+    def _selected_quad(bm, sel_verts, rgn, r3d, M : Matrix, *, fit : bool = True) -> list | None:
+        ''' Four selected verts as one quad in ring order, when they make a legal one. Ordered on
+        screen when there is a view, else in the plane the four roughly lie in. `fit` tests if it's
+        a good looking quad or not. '''
+        MIN_SIDE = 1e-9         # a side this short is a double, and the quad on it a broken face
+        MIN_AREA = 1e-12        # four verts along a straight boundary name no face, only a sliver
         pts = [ location_3d_to_region_2d(rgn, r3d, M @ v.co) for v in sel_verts ] if (rgn and r3d) else [None] * 4
         if all(pts):
             c = sum(pts, Vector((0, 0))) / 4
             order = sorted(range(4), key=lambda k: math.atan2(pts[k].y - c.y, pts[k].x - c.x))
-            if not is_convex_2d([pts[k] for k in order]): return None
+            if fit and not is_convex_2d([pts[k] for k in order]): return None
         else:
             cos = [ v.co for v in sel_verts ]
             c = sum(cos, Vector()) / 4
-            n = Vector()
-            for a, b in combinations(range(4), 2):
-                for d in range(4):
-                    if d in (a, b): continue
-                    n += (cos[a] - cos[d]).cross(cos[b] - cos[d])
+            # the best-conditioned of the four triangles. Summing them instead cancels to zero
+            # whenever the two diagonal pairs are adjacent in the order the verts were read in,
+            # which has nothing to do with the shape
+            n = max(((cos[a] - cos[d]).cross(cos[b] - cos[d])
+                     for a, b in combinations(range(4), 2)
+                     for d in range(4) if d not in (a, b)),
+                    key=lambda v: v.length_squared)
             if n.length_squared < 1e-18: return None
-            n.normalize()
+            n = n.normalized()
             frame = plane_frame(n, cos[0] - c)
             if frame is None: return None
             u, w = frame
             order = sorted(range(4), key=lambda k: math.atan2((cos[k] - c).dot(w), (cos[k] - c).dot(u)))
         verts = [ sel_verts[k] for k in order ]
-        if quad_squareness([ M @ v.co for v in verts ]) is None: return None
+        ring = [ M @ v.co for v in verts ]
+        if fit and quad_squareness(ring) is None: return None
+        if not fit and (min((ring[(k + 1) % 4] - ring[k]).length for k in range(4)) < MIN_SIDE
+                        or sum(((ring[k] - ring[0]).cross(ring[k + 1] - ring[0])).length
+                               for k in (1, 2)) / 2 < MIN_AREA): return None
         if not face_is_placeable(bm, verts): return None
         return verts
 
