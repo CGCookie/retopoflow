@@ -601,11 +601,10 @@ def bary_reconstruct(v0, v1, v2, w0, w1, w2, offset):
 
 
 def order_rings_along_axis(centroids, normals, *, align=0.5, start=0):
-    ''' Order cross-section rings along the axis they stack on. Walked outward from `start`
-    in both directions, each step taking the nearest ring ahead of the current one along the current
-    one's own normal. A ring whose normal did not fit borrows the mean of the rest.
-    `align` is the smallest |dot| between two normals that still reads as the same run.
-    Returns indices into the inputs, leaving out any ring the walk never reaches. '''
+    ''' Order cross-section rings along the axis they stack on. Walked outward from `start` in both directions,
+    each step taking the nearest ring ahead of the current one along its own normal. A ring whose normal
+    did not fit borrows the mean of the rest. `align` is the smallest |dot| between two normals that
+    still reads as the same run. Returns indices into the inputs, leaving out any ring the walk never reaches. '''
     n_rings = len(centroids)
     if n_rings < 2: return list(range(n_rings))
 
@@ -622,11 +621,10 @@ def order_rings_along_axis(centroids, normals, *, align=0.5, start=0):
 
     def walk(sign):
         chain, cur = [], start
+        heading = axis_of(start) * sign
         while True:
             here, ax = centroids[cur], axis_of(cur)
-            # NOTE: fit_plane_of_verts signs each normal arbitrarily, so one disagreeing sign truncates
-            # the chain here. i.e. a bent stack orders only its first pair.
-            ahead = ax * sign
+            ahead = ax if ax.dot(heading) > 0 else -ax      # the way this ring faces along the walk
             best, best_d = None, float('inf')
             for i in range(n_rings):
                 if i in used or centroids[i] is None: continue
@@ -638,6 +636,9 @@ def order_rings_along_axis(centroids, normals, *, align=0.5, start=0):
             if best is None: return chain
             chain.append(best)
             used.add(best)
+            # the step just taken is where the run is going, whatever the next ring's normal is signed
+            step = centroids[best] - here
+            heading = step.normalized() if step.length > 1e-9 else ahead
             cur = best
 
     fwd = walk(+1)
