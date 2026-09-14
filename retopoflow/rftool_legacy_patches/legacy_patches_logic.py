@@ -19,10 +19,6 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-# Legacy Patches: the RetopoFlow 3 Patches tool on v4 plumbing. Strip detection and the
-# I/L/C/rect classification are v3's, kept close to the original so the tool behaves the way
-# users remember. The new v4 Patches tool lives in rftool_patches/ and is unrelated.
-
 # pyright: reportUnannotatedClassAttribute = false
 
 import math
@@ -82,8 +78,7 @@ CORNER_AUTO, CORNER_FORCED, CORNER_SMOOTH = 0, 1, 2
 
 @dataclass
 class PatchSettings:
-    ''' Everything the rebuild reads off the tool, compared as a whole to decide staleness. The
-    defaults here are also the defaults of the matching tool properties. '''
+    ''' Settings read by rebuild checks; these also match the tool properties. '''
     split_angle      : float = math.radians(60)   # deviation from straight that makes a boundary vert a corner
     smooth           : int = 3
     span_insert_mode : str = 'FIXED'
@@ -105,13 +100,12 @@ def angle_deg(d0, d1):
     return math.degrees(math.acos(max(-1.0, min(1.0, d0.dot(d1)))))
 
 def side2d(pa, pb, p):
-    ''' Which side of the screen line pa->pb the point p is on: +1, -1, or 0 on the line. '''
+    ''' Side of the line pa->pb that p lies on: +1, -1, or 0. '''
     c = (pb.x - pa.x) * (p.y - pa.y) - (pb.y - pa.y) * (p.x - pa.x)
     return 0 if abs(c) < 1e-6 else (1 if c > 0 else -1)
 
 def polys_overlap2d(a, b, *, eps=0.5):
-    ''' Whether two screen-space outlines cover any of the same ground: one's middle inside the
-    other, or a crossing between sides that share no corner. '''
+    ''' Whether two 2D outlines overlap. '''
     ca = sum(a, Vector((0, 0))) / len(a)
     cb = sum(b, Vector((0, 0))) / len(b)
     if point_inside_face_2d(ca, b) or point_inside_face_2d(cb, a): return True
@@ -126,8 +120,7 @@ def polys_overlap2d(a, b, *, eps=0.5):
     return False
 
 def same_side_of_edge(co_a, co_b, centres_a, centres_b) -> bool:
-    ''' Whether a face centre from each group sits on the same side of the edge a-b: two faces sharing
-    an edge belong one on each side, both on one side is a fold. '''
+    ''' Whether two face groups lie on the same side of edge a-b. '''
     d = co_b - co_a
     if d.length_squared < 1e-14: return False
     def arm(c):
@@ -141,7 +134,7 @@ def same_side_of_edge(co_a, co_b, centres_a, centres_b) -> bool:
                for rb in arms_b)
 
 def co_of(pt):
-    ''' A patch corner is either an existing BMVert or the coordinate of a vert Fill will create. '''
+    ''' Coordinate for a patch corner, whether it already exists or will be created. '''
     return pt.co if isinstance(pt, BMVert) else pt
 
 def dist2d_point_segment(p, a, b):
@@ -152,15 +145,14 @@ def dist2d_point_segment(p, a, b):
     return (p - (a + d * t)).length
 
 def plane_frame(n, ref):
-    ''' Unit vectors (u, w) spanning the plane normal to n, with u along ref. None when degenerate. '''
+    ''' Unit vectors spanning the plane normal to n, with u along ref. '''
     u = ref - n * ref.dot(n)
     if u.length_squared < 1e-18: return None
     u.normalize()
     return u, n.cross(u)
 
 def on_faced_side(bme, co):
-    ''' Whether co lies on the same side of a one-faced edge as that face, or None when it cannot
-    be told. Measured across the edge, in the plane the face and the point span. '''
+    ''' Whether co is on the face side of a one-sided edge. '''
     va, vb = bme.verts
     along = vb.co - va.co
     if along.length_squared < 1e-14: return None
@@ -178,13 +170,12 @@ def quad_area3d(cos):
     return 0.5 * (cos[2] - cos[0]).cross(cos[3] - cos[1]).length
 
 def is_convex_2d(pts):
-    ''' Whether four screen points in ring order make a convex quad: every turn goes the same way. '''
+    ''' Whether four points in ring order form a convex quad. '''
     signs = { side2d(pts[i], pts[(i + 1) % 4], pts[(i + 2) % 4]) for i in range(4) }
     return 0 not in signs and len(signs) == 1
 
 def quad_squareness(q):
-    ''' How square a quad is, 1.0 for a perfect square, given its corners in ring order. None when
-    it is considered not a good fit: a long strip, a fold over a crease, or a shape under the floor. '''
+    ''' Quad score, where 1.0 is a perfect square. Returns None for poor fits. '''
     MIN_SQUARENESS = 0.15                # floor on the score: a 55 degree lean on a square, 45 on a 2:1, 37 on a 3:1
     MAX_EDGE_RATIO = 3.5                 # longest side over shortest; aspect weighs lightly in the score, so a long strip needs its own limit
     MAX_WARP = 45.0                      # angle between the triangle normals across a diagonal
@@ -211,10 +202,7 @@ def quad_squareness(q):
     return score if score >= MIN_SQUARENESS else None
 
 def solved_loft_band(bm, sel_bmes):
-    """ The loft already solved between selected closed loops, as (faces, inner edges) by vert index,
-    which Patches re-solves by deleting it and lofting the loops again. Empty unless the loops make a
-    plain stack: one region per gap, each fully enclosed by two of the loops, at least one of them
-    carrying faces on both sides. """
+    """ Already-solved loft band as (faces, inner edges) by vertex index. """
     sel = set(sel_bmes)
     NOTHING = ((), ())
     if not sel: return NOTHING
@@ -274,10 +262,7 @@ def solved_loft_band(bm, sel_bmes):
 
 
 def delete_band(bm, band, *, faces_only=False):
-    """ Remove a solved_loft_band from `bm`: its faces, then the edges inside it, which takes any ring
-    it held with them. False when a face of it is no longer there, so a stale preview can bail.
-    `faces_only` leaves the inside standing, which keeps every vert index where it was -- the preview
-    is built against a copy and its verts are named to the real mesh by index. """
+    """ Remove a solved loft band from `bm`. Returns False if it is already gone. """
     faces, inner = band
     doomed = []
     for idxs in faces:
@@ -292,17 +277,11 @@ def delete_band(bm, band, *, faces_only=False):
 
 
 def blend_handle_length(co_a, no_a, co_b, no_b):
-    ''' Length for the two Bezier handles joining co_a to co_b along the tangents no_a and no_b,
-    both pointing at the other end. 4/3 is the cubic approximation of a quarter circle, so two
-    parallel tangents come out as a near-perfect arc; it eases to 0.75 as the tangents come to point
-    straight at each other, where 4/3 would overshoot. Blender's bridge sizes its handles the same
-    way. '''
-    ARC_FAC, FACING_FAC = 4.0 / 3.0, 0.75
-    dot = no_a.dot(no_b)
-    fac = ARC_FAC
-    if dot < 0.0:
-        t = 1.0 + dot
-        fac = ARC_FAC * t + FACING_FAC * (1.0 - t)
+    ''' Length for the two Bezier handles joining co_a to co_b along the tangents no_a and no_b, both
+    pointing at the other end, sized so the curve is the cubic approximation of the circular arc those
+    tangents describe. '''
+    # For a turn angle phi, the cubic approximation uses a 4/3 handle scale.
+    ARC_FAC = 4.0 / 3.0
     # across the plane the two tangents span, so the ends sitting off to one side of each other
     # does not inflate the handles
     d = co_b - co_a
@@ -310,19 +289,49 @@ def blend_handle_length(co_a, no_a, co_b, no_b):
     if perp.length_squared > 1e-12:
         perp.normalize()
         d = d - perp * d.dot(perp)
-    return d.length * 0.5 * fac
+    phi = math.acos(max(-1.0, min(1.0, -no_a.dot(no_b))))
+    # both ends of the ratio go to zero with phi, where the arc is a straight line and the limit is 1/2
+    shape = math.tan(phi / 4) / math.sin(phi / 2) if phi > 1e-6 else 0.5
+    return d.length * 0.5 * ARC_FAC * shape
+
+
+def surface_tangent(bme):
+    ''' Tangent of the face that continues past a single-sided edge. '''
+    if len(bme.link_faces) != 1: return None
+    bmf = bme.link_faces[0]
+    d = bme.verts[1].co - bme.verts[0].co
+    if d.length_squared < 1e-18: return None
+    w = bme.verts[0].co - sum((v.co for v in bmf.verts), Vector()) / len(bmf.verts)
+    w = w - d * (w.dot(d) / d.length_squared)
+    return w.normalized() if w.length_squared > 1e-18 else None
+
+
+def run_surface_tangents(sv, toward):
+    ''' Surface tangents for a run of verts, aligned with the bridge direction. '''
+    tans = []
+    for i, bmv in enumerate(sv):
+        acc = Vector()
+        for other in (sv[i - 1] if i else None, sv[i + 1] if i + 1 < len(sv) else None):
+            if not (isinstance(bmv, BMVert) and isinstance(other, BMVert)): continue
+            bme = bmvs_shared_bme(bmv, other)
+            if bme and (t := surface_tangent(bme)) is not None: acc += t
+        tans.append(acc.normalized() if acc.length_squared > 1e-18 else None)
+    if all(t is None for t in tans): return None
+    # one sign for the whole run: flipping per vert would kink the bridge wherever the surface turns over
+    if sum(t.dot(u) for t, u in zip(tans, toward) if t is not None) < 0:
+        tans = [ (-t if t is not None else None) for t in tans ]
+    return tans
 
 
 def tri_shape_ok(cos):
-    ''' Whether three points make a triangle worth filling rather than a sliver. '''
+    ''' Whether three points make a usable triangle. '''
     MIN_ANGLE = 20.0    # three verts along a strip are nearly straight: stepping the strip was wanted there, not a sliver across them
     sides = [cos[(i + 1) % 3] - cos[i] for i in range(3)]
     if min(s.length for s in sides) < 1e-9: return False
     return all(angle_deg(-sides[i - 1].normalized(), sides[i].normalized()) >= MIN_ANGLE for i in range(3))
 
 def quad_from_points(pts2d, cos3d, mouse):
-    ''' (order indexing the inputs, score, lower better) for the quad four points make, given their
-    screen and world positions; None when they make no quad worth offering. '''
+    ''' Quad fit for four points, returning order, score, and cost or None. '''
     HOVER_SLOP = 0.25       # how far outside the outline the cursor may sit, in mean side lengths
 
     # sorting by angle round the centroid is the one order that does not self-intersect
@@ -950,6 +959,33 @@ class Previz:
     mark     : tuple = ()   # faces drawn in a warning colour: the one non-quad an odd loop is closed with
 
 
+FILL_NAMES = {      # Previz.kind in the redo panel's words
+    'I':        'Bridge',
+    'bridge':   'Bridge',
+    'loft':     'Loft',
+    'rect':     'Rectangle',
+    'grid':     'Grid',
+    'ngon':     'N-Gon',
+    'L':        'L-Patch',
+    'C':        'C-Patch',
+    'offset':   'Offset',
+    'quad':     'Quad',
+    'corner':   'Corner Quad',
+    'nearest':  'Quad',
+    'triangle': 'Triangle',
+}
+
+
+def fill_action(previz : list) -> str:
+    ''' What a fill built, for its redo panel: the patches named in the order they were built, each kind
+    once with a count where it repeats. Strokes reports its own insert the same way. '''
+    counts = {}
+    for pv in previz:
+        name = FILL_NAMES.get(pv.kind, pv.kind.title())
+        counts[name] = counts.get(name, 0) + 1
+    return ', '.join(f'{name} x{n}' if n > 1 else name for name, n in counts.items())
+
+
 def fuse_previz(previz : list) -> Previz:
     ''' One preview out of several sharing verts, existing ones by index and new ones by position, so
     a run's rung and the notch quad it was pinned to are one vert, drawn once and built once. '''
@@ -1032,6 +1068,7 @@ class LegacyPatches_Logic:
     filled_solutions : ClassVar[int] = 1
     filled_free_step : ClassVar[bool] = False                  # has_free_step of the last fill, for its redo panel
     filled_smoothing : ClassVar[bool] = False                  # has_smoothing of the last fill, likewise
+    filled_action  : ClassVar[str] = ''                        # what the last fill built, named for its redo panel
 
     # Cursor and Ctrl, in window space. The *_locked values are what they were when the last fill
     # started: a redo re-runs the whole rebuild later and must not read where the cursor has gone since,
@@ -1069,6 +1106,7 @@ class LegacyPatches_Logic:
         L.filled_flags = (False, False, False, False, False)
         L.filled_loops, L.filled_solutions = 0, 1
         L.filled_free_step = L.filled_smoothing = False
+        L.filled_action = ''
         L.grid_sig = None
         L.ngon_cuts = {}
         L.pole_pos = {}
@@ -1293,7 +1331,7 @@ class LegacyPatches_Logic:
         NGON_EQUALIZE = 0.5             # how much of each relax step pulls a vert toward equal distance from its face centres, against the plain average of its neighbours
         NGON_MAX_CUT_VERTS = 120        # boundary verts above which the cut search (roughly cubic in them, ~0.7s here) is skipped
         BOW_CORNER_MIN_DEG = 60.0       # a bow hangs off the short side only while both its corners are at least this open; see emit_junction
-        SMOOTH_ARC_UNIT = 3             # Smooth that bends a blend into the natural arc; PatchSettings.smooth defaults here, so the default Smooth is that arc
+        SMOOTH_ARC_UNIT = 5             # Smooth at which a blend is exactly the circular arc through its two ends; half the slider, so the default sits a little under it
         SMOOTH_BOW_MAX = 10             # the Smooth slider's own soft max: past it a bow only folds through itself
 
         # v3 compared the interior angle to a threshold; Split Angle states the same test as a deviation from straight
@@ -2089,8 +2127,10 @@ class LegacyPatches_Logic:
             ''' Blend between two sides of equal count, sv0[i] paired with sv1[i], with l1 - 2 new verts
             across. `boundary` is what the snap cap, mirror side and normals are taken from. `hold_i`
             names rows whose run across stays on the blend rather than being smoothed. `bow` is a pair
-            of unit tangents, each pointing at the other side, that the run leaves along: the blend then
-            follows a Bezier rather than the chord, scaled by Smooth. '''
+            of per-vert unit tangents, each pointing at the other side, that the runs across leave along:
+            the blend then follows a Bezier rather than the chord, scaled by Smooth. A None tangent
+            leaves that end on the chord, so a run with a surface on one side only bends there and
+            arrives straight at the other. '''
             l0 = len(sv0)
             if not budget(l0 * max(0, l1 - 2)): return False
             nrm = normal_fn(boundary)
@@ -2100,31 +2140,44 @@ class LegacyPatches_Logic:
             def boundary_at(i, j):
                 return sv0[i] if j == 0 else sv1[i] if j == l1 - 1 else None
 
-            def bow_offset(a, b, t):
+            def bow_offset(i, a, b, t):
                 ''' How far off the chord the Bezier sits at t, across the chord only: the run keeps the
                 chord's own even spacing and only bends away from it. '''
                 chord = b - a
                 if chord.length_squared < 1e-18: return Vector()
-                no_a, no_b = bow
+                u = chord.normalized()
+                no_a = bow[0][i] if bow[0][i] is not None else u
+                no_b = bow[1][i] if bow[1][i] is not None else -u
                 h = blend_handle_length(a, no_a, b, no_b) * bow_fac
                 p1, p2 = a + no_a * h, b + no_b * h
                 mt = 1.0 - t
                 at = a * mt**3 + p1 * (3 * mt * mt * t) + p2 * (3 * mt * t * t) + b * t**3
                 d = at - (a * mt + b * t)
-                u = chord.normalized()
                 return d - u * d.dot(u)
 
             def interior_at(i, j):
                 pj = j / (l1 - 1)
                 a, b = co_of(sv0[i]), co_of(sv1[i])
                 co = a * (1 - pj) + b * pj
-                if bow_fac: co = co + bow_offset(a, b, pj)
+                if bow_fac: co = co + bow_offset(i, a, b, pj)
                 return co, blend_pair(nrm(sv0[i]), nrm(sv1[i]), pj)
 
             build_grid(kind, l0, l1, boundary_at, interior_at, shape_side(boundary), shape_cap(boundary),
                        cyclic_i=cyclic_i, checks=checks, relax=relax,
                        hold={ i * l1 + j for i in hold_i for j in range(l1) })
             return True
+
+        def run_bows(sv0, sv1):
+            ''' The `bow` pair for a bridge between two open runs: each run's surface tangents, turned at
+            the other run. None when neither run has a face to carry on from. '''
+            toward = []
+            for a, b in zip(sv0, sv1):
+                d = co_of(b) - co_of(a)
+                toward.append(d.normalized() if d.length_squared > 1e-18 else Vector())
+            bow0 = run_surface_tangents(sv0, toward)
+            bow1 = run_surface_tangents(sv1, [ -d for d in toward ])
+            if not (bow0 or bow1): return None
+            return (bow0 or [None] * len(sv0), bow1 or [None] * len(sv1))
 
         def cycle_bmvs(bmes):
             ''' Ordered verts around a closed edge cycle, or None if these edges are not one. '''
@@ -2193,7 +2246,7 @@ class LegacyPatches_Logic:
                 nrm_loop = nrm_loop.normalized()
                 return nrm_loop if nrm_loop.dot(axis) * sign > 0 else -nrm_loop
             bow_a, bow_b = toward(n0, 1), toward(n1, -1)
-            bow = (bow_a, bow_b) if (bow_a and bow_b) else None
+            bow = ([bow_a] * n, [bow_b] * n) if (bow_a and bow_b) else None
             return emit_span('loft', bmvs0, bmvs1, loops + 2, bmvs0 + bmvs1, cyclic_i=True,
                              bow=bow, relax=False)
 
@@ -3715,7 +3768,11 @@ class LegacyPatches_Logic:
                 if not emit_ranked(entries): break
                 continue
 
-            if not emit_span('I', sv0, sv1, gap + 1, boundary): break
+            # Smooth on a bridge is how smoothly it carries the two surfaces into each other.
+            # Each run gets a direction from the faces attached to it, so a bridge off a curved surface
+            # follows that curve out.
+            if not emit_span('I', sv0, sv1, gap + 1, boundary,
+                             bow=run_bows(sv0, sv1), relax=False): break
 
         # Two separate boundary edges always bridge
         if len(sel_verts) == 4 and len(shapes['I']) == 2 and len(L.previz) == before_bridges \
@@ -3734,7 +3791,8 @@ class LegacyPatches_Logic:
                 gap = derive_loops(dist, avg) + 1
                 L.has_bridge = True
                 L.loops_last = gap - 1
-                if emit_span('I', sv0, sv1, gap + 1, sv0 + sv1, checks=False):
+                if emit_span('I', sv0, sv1, gap + 1, sv0 + sv1, checks=False,
+                             bow=run_bows(sv0, sv1), relax=False):
                     bridged |= {0, 1}
 
         for i0, shape0 in enumerate(shapes['I']):
@@ -4407,6 +4465,7 @@ class LegacyPatches_Logic:
         L.filled_flags = (L.has_bridge, L.has_grid, L.has_loft, L.has_offset, L.has_quad)
         L.filled_free_step = L.has_free_step
         L.filled_smoothing = L.has_smoothing
+        L.filled_action = fill_action(L.previz)
         L.filled_loops = L.loops_last or 0
         L.filled_solutions = max(1, len(L.grid_ranked))
 

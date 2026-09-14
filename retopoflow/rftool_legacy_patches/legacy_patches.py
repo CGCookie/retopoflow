@@ -768,6 +768,13 @@ def draw_patches_props(layout : UILayout, props, *, header : bool, redo : bool =
         layout = layout.column()
         layout.use_property_split = True
         layout.use_property_decorate = False
+        if redo and L.filled_action:
+            # what the fill settled on, named the way Strokes names its insert
+            split = layout.split(factor=0.4)
+            col = split.column()
+            col.alignment = 'RIGHT'
+            col.label(text='Filled')
+            split.label(text=L.filled_action)
 
     if header:
         row = layout.row(align=True)
