@@ -259,7 +259,6 @@ def create_curve_edit_logic(idname : str, label : str, description : str, *,
                 reset_axis_constraint(type(self))
 
             get_overlay().pause_update()
-            get_overlay().instance.depsgraph_version = None
 
             mouse = mouse_from_event(event)
             M, Mi = context.edit_object.matrix_world, context.edit_object.matrix_world.inverted_safe()

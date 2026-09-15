@@ -1241,16 +1241,23 @@ class InvalidationManager:
         #     bmesh.update_edit_mesh(cls.em)
         #     cls.run_next = time.time() + 1
 
+    # this module is <addon package>.retopoflow.rfcore, so two levels up is the addon root:
+    # 'retopoflow' from the repo, 'bl_ext.<repo>.retopoflow' once installed as an extension
+    rf_package : ClassVar[str] = __name__.rsplit('.', 2)[0]
+
+    @classmethod
+    def is_rf_handler(cls, fn) -> bool:
+        module = getattr(fn, '__module__', None) or ''
+        return module == cls.rf_package or module.startswith(f'{cls.rf_package}.')
+
     @classmethod
     def prevent_invalidation(cls):
         cls.preventing += 1
         # print(f'>>> PREVENTING {cls.preventing}')
         for callback_name in cls.watching:
             callbacks = getattr(bpy.app.handlers, callback_name)
-            fns = [
-                fn for fn in callbacks
-                if not fn.__module__.endswith('retopoflow.rfcore')
-            ]
+            # RF's handlers never rebuild the edit-mesh bmesh
+            fns = [fn for fn in callbacks if not cls.is_rf_handler(fn)]
             cls.watching[callback_name] += fns
             for fn in fns:
                 callbacks.remove(fn)

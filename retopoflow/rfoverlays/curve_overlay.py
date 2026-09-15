@@ -299,6 +299,11 @@ def create_curve_overlay_logic(
             if external_ops:
                 return False
 
+            # A drag owns the curve and draws it live, so the idle overlay stays out of the way.
+            # Checked before the cache comparison below, which a paused overlay must not refresh.
+            if self.paused_update:
+                return False
+
             # Force a rebuild when the user changes a related value
             tunables = (self._bend_tolerance_factor(context), self._sharp_corner_angle(context))
             tunables_changed = tunables != getattr(self, '_last_tunables', None)
@@ -310,7 +315,6 @@ def create_curve_overlay_logic(
             handles_changed = handles_on != getattr(self, '_last_handles_on', None)
 
             if not tunables_changed and not handles_changed and self.depsgraph_version == version and hasattr(self, 'curves'): return True
-            if self.paused_update: return False
 
             cls = type(self)
             cls.depsgraph_version = version
