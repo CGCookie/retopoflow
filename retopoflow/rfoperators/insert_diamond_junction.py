@@ -120,23 +120,50 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
             self.report({'WARNING'}, f'Diamond Junction: {msg}')
             return {'CANCELLED'}
 
-        # Analyze every run before mutating anything so a bad run cancels cleanly
-        plans, errors, claimed_faces = [], [], set()
+        # A run next to another run bevels at half width, so the two meet at a factor of 1
+        touching = [
+            {bmf for i in self.split_indices(chain, is_cycle) for bmf in chain[i].link_faces}
+            for chain, edges, is_cycle in runs
+        ]
+        wrapping = [
+            any(set(chain).issuperset(bmf.verts) for bme in edges for bmf in bme.link_faces)
+            for chain, edges, is_cycle in runs
+        ]
+        def scales_over(live):
+            return [
+                0.5 if wrapping[i] or any(touching[i] & touching[j] for j in live if j != i) else 1.0
+                for i in range(len(runs))
+            ]
+
+        # Analyze every run before mutating anything so a bad run cancels cleanly.
+        # A run that fails analysis must not shrink its neighbor, so redo the pass
+        # when dropping it changes the scales.
+        live = list(range(len(runs)))
+        scales = scales_over(live)
+        while True:
+            results = [
+                self.analyze_run(chain, edges, is_cycle, self.factor * scales[i])
+                for i, (chain, edges, is_cycle) in enumerate(runs)
+            ]
+            live = [i for i, result in enumerate(results) if not isinstance(result, str)]
+            next_scales = scales_over(live)
+            if next_scales == scales:
+                break
+            scales = next_scales
+        plans = [results[i] for i in live]
+        errors = [result for result in results if isinstance(result, str)]
         if dropped_branching:
-            errors.append('selection branches')
-        for chain, edges, is_cycle in runs:
-            plan = self.analyze_run(chain, edges, is_cycle, claimed_faces)
-            if isinstance(plan, str):
-                errors.append(plan)
-            else:
-                plans.append(plan)
+            errors.insert(0, 'selection branches')
         if not plans:
             self.report({'WARNING'}, f'Diamond Junction: {errors[0]}')
             return {'CANCELLED'}
 
         old_faces, new_sel_faces, touched_verts = [], [], []
         for plan in plans:
-            touched_verts.extend(self.apply_run(bm, plan, old_faces, new_sel_faces))
+            touched_verts.extend(self.build_run_verts(bm, plan))
+        self.rebuild_neighbor_faces(bm, plans, old_faces)
+        for plan in plans:
+            self.build_run_faces(bm, plan, new_sel_faces)
         bmesh.ops.delete(bm, geom=old_faces, context='FACES')
 
         if self.factor < 1e-6 or self.factor > 1.0 - 1e-6:
@@ -211,9 +238,14 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
             return
         dist = scale * 1e-5
         touched = {bmv for bmv in touched_verts if bmv.is_valid}
+        # Pool by face ring, not edge ring: a corner's outside rail slides to the
+        # miter, which is farther than the rung (√2× on a right angle), so it can
+        # land on a vert that is diagonally across its face rather than next to it.
+        # An edge one-ring never sees that pair and leaves the two unwelded.
         pool = set(touched)
         for bmv in list(touched):
-            pool.update(bme.other_vert(bmv) for bme in bmv.link_edges)
+            for bmf in bmv.link_faces:
+                pool.update(bmf.verts)
         # weld moved and new verts INTO untouched originals, so at factor 0 the
         # original loop survives (keeping a selection alive for the redo panel)
         keepers = pool - touched
@@ -225,6 +257,12 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
         remaining = [bmv for bmv in touched if bmv.is_valid]
         if remaining:
             bmesh.ops.remove_doubles(bm, verts=remaining, dist=dist)
+        # Welding can still leave a flat face behind. When a corner's two rails land
+        # on non-adjacent verts of the same loop, the face between them keeps the vert
+        # they skipped over and collapses to a zero-area sliver.
+        # Dissolving is what clears those without tearing a hole.
+        region = {bme for bmv in pool if bmv.is_valid for bmf in bmv.link_faces for bme in bmf.edges}
+        bmesh.ops.dissolve_degenerate(bm, dist=dist, edges=list(region))
 
     # ------------------------------------------------------------------
     # Selection: ordered runs of selected edges
@@ -279,7 +317,17 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
     # Analysis: sides, split verts, and new positions (no mutation)
     # ------------------------------------------------------------------
 
-    def analyze_run(self, chain, edges, is_cycle, claimed_faces):
+    @staticmethod
+    def split_indices(chain, is_cycle):
+        ''' Indices of the run's verts that get split into three. '''
+        n = len(chain)
+        if is_cycle:
+            return list(range(n))
+        split_idxs = list(range(1, n - 1))
+        split_idxs.extend(i for i in (0, n - 1) if chain[i].is_boundary)
+        return split_idxs
+
+    def analyze_run(self, chain, edges, is_cycle, factor):
         ''' Returns a plan dict, or an error string when the run cannot be handled. '''
         n, m = len(chain), len(edges)
         if any(len(bme.link_faces) != 2 for bme in edges):
@@ -321,27 +369,11 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
                     return 'run touches the same face from both sides'
                 face_side[bmf] = side
 
-        # Which verts get split into three. Interior verts always do; an open
-        # run's end splits only when it sits on the mesh boundary (loops run
-        # straight off the edge there), otherwise the end becomes a diamond tip.
-        if is_cycle:
-            split_idxs = list(range(n))
-        else:
-            split_idxs = [i for i in range(1, n - 1)]
-            for i in (0, n - 1):
-                if chain[i].is_boundary:
-                    split_idxs.append(i)
+        split_idxs = self.split_indices(chain, is_cycle)
         if len(split_idxs) < 2:
             # nothing left to bevel (one edge, both ends caps) or a two-edge run
             # whose only split vert is shared by both caps, leaving no strip
             return 'run is too short to bevel'
-
-        # Every face touching a split vert gets rebuilt; two runs must not claim
-        # the same face (e.g. parallel loops only one face apart)
-        affected = {bmf for i in split_idxs for bmf in chain[i].link_faces}
-        if affected & claimed_faces:
-            return 'runs are too close together'
-        claimed_faces |= affected
 
         run_edges = set(edges)
         def edges_at_vert(i):
@@ -400,7 +432,7 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
             if target_a is None or target_b is None:
                 return 'no rung edge to slide along'
             co = chain[i].co
-            positions[i] = (co.lerp(target_a, self.factor), co.lerp(target_b, self.factor))
+            positions[i] = (co.lerp(target_a, factor), co.lerp(target_b, factor))
 
         # Corner verts pinch the strip when their rails just slide toward the corner's own rung targets.
         # Match bevel instead: put each corner rail at the miter, the intersection of the two neighboring
@@ -441,7 +473,7 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
             # other. Halving both makes factor 1 exactly where the caps meet.
             inners = {inner_i: away_i for inner_i, away_i in slides}
             for inner_i, away_i in slides:
-                t = self.factor
+                t = factor
                 if inners.get(away_i) == inner_i:
                     t *= 0.5
                 mid_slides[inner_i] = mid_slides.get(inner_i, Vector()) + (chain[away_i].co - chain[inner_i].co) * t
@@ -456,7 +488,7 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
             for tip_i, inner_i in ((0, 1), (n - 1, n - 2)):
                 if tip_i in split_idxs or inner_i not in split_idxs:
                     continue
-                tip_caps[tip_i] = chain[inner_i].co.lerp(chain[tip_i].co, self.factor)
+                tip_caps[tip_i] = chain[inner_i].co.lerp(chain[tip_i].co, factor)
 
         # On a sharp surface the middle loop sits on the crease while the rails sit on the slopes.
         # The flatten modes offset mid verts along their vert normals.
@@ -532,11 +564,14 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
         }
 
     # ------------------------------------------------------------------
-    # Mutation: split verts, rebuild neighbor faces, build strip and diamonds
+    # Mutation, in three phases across all runs: split verts, then one shared
+    # neighbor-face rebuild, then the strips and diamonds
     # ------------------------------------------------------------------
 
-    def apply_run(self, bm, plan, old_faces, new_sel_faces):
-        chain, edges, is_cycle = plan['chain'], plan['edges'], plan['is_cycle']
+    def build_run_verts(self, bm, plan):
+        ''' Create the run's rail and tip verts and record how each neighbor face
+        should be rewritten. Returns the verts this run created or moved. '''
+        chain, edges = plan['chain'], plan['edges']
         side_a, side_b, face_side = plan['side_a'], plan['side_b'], plan['face_side']
         split_idxs, positions = plan['split_idxs'], plan['positions']
         n, m = len(chain), len(edges)
@@ -560,6 +595,7 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
                 bmv = bm.verts.new(co, chain[i])
                 lookup[chain[i]] = bmv
                 touched.append(bmv)
+        plan['verts_a'], plan['verts_b'] = verts_a, verts_b
 
         # Unmerged diamond tips get their own vert, and the two end faces absorb
         # both it and the rail vert where the inner vert used to be (an n-gon)
@@ -571,36 +607,60 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
             inner = chain[1] if tip_i == 0 else chain[n - 2]
             for bmf in (side_a[s], side_b[s]):
                 tip_subs[bmf] = (inner, chain[tip_i], new_tips[tip_i])
+        plan['new_tips'] = new_tips
 
-        # Rebuild every face touching a split vert, substituting the vert for its
-        # side's new copy. The originals are deleted at the end (context 'FACES'
-        # also removes the old rung edges and end edges they leave behind).
-        rebuilt = set()
+        # Note which vert each face touching a split vert should swap out, for the
+        # shared rebuild below. No faces are made yet: link_faces has to keep
+        # returning only originals while the other runs record their own swaps.
+        subs = plan['subs'] = {}
         for i in split_idxs:
             for bmf in chain[i].link_faces:
-                if bmf in rebuilt:
-                    continue
-                rebuilt.add(bmf)
                 lookup = verts_a if face_side[bmf] == 'A' else verts_b
+                swaps, tips = subs.setdefault(bmf, ({}, {}))
+                swaps[chain[i]] = lookup[chain[i]]
                 sub = tip_subs.get(bmf)
-                new_verts = []
-                for loop in bmf.loops:
-                    bmv = loop.vert
-                    if sub and bmv is sub[0]:
-                        inner, tip_orig, tip_new = sub
-                        rail = lookup[inner]
-                        # keep loop order: the new tip vert sits between the old
-                        # tip and the rail vert
-                        if loop.link_loop_prev.vert is tip_orig:
-                            new_verts.extend((tip_new, rail))
-                        else:
-                            new_verts.extend((rail, tip_new))
+                if sub and sub[0] is chain[i]:
+                    tips[chain[i]] = (sub[1], sub[2])
+        return touched
+
+    @staticmethod
+    def rebuild_neighbor_faces(bm, plans, old_faces):
+        ''' Rebuild each face touching a split vert once, applying every run's vert swaps.
+        The originals are deleted at the end (context 'FACES' also removes the old rung edges and
+        end edges they leave behind). '''
+        merged = {}
+        for plan in plans:
+            for bmf, (swaps, tips) in plan['subs'].items():
+                all_swaps, all_tips = merged.setdefault(bmf, ({}, {}))
+                all_swaps.update(swaps)
+                all_tips.update(tips)
+        for bmf, (swaps, tips) in merged.items():
+            new_verts = []
+            for loop in bmf.loops:
+                bmv = loop.vert
+                tip = tips.get(bmv)
+                if tip:
+                    tip_orig, tip_new = tip
+                    rail = swaps[bmv]
+                    # keep loop order: the new tip vert sits between the old
+                    # tip and the rail vert
+                    if loop.link_loop_prev.vert is tip_orig:
+                        new_verts.extend((tip_new, rail))
                     else:
-                        new_verts.append(lookup.get(bmv, bmv))
-                new_face = bm.faces.new(new_verts, bmf)
-                new_face.smooth = bmf.smooth
-                new_face.material_index = bmf.material_index
-                old_faces.append(bmf)
+                        new_verts.extend((rail, tip_new))
+                else:
+                    new_verts.append(swaps.get(bmv, bmv))
+            new_face = bm.faces.new(new_verts, bmf)
+            new_face.smooth = bmf.smooth
+            new_face.material_index = bmf.material_index
+            old_faces.append(bmf)
+
+    def build_run_faces(self, bm, plan, new_sel_faces):
+        ''' Build the strip quads along the run and the diamond caps at its ends. '''
+        chain, edges, is_cycle = plan['chain'], plan['edges'], plan['is_cycle']
+        side_a, side_b = plan['side_a'], plan['side_b']
+        verts_a, verts_b, new_tips = plan['verts_a'], plan['verts_b'], plan['new_tips']
+        n, m = len(chain), len(edges)
 
         def forward(i):
             # True when side A's face traverses run edge i from chain[i] onward,
@@ -650,8 +710,6 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
                     make_face([verts_a[inner], inner, verts_b[inner], tip], side_a[m - 1])
                 else:
                     make_face([verts_a[inner], tip, verts_b[inner], inner], side_a[m - 1])
-
-        return touched
 
 
 keymaps = []
