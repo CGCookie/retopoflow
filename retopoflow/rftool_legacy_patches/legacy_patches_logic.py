@@ -2218,9 +2218,12 @@ class LegacyPatches_Logic:
             open_idx = [ i for i, k in enumerate(keep) if k in fixed and not isinstance(verts[k], BMVert) ]
             add_previz(kind, kept_verts, layout_topology(kept_verts, edges), faces, open_idx, mark=marks)
             if handle is not None and layout.poles[0] not in fixed:
-                # the pole, or where it was dissolved into the one n-gon; a pole on a boundary vert is just that vert
+                # the pole, or where it was dissolved into the one n-gon; a pole on a boundary vert is just that
+                # vert. So is one with four spokes: corners demoted down to a four-sided loop leave a layout that
+                # is a plain grid, and its "pole" an ordinary vert with nothing to drag
                 pole = layout.poles[0]
-                if pole in remap: at = cos[pole]
+                spokes = sum(1 for a, b in layout.edges if pole in (a, b))
+                if pole in remap: at = cos[pole] if spokes != 4 else None
                 elif marks: at = sum((cos[keep[k]] for k in faces[marks[0]]), Vector()) / len(faces[marks[0]])
                 else: at = None
                 if at is not None: L.pole_handles.append((at.copy(), handle))
