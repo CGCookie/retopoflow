@@ -820,8 +820,7 @@ def draw_patches_props(layout : UILayout, props, *, header : bool, redo : bool =
                 layout.prop(props, 'span_length', text='Distance')
             elif props.span_insert_mode == 'FIXED':
                 layout.prop(props, 'crosses', text='Count')
-    if not redo:
-        layout.prop(props, 'split_angle', text='Split Angle')
+    layout.prop(props, 'split_angle', text='Split Angle')
     if not redo or L.filled_smoothing or has_bridge:
         row = layout.row()
         row.enabled = not (has_bridge and props.span_insert_mode == 'FIXED' and props.crosses == 0)

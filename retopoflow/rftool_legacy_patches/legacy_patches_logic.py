@@ -67,6 +67,7 @@ from . import ngon_layout as NL
 MAIN_OP_IDNAME = 'retopoflow.legacy_patches'
 
 DEBUG_OFFSET = False     # print how a run steps: its shape, welds, direction, and why a row is refused
+DEBUG_NOTCH  = False     # print the arms a notched hole is squared by, and where the pass gave up
 
 CORNER_PICK_PX = 18      # how near a Ctrl+click must land to a selected boundary vert to toggle it as a corner; a near miss must not fill instead
 POLE_PICK_PX = 14        # how near the cursor must be to an n-sided fill's pole handle for LMB to drag it rather than select
@@ -117,6 +118,15 @@ def loop_is_flat(cos):
     return max(abs((co - ctr).dot(nrm)) for co in cos) <= LOOP_FLATNESS * span
 
 
+def loop_area_normal(cos):
+    ''' Vector area of a closed run of points. '''
+    # The normal of the plane it lies in, scaled by the area it encloses and signed
+    # by the way it winds, so the loop runs counter-clockwise about it.
+    n = Vector()
+    for a, b in zip(cos, cos[1:] + cos[:1]): n += a.cross(b)
+    return n / 2
+
+
 ##############################################
 # geometry helpers
 
@@ -128,6 +138,13 @@ def side2d(pa, pb, p):
     c = (pb.x - pa.x) * (p.y - pa.y) - (pb.y - pa.y) * (p.x - pa.x)
     return 0 if abs(c) < 1e-6 else (1 if c > 0 else -1)
 
+def segments_cross2d(p0, p1, q0, q1):
+    ''' Whether two 2D segments properly cross: each has the other's ends on opposite sides of it.
+    Touching or collinear ends do not count. '''
+    s1, s2 = side2d(p0, p1, q0), side2d(p0, p1, q1)
+    s3, s4 = side2d(q0, q1, p0), side2d(q0, q1, p1)
+    return bool(s1 and s2 and s3 and s4 and s1 != s2 and s3 != s4)
+
 def polys_overlap2d(a, b, *, eps=0.5):
     ''' Whether two 2D outlines overlap. '''
     ca = sum(a, Vector((0, 0))) / len(a)
@@ -138,9 +155,7 @@ def polys_overlap2d(a, b, *, eps=0.5):
         for j in range(len(b)):
             q0, q1 = b[j], b[(j + 1) % len(b)]
             if any((p - q).length < eps for p in (p0, p1) for q in (q0, q1)): continue     # sides sharing a corner: a proper tiling does that everywhere
-            s1, s2 = side2d(p0, p1, q0), side2d(p0, p1, q1)
-            s3, s4 = side2d(q0, q1, p0), side2d(q0, q1, p1)
-            if s1 and s2 and s3 and s4 and s1 != s2 and s3 != s4: return True
+            if segments_cross2d(p0, p1, q0, q1): return True
     return False
 
 def same_side_of_edge(co_a, co_b, centres_a, centres_b) -> bool:
@@ -160,6 +175,13 @@ def same_side_of_edge(co_a, co_b, centres_a, centres_b) -> bool:
 def co_of(pt):
     ''' Coordinate for a patch corner, whether it already exists or will be created. '''
     return pt.co if isinstance(pt, BMVert) else pt
+
+def point_in_polygon_2d(q, poly):
+    ''' Even-odd test, so a concave outline reads right. '''
+    inside = False
+    for a, b in zip(poly, poly[1:] + poly[:1]):
+        if (a.y > q.y) != (b.y > q.y) and q.x < a.x + (b.x - a.x) * (q.y - a.y) / (b.y - a.y): inside = not inside
+    return inside
 
 def dist2d_point_segment(p, a, b):
     d = b - a
@@ -188,6 +210,19 @@ def on_faced_side(bme, co):
     to_co -= along * to_co.dot(along)
     if to_face.length_squared < 1e-14 or to_co.length_squared < 1e-14: return None
     return to_face.dot(to_co) > 0
+
+def quad_crosses_itself(cos):
+    ''' Whether a quad is a bowtie: two of its sides cross and it faces both ways at once.  '''
+    if len(cos) != 4: return False
+    nrm = (cos[2] - cos[0]).cross(cos[3] - cos[1])
+    if nrm.length_squared < 1e-18: return False
+    frm = plane_frame(nrm.normalized(), cos[1] - cos[0])
+    if frm is None: return False
+    u, w = frm
+    # in units of the quad's own size, so side2d's absolute tolerance reads the same at any mesh scale
+    scale = 1 / math.sqrt(nrm.length)
+    p = [ Vector((co.dot(u), co.dot(w))) * scale for co in cos ]
+    return segments_cross2d(p[0], p[1], p[2], p[3]) or segments_cross2d(p[1], p[2], p[3], p[0])
 
 def quad_area3d(cos):
     # exact for a planar quad, close enough for the nearly planar ones the shape test lets through
@@ -983,9 +1018,11 @@ class Previz:
     mark     : tuple = ()   # faces drawn in a warning colour: the one non-quad an odd loop is closed with
 
 
-def fuse_previz(previz : list) -> Previz:
+def fuse_previz(previz : list, *, kind : str = 'stroke', hover : bool = True) -> Previz:
     ''' One preview out of several sharing verts, existing ones by index and new ones by position, so
-    a run's rung and the notch quad it was pinned to are one vert, drawn once and built once. '''
+    a run's rung and the notch quad it was pinned to are one vert, drawn once and built once. Fill
+    creates a vert per preview that names one, so anything whose pieces share a vert has to come
+    through here or it is built twice, once for each side of the seam. '''
     slots, idx, cos, edges, seen, faces, srcs, open_idx, marks = {}, [], [], [], set(), [], [], [], []
     for pv in previz:
         remap = []
@@ -1009,7 +1046,13 @@ def fuse_previz(previz : list) -> Previz:
         for k in pv.open_idx:
             if remap[k] not in open_idx: open_idx.append(remap[k])
         marks.extend(n_faces + k for k in pv.mark)
-    return Previz('stroke', idx, cos, edges, faces, tuple(open_idx), (), hover=True, face_src=tuple(srcs), mark=tuple(marks))
+    # a vert two of the pieces shared is inside the one they fuse into, whatever it was to either
+    counts = {}
+    for f in faces:
+        for e in zip(f, f[1:] + f[:1]): counts[frozenset(e)] = counts.get(frozenset(e), 0) + 1
+    rim = { k for e, c in counts.items() if c == 1 for k in e }
+    open_idx = [ k for k in open_idx if k in rim ]
+    return Previz(kind, idx, cos, edges, faces, tuple(open_idx), (), hover=hover, face_src=tuple(srcs), mark=tuple(marks))
 
 
 class LegacyPatches_Logic:
@@ -1345,6 +1388,8 @@ class LegacyPatches_Logic:
         NGON_MAX_FLIPPED = 0.1          # share of an n-sided fill's quads allowed to face the other way before it is refused as folded
         NGON_MAX_ALTERNATIVES = 4       # corner-demotion and cut Solutions offered, each, and an odd loop's demoted fills; one Solution is every plan of one shape (ngon_layout.plan_shape, phantom_shape)
         NGON_POLE_MARGIN = 0.75         # a pole stays at least this many mean boundary edges inside the loop, or its ring of quads collapses into slivers
+        NOTCH_ANGLE = 30.0              # degrees. A bend turning out of the hole sharper than this makes it a notched one, and a quad in a stepped row skewed further than this off square ends the arm: the same bend read twice, once on the boundary and once in what stepping past it would build
+        NOTCH_COVER_SLACK = 0.02        # how far past the hole its own quads may reach, against its area, before the pass is dropped as spilling out of it
         MAX_GRID_ASPECT = 3.0           # a grid split whose quads would be longer than this across is a sliver, not a Solution (the best split is always kept)
         NGON_EQUALIZE = 0.5             # how much of each relax step pulls a vert toward equal distance from its face centres, against the plain average of its neighbours
         NGON_MAX_CUT_VERTS = 120        # boundary verts above which the cut search (roughly cubic in them, ~0.7s here) is skipped
@@ -1373,15 +1418,16 @@ class LegacyPatches_Logic:
         # read-only: this runs from a draw callback, so only toggle_corner() ever creates the layer
         layer = bm.verts.layers.int.get(CORNER_LAYER)
         def override(bmv):
-            return bmv[layer] if layer else CORNER_AUTO
+            return bmv[layer] if (layer and isinstance(bmv, BMVert)) else CORNER_AUTO
         def is_corner(bmv1, bmv0, bmv2):
             ''' Whether the boundary turns a corner at bmv1, arriving from bmv0 and leaving for bmv2.
-            Toggled to one, or bending past Split Angle and not toggled smooth. '''
+            Toggled to one, or bending past Split Angle and not toggled smooth. Any of the three may be
+            a point a fill has yet to create, which has no toggle and is read by its position alone. '''
             mode = override(bmv1)
             if mode == CORNER_FORCED: return True
             if mode == CORNER_SMOOTH: return False
-            d10 = (bmv0.co - bmv1.co).normalized()
-            d12 = (bmv2.co - bmv1.co).normalized()
+            d10 = (co_of(bmv0) - co_of(bmv1)).normalized()
+            d12 = (co_of(bmv2) - co_of(bmv1)).normalized()
             return angle_deg(d10, d12) < min_angle
 
         ##############################################
@@ -1875,6 +1921,18 @@ class LegacyPatches_Logic:
             ))
 
         n_new = 0
+        def dry_run(fn):
+            ''' Whether a fill would build, keeping nothing it makes: the preview, labels, flags and the
+            vert budget are put back as they were. '''
+            nonlocal n_new
+            saved = (len(L.previz), len(L.labels), L.has_offset, L.has_free_step, n_new)
+            ok = fn()
+            built = len(L.previz) > saved[0]
+            del L.previz[saved[0]:]
+            del L.labels[saved[1]:]
+            L.has_offset, L.has_free_step, n_new = saved[2:]
+            return ok is not False and built
+
         def budget(count):
             ''' Cap the total number of new (snapped) verts so a huge selection cannot stall the viewport. '''
             nonlocal n_new
@@ -2379,6 +2437,233 @@ class LegacyPatches_Logic:
             L.has_grid = True
             L.grid_last = (span, settings.offset)
             return emit_grid_split(bmvs, span, (off + settings.offset) % len(bmvs), kind)
+
+        def pos_key(pt):
+            return tuple(round(c, 6) for c in co_of(pt))
+
+        def loop_frame(pts, forced=frozenset()):
+            ''' How a hole's boundary reads for stepping: (unit normal the loop winds counter-clockwise
+            about, its corners, those of them turning into the hole, the sharpest bend turning out of it
+            in degrees), corners as indices into pts. None where there is nothing to read: a loop with
+            no area, or one whose inside is the mesh rather than a hole. pts may hold points a step
+            created as readily as verts; `forced` holds pos_keys of the verts the steps' rows landed on,
+            corners when they bend at all sharply. '''
+            n = len(pts)
+            cos = [ co_of(pt) for pt in pts ]
+            nrm = loop_area_normal(cos)
+            if nrm.length_squared < 1e-18: return None
+            nrm.normalize()
+            # The loop winds counter-clockwise about that normal, so what it encloses lies to the left
+            # of the way it runs. That has to be the hole.
+            faced = 0
+            for a, b in zip(pts, pts[1:] + pts[:1]):
+                if not (isinstance(a, BMVert) and isinstance(b, BMVert)): continue
+                bme = bmvs_shared_bme(a, b)
+                if bme is None or len(bme.link_faces) != 1: continue
+                to_face = bme.link_faces[0].calc_center_median() - (a.co + b.co) / 2
+                faced += 1 if to_face.dot(nrm.cross(b.co - a.co)) > 0 else -1
+            if faced > 0: return None
+            def turn(i):
+                # signed bend at pts[i]: positive turning into the hole, the convex way round for it
+                d0, d1 = cos[i] - cos[i - 1], cos[(i + 1) % n] - cos[i]
+                if d0.length_squared < 1e-18 or d1.length_squared < 1e-18: return 0.0
+                a = angle_deg(d0.normalized(), d1.normalized())
+                return a if d0.cross(d1).dot(nrm) >= 0 else -a
+            turns = [ turn(i) for i in range(n) ]
+            # a landing vert bending past NOTCH_ANGLE is a corner whatever the Split Angle says: stepping
+            # would not build a quad across that bend, so neither should the fill. One cut off flush is not
+            corners = [ i for i in range(n) if (pos_key(pts[i]) in forced and abs(turns[i]) > NOTCH_ANGLE)
+                        or is_corner(pts[i], pts[i - 1], pts[(i + 1) % n]) ]
+            convex = { i for i in corners if turns[i] > 0 }
+            return nrm, corners, convex, max((-t for t in turns), default=0.0)
+
+        def arm_candidates(pts, frame):
+            ''' Every side of a notched hole that could be stepped into it: (where the far side starts,
+            its edge count, the rows its rails allow), indices into pts reading forward. A far side is a
+            run between two corners turning into the hole; its rails are the boundary on beyond each of
+            them, which run out at the next corner either way, so a step is never deeper than the shorter
+            rail. Returns nothing on a loop with no bend turning out of the hole. '''
+            nrm, corners, convex, reflex = frame
+            n, k = len(pts), len(corners)
+            if reflex <= NOTCH_ANGLE or k < 3: return []
+            out = []
+            for i in range(k):
+                c1, c2 = corners[i], corners[(i + 1) % k]
+                if c1 not in convex or c2 not in convex: continue
+                m = (c2 - c1) % n
+                rail0 = (c1 - corners[i - 1]) % n           # back from c1 to the corner before it
+                rail2 = (corners[(i + 2) % k] - c2) % n     # on from c2 to the corner after it
+                # the two rails have to land on different verts, with a loop of three or more left over
+                depth = min(rail0, rail2, (n - m - 1) // 2, (n - 3) // 2)
+                if depth >= 1: out.append((c1, m, depth))
+            return out
+
+        def arm_rows(pts, cand, inside):
+            ''' The rows an arm's far side can be carried down its rails, the far side itself first, each
+            a run from the rail vert on one side to the rail vert on the other with the points between
+            them created. Stops at the first row whose quads go bad: crossed, skewed more than
+            NOTCH_ANGLE off square, or reaching outside the hole. That is what ends a rail at a bend too
+            gentle to be a corner, the mouth of a neck that widens into the body it hangs off. The rows
+            are blends, not snapped: the shape tested is the one the fill will be asked to make, and a
+            snap cannot make a good row out of a bad one. '''
+            n = len(pts)
+            c1, m, depth = cand
+            at = lambda k: pts[k % n]
+            sv1 = [ at(c1 + j) for j in range(m + 1) ]
+            base = [ co_of(p) for p in sv1 ]
+            def holds(q):
+                if quad_crosses_itself(q): return False
+                for i in range(4):
+                    d0, d1 = q[i - 1] - q[i], q[(i + 1) % 4] - q[i]
+                    if d0.length_squared < 1e-18 or d1.length_squared < 1e-18: return False
+                    if abs(angle_deg(d0.normalized(), d1.normalized()) - 90) > NOTCH_ANGLE: return False
+                return True
+            rows = [sv1]
+            for k in range(1, depth + 1):
+                e0, e2 = at(c1 - k), at(c1 + m + k)
+                off0, off2 = co_of(e0) - base[0], co_of(e2) - base[-1]
+                row = [e0] + [ base[j] + off0.lerp(off2, j / m) for j in range(1, m) ] + [e2]
+                if not all(inside(p) for p in row[1:-1]): break
+                prev = rows[-1]
+                if not all(holds([ co_of(prev[j]), co_of(prev[j + 1]), co_of(row[j + 1]), co_of(row[j]) ]) for j in range(m)): break
+                rows.append(row)
+            return rows
+
+        def emit_arm(pts, cand, rows):
+            ''' Build the rows as one Coons patch and hand back the loop with the arm replaced by the row
+            it landed on, and the two verts that row ends on. None when the fill's own checks refused it,
+            False when the vert budget is spent. '''
+            n = len(pts)
+            c1, m, _ = cand
+            kept = len(rows) - 1
+            at = lambda k: pts[k % n]
+            rail0 = [ at(c1 - k) for k in range(kept, -1, -1) ]         # landing end first, up to the far side
+            rail2 = [ at(c1 + m + k) for k in range(kept, -1, -1) ]
+            sv1 = rows[0]
+            boundary = rail0 + sv1 + rail2
+            nrm = normal_fn(boundary)
+            side, cap = shape_side(boundary), shape_cap(boundary)
+            n0, n2 = nrm(rail0[0]), nrm(rail2[0])
+            landing = ([rail0[0]] + [ new_point(p, side, blend_pair(n0, n2, j / m), cap) for j, p in enumerate(rows[-1][1:-1], 1) ]
+                       + [rail2[0]])
+            if not budget(m - 1): return False      # the landing row; emit_rect_grid budgets the rows inside
+            marked = len(L.previz)
+            if not emit_rect_grid(rail0, sv1, rail2, landing, 'C'): return False
+            if len(L.previz) == marked:
+                if DEBUG_NOTCH: print(f'[notch] arm at {c1} refused')
+                return None
+            # the blend fills the rows between rather than taking them as they were tested, so what was
+            # built is asked the same question one more time
+            if any(quad_crosses_itself([ pv.vert_co[i] for i in f ]) for pv in L.previz[marked:] for f in pv.faces):
+                if DEBUG_NOTCH: print(f'[notch] arm at {c1} folds the side it steps onto')
+                del L.previz[marked:]
+                return None
+            out = [ at(c1 + m + kept + i) for i in range(n - m - 2 * kept + 1) ] + landing[1:-1]
+            # A row can land on the boundary across from it, and a loop that visits a point twice fills
+            # as folded quads. The quads this one just made go back with it: left in the preview with
+            # the loop unchanged, the fill would cover them a second time.
+            if len({ tuple(round(c, 6) for c in co_of(pt)) for pt in out }) != len(out):
+                if DEBUG_NOTCH: print('[notch] the loop left over visits a point twice')
+                del L.previz[marked:]
+                return None
+            return out, (rail0[0], rail2[0])
+
+        def sweep_arms(pts):
+            ''' Step the arms off a hole one at a time, the deepest first, reading the boundary afresh
+            after each so the next sees the rails and corners the last one used up. (the loop left, how
+            many were stepped, pos_keys of the verts its rows landed on), or False when the budget is
+            spent. The landing verts are corners of what is left whatever their bend: the row is a side
+            of it, and read as one the body a neck hangs off has the four corners its pole and junction
+            Solutions want, where its bends alone might give it two. '''
+            loop, steps, forced = pts, 0, set()
+            # every step takes at least two verts off the loop, so the sweep runs itself out; the range
+            # is only there so a step that somehow left the loop as long as it found it cannot spin here
+            for _ in range(len(pts)):
+                if len(loop) < 3: break
+                frame = loop_frame(loop, forced)
+                if frame is None: break
+                cos = [ co_of(p) for p in loop ]
+                frm = plane_frame(frame[0], cos[1] - cos[0])
+                if frm is None: break
+                u, w = frm
+                poly = [ Vector((co.dot(u), co.dot(w))) for co in cos ]
+                eps = 1e-4 * sum((b - a).length for a, b in zip(poly, poly[1:] + poly[:1])) / len(poly)
+                def inside(p):
+                    # strictly: a row landing on the boundary across from it is the arm run out, not a step
+                    q = Vector((p.dot(u), p.dot(w)))
+                    return point_in_polygon_2d(q, poly) and all(dist2d_point_segment(q, a, b) > eps for a, b in zip(poly, poly[1:] + poly[:1]))
+                # Every candidate is stepped dry and the one longest for its width built: that is what
+                # makes an arm an arm, and a wide side that steps a few rows is usually the body a
+                # narrower arm hangs off. One the fill's checks refuse says nothing about the rest.
+                tried = [ (cand, rows) for cand in arm_candidates(loop, frame) if len(rows := arm_rows(loop, cand, inside)) > 1 ]
+                tried.sort(key=lambda t: (-(len(t[1]) - 1) / t[0][1], -(len(t[1]) - 1)))
+                stepped = None
+                for cand, rows in tried:
+                    stepped = emit_arm(loop, cand, rows)
+                    if stepped is False: return False
+                    if stepped is not None: break
+                if stepped is None: break
+                loop, ends = stepped
+                steps += 1
+                forced |= { pos_key(v) for v in ends }
+            return loop, steps, forced
+
+        def emit_notched(bmvs):
+            ''' Step every arm of a notched hole square, then fill what is left of it by its own corners
+            -- which may be nothing, where the arms met and covered the hole between them. None when
+            there was no arm to step, or when the fill after them was refused, which hands the loop back
+            whole for the caller's own fill to try; False when the vert budget is spent. '''
+            before = len(L.previz)
+            was = (L.has_grid, L.grid_ranked, L.grid_last)
+            def give_up(why):
+                if DEBUG_NOTCH: print(f'[notch] gave up: {why}')
+                del L.previz[before:]
+                L.has_grid, L.grid_ranked, L.grid_last = was
+                return None
+
+            swept = sweep_arms(list(bmvs))
+            if swept is False: return False
+            loop, steps, forced = swept
+            if not steps: return None
+            if DEBUG_NOTCH: print(f'[notch] {steps} arm(s) stepped, {len(loop)} left')
+            if len(loop) >= 3:
+                # what is left is a loop like any other: by its corners where it has three or more, with
+                # every Solution that brings, else Blender's grid fill
+                marked = len(L.previz)
+                frame = loop_frame(loop, forced)
+                corners = frame[1] if frame else []
+                if len(corners) >= 3:
+                    n, k = len(loop), len(corners)
+                    sides = [ [ loop[(c1 + j) % n] for j in range((c2 - c1) % n + 1) ]
+                              for c1, c2 in zip(corners, corners[1:] + corners[:1]) ]
+                    ok = emit_sides({ 3: 'tri', 4: 'rect' }.get(k, 'ngon'), sides)
+                else:
+                    ok = emit_grid_fill(loop, 'grid')
+                if not ok: return False
+                if len(L.previz) == marked: return give_up(f'fill of the {len(loop)} left over refused')
+            # the arms and the fill share the verts of every side a step created, so they go in as one
+            L.previz[before:] = [ fuse_previz(L.previz[before:], kind='grid', hover=False) ]
+            # Squaring an arm off can leave a loop the fills handle worse than the one it came from, and
+            # a bowtie is no answer whatever its count. The whole pass goes back there rather than
+            # shipping one, so the loop reaches the fills below as it stood and this can only better
+            # what they would have made of it on their own.
+            pv = L.previz[-1]
+            if any(quad_crosses_itself([ pv.vert_co[i] for i in f ]) for f in pv.faces):
+                return give_up('a quad came out crossed')
+            cos_in = [ co_of(p) for p in bmvs ]
+            if loop_is_flat(cos_in):
+                nrm_in = loop_area_normal(cos_in)
+                if nrm_in.length_squared > 1e-18:
+                    u = nrm_in.normalized()
+                    # Stokes puts the signed sum of the quads at the loop's own area whatever the patch
+                    # does in between, so only the unsigned sum can overrun it, and only by folding or
+                    # reaching past the boundary. A quad facing the other way shows up here too, as
+                    # twice its own area, which is why the slack is a share of the hole rather than a
+                    # count: a sliver worth a thousandth of it is not worth dropping a whole fill for.
+                    got = sum(abs(loop_area_normal([ pv.vert_co[i] for i in f ]).dot(u)) for f in pv.faces)
+                    if got > abs(nrm_in.dot(u)) * (1 + NOTCH_COVER_SLACK):
+                        return give_up('the quads cover more than the hole')
+            return True
 
         def emit_ngon(kind, shape):
             ''' Fill a closed loop of three or more strips by its real corners; solutions_for has the ways. '''
@@ -3548,11 +3833,13 @@ class LegacyPatches_Logic:
                 # quad fill is the only thing on offer and neither of those is worth naming.
                 solve = choose_solve(quads)
             else:
-                # One face always fits, and on a flat loop -- a hole rather than the mouth of a form --
-                # it beats stepping outward.
+                # One face always fits, and on a flat loop (a hole rather than the mouth of a form) it beats stepping outward.
+                # A step is offered only where its ring will build round one of the loops.
                 flat = loop_is_flat([ co_of(v) for v in bmvs0 ])
+                step = ['STEP'] if any((bmes := cycle_bmes(bmvs)) and dry_run(lambda: emit_offset(bmvs, bmes, cyclic=True))
+                                       for _, _, bmvs in cycles) else []
                 solve = choose_solve((['LOFT'] if loft_pairs else []) + quads
-                                     + (['FACE', 'STEP'] if flat else ['STEP', 'FACE']))
+                                     + (['FACE'] + step if flat else step + ['FACE']))
         else:
             pair = None
             for shape_a, shape_b in combinations(shapes['I'], 2):
@@ -3606,12 +3893,19 @@ class LegacyPatches_Logic:
                         if bmes and not emit_offset(bmvs, bmes, cyclic=True): spent = True
                     elif want == 'FACE':
                         emit_ngon_face(bmvs)
-                    elif kind in ('tri', 'rect', 'ngon'):
-                        # by its corners: a rectangle as a grid, anything else round a pole
-                        if not emit_ngon(kind, shape): spent = True
                     else:
-                        # no corners to speak of: grid fill
-                        if not emit_grid_fill(bmvs, 'grid'): spent = True
+                        # An arm of the hole is stepped square before anything else: a fan round a
+                        # pole, or a grid split across the loop, covers ground a notched loop does
+                        # not enclose. None back means there was no arm to square, or one of the
+                        # steps was refused, and the loop is whole again either way.
+                        notched = emit_notched(bmvs)
+                        if notched is False: spent = True
+                        elif notched is None:
+                            if kind in ('tri', 'rect', 'ngon'):
+                                # by its corners: a rectangle as a grid, anything else round a pole
+                                if not emit_ngon(kind, shape): spent = True
+                            # no corners to speak of: grid fill
+                            elif not emit_grid_fill(bmvs, 'grid'): spent = True
                     if spent or len(L.previz) > before:
                         landed = want
                         break
