@@ -2454,11 +2454,20 @@ class LegacyPatches_Logic:
             rather than lying end to end. None when they do not, and so do not ask to be bridged. '''
             dir0 = (sv0[0].co - sv0[-1].co).normalized()
             dir1 = (sv1[0].co - sv1[-1].co).normalized()
-            if dir0.dot(dir1) < 0:
+            # The ends pair the way that keeps the outer rungs from crossing. Two strips at right angles,
+            # an L that was never joined, have no common direction to go by, and the sign of the one they
+            # have is noise: the pairing with the shorter rungs is the one an artist would draw
+            same = (sv0[0].co - sv1[0].co).length + (sv0[-1].co - sv1[-1].co).length
+            crossed = (sv0[0].co - sv1[-1].co).length + (sv0[-1].co - sv1[0].co).length
+            tie = abs(crossed - same) <= 1e-6 * max(same, crossed)
+            if (crossed < same and not tie) or (tie and dir0.dot(dir1) < 0):
                 sv1 = list(reversed(sv1))
                 dir1 = -dir1
-            if angle_deg(dir0, (sv1[0].co - sv0[0].co).normalized()) < 45: return None
-            if angle_deg(dir1, (sv0[0].co - sv1[0].co).normalized()) < 45: return None
+            # strips lying end to end along one line are one strip with a gap in it, not a bridge; only
+            # strips running near enough parallel can lie that way
+            if abs(dir0.dot(dir1)) > math.cos(math.radians(45)):
+                if angle_deg(dir0, (sv1[0].co - sv0[0].co).normalized()) < 45: return None
+                if angle_deg(dir1, (sv0[0].co - sv1[0].co).normalized()) < 45: return None
             return sv1
 
         def choose_solve(kinds):
