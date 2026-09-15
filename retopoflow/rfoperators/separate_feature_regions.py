@@ -2793,7 +2793,7 @@ class RFOperator_SegmentMesh(RFOperator_Execute):
         me = context.active_object.data
         co, tris, tri_loops = get_mesh_triangle_arrays(me)
         if len(tris) < 4:
-            self.report({'WARNING'}, 'Segment Mesh: mesh has too few faces')
+            self.rf_report({'WARNING'}, 'Segment Mesh: mesh has too few faces')
             return {'CANCELLED'}
         scale = self.feature_scale
         if scale <= 0.0:
@@ -2843,7 +2843,7 @@ class RFOperator_SegmentMesh(RFOperator_Execute):
         me.update()
         build_crest_curve_object(context, context.active_object,
                                  crested.get('crest_curves', []))
-        self.report({'INFO'}, f'Segment Mesh: {n_regions} regions '
+        self.rf_report({'INFO'}, f'Segment Mesh: {n_regions} regions '
                               f'({n_raw} before merge, feature scale '
                               f'{scale:.4f}'
                               f'{", cached fields" if cached else ""})')

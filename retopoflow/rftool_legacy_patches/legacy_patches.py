@@ -359,7 +359,7 @@ class RFOperator_LegacyPatches_Fill(LegacyPatches_Properties, RFOperator_Execute
     def execute(self, context : Context) -> set[str]:
         # the redo panel's path: a patch where the settings now make one, else the plain edge or face again.
         if not self._fill(context) and self._fill_contextual(context) != { 'FINISHED' }:
-            self.report({'WARNING'}, LegacyPatches_Logic.error or 'Patches: nothing to fill. Select boundary edges forming a rectangle, L, C, two parallel strips, a single strip to step outward, or four vertices, or hold Ctrl and hover between four nearby vertices')
+            self.rf_report({'WARNING'}, LegacyPatches_Logic.error or 'Patches: nothing to fill. Select boundary edges forming a rectangle, L, C, two parallel strips, a single strip to step outward, or four vertices, or hold Ctrl and hover between four nearby vertices')
             return { 'CANCELLED' }
         return { 'FINISHED' }
 
@@ -814,7 +814,7 @@ def draw_patches_props(layout : UILayout, props, *, header : bool, redo : bool =
     has_bridge, has_grid, has_loft, has_offset, has_quad = (
         L.filled_flags if redo else (L.has_bridge, L.has_grid, L.has_loft, L.has_offset, L.has_quad))
     has_solves = len(LegacyPatches_Logic.solve_items(redo=redo)) > 1
-    has_options = has_quad or has_offset or has_grid or has_loft
+    has_options = has_quad or has_offset or has_grid or has_loft or has_solves
 
     if redo and has_solves:
         layout.prop(props, 'solve', text='Type')

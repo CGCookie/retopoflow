@@ -67,10 +67,10 @@ class RFOperator_AdjustStripWidth(RFOperator_Execute):
         ''' detect_adjustable_strip, minus the chains that have no width to scale (like wire edge runs). '''
         found = detect_adjustable_strip(context)
         if found is None:
-            self.report({'WARNING'}, 'Adjust Strip Width: select a single quad strip or ring first')
+            self.rf_report({'WARNING'}, 'Adjust Strip Width: select a single quad strip or ring first')
             return None
         if not found[2].has_width:
-            self.report({'WARNING'}, 'Adjust Strip Width: an edge run has no width to adjust')
+            self.rf_report({'WARNING'}, 'Adjust Strip Width: an edge run has no width to adjust')
             return None
         return found
 

@@ -1366,7 +1366,7 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
             if not obj and collection: message = message + f"\nOnly objects in the collection {collection.name} are set as possible sources."
             if any([selectable, selected, obj, collection]): message = message + "\nYou can change the source settings in the General panel."
             show_message(message=message, title="Retopoflow", icon="ERROR")
-            self.report({'ERROR'}, message)
+            self.rf_report({'ERROR'}, message)
 
         print('RFCore_Operator executing')
         return {'RUNNING_MODAL'}

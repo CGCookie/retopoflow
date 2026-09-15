@@ -44,7 +44,7 @@ class RFOperator_RebuildSourceCache(RFRegisterClass, bpy.types.Operator):
         if Contours_Source_Method.current == 'walk':
             SourceMeshCache.request_warmup(context)
 
-        self.report({'INFO'}, 'Rebuilding source feature cache…')
+        self.rf_report({'INFO'}, 'Rebuilding source feature cache…')
         return {'FINISHED'}
 
 
@@ -56,7 +56,7 @@ class RFOperator_CancelSourceCacheRebuild(RFRegisterClass, bpy.types.Operator):
 
     def execute(self, context):
         SourceCache.cancel_rebuild()
-        self.report({'INFO'}, 'Source feature cache rebuild cancelled')
+        self.rf_report({'INFO'}, 'Source feature cache rebuild cancelled')
         return {'FINISHED'}
 
 

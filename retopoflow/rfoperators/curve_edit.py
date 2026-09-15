@@ -1653,7 +1653,7 @@ class RFOperator_EditAsCurve(RFOperator_Invoke):
             return {'CANCELLED'}
 
         if not context.region_data:
-            self.report({'ERROR'}, 'Edit as Curve: needs a 3D viewport')
+            self.rf_report({'ERROR'}, 'Edit as Curve: needs a 3D viewport')
             return {'CANCELLED'}
 
         # discrete pre-session baseline: the Esc topology-escalation path (below)

@@ -260,7 +260,7 @@ class RFOperator_PolyStrips_Insert(
             logic.mirror_correct = self.mirror_correct
             logic.create(context)
             if logic.count_warning:
-                self.report({'WARNING'}, logic.count_warning)
+                self.rf_report({'WARNING'}, logic.count_warning)
             self.count = logic.count
             self.scale_start, self.scale_end = logic.scale_start, logic.scale_end
             self.mirror_correct = logic.mirror_correct

@@ -443,7 +443,7 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
         # Further filter by boundary, seams, sharps, creases, angle, pins, corners
         verts = logic.filter_verts(raw_verts)
         if not verts:
-            self.report({'WARNING'}, 'Relax: no vertices remain after applying mask settings')
+            self.rf_report({'WARNING'}, 'Relax: no vertices remain after applying mask settings')
             return {'CANCELLED'}
 
         # Build proportional vert set: flood-fill along connected edges within the radius,
