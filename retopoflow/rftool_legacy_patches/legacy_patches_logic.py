@@ -68,6 +68,7 @@ MAIN_OP_IDNAME = 'retopoflow.legacy_patches'
 
 DEBUG_OFFSET = False     # print how a run steps: its shape, welds, direction, and why a row is refused
 DEBUG_NOTCH  = False     # print the arms a notched hole is squared by, and where the pass gave up
+DEBUG_FILL   = False     # print why a closed loop's fill was refused: snap noise, drift, existing faces, folds
 
 CORNER_PICK_PX = 18      # how near a Ctrl+click must land to a selected boundary vert to toggle it as a corner; a near miss must not fill instead
 POLE_PICK_PX = 14        # how near the cursor must be to an n-sided fill's pole handle for LMB to drag it rather than select
@@ -197,19 +198,28 @@ def plane_frame(n, ref):
     u.normalize()
     return u, n.cross(u)
 
+OVER_FACE_MAX_TILT = 45.0   # degrees a point may rise out of a one-sided edge's face plane and still lie over that face
+
 def on_faced_side(bme, co):
-    ''' Whether co is on the face side of a one-sided edge. '''
+    ''' Whether co lies over the face of a one-sided edge: on the face's side of it and near the face's
+    plane. None when there is no telling. '''
     va, vb = bme.verts
     along = vb.co - va.co
     if along.length_squared < 1e-14: return None
     along.normalize()
     mid = (va.co + vb.co) / 2
-    to_face = bme.link_faces[0].calc_center_median() - mid
+    bmf = bme.link_faces[0]
+    to_face = bmf.calc_center_median() - mid
     to_co = co - mid
     to_face -= along * to_face.dot(along)
     to_co -= along * to_co.dot(along)
     if to_face.length_squared < 1e-14 or to_co.length_squared < 1e-14: return None
-    return to_face.dot(to_co) > 0
+    if to_face.dot(to_co) <= 0: return False
+    # A patch closing a box across its rim snaps onto the source a hair below the rim. What tells it from a
+    # patch laid over an island is that it leaves the walls' planes steeply rather than lying in them.
+    n = bmf.normal if bmf.normal.length_squared > 1e-12 else compute_n([ v.co for v in bmf.verts ])
+    if n.length_squared < 1e-12: return True
+    return abs(to_co.normalized().dot(n.normalized())) <= math.sin(math.radians(OVER_FACE_MAX_TILT))
 
 def quad_crosses_itself(cos):
     ''' Whether a quad is a bowtie: two of its sides cross and it faces both ways at once.  '''
@@ -1391,6 +1401,8 @@ class LegacyPatches_Logic:
         LOFT_PARALLEL = LOFT_STACKED = 0.5  # two loops loft only when they face the same way and are stacked along their normals
         NGON_LAYOUT_PASSES = 8          # relax passes on an n-sided fill's pole and spokes before Smooth; the interiors are re-blended from them. Three left a bridge's pole short of where it settles
         NGON_MAX_FLIPPED = 0.1          # share of an n-sided fill's quads allowed to face the other way before it is refused as folded
+        NORMAL_INSET = 0.25             # how far inside the patch, in mean boundary edges, a boundary point's source normal is checked against
+        NORMAL_CREASE = 45.0            # degrees the two may differ before the point is taken to sit on a crease and the inside one used
         NGON_MAX_ALTERNATIVES = 4       # corner-demotion and cut Solutions offered, each, and an odd loop's demoted fills; one Solution is every plan of one shape (ngon_layout.plan_shape, phantom_shape)
         NGON_POLE_MARGIN = 0.75         # a pole stays at least this many mean boundary edges inside the loop, or its ring of quads collapses into slivers
         NOTCH_ANGLE = 30.0              # degrees. A bend turning out of the hole sharper than this makes it a notched one, and a vert a stepped row lands on that bends this much is a corner of what is left
@@ -1515,6 +1527,7 @@ class LegacyPatches_Logic:
 
         sig = L.selection_signature(bm, edges)
         if edges and sig == L.filled_sig:
+            if DEBUG_FILL: print('[fill] this boundary was the last fill\'s: nothing offered')
             edges = set()   # the patch just built is still selected: do not stack a second one on it
         if live and stroke is None and sig != L.sel_sig:
             # a new selection starts over at one step at the run's own spacing, so a count or a distance
@@ -1823,12 +1836,33 @@ class LegacyPatches_Logic:
             return normal_cache[key]
 
         def normal_fn(pts):
-            ''' source_normal with the mean normal of `pts` as the fallback. '''
-            known = [ n for v in pts if (n := source_normal(v)) is not None ]
+            ''' source_normal for the boundary points `pts`, with their mean as the fallback for any other
+            point. A boundary vert on a crease of the source has two normals under it and the query answers
+            with either: the n-gon on a box top read its walls', and the patch cast sideways onto them.
+            Where the normal a little inside the patch disagrees that much, it is the one the quads follow;
+            elsewhere the vert's own is exact, which the arcs a corner is placed from rely on. '''
+            def key(v):
+                return ('v', v.index) if isinstance(v, BMVert) else id(v)
+            cos = [ co_of(v) for v in pts ]
+            centre = sum(cos, Vector()) / len(cos)
+            lens = [ l for a, b in zip(cos, cos[1:]) if (l := (b - a).length) > 1e-9 ]
+            inset = NORMAL_INSET * (sum(lens) / len(lens)) if lens else 0.0
+            min_agree = math.cos(math.radians(NORMAL_CREASE))
+            chosen = {}
+            for v, co in zip(pts, cos):
+                n = source_normal(v)
+                d = centre - co
+                # a run's own points all lie on it, so its centre is no way in: those keep their own
+                if n is not None and d.length > inset:
+                    inner = source_normal(co + d * (inset / d.length))
+                    if inner is not None and n.dot(inner) < min_agree: n = inner
+                chosen[key(v)] = n
+            known = [ n for n in chosen.values() if n is not None ]
             fallback = sum(known, Vector()).normalized() if known else None
             if fallback is not None and fallback.length_squared == 0: fallback = None
             def nrm(pt):
-                n = source_normal(pt)
+                k = key(pt)
+                n = chosen[k] if k in chosen else source_normal(pt)
                 return n if n is not None else fallback
             return nrm
 
@@ -1911,6 +1945,7 @@ class LegacyPatches_Logic:
                     if faced is None: continue
                     if faced: same += 1
                     else: other += 1
+            if DEBUG_FILL and same: print(f'[fill] over existing faces? {same} edge(s) say so, {other} say not')
             return same > other
 
         def add_previz(kind, verts, edges, faces, open_idx=(), row_idx=(), mark=()):
@@ -1980,13 +2015,17 @@ class LegacyPatches_Logic:
                     verts.append(pt); normals.append(n); raws.append(co)
             if checks and sources:
                 cos = [ co_of(v) for v in verts ]
-                if grid_snap_noise(cos, raws, l0, l1, cyclic_i=cyclic_i) > MAX_SNAP_NOISE: return
+                noise = grid_snap_noise(cos, raws, l0, l1, cyclic_i=cyclic_i)
                 spans = [ (cos[i*l1+j] - cos[i*l1+j+1]).length for i in range(l0) for j in range(l1 - 1) ]
-                if snap_drift(cos, raws, plane, spans) > MAX_SNAP_DRIFT: return
+                drift = snap_drift(cos, raws, plane, spans)
+                if DEBUG_FILL: print(f'[fill] {kind} grid {l0}x{l1}: snap noise {noise:.3f} (max {MAX_SNAP_NOISE}), drift {drift:.3f} (max {MAX_SNAP_DRIFT})')
+                if noise > MAX_SNAP_NOISE or drift > MAX_SNAP_DRIFT: return
             held = fixed | set(hold)
             if relax: smooth_grid(verts, normals, l0, l1, side, cap, held, cyclic_i=cyclic_i)
             edges, faces = grid_topology(verts, l0, l1, cyclic_i=cyclic_i)
-            if checks and over_existing_faces(verts, faces): return
+            if checks and over_existing_faces(verts, faces):
+                if DEBUG_FILL: print(f'[fill] {kind} grid {l0}x{l1}: refused, over existing faces')
+                return
             # the same test smooth_grid moves a vert on, so Smooth is only offered where it does something
             if relax and any((cyclic_i or 0 < i < l0 - 1) or (0 < j < l1 - 1)
                              for i in range(l0) for j in range(l1) if i * l1 + j not in held):
@@ -2153,16 +2192,21 @@ class LegacyPatches_Logic:
             if any(v is None for v in verts): return False
 
             cos = [ co_of(v) for v in verts ]
-            if checks and sources and layout_snap_noise(cos, raws, layout.edges) > MAX_SNAP_NOISE: return False
-            if checks and sources and snap_drift(cos, raws, compute_n([ co_of(v) for v in boundary ]),
-                                                 [ (cos[a] - cos[b]).length for a, b in layout.edges ]) > MAX_SNAP_DRIFT:
+            if checks and sources:
+                noise = layout_snap_noise(cos, raws, layout.edges)
+                drift = snap_drift(cos, raws, compute_n([ co_of(v) for v in boundary ]), [ (cos[a] - cos[b]).length for a, b in layout.edges ])
+                if DEBUG_FILL: print(f'[fill] {kind} layout of {len(layout.faces)} faces: snap noise {noise:.3f} (max {MAX_SNAP_NOISE}), drift {drift:.3f} (max {MAX_SNAP_DRIFT})')
+                if noise > MAX_SNAP_NOISE or drift > MAX_SNAP_DRIFT: return False
+            if checks and over_existing_faces(verts, list(layout.faces)):
+                if DEBUG_FILL: print(f'[fill] {kind} layout: refused, over existing faces')
                 return False
-            if checks and over_existing_faces(verts, list(layout.faces)): return False
             if checks and all(n is not None for n in normals):
                 # a folded fill has quads facing both ways; the loop's own winding is not known, so count the minority
                 agree = [ compute_n([ cos[k] for k in f ]).dot(sum((normals[k] for k in f), Vector())) for f in layout.faces ]
                 flipped = min(sum(1 for a in agree if a > 0), sum(1 for a in agree if a < 0))
-                if flipped > NGON_MAX_FLIPPED * len(layout.faces): return False
+                if flipped > NGON_MAX_FLIPPED * len(layout.faces):
+                    if DEBUG_FILL: print(f'[fill] {kind} layout: refused, {flipped} of {len(layout.faces)} faces face the other way')
+                    return False
             # a dissolved spoke's nodes only helped place the rest; they are not built
             keep = [ k for k in range(N) if k not in layout.unused ]
             remap = { k: i for i, k in enumerate(keep) }
@@ -2710,6 +2754,7 @@ class LegacyPatches_Logic:
                 entry = entries[(first + k) % len(entries)]
                 L.offsets = entry.offsets
                 ok = entry.build()
+                if DEBUG_FILL: print(f'[fill] Solution {(first + k) % len(entries) + 1} of {len(entries)} ({entry.tag}): ' + ('budget spent' if ok is None else 'built' if ok else 'refused'))
                 if ok is None: return False
                 if not ok: continue
                 L.grid_last = (entry.tag, settings.offset)
@@ -4925,9 +4970,10 @@ class LegacyPatches_Logic:
         L = LegacyPatches_Logic
         if not context.edit_object or context.mode != 'EDIT_MESH': return False
         bm, em = get_bmesh_emesh(context)
+        sel_bmfs = [ f for f in bm.faces if f.select and not f.hide ]
         geom = ([ v for v in bm.verts if v.select and not v.hide ]
                 + [ e for e in bm.edges if e.select and not e.hide ]
-                + [ f for f in bm.faces if f.select and not f.hide ])
+                + sel_bmfs)
         if not geom: return False
         # the material and shading a new face takes are its neighbours', as Blender's are
         smooth = any(f.smooth for e in bm.edges if e.select for f in e.link_faces)
@@ -4935,7 +4981,9 @@ class LegacyPatches_Logic:
             made = bmesh.ops.contextual_create(bm, geom=geom, mat_nr=context.edit_object.active_material_index, use_smooth=smooth)
         except (RuntimeError, ValueError):
             return False
-        new_bmfs, new_bmes = made['faces'], made['edges']
+        # a lone selected face comes back as though made: it is not ours to rewind or reselect
+        was = set(sel_bmfs)
+        new_bmfs, new_bmes = [ f for f in made['faces'] if f not in was ], made['edges']
         if not new_bmfs and not new_bmes: return False
         for bmf in new_bmfs: bmf.normal_update()
         if rf_is_running():
