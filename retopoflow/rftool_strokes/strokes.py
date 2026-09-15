@@ -532,8 +532,10 @@ class RFOperator_Strokes(RFOperator_Stroke_Insert_Properties, RFOperator):
         RFCore = RFGlobals.RFCore_None
         if not RFCore: return {'CANCELLED'}
 
-        if event.value in {'CLICK', 'DOUBLE_CLICK'} and event_modifier_check(event, ctrl=True, shift=False, alt=False, oskey=False):
-            # prevents object selection with Ctrl+LMB Click
+        if event.type == 'LEFTMOUSE' and event.value in {'CLICK', 'DOUBLE_CLICK'} and event_modifier_check(event, ctrl=True, shift=False, alt=False, oskey=False):
+            # prevents object selection with Ctrl+LMB Click.
+            # Blender also synthesizes CLICK for keyboard keys, so the LEFTMOUSE check keeps
+            # this from swallowing a user's Ctrl+<key> shortcut that is bound to Click.
             return {'RUNNING_MODAL'}
 
         if RFTool_Strokes.rf_brush.is_stroking():
