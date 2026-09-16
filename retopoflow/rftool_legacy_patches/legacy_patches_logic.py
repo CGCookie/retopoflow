@@ -1091,7 +1091,10 @@ class LegacyPatches_Logic:
     has_manual_corners : ClassVar[bool] = False            # any corner override on the selected boundary
     wire_runs      : ClassVar[list] = []                   # (chord co0, chord co1, mouse side) per wire offset, watched by track_mouse
     grid_last      : ClassVar[tuple | None] = None             # (tag of the fill built, Offset); for an O loop the tag is its grid span
-    offsets        : ClassVar[int] = 1                         # distinct values Offset can take for the fill built: at one the knob does nothing and is not offered
+    offsets        : ClassVar[int] = 1                         # 2 when a second placement of the fill built is known to build, else 1: the Offset knob is offered only then
+    solution_notes : ClassVar[dict] = {}                       # loop key -> Solution key -> {'valid', 'invalid': placements tried, 'count'}: kept for the selection, so each placement is built at most once to learn its fate
+    solution_shown : ClassVar[dict] = {}                       # loop key -> Solution key on screen: a setting change that revives a dropped Solution must not displace it
+    solution_built : ClassVar[tuple | None] = None             # (loop key, Solution key, placement) emit_ranked last built, for a pass to strike when the fill will not hold
     grid_ranked    : ClassVar[list] = []                       # the loop's FillSolutions, ranked; an O loop's ('grid', span, offset) splits
     grid_sig       : ClassVar[tuple | None] = None             # selection the solutions were ranked for
     ngon_cuts      : ClassVar[dict] = {}                       # (loop nodes, corners) -> cut plans, the one search too slow to redo every rebuild
@@ -1108,7 +1111,8 @@ class LegacyPatches_Logic:
     solution_pending : ClassVar[int | None] = None
     solution_stale   : ClassVar[int | None] = None             # what the property held when the write was scheduled
     solution_seen    : ClassVar[int | None] = None             # the Solution last built, so a change of it can put Offset back to 0
-    prop_pending     : ClassVar[dict] = {}                     # tool property -> value written but not landed yet
+    offset_seen      : ClassVar[int] = 0                       # the Offset last built at, so a refused one can be skipped the way the knob was turned
+    prop_pending     : ClassVar[dict] = {}                     # tool property -> (value written but not landed yet, what it held when the write was scheduled)
 
     # Selection bookkeeping
     sel_sig        : ClassVar[tuple | None] = None             # selection the last live rebuild ran on
@@ -1171,6 +1175,9 @@ class LegacyPatches_Logic:
         L.pole_pos = {}
         L.pole_drag = L.pole_drag_prev = None
         L.solution_pending = L.solution_stale = L.solution_seen = None
+        L.offset_seen = 0
+        L.solution_notes = {}
+        L.solution_shown = {}
         L.mouse = L.mouse_locked = None
         L.cand_key = None
         L.cand_idx = []
@@ -1202,6 +1209,7 @@ class LegacyPatches_Logic:
         L.grid_last = None
         L.grid_ranked = []
         L.offsets = 1
+        L.solution_built = None
         L.solve_ranked = []
         L.loops_last = None
         L.wire_runs = []
@@ -1255,12 +1263,17 @@ class LegacyPatches_Logic:
         L = LegacyPatches_Logic
         pending = L.prop_pending.get(name)
         if pending is None: return value
-        # a FloatProperty is single precision, so 1.1 written comes back a hair off; an exact test would pin the pending value for good
-        landed = (abs(value - pending) <= 1e-5 * max(1.0, abs(pending))
-                  if isinstance(pending, float) else value == pending)
-        if not landed: return pending
+        want, stale = pending
+        landed = L._prop_same(value, want) or (stale is not None and not L._prop_same(value, stale))
+        if not landed: return want
         del L.prop_pending[name]
         return value
+
+    @staticmethod
+    def _prop_same(a, b) -> bool:
+        # a FloatProperty is single precision, so 1.1 written comes back a hair off; an exact test would pin a pending value for good
+        if a is None or b is None: return False
+        return abs(a - b) <= 1e-5 * max(1.0, abs(b)) if isinstance(b, float) else a == b
 
     @staticmethod
     def _write_tool_prop_later(name : str, value_of):
@@ -1277,9 +1290,21 @@ class LegacyPatches_Logic:
         bpy.app.timers.register(write, first_interval=0.0)
 
     @staticmethod
-    def push_prop(name : str, value):
-        LegacyPatches_Logic.prop_pending[name] = value
-        LegacyPatches_Logic._write_tool_prop_later(name, lambda: value)
+    def push_prop(name : str, value, stale=None):
+        ''' Write a tool property from a rebuild, `stale` being what it holds now: the write is dropped
+        if the artist moves the property first. '''
+        L = LegacyPatches_Logic
+        L.prop_pending[name] = (value, stale)
+        def value_of():
+            pending = L.prop_pending.get(name)
+            if pending is None: return None
+            want, was = pending
+            props = L.tool_props(bpy.context)
+            if was is not None and props is not None and not L._prop_same(getattr(props, name), was):
+                del L.prop_pending[name]
+                return None
+            return want
+        L._write_tool_prop_later(name, value_of)
 
     @staticmethod
     def solve_items(*, redo : bool = False):
@@ -1370,10 +1395,15 @@ class LegacyPatches_Logic:
 
         if L.depsgraph_version != RFCore.depsgraph_version:
             L.depsgraph_version = RFCore.depsgraph_version
+            L.solution_notes = {}      # the mesh, or the selection, changed: what refused may build now
+            L.solution_shown = {}
             L.dirty = True
 
         settings = L.read_settings(context)
         if settings != L.last_settings:
+            # Solution and Offset pick among the fills the notes are about; anything else reshapes them
+            if L.last_settings is None or replace(settings, solution=0, offset=0) != replace(L.last_settings, solution=0, offset=0):
+                L.solution_notes = {}
             L.last_settings = settings
             L.dirty = True
 
@@ -1405,8 +1435,11 @@ class LegacyPatches_Logic:
         NORMAL_CREASE = 45.0            # degrees the two may differ before the point is taken to sit on a crease and the inside one used
         NGON_MAX_ALTERNATIVES = 4       # corner-demotion and cut Solutions offered, each, and an odd loop's demoted fills; one Solution is every plan of one shape (ngon_layout.plan_shape, phantom_shape)
         NGON_POLE_MARGIN = 0.75         # a pole stays at least this many mean boundary edges inside the loop, or its ring of quads collapses into slivers
+        NGON_POLE_STRAY = 0.5           # share of that margin a pole may relax past the line and be held; one wanting further in is a layout that does not fit, refused
         NOTCH_ANGLE = 30.0              # degrees. A bend turning out of the hole sharper than this makes it a notched one, and a vert a stepped row lands on that bends this much is a corner of what is left
         NOTCH_COVER_SLACK = 0.02        # how far past the hole its own quads may reach, against its area, before the pass is dropped as spilling out of it
+        CLEFT_ANGLE = 60.0              # degrees. A boundary vert bending out of the hole this sharply, with no arm to square off, is a cleft the hole is cut at before filling
+        CLEFT_AIM = 35.0                # degrees the cut may leave the cleft's bisector by: farther round and it runs along one lobe rather than between them
         MAX_GRID_ASPECT = 3.0           # a grid split whose quads would be longer than this across is a sliver, not a Solution (the best split is always kept)
         NGON_EQUALIZE = 0.5             # how much of each relax step pulls a vert toward equal distance from its face centres, against the plain average of its neighbours
         NGON_MAX_CUT_VERTS = 120        # boundary verts above which the cut search (roughly cubic in them, ~0.7s here) is skipped
@@ -1490,24 +1523,27 @@ class LegacyPatches_Logic:
         if stroke is not None: edges, sel_verts = set(), []
         lone_bmv = sel_quad = sel_tri = None
 
-        def run_turns(bmvs, bmes):
-            ''' Whether four verts are one open run of three of the edges, turning a corner at one of
-            the two verts inside it. '''
+        def open_run(bmvs, bmes):
+            ''' Whether four verts are one open run of three of the edges. '''
             if len(bmes) != 3: return False
             at = { v: [ e for e in bmes if v in e.verts ] for v in bmvs }
-            if sorted(len(es) for es in at.values()) != [1, 1, 2, 2]: return False
-            return any(is_corner(v, es[0].other_vert(v), es[1].other_vert(v)) for v, es in at.items() if len(es) == 2)
+            return sorted(len(es) for es in at.values()) == [1, 1, 2, 2]
 
         # Four selected verts with at least one on no selected edge are a picked quad. Every vert of
         # an L or C is on a selected edge, and two separate edges are a bridge with its count knob.
-        # A run of three edges can also be a good quad if the angles support it.
+        # A run of three edges is a quad too when the four make a good one; when they make a poor
+        # one, leaning or thin, the run is filled as the strip it is, and the quad stays on offer as
+        # a Type, since four verts can always be closed with one face whatever their angles.
         # Loose corners are always filled with a quad.
         loose_corners = any(not any(e in edges for e in v.link_edges) for v in sel_verts)
-        if len(sel_verts) == 4 and (loose_corners or run_turns(sel_verts, edges)):
+        quad_option = None
+        if len(sel_verts) == 4 and (loose_corners or open_run(sel_verts, edges)):
             sel_quad = L._selected_quad(bm, sel_verts, context.region, context.region_data, M,
                                         fit=not loose_corners)
             if sel_quad is not None:
                 edges = set()   # the quad is the whole fill; a selected edge among the four must not also step
+            elif not loose_corners:
+                quad_option = L._selected_quad(bm, sel_verts, context.region, context.region_data, M, fit=False)
         # Three selected verts are a triangle whenever they make a real one, connected or not: an edge
         # and a vert off to its side, three loose verts, or a run bent sharply enough to be a corner.
         # Only the shape decides, so a gentle run stays a strip to step and a sharp one does not.
@@ -2078,12 +2114,14 @@ class LegacyPatches_Logic:
             if sides[-1][-1] != sides[0][0]: return None
             return sides
 
-        def build_layout_previz(kind, layout, bmv_of, boundary, *, checks=True, handle=None, pole_co=None, pole_fixed=False, seed=None):
+        def build_layout_previz(kind, layout, bmv_of, boundary, *, checks=True, handle=None, pole_co=None, pole_fixed=False, seed=None, pole_clamp=None, pole_margin=0.0):
             ''' Fill an n-sided layout (ngon_layout.build_layout) whose existing nodes are the loop's own
             verts, and add it to the preview: True when added, False when the checks refused it, None when
             the vert budget is spent. `seed` (node index -> (co, normal)) places nodes before anything else;
             `handle`, a loop key, records the pole as a draggable handle; `pole_co` is where the pole starts,
-            else the mean of its split verts, and with `pole_fixed` it stays there through every pass. '''
+            else the mean of its split verts, and with `pole_fixed` it stays there through every pass;
+            `pole_clamp` holds a pole where it may go, `pole_margin` being how far inside the boundary that is;
+            a layout whose pole relaxes more than NGON_POLE_STRAY of that past the line is refused. '''
             nodes = layout.nodes
             N = len(nodes)
             synthetic = [ k for k in range(N) if k not in layout.existing ]
@@ -2152,7 +2190,7 @@ class LegacyPatches_Logic:
             for fi, f in enumerate(layout.faces):
                 for k in f: faces_of[k].append(fi)
 
-            def relax(which):
+            def relax(which, hold=False):
                 # the plain neighbour average, blended with Relax's equalize-faces pull: each vert toward
                 # the same distance from its face centres, those distances drawn toward the mean over all
                 # faces, which is what keeps the triangle and the n-gon from crushing or ballooning
@@ -2176,6 +2214,7 @@ class LegacyPatches_Logic:
                     eq = (sum(pulls, Vector()) / len(pulls)) if pulls else lap
                     moved[k] = lap.lerp(eq, NGON_EQUALIZE)
                 for k, co in moved.items():
+                    if hold and pole_clamp is not None and k in layout.poles: co = pole_clamp(co)
                     raws[k] = co    # the noise check compares each vert with where the relax put it: relaxing is not noise
                     verts[k] = new_point(co, side, normals[k], cap)
 
@@ -2186,8 +2225,24 @@ class LegacyPatches_Logic:
             for _ in range(NGON_LAYOUT_PASSES):
                 relax(settling)
                 place_interiors()
+            # Where the pole settled says whether the layout fits the loop. One drawn to a side settles on
+            # the boundary, its spoke there squashed to slivers and the fan round it folded over the side;
+            # holding it at the margin its estimate kept only hides that. A pole a little past the margin
+            # is held there; one wanting further in is refused, and the loop takes another Solution
+            if pole_clamp is not None and not pole_fixed:
+                for pole in layout.poles:
+                    if pole in fixed or verts[pole] is None: continue
+                    co = co_of(verts[pole])
+                    held = pole_clamp(co)
+                    stray = (held - co).length
+                    if stray > NGON_POLE_STRAY * pole_margin:
+                        if DEBUG_FILL: print(f'[fill] {kind} layout: refused, its pole settled {stray / pole_margin:.2f} of the margin past the line')
+                        return False
+                    if stray > 1e-12:
+                        place(pole, held, normals[pole])
+                        place_interiors()
             smoothed = [ k for k in synthetic if k not in layout.poles ] if pole_fixed else synthetic
-            for _ in range(settings.smooth): relax(smoothed)
+            for _ in range(settings.smooth): relax(smoothed, hold=True)
             if synthetic: L.has_smoothing = True
             if any(v is None for v in verts): return False
 
@@ -2428,10 +2483,12 @@ class LegacyPatches_Logic:
             kept = [ r for r in ranked if r[3] <= MAX_GRID_ASPECT ] or ranked[:1]
             return [ (span, off) for _, span, off, _ in kept ]
 
-        def choose_solution(count):
+        def choose_solution(count, prefer=None):
             ''' Which of `count` ranked solutions the Solution property picks, 1-based and wrapped. A
             new selection always starts at 1, and the property is brought back to match; a scheduled
-            write stands in for the property until it lands. '''
+            write stands in for the property until it lands. `prefer` is the number the Solution on
+            screen holds now, when the list was renumbered under it: unless the artist moved the
+            property, that Solution keeps the screen and the property follows it. '''
             sig = L.selection_signature(bm, sel_edges)
             fresh = sig != L.grid_sig
             L.grid_sig = sig
@@ -2444,11 +2501,15 @@ class LegacyPatches_Logic:
             else:
                 L.solution_pending = L.solution_stale = None  # the property has moved on and drives
                 choice = settings.solution
+            renumbered = not fresh and prefer is not None and choice == L.solution_seen and prefer != choice
+            if renumbered:
+                choice = prefer
+                L.push_solution(prefer, settings.solution)
             choice = (choice - 1) % count + 1
-            if (fresh or choice != L.solution_seen) and settings.offset != 0:
+            if (fresh or (choice != L.solution_seen and not renumbered)) and settings.offset != 0:
                 # a Solution starts at Offset 0, its automatic placement; the knob follows the rebuild
+                L.push_prop('offset', 0, settings.offset)
                 settings.offset = 0
-                L.push_prop('offset', 0)
             L.solution_seen = choice
             return choice
 
@@ -2483,7 +2544,7 @@ class LegacyPatches_Logic:
             fresh = sig != L.solve_sig
             L.solve_sig = sig
             if fresh or settings.solve not in kinds:
-                if settings.solve != kinds[0]: L.push_prop('solve', kinds[0])
+                if settings.solve != kinds[0]: L.push_prop('solve', kinds[0], settings.solve)
                 return kinds[0]
             return settings.solve
 
@@ -2502,22 +2563,42 @@ class LegacyPatches_Logic:
         def emit_grid_fill(bmvs, kind):
             ''' Blender's Grid Fill for a closed loop with no corners, the Solution property choosing
             among the distinct splits, each Coons-filled and snapped. '''
+            if loop_is_rim(list(bmvs)): return True    # the outline of an island: nothing to fill, whichever way round the grid goes
             ranked = rank_grid_splits(bmvs)
             if not ranked: return True
             L.grid_ranked = [ ('grid', span, off) for span, off in ranked ]
             _, span, off = L.grid_ranked[choose_solution(len(ranked)) - 1]
             L.has_grid = True
             L.grid_last = (span, settings.offset)
+            L.offset_seen = settings.offset
             L.offsets = max(1, len(bmvs) // 2)     # a rotation by half the loop lands the same corners
             return emit_grid_split(bmvs, span, (off + settings.offset) % len(bmvs), kind)
 
         def pos_key(pt):
             return tuple(round(c, 6) for c in co_of(pt))
 
+        def loop_is_rim(pts, nrm=None):
+            ''' Whether the mesh, not a hole, is what this loop encloses: the outline of an island. The
+            loop winds counter-clockwise about its area normal, so what it encloses lies to the left of
+            the way it runs; the faces on its one-faced edges lying there, by majority, are inside it, and
+            a fill would lay over them. Points a pass created have no faces and do not vote. '''
+            if nrm is None:
+                nrm = loop_area_normal([ co_of(pt) for pt in pts ])
+                if nrm.length_squared < 1e-18: return False
+                nrm = nrm.normalized()
+            faced = 0
+            for a, b in zip(pts, pts[1:] + pts[:1]):
+                if not (isinstance(a, BMVert) and isinstance(b, BMVert)): continue
+                bme = bmvs_shared_bme(a, b)
+                if bme is None or len(bme.link_faces) != 1: continue
+                to_face = bme.link_faces[0].calc_center_median() - (a.co + b.co) / 2
+                faced += 1 if to_face.dot(nrm.cross(b.co - a.co)) > 0 else -1
+            return faced > 0
+
         def loop_frame(pts, forced=frozenset()):
             ''' How a hole's boundary reads for stepping: (unit normal the loop winds counter-clockwise
             about, its corners, those of them turning into the hole, the sharpest bend turning out of it
-            in degrees), corners as indices into pts. None where there is nothing to read: a loop with
+            in degrees, the signed bend at every vert), corners as indices into pts. None where there is nothing to read: a loop with
             no area, or one whose inside is the mesh rather than a hole. pts may hold points a step
             created as readily as verts; `forced` holds pos_keys of the verts the steps' rows landed on,
             corners when they bend at all sharply. '''
@@ -2526,16 +2607,7 @@ class LegacyPatches_Logic:
             nrm = loop_area_normal(cos)
             if nrm.length_squared < 1e-18: return None
             nrm.normalize()
-            # The loop winds counter-clockwise about that normal, so what it encloses lies to the left
-            # of the way it runs. That has to be the hole.
-            faced = 0
-            for a, b in zip(pts, pts[1:] + pts[:1]):
-                if not (isinstance(a, BMVert) and isinstance(b, BMVert)): continue
-                bme = bmvs_shared_bme(a, b)
-                if bme is None or len(bme.link_faces) != 1: continue
-                to_face = bme.link_faces[0].calc_center_median() - (a.co + b.co) / 2
-                faced += 1 if to_face.dot(nrm.cross(b.co - a.co)) > 0 else -1
-            if faced > 0: return None
+            if loop_is_rim(pts, nrm): return None
             def turn(i):
                 # signed bend at pts[i]: positive turning into the hole, the convex way round for it
                 d0, d1 = cos[i] - cos[i - 1], cos[(i + 1) % n] - cos[i]
@@ -2548,7 +2620,7 @@ class LegacyPatches_Logic:
             corners = [ i for i in range(n) if (pos_key(pts[i]) in forced and abs(turns[i]) > NOTCH_ANGLE)
                         or is_corner(pts[i], pts[i - 1], pts[(i + 1) % n]) ]
             convex = { i for i in corners if turns[i] > 0 }
-            return nrm, corners, convex, max((-t for t in turns), default=0.0)
+            return nrm, corners, convex, max((-t for t in turns), default=0.0), turns
 
         def arm_candidates(pts, frame):
             ''' Every side of a notched hole that could be stepped into it: (where the far side starts,
@@ -2556,7 +2628,7 @@ class LegacyPatches_Logic:
             run between two corners turning into the hole; its rails are the boundary on beyond each of
             them, which run out at the next corner either way, so a step is never deeper than the shorter
             rail. Returns nothing on a loop with no bend turning out of the hole. '''
-            nrm, corners, convex, reflex = frame
+            nrm, corners, convex, reflex, _ = frame
             n, k = len(pts), len(corners)
             if reflex <= NOTCH_ANGLE or k < 3: return []
             out = []
@@ -2684,6 +2756,59 @@ class LegacyPatches_Logic:
                 forced |= { pos_key(v) for v in ends }
             return loop, steps, forced
 
+        def fill_loop(loop, forced):
+            ''' Fill a loop of verts and points a pass left as a loop like any other: by its corners where
+            it has three or more, with every Solution that brings, else Blender's grid fill. True built,
+            None refused, False when the vert budget is spent. '''
+            marked = len(L.previz)
+            frame = loop_frame(loop, forced)
+            corners = frame[1] if frame else []
+            if len(corners) >= 3:
+                n, k = len(loop), len(corners)
+                sides = [ [ loop[(c1 + j) % n] for j in range((c2 - c1) % n + 1) ]
+                          for c1, c2 in zip(corners, corners[1:] + corners[:1]) ]
+                ok = emit_sides({ 3: 'tri', 4: 'rect' }.get(k, 'ngon'), sides)
+            else:
+                ok = emit_grid_fill(loop, 'grid')
+            if not ok: return False
+            return True if len(L.previz) > marked else None
+
+        def pass_holds(bmvs, before):
+            ''' Whether what a pass built since `before` holds to the hole: a bowtie is no answer whatever
+            its count, and neither is a patch reaching past the boundary. True, the pieces fused into one
+            patch, since they share the verts of every side the pass created; else why not, with nothing
+            changed, so the caller can take the piece at fault back and try another. '''
+            pvs = L.previz[before:]
+            quads = [ [ pv.vert_co[i] for i in f ] for pv in pvs for f in pv.faces ]
+            if any(quad_crosses_itself(q) for q in quads): return 'a quad came out crossed'
+            cos_in = [ co_of(p) for p in bmvs ]
+            if loop_is_flat(cos_in):
+                nrm_in = loop_area_normal(cos_in)
+                if nrm_in.length_squared > 1e-18:
+                    u = nrm_in.normalized()
+                    # Stokes puts the signed sum of the quads at the loop's own area whatever the patch
+                    # does in between, so only the unsigned sum can overrun it, and only by folding or
+                    # reaching past the boundary. A quad facing the other way shows up here too, as
+                    # twice its own area, which is why the slack is a share of the hole rather than a
+                    # count: a sliver worth a thousandth of it is not worth dropping a whole fill for.
+                    got = sum(abs(loop_area_normal(q).dot(u)) for q in quads)
+                    if got > abs(nrm_in.dot(u)) * (1 + NOTCH_COVER_SLACK): return 'the quads cover more than the hole'
+            L.previz[before:] = [ fuse_previz(pvs, kind='grid', hover=False) ]
+            return True
+
+        def strike_built(why):
+            ''' Note the placement emit_ranked last built as one that will not do here, so the next fill
+            of the same loop passes it over: True when there was one to strike. '''
+            if L.solution_built is None: return False
+            loop_key, key, placement = L.solution_built
+            nt = L.solution_notes.get(loop_key, {}).get(key)
+            if nt is None: return False
+            if DEBUG_NOTCH: print(f'[notch] {why}: Solution {key[0]!r} placement {placement} struck')
+            nt['invalid'].add(placement)
+            nt['valid'].discard(placement)
+            L.solution_built = None
+            return True
+
         def emit_notched(bmvs):
             ''' Step every arm of a notched hole square, then fill what is left of it by its own corners
             -- which may be nothing, where the arms met and covered the hole between them. None when
@@ -2704,43 +2829,114 @@ class LegacyPatches_Logic:
             if not steps: return None
             if DEBUG_NOTCH: print(f'[notch] {steps} arm(s) stepped, {len(loop)} left')
             if len(loop) >= 3:
-                # what is left is a loop like any other: by its corners where it has three or more, with
-                # every Solution that brings, else Blender's grid fill
-                marked = len(L.previz)
-                frame = loop_frame(loop, forced)
-                corners = frame[1] if frame else []
-                if len(corners) >= 3:
-                    n, k = len(loop), len(corners)
-                    sides = [ [ loop[(c1 + j) % n] for j in range((c2 - c1) % n + 1) ]
-                              for c1, c2 in zip(corners, corners[1:] + corners[:1]) ]
-                    ok = emit_sides({ 3: 'tri', 4: 'rect' }.get(k, 'ngon'), sides)
-                else:
-                    ok = emit_grid_fill(loop, 'grid')
-                if not ok: return False
-                if len(L.previz) == marked: return give_up(f'fill of the {len(loop)} left over refused')
-            # the arms and the fill share the verts of every side a step created, so they go in as one
-            L.previz[before:] = [ fuse_previz(L.previz[before:], kind='grid', hover=False) ]
-            # Squaring an arm off can leave a loop the fills handle worse than the one it came from, and
-            # a bowtie is no answer whatever its count. The whole pass goes back there rather than
-            # shipping one, so the loop reaches the fills below as it stood and this can only better
-            # what they would have made of it on their own.
-            pv = L.previz[-1]
-            if any(quad_crosses_itself([ pv.vert_co[i] for i in f ]) for f in pv.faces):
-                return give_up('a quad came out crossed')
-            cos_in = [ co_of(p) for p in bmvs ]
-            if loop_is_flat(cos_in):
-                nrm_in = loop_area_normal(cos_in)
-                if nrm_in.length_squared > 1e-18:
-                    u = nrm_in.normalized()
-                    # Stokes puts the signed sum of the quads at the loop's own area whatever the patch
-                    # does in between, so only the unsigned sum can overrun it, and only by folding or
-                    # reaching past the boundary. A quad facing the other way shows up here too, as
-                    # twice its own area, which is why the slack is a share of the hole rather than a
-                    # count: a sliver worth a thousandth of it is not worth dropping a whole fill for.
-                    got = sum(abs(loop_area_normal([ pv.vert_co[i] for i in f ]).dot(u)) for f in pv.faces)
-                    if got > abs(nrm_in.dot(u)) * (1 + NOTCH_COVER_SLACK):
-                        return give_up('the quads cover more than the hole')
-            return True
+                # what is left is filled by its own corners. A fill of it that spills past the hole or folds
+                # against the arms is struck for this loop, as a placement that refused is, and the next
+                # placement or Solution tried: the arms are sound, and the pass is only given up when
+                # nothing fills what they leave
+                while True:
+                    leftover = mark()
+                    L.solution_built = None
+                    ok = fill_loop(loop, forced)
+                    if ok is False: return False
+                    if ok is None: return give_up(f'fill of the {len(loop)} left over refused')
+                    held = pass_holds(bmvs, before)
+                    if held is True: return True
+                    rewind(leftover)
+                    if not strike_built(held): return give_up(held)
+            held = pass_holds(bmvs, before)
+            return True if held is True else give_up(held)
+
+        def emit_cleft(bmvs):
+            ''' Cut a hole in two at a boundary vert bending sharply into it -- the cleft of a heart, a
+            fin jutting into a plate -- along a run of new verts from there to the boundary across, and
+            fill each piece by its own corners. One fill laid over the whole hole runs its rows straight
+            across the cleft, over the mesh. None when the hole has no such vert, no cut across it stays
+            inside, or a piece refused its fill, which hands the loop back whole; False when the vert
+            budget is spent. '''
+            pts = list(bmvs)
+            frame = loop_frame(pts)
+            if frame is None: return None
+            nrm, _, _, reflex, turns = frame
+            if reflex <= CLEFT_ANGLE: return None
+            n = len(pts)
+            cos = [ co_of(p) for p in pts ]
+            frm = plane_frame(nrm, cos[1] - cos[0])
+            if frm is None: return None
+            u, w = frm
+            poly = [ Vector((co.dot(u), co.dot(w))) for co in cos ]
+            lens = [ (b - a).length for a, b in zip(cos, cos[1:] + cos[:1]) ]
+            mean_edge = sum(lens) / n
+            if mean_edge <= 1e-9: return None
+            side, cap = shape_side(pts), shape_cap(pts)
+            nrm_of = normal_fn(pts)
+            at_mark = mark()
+            before = at_mark[0]
+            was = (L.has_grid, L.grid_ranked, L.grid_last)
+            def give_up(why):
+                if DEBUG_NOTCH: print(f'[cleft] gave up: {why}')
+                rewind(at_mark)
+                L.has_grid, L.grid_ranked, L.grid_last = was
+                return None
+
+            def crosses_boundary(r, t):
+                # the cut may touch the boundary only at its two ends
+                for i in range(n):
+                    j = (i + 1) % n
+                    if r in (i, j) or t in (i, j): continue
+                    if segments_cross2d(poly[r], poly[t], poly[i], poly[j]): return True
+                return False
+
+            # the sharpest cleft first, then the rest, each cut toward the boundary vert nearest the line
+            # that halves its bend: that is the line the two lobes meet along
+            for r in sorted((i for i in range(n) if -turns[i] > CLEFT_ANGLE), key=lambda i: turns[i]):
+                a = (cos[r - 1] - cos[r]).normalized()
+                b = (cos[(r + 1) % n] - cos[r]).normalized()
+                bis = -(a + b)                  # a + b points out of the hole, into the mesh the cleft is cut from
+                if bis.length_squared < 1e-12: continue
+                bis.normalize()
+                best = None
+                for t in range(n):
+                    if (t - r) % n < 2 or (r - t) % n < 2: continue
+                    d = cos[t] - cos[r]
+                    if d.length_squared < 1e-18: continue
+                    off = angle_deg(bis, d.normalized())
+                    if off > CLEFT_AIM: continue
+                    if best is not None and off >= best[0]: continue
+                    if not point_in_polygon_2d((poly[r] + poly[t]) / 2, poly) or crosses_boundary(r, t): continue
+                    best = (off, t)
+                if best is None:
+                    if DEBUG_NOTCH: print(f'[cleft] vert {r} bends {-turns[r]:.0f} degrees but no cut across stays inside')
+                    continue
+                t = best[1]
+                # the cut's own verts, spaced as the boundary is, one more or less so each piece comes out
+                # even and can be filled with quads; both pieces are, as the whole was
+                span = (cos[t] - cos[r]).length
+                want = span / mean_edge - 1
+                c = max(0, round(want))
+                if ((t - r) % n + c + 1) % 2:
+                    c = c - 1 if (c > 0 and abs(c - 1 - want) <= abs(c + 1 - want)) else c + 1
+                fracs = [ k / (c + 1) for k in range(1, c + 1) ]
+                cut = [ new_point(co, side, nn, cap)
+                        for co, nn in arc_between(cos[r], nrm_of(pts[r]), cos[t], nrm_of(pts[t]), fracs) ]
+                if not budget(c): return False
+                piece_a = [ pts[(r + j) % n] for j in range((t - r) % n + 1) ] + cut[::-1]
+                piece_b = [ pts[(t + j) % n] for j in range((r - t) % n + 1) ] + cut
+                forced = { pos_key(pts[r]), pos_key(pts[t]) }
+                if DEBUG_NOTCH: print(f'[cleft] vert {r} bends {-turns[r]:.0f} degrees: cut to vert {t}, {c} vert(s) along it, pieces of {len(piece_a)} and {len(piece_b)}')
+                refused = None
+                for piece in (piece_a, piece_b):
+                    ok = fill_loop(piece, forced)
+                    if ok is False: return False
+                    if ok is None:
+                        refused = f'a piece of {len(piece)} refused its fill'
+                        break
+                if refused:
+                    give_up(refused)
+                    continue
+                held = pass_holds(bmvs, before)
+                if held is True: return True
+                give_up(held)
+            return None
 
         def emit_ngon(kind, shape):
             ''' Fill a closed loop of three or more strips by its real corners; solutions_for has the ways. '''
@@ -2750,26 +2946,111 @@ class LegacyPatches_Logic:
 
         def emit_sides(kind, sides, rails=None):
             ''' Fill a closed loop given as its sides with the Solution chosen among solutions_for's. '''
-            return emit_ranked(solutions_for(kind, sides, rails))
+            loop = [ v for side in sides for v in side[:-1] ]
+            if rails is None and loop_is_rim(loop): return True    # the outline of an island
+            return emit_ranked(solutions_for(kind, sides, rails), frozenset(pos_key(v) for v in loop))
 
-        def emit_ranked(entries):
+        def solution_key(entry):
+            ''' What tells one Solution of a loop from another across rebuilds. '''
+            return (entry.tag, entry.split, tuple(NL.plan_key(p) for p in entry.plans))
+
+        def emit_ranked(entries, loop_key=None):
             ''' Offer fills (FillSolution) as the Solutions of one selection, ranked: every plain quad fill
             first, then the fills that close an odd loop with one triangle or n-gon, then the degenerate
-            ones, and within each as given. Builds the chosen one, or the next that builds. False only
+            ones, and within each as given. Builds the one chosen at the Offset asked for; a placement
+            that refuses is skipped for the next on round, the way the knob was turned, and a Solution
+            every placement of which refuses is dropped from the list, the one after it taking its
+            number. What each placement did is noted for the selection, so it is built once to find
+            out. The Offset knob is offered only once a second placement is known to build. False only
             when the vert budget is spent. '''
+            nonlocal n_new
             if not entries: return True
             entries = sorted(entries, key=lambda e: (e.degenerate, e.odd))
-            L.grid_ranked = entries
+            notes = L.solution_notes.setdefault(loop_key, {})
+            def note(entry):
+                return notes.setdefault(solution_key(entry), { 'valid': set(), 'invalid': set(), 'count': entry.offsets })
+            def dead(entry):
+                nt = note(entry)
+                return not nt['valid'] and len(nt['invalid']) >= nt['count']
+            alive = [ e for e in entries if not dead(e) ]
+            L.grid_ranked = alive
             L.has_grid = True
-            first = choose_solution(len(entries)) - 1
-            for k in range(len(entries)):
-                entry = entries[(first + k) % len(entries)]
+            if not alive: return True
+            # A setting change forgets the notes, and a Solution that was dropped may build again and take
+            # back its place in the list, renumbering the one on screen; choose_solution keeps that one
+            shown = L.solution_shown.get(loop_key)
+            at = next((i for i, e in enumerate(alive) if solution_key(e) == shown), None) if shown is not None else None
+            first = choose_solution(len(alive), None if at is None else at + 1) - 1
+            asked = settings.offset
+            step = 1 if asked >= L.offset_seen else -1
+
+            def attempt(entry, off):
+                ''' Build entry at placement off, keeping what it makes: True, or False with nothing kept
+                when it refused, None when the budget is spent. Either way the placement is noted. '''
+                nonlocal n_new
+                nt = note(entry)
+                at = mark()
+                saved = (L.has_offset, L.has_free_step, L.has_smoothing, L.hint, n_new, dict(L.pole_pos))
+                settings.offset = off
                 L.offsets = entry.offsets
                 ok = entry.build()
-                if DEBUG_FILL: print(f'[fill] Solution {(first + k) % len(entries) + 1} of {len(entries)} ({entry.tag}): ' + ('budget spent' if ok is None else 'built' if ok else 'refused'))
-                if ok is None: return False
-                if not ok: continue
+                nt['count'] = max(nt['count'], L.offsets)      # a junction counts its placements as it builds
+                if ok is None: return None
+                if ok:
+                    nt['valid'].add(off % nt['count'])
+                    return True
+                nt['invalid'].add(off % nt['count'])
+                nt['valid'].discard(off % nt['count'])     # a placement that built before and refuses now: the world moved under the notes
+                rewind(at)
+                L.has_offset, L.has_free_step, L.has_smoothing, L.hint, n_new, L.pole_pos = saved
+                return False
+
+            def would_build(entry, off):
+                ''' attempt() keeping nothing either way. '''
+                nonlocal n_new
+                at = mark()
+                saved = (L.has_offset, L.has_free_step, L.has_smoothing, L.hint, n_new, dict(L.pole_pos), settings.offset)
+                ok = attempt(entry, off)
+                if ok: rewind(at)
+                L.has_offset, L.has_free_step, L.has_smoothing, L.hint, n_new, L.pole_pos, settings.offset = saved
+                return ok
+
+            while alive:
+                idx = first % len(alive)
+                entry = alive[idx]
+                nt = note(entry)
+                # the placement asked for, then the rest on round the way the knob was turned, those known to refuse skipped
+                ok, j = False, 0
+                while j < nt['count']:
+                    off = asked + step * j
+                    j += 1
+                    if off % nt['count'] in nt['invalid']: continue
+                    ok = attempt(entry, off)
+                    if ok is None: return False
+                    if ok: break
+                if DEBUG_FILL: print(f'[fill] Solution {idx + 1} of {len(alive)} ({entry.tag}): ' + (f'built at Offset {settings.offset}' if ok else f'refused at every one of its {nt["count"]} placement(s), dropped'))
+                if not ok:
+                    alive.pop(idx)
+                    L.grid_ranked = alive
+                    settings.offset = asked
+                    continue
+                if settings.offset != asked: L.push_prop('offset', settings.offset, asked)
+                if idx + 1 != L.solution_seen:
+                    # the list wrapped, or lost entries, under the number asked for: the property follows
+                    L.push_solution(idx + 1, settings.solution)
+                    L.solution_seen = idx + 1
+                # the knob is offered once a second placement is known to build; the unknown ones are tried, kept from nothing
+                j = 1
+                while nt['count'] > 1 and len(nt['valid']) < 2 and j < nt['count']:
+                    off = settings.offset + j
+                    j += 1
+                    if off % nt['count'] in nt['invalid'] or off % nt['count'] in nt['valid']: continue
+                    if would_build(entry, off) is None: return False
+                L.offsets = 2 if len(nt['valid']) >= 2 else 1
                 L.grid_last = (entry.tag, settings.offset)
+                L.offset_seen = settings.offset
+                L.solution_shown[loop_key] = solution_key(entry)
+                L.solution_built = (loop_key, solution_key(entry), settings.offset % nt['count'])
                 if entry.hint: L.hint = entry.hint
                 return True
             return True
@@ -3065,7 +3346,7 @@ class LegacyPatches_Logic:
                     plan, placed = pick_candidate(group)
                     return build_layout_previz('ngon', layout_of(plan), bmv_of, bmvs, handle=loop_key,
                                                pole_co=placed if placed is not None else pole_estimate(plan),
-                                               pole_fixed=placed is not None)
+                                               pole_fixed=placed is not None, pole_clamp=clamp_inside, pole_margin=NGON_POLE_MARGIN * mean_edge)
                 return FillSolution(group[0].kind, degenerate=NL.straight_through(layout_of(group[0]), loop, bad) > 0, odd=odd, build=build, plans=tuple(group),
                                     offsets=len(group))
 
@@ -3932,12 +4213,15 @@ class LegacyPatches_Logic:
                     pair = sv_a + sv_b[::-1]
                     break
             if pair is None:
-                solve = choose_solve([])
+                # a lone run of three edges on four verts: the strip's own fill first, the quad as the one face
+                solve = choose_solve([ 'STEP' if shapes['I'] else 'FILL', 'FACE' ] if quad_option is not None else [])
             elif loop_is_flat([ co_of(v) for v in pair ]):
                 solve = choose_solve(['BRIDGE', 'FACE', 'STEP'])
             else:
                 solve = choose_solve(['BRIDGE', 'STEP', 'FACE'])
         L.solved_as = solve or ''
+        if quad_option is not None and solve == 'FACE':
+            sel_quad, shapes = quad_option, { k: [] for k in shapes }    # the quad instead of the strip it lies on
 
         lofted = set()
         before_lofts = len(L.previz)
@@ -3983,6 +4267,7 @@ class LegacyPatches_Logic:
                         # not enclose. None back means there was no arm to square, or one of the
                         # steps was refused, and the loop is whole again either way.
                         notched = emit_notched(bmvs)
+                        if notched is None: notched = emit_cleft(bmvs)
                         if notched is False: spent = True
                         elif notched is None:
                             if kind in ('tri', 'rect', 'ngon'):
@@ -4008,7 +4293,7 @@ class LegacyPatches_Logic:
             # not the fill that was asked for, and must not drag the property off the loft
             if landed != solve and L.solve_ranked and not lofted:
                 L.solved_as = solve = landed
-                L.push_prop('solve', landed)
+                L.push_prop('solve', landed, settings.solve)
             if stepped and not filled:
                 # the Solutions were ranked before they were tried and none of them built: they are not
                 # on offer, so the count knob and the redo panel belong to the step that replaced them
