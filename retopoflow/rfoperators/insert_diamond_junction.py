@@ -117,12 +117,16 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
         runs, dropped_branching = self.collect_runs(bm)
         if not runs:
             msg = 'selection branches; select simple edge runs' if dropped_branching else 'select one or more edge runs'
-            self.report({'WARNING'}, f'Diamond Junction: {msg}')
+            self.rf_report({'WARNING'}, f'Diamond Junction: {msg}')
             return {'CANCELLED'}
 
         # A run next to another run bevels at half width, so the two meet at a factor of 1
         touching = [
-            {bmf for i in self.split_indices(chain, is_cycle) for bmf in chain[i].link_faces}
+            {
+                bmf
+                for i in self.split_indices(chain, edges, is_cycle)
+                for bmf in chain[i].link_faces
+            }
             for chain, edges, is_cycle in runs
         ]
         wrapping = [
@@ -155,7 +159,7 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
         if dropped_branching:
             errors.insert(0, 'selection branches')
         if not plans:
-            self.report({'WARNING'}, f'Diamond Junction: {errors[0]}')
+            self.rf_report({'WARNING'}, f'Diamond Junction: {errors[0]}')
             return {'CANCELLED'}
 
         old_faces, new_sel_faces, touched_verts = [], [], []
@@ -204,7 +208,7 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
 
         bmesh.update_edit_mesh(me, loop_triangles=True, destructive=True)
         if errors:
-            self.report({'WARNING'}, f'Diamond Junction: skipped some runs ({errors[0]})')
+            self.rf_report({'WARNING'}, f'Diamond Junction: skipped some runs ({errors[0]})')
         return {'FINISHED'}
 
     def snap_to_sources(self, context, verts):
@@ -318,20 +322,26 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
     # ------------------------------------------------------------------
 
     @staticmethod
-    def split_indices(chain, is_cycle):
-        ''' Indices of the run's verts that get split into three. '''
+    def split_indices(chain, edges, is_cycle):
+        ''' Indices of the run's verts that get split. '''
         n = len(chain)
         if is_cycle:
             return list(range(n))
         split_idxs = list(range(1, n - 1))
-        split_idxs.extend(i for i in (0, n - 1) if chain[i].is_boundary)
+        for i, bme in ((0, edges[0]), (n - 1, edges[-1])):
+            # Every vert of a boundary run is a boundary vert, so is_boundary alone
+            # would split an end that has no perpendicular boundary to run off onto.
+            # Decide from that end's own run edge, which is what mixed runs need.
+            if chain[i].is_boundary and len(bme.link_faces) == 2:
+                split_idxs.append(i)
         return split_idxs
 
     def analyze_run(self, chain, edges, is_cycle, factor):
         ''' Returns a plan dict, or an error string when the run cannot be handled. '''
         n, m = len(chain), len(edges)
-        if any(len(bme.link_faces) != 2 for bme in edges):
-            return 'run edges must have exactly two faces'
+        if any(len(bme.link_faces) not in (1, 2) for bme in edges):
+            return 'run edges must have one or two faces'
+        has_boundary = any(len(bme.link_faces) == 1 for bme in edges)
 
         # Consistently assign each run edge's two faces to side A and side B by
         # walking along the run: consecutive same-side faces share the rung edge
@@ -346,30 +356,54 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
                 return f0, f1
             if f1 is prev_a or f0 is prev_b:
                 return f1, f0
-            prev_edges = set(prev_a.edges)
+            # after a one-faced stretch the previous side A may be the missing one,
+            # so match against whichever previous side survived
+            ref, swap = (prev_a, False) if prev_a is not None else (prev_b, True)
+            prev_edges = set(ref.edges)
             s0, s1 = bool(prev_edges & set(f0.edges)), bool(prev_edges & set(f1.edges))
             if s0 == s1:
                 # Ambiguous adjacency (triangles, tight turns): fall back to
-                # whichever face center is nearer the previous side-A center
-                center = prev_a.calc_center_median()
+                # whichever face center is nearer the previous side face's center
+                center = ref.calc_center_median()
                 s0 = (f0.calc_center_median() - center).length <= (f1.calc_center_median() - center).length
+            if swap:
+                s0 = not s0
             return (f0, f1) if s0 else (f1, f0)
 
+        def single_side(prev_a, prev_b, bme):
+            ''' Which side a one-faced edge continues, by shared rung edge. '''
+            bmf = bme.link_faces[0]
+            if bmf is prev_a or (prev_a is not None and set(bmf.edges) & set(prev_a.edges)):
+                return bmf, None
+            if bmf is prev_b or (prev_b is not None and set(bmf.edges) & set(prev_b.edges)):
+                return None, bmf
+            return bmf, None  # nothing to continue from: start a fresh side A
+
+        def assign(prev_a, prev_b, bme):
+            fn = next_sides if len(bme.link_faces) == 2 else single_side
+            return fn(prev_a, prev_b, bme)
+
         side_a, side_b = [None] * m, [None] * m
-        side_a[0], side_b[0] = edges[0].link_faces
+        if len(edges[0].link_faces) == 2:  # seed: nothing before it to continue from
+            side_a[0], side_b[0] = edges[0].link_faces
+        else:
+            side_a[0] = edges[0].link_faces[0]
         for i in range(1, m):
-            side_a[i], side_b[i] = next_sides(side_a[i - 1], side_b[i - 1], edges[i])
-        if is_cycle and next_sides(side_a[-1], side_b[-1], edges[0])[0] is not side_a[0]:
-            return 'cycle has inconsistent face flow'
+            side_a[i], side_b[i] = assign(side_a[i - 1], side_b[i - 1], edges[i])
+        if is_cycle and len(edges[0].link_faces) == 2:
+            if assign(side_a[-1], side_b[-1], edges[0])[0] is not side_a[0]:
+                return 'cycle has inconsistent face flow'
 
         face_side = {}
         for i in range(m):
             for bmf, side in ((side_a[i], 'A'), (side_b[i], 'B')):
+                if bmf is None:
+                    continue  # one-faced edge: that side does not exist here
                 if face_side.get(bmf, side) != side:
                     return 'run touches the same face from both sides'
                 face_side[bmf] = side
 
-        split_idxs = self.split_indices(chain, is_cycle)
+        split_idxs = self.split_indices(chain, edges, is_cycle)
         if len(split_idxs) < 2:
             # nothing left to bevel (one edge, both ends caps) or a two-edge run
             # whose only split vert is shared by both caps, leaving no strip
@@ -427,12 +461,24 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
         positions = {}
         for i in split_idxs:
             adjacent = edges_at_vert(i)
-            target_a = rung_target(i, [side_a[j] for j in adjacent])
-            target_b = rung_target(i, [side_b[j] for j in adjacent])
-            if target_a is None or target_b is None:
+            faces_a = [side_a[j] for j in adjacent if side_a[j] is not None]
+            faces_b = [side_b[j] for j in adjacent if side_b[j] is not None]
+            target_a = rung_target(i, faces_a) if faces_a else None
+            target_b = rung_target(i, faces_b) if faces_b else None
+            if (faces_a and target_a is None) or (faces_b and target_b is None):
                 return 'no rung edge to slide along'
             co = chain[i].co
-            positions[i] = (co.lerp(target_a, factor), co.lerp(target_b, factor))
+            positions[i] = (
+                co.lerp(target_a, factor) if target_a is not None else None,
+                co.lerp(target_b, factor) if target_b is not None else None,
+            )
+
+        # Every face we rebuild swaps its split verts for that face's side, so a face
+        # holding a split vert that never got a rail on that side cannot be rebuilt.
+        for i in split_idxs:
+            for bmf in chain[i].link_faces:
+                if bmf in face_side and positions[i][0 if face_side[bmf] == 'A' else 1] is None:
+                    return 'run changes sides on a shared face'
 
         # Corner verts pinch the strip when their rails just slide toward the corner's own rung targets.
         # Match bevel instead: put each corner rail at the miter, the intersection of the two neighboring
@@ -450,11 +496,14 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
                 continue  # neighbor is a cap tip: keep the first-pass rail
             d_prev = chain[i].co - chain[prev_i].co
             d_next = chain[next_i].co - chain[i].co
-            pair = []
+            pair = list(positions[i])
             for side in (0, 1):
+                if any(positions[k][side] is None for k in (i, prev_i, next_i)):
+                    continue
                 p_prev, p_next = positions[prev_i][side], positions[next_i][side]
                 hit = intersect_line_line(p_prev, p_prev + d_prev, p_next, p_next + d_next)
-                pair.append((hit[0] + hit[1]) * 0.5 if hit else positions[i][side])
+                if hit:
+                    pair[side] = (hit[0] + hit[1]) * 0.5
             miters[i] = tuple(pair)
         positions.update(miters)
 
@@ -467,6 +516,10 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
                 (inner_i, away_i)
                 for tip_i, inner_i, away_i in ((0, 1, 2), (n - 1, n - 2, n - 3))
                 if tip_i not in split_idxs and inner_i in split_idxs and 0 <= away_i < n
+                # never slide a mid that sits on the mesh boundary: it would drag the
+                # boundary along with it, and a cap there is a triangle anyway, which
+                # has no diamond to keep compact
+                and not chain[inner_i].is_boundary
             ]
             # On a three-edge run the two inner verts slide toward each other along
             # the one shared segment, so a full factor would carry them past each
@@ -500,7 +553,9 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
             return chain[i].co + mid_slides.get(i, Vector())
 
         mid_flatten = {}
-        flatten = 'NONE' if getattr(self, 'use_source_snap', False) else self.flatten
+        # flatten offsets mids along their normals, which would push a boundary vert
+        # off the boundary, so it is off for any run that touches one
+        flatten = 'NONE' if (has_boundary or getattr(self, 'use_source_snap', False)) else self.flatten
         if flatten == 'LOOPS':
             # Level each mid vert with the midpoint of its rails. A slid cap inner
             # vert no longer sits between its own rails, so it levels with the rail
@@ -590,6 +645,8 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
         for i in split_idxs:
             co_a, co_b = positions[i]
             for lookup, co in ((verts_a, co_a), (verts_b, co_b)):
+                if co is None:
+                    continue  # no run edge at this vert has that side
                 # the example vert copies custom data; copy_from would invalidate
                 # the new vert's python reference
                 bmv = bm.verts.new(co, chain[i])
@@ -606,6 +663,8 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
             s = 0 if tip_i == 0 else m - 1
             inner = chain[1] if tip_i == 0 else chain[n - 2]
             for bmf in (side_a[s], side_b[s]):
+                if bmf is None:
+                    continue  # one-faced end edge has no side B face to absorb the tip
                 tip_subs[bmf] = (inner, chain[tip_i], new_tips[tip_i])
         plan['new_tips'] = new_tips
 
@@ -664,10 +723,13 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
 
         def forward(i):
             # True when side A's face traverses run edge i from chain[i] onward,
-            # which fixes the winding of every new face built along that segment
-            for loop in side_a[i].loops:
+            # which fixes the winding of every new face built along that segment.
+            # Side B's face traverses it the other way, so where side A is missing
+            # its face answers the same question inverted.
+            bmf, flip = (side_a[i], False) if side_a[i] is not None else (side_b[i], True)
+            for loop in bmf.loops:
                 if loop.edge is edges[i]:
-                    return loop.vert is chain[i % n]
+                    return (loop.vert is chain[i % n]) != flip
             return True
 
         def make_face(verts, example):
@@ -680,36 +742,52 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
         # as the middle loop
         for i in range(m):
             va, vb = chain[i], chain[(i + 1) % n]
-            if va not in verts_a or vb not in verts_a:
-                continue
-            a0, a1 = verts_a[va], verts_a[vb]
-            b0, b1 = verts_b[va], verts_b[vb]
-            if forward(i):
-                make_face([a1, a0, va, vb], side_a[i])
-                make_face([b0, b1, vb, va], side_b[i])
-            else:
-                make_face([a0, a1, vb, va], side_a[i])
-                make_face([b1, b0, va, vb], side_b[i])
+            if side_a[i] is not None and va in verts_a and vb in verts_a:
+                a0, a1 = verts_a[va], verts_a[vb]
+                if forward(i):
+                    make_face([a1, a0, va, vb], side_a[i])
+                else:
+                    make_face([a0, a1, vb, va], side_a[i])
+            if side_b[i] is not None and va in verts_b and vb in verts_b:
+                b0, b1 = verts_b[va], verts_b[vb]
+                if forward(i):
+                    make_face([b0, b1, vb, va], side_b[i])
+                else:
+                    make_face([b1, b0, va, vb], side_b[i])
 
         # Diamond caps at open ends that were not split. Every cap starts its
         # loop on a rail vert, putting the rails at slots 0 and 2 so the quad's
         # triangulation splits rail-to-rail instead of tip-to-inner (rotating
         # the start keeps the cyclic order, so the winding is unchanged).
         if not is_cycle:
-            inner = chain[1]
-            if chain[0] not in verts_a and inner in verts_a:
-                tip = new_tips.get(0, chain[0])
-                if forward(0):
-                    make_face([verts_a[inner], tip, verts_b[inner], inner], side_a[0])
-                else:
-                    make_face([verts_a[inner], inner, verts_b[inner], tip], side_a[0])
-            inner = chain[n - 2]
-            if chain[n - 1] not in verts_a and inner in verts_a:
-                tip = new_tips.get(n - 1, chain[n - 1])
-                if forward(m - 1):
-                    make_face([verts_a[inner], inner, verts_b[inner], tip], side_a[m - 1])
-                else:
-                    make_face([verts_a[inner], tip, verts_b[inner], inner], side_a[m - 1])
+            def cap(inner, ends, edge_i):
+                # The diamond is [railA, end, railB, end]. With only one side at this
+                # end the missing rail drops out, leaving a triangle; dropping that one
+                # slot keeps the cyclic order, so the winding holds. A side B only end
+                # reverses the ends, because side B faces wind the other way.
+                rail_a = verts_a.get(inner) if side_a[edge_i] is not None else None
+                rail_b = verts_b.get(inner) if side_b[edge_i] is not None else None
+                if rail_a and rail_b:
+                    return [rail_a, ends[0], rail_b, ends[1]]
+                if rail_a:
+                    return [rail_a, ends[0], ends[1]]
+                return [rail_b, ends[1], ends[0]]
+
+            def capped(tip_i, inner_i, edge_i, ends):
+                # the end is a cap tip when it was not split, and it needs a cap only
+                # if the inner vert actually grew a rail on a side this edge has
+                if chain[tip_i] in verts_a or chain[tip_i] in verts_b:
+                    return
+                inner = chain[inner_i]
+                if not ((side_a[edge_i] is not None and inner in verts_a)
+                        or (side_b[edge_i] is not None and inner in verts_b)):
+                    return
+                tip = new_tips.get(tip_i, chain[tip_i])
+                order = (tip, inner) if ends else (inner, tip)
+                make_face(cap(inner, order, edge_i), side_a[edge_i] or side_b[edge_i])
+
+            capped(0, 1, 0, forward(0))
+            capped(n - 1, n - 2, m - 1, not forward(m - 1))
 
 
 keymaps = []
