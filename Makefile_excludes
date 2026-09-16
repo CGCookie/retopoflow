@@ -29,7 +29,8 @@ updater_tmp/*.json
 *.sh
 *.xcf
 *.svg
-*.blend*
+*.blend1
+*.blend2
 
 RetopoFlow_options.*
 RetopoFlow_keymaps.*
