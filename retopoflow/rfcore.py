@@ -42,7 +42,7 @@ from ..config.keymaps import (
     suppress_conflicting_keymaps, restore_conflicting_keymaps,
 )
 from .common.bmesh import get_object_bmesh, get_bmesh_emesh, clear_object_bmesh, free_object_bmeshes
-from .common.bpy_helper import bpy_ops_retopoflow, BL_SPACE_TYPES
+from .common.bpy_helper import bpy_ops_retopoflow, RFCORE_OPERATOR_BL_IDNAME, BL_SPACE_TYPES
 from .common.operator import RFOperator_Base, RFOperator, RFOperator_Execute, RFRegisterClass, RFAssetShelf
 from .common.raycast import prep_raycast_valid_sources, iter_all_valid_sources, invalidate_source_caches
 from .common.accel import SourceCache
@@ -839,24 +839,8 @@ class RFCore:
 
     @staticmethod
     def is_top_modal(context : Context) -> bool:
-        op_name = RFCore_Operator.bl_label
-        ops = [ op.name for op in context.window.modal_operators ]
-
-        match ops:
-            case [top, *_] if top == op_name:
-                # top operator is RFCore_Operator
-                return True
-
-            case [top, second, *_] if top in IGNORED_TOP_OPERATORS and second == op_name:
-                # top operator is ignorable and second is RFCore_Operator
-                return True
-
-            case []:
-                # no operators are currently running modal!?  this should never happen!
-                return False
-
-            case _:
-                return False
+        ''' Is RFCore_Operator the modal operator driving events? '''
+        return not RFCore.foreign_modal_has_control(context, {RFCORE_OPERATOR_BL_IDNAME})
 
     @staticmethod
     def foreign_modal_blocks(context : Context) -> bool:
@@ -886,6 +870,25 @@ class RFCore:
         )
         if not top: return False
         return not top.bl_idname.startswith(MESH_SAFE_MODAL_PREFIXES)
+
+    @staticmethod
+    def foreign_modal_has_control(context : Context, transparent_bl_idnames : set[str]) -> bool:
+        """
+        True when a modal operator that is none of `transparent_bl_idnames` sits ABOVE them on the
+        modal stack, so it, not us, is the one driving events.
+
+        window.modal_operators is newest-first, so the walk stops at the first transparent entry:
+        everything past it started earlier and is underneath. Scanning the whole list instead makes
+        any add-on's always-running modal (a HUD, a key display, a file watcher) read as "something
+        else has control" for the entire session, even though it is at the bottom driving nothing.
+        """
+        window = context.window
+        if not window: return False
+        for op in window.modal_operators:
+            if op.bl_idname in transparent_bl_idnames: return False
+            if op.name in IGNORED_TOP_OPERATORS: continue  # sits on top of everything, drives nothing
+            return True
+        return False
 
     @staticmethod
     def handle_draw_cursor(context : Context, mouse : tuple[int, int]):

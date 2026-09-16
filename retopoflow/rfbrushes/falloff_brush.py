@@ -29,7 +29,7 @@ from collections.abc import Sequence, Callable
 import math
 from ..rfglobals import RFGlobals
 from ..rfbrush_base import RFBrush_Base
-from ..common.bpy_helper import bpy_ops_retopoflow
+from ..common.bpy_helper import bpy_ops_retopoflow, RFCORE_OPERATOR_BL_IDNAME, internal_bl_idname
 from ..common.drawing import Drawing
 from ..common.operator import RFOperator, execute_operator, RFKeyMaps
 from ..common.raycast import raycast_valid_sources, size2D_to_size, mouse_from_event
@@ -104,14 +104,15 @@ def create_falloff_brush(
             cls.operator = operator
 
         @classmethod
-        def is_top_modal(cls, context : Context):
-            if not cls.operator: return False
-            op_name = cls.operator.bl_label
-            ops = context.window.modal_operators
-            if not ops: return False
-            if ops[0].name == op_name: return True
-            if len(ops) >= 2 and ops[0].name == 'Screencast Keys' and ops[1].name == op_name: return True
-            return False
+        def _operator_bl_idname(cls) -> str | None:
+            ''' The owning tool operator as window.modal_operators names it. set_operator is handed
+            the class by some tools and a live instance by others, and the two spell bl_idname
+            differently -- the class keeps the dotted one it declared, an instance answers from RNA
+            with the registered one -- so always ask the class. '''
+            op = cls.operator
+            if not op: return None
+            op_cls = op if isinstance(op, type) else type(op)
+            return internal_bl_idname(op_cls.bl_idname)
 
         def init(self):
             self.mouse = None
@@ -324,7 +325,11 @@ def create_falloff_brush(
                 return
             if RFOperator_FalloffBrush_Adjust.is_active():
                 return
-            if not RFCore or not (RFCore.is_top_modal(context) or self.is_top_modal(context)):
+            # the brush circle belongs to RFCore or to the owning tool operator, so it draws only
+            # while one of them is the modal driving events
+            ours = { RFCORE_OPERATOR_BL_IDNAME }
+            if (own := self._operator_bl_idname()): ours.add(own)
+            if RFCore.foreign_modal_has_control(context, ours):
                 return
             if self.disabled:
                 return

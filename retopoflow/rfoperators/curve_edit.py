@@ -58,8 +58,9 @@ from ..rfoverlays.curve_overlay import (
     shrink_segment, snap_hidden_vector_arms, KNOT_RADIUS, TANGENT_RADIUS,
     CURVE_LINE_COLOR, CONTROL_POLYGON_COLOR, TANGENT_FILL_COLOR, TANGENT_BORDER_COLOR,
     KNOT_FILL_COLOR, KNOT_BORDER_COLOR, FREE_KNOT_FILL_COLOR, AUTO_KNOT_FILL_COLOR,
-    DEBUG_SHOW_AUTO_HANDLES, create_curve_overlay_logic, _internal_bl_idname,
+    DEBUG_SHOW_AUTO_HANDLES, create_curve_overlay_logic,
 )
+from ..common.bpy_helper import internal_bl_idname
 
 
 def create_curve_edit_logic(idname : str, label : str, description : str, *,
@@ -1386,7 +1387,7 @@ class EditAsCurve_Overlay(EditAsCurveOverlayLogic):
 
     # the host must not pause rebuilds; the drag op deliberately DOES (it draws
     # the live curve itself while update_data self-suppresses the idle overlay)
-    ignore_modal_bl_idnames : ClassVar[set[str]] = { _internal_bl_idname('retopoflow.edit_as_curve') }
+    ignore_modal_bl_idnames : ClassVar[set[str]] = { internal_bl_idname('retopoflow.edit_as_curve') }
 
     def _curve_handles_enabled(self, context : Context) -> bool:
         # no workspace-tool prop to consult outside RF: handles are the whole point

@@ -36,7 +36,7 @@ from ..rfglobals import RFGlobals
 from ..rftool_base import RFTool_Base
 from ..rfoverlay_base import RFOverlay_Base
 from ..rfoverlays.overlays import overlay_names
-from ..rfoverlays.curve_overlay import create_curve_overlay_logic, _internal_bl_idname
+from ..rfoverlays.curve_overlay import create_curve_overlay_logic
 from bmesh.types import BMesh
 from mathutils import Vector
 from ..common.curves import QuadStripChainProvider, LoopStripChainProvider, ChainProvider, ChainSpec
@@ -47,7 +47,7 @@ from ...addon_common.common.blender import event_modifier_check
 from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.resetter import Resetter
 
-from ..common.bpy_helper import BL_OPTIONS
+from ..common.bpy_helper import BL_OPTIONS, internal_bl_idname
 from ..common.bmesh import get_bmesh_emesh
 from ..common.icons import get_path_to_blender_icon
 from ..common.interface import draw_tool_settings, draw_tool_panels
@@ -734,7 +734,7 @@ class RFOperator_LegacyPatches_Overlay(LegacyPatches_Curve_Overlay, RFOperator):
     # The Ctrl modal only reads the mouse, the same reason it carries rf_patches_passive. Without
     # this the curve rebuild treats it as a foreign op and the handles blink out while Ctrl is held.
     ignore_modal_bl_idnames = LegacyPatches_Curve_Overlay.ignore_modal_bl_idnames | {
-        _internal_bl_idname(RFOperator_LegacyPatches_Draw.bl_idname),
+        internal_bl_idname(RFOperator_LegacyPatches_Draw.bl_idname),
     }
 
     def is_done(self):

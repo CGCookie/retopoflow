@@ -1348,6 +1348,18 @@ class BpyOperatorCallable(Protocol):
     ) -> BPY_OP_RETURN:
         return set()
 
+def internal_bl_idname(dotted_idname : str) -> str:
+    ''' The name an operator reports as `bl_idname` once it is registered, which is not the dotted
+    one its class declares: 'retopoflow.polystrips' -> 'RETOPOFLOW_OT_polystrips'. Anything read out
+    of window.modal_operators is in this form, so a comparison against a class attribute needs it. '''
+    category, _, name = dotted_idname.partition('.')
+    return f'{category.upper()}_OT_{name}'
+
+# RFCore's always-running top-level modal operator, as window.modal_operators names it.
+# Lives here rather than in rfcore so the overlays and brushes can compare against it without
+# importing rfcore, which imports them.
+RFCORE_OPERATOR_BL_IDNAME : str = 'RETOPOFLOW_OT_core'
+
 def get_bpy_op(category_name : str, operator_name : str) -> BpyOperatorCallable:
     category : ModuleType | None = getattr(bpy.ops, category_name, None)
     assert category, f'Could not find bpy.ops.{category_name}'

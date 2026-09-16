@@ -35,7 +35,7 @@ from ..rfoverlay_base import RFOverlay_Base
 from .overlays import overlay_names
 
 from ..rfglobals import RFGlobals
-from ..common.bpy_helper import bpy_ops_retopoflow
+from ..common.bpy_helper import bpy_ops_retopoflow, RFCORE_OPERATOR_BL_IDNAME, internal_bl_idname
 from ..common.operator import RFOperator
 from ..rftool_statusbar import SharedStatusbarKeymap
 from ..common.bmesh import get_bmesh_emesh
@@ -75,14 +75,6 @@ MAX_HANDLE_SEGMENTS = 25
 MIN_SEGMENT_POINTS = 2
 MIN_STRIP_SEGMENT_POINTS = 1 # For face strips
 
-
-def _internal_bl_idname(dotted_idname : str) -> str:
-    category, _, name = dotted_idname.partition('.')
-    return f'{category.upper()}_OT_{name}'
-
-# RFCore's own always-running top-level modal operator.
-# See update_data's check against context.window.modal_operators.
-RFCORE_OPERATOR_BL_IDNAME = _internal_bl_idname('retopoflow.core')
 
 
 def shrink_segment(p_from, p_to, shrink_from, shrink_to):
@@ -159,7 +151,9 @@ def create_curve_overlay_logic(
 
     # The tool's own ctrl-modal shows up in window.modal_operators like a transform would,
     # but update_data must keep rebuilding through it to draw the count labels.
-    own_tool_bl_idname = _internal_bl_idname(rftool_idname)
+    own_tool_bl_idname = internal_bl_idname(rftool_idname)
+    # this overlay's own entry in that list, which the control check has to see through
+    own_overlay_bl_idname = internal_bl_idname(f'retopoflow.{idname}')
 
     class RFOperator_Curve_Overlay(RFOverlay_Base):
         bl_idname : ClassVar[str] = f'retopoflow.{idname}'
@@ -291,12 +285,9 @@ def create_curve_overlay_logic(
 
             # Some other modal op (transform, box select, loop cut, etc.) has control
             # so skip rather than rebuild on every frame of its drag.
-            external_ops = [
-                op.bl_idname for op in context.window.modal_operators
-                if op is not self
-                and op.bl_idname not in self.ignore_modal_bl_idnames
-            ]
-            if external_ops:
+            RFCore = RFGlobals.RFCore_None
+            transparent = self.ignore_modal_bl_idnames | { own_overlay_bl_idname }
+            if RFCore and RFCore.foreign_modal_has_control(context, transparent):
                 return False
 
             # A drag owns the curve and draws it live, so the idle overlay stays out of the way.
