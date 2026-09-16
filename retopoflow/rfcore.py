@@ -463,13 +463,16 @@ class RFCore:
         been selected (deactivates RF).
         """
 
-        # print(f'tool_changed(context, {_space_type=}, {idname=}, {as_fallback=})')
+        # print(f'tool_changed(context, {space_type=}, {idname=}, {as_fallback=})')
 
         if RFCore.is_paused or RFCore.is_exiting:
             return
 
         if as_fallback:
             # Alt+W uses this without actually switching tools.
+            return
+
+        if space_type != 'VIEW_3D':
             return
 
         if not isinstance(context, Context):
