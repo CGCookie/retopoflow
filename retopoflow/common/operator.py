@@ -72,7 +72,20 @@ def hotkey_owns_context(context : Context, tool_context_attr : str) -> bool:
     return tool is not None and tool.idname.split('.')[0] == 'retopoflow'
 
 
-class RFRegisterClass:
+class RFReporting:
+    ''' Gives RF operators a report that is visible while RF is running. '''
+
+    def rf_report(self, type, message):
+        ''' Report, and yield RF's status bar so Blender can draw the message. '''
+        self.report(type, message)  # pyright: ignore[reportAttributeAccessIssue]
+        RFCore = RFGlobals.RFCore_None
+        if not (RFCore and RFCore.is_running):
+            return  # not running: Blender's own status bar is already showing
+        from ..rftool_statusbar import StatusbarYield  # local: it imports this module
+        StatusbarYield.begin()
+
+
+class RFRegisterClass(RFReporting):
     _subclasses : ClassVar[list[type[RFRegisterClass]]] = []
     _registered_classes : ClassVar[set[type[RFRegisterClass]]] = set()
 
@@ -110,6 +123,7 @@ class RFRegisterClass:
     def unregister(cls): pass
 
 
+
 RFKeyMap : TypeAlias = tuple[
     str,
     dict[str, str | int | float | bool],
@@ -122,7 +136,7 @@ BLKeyMaps : TypeAlias = tuple[RFKeyMap, ...]
 
 DEBUG_PRINT = False
 
-class RFOperator_Base(Operator):
+class RFOperator_Base(RFReporting, Operator):
     _subclasses : list[type[RFOperator_Base]] = []
     # bl_idname : ClassVar[str]
     rf_idname : ClassVar[str]

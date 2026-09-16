@@ -2,6 +2,23 @@
 
 This document contains details about what has changed in Retopoflow in version 4.
 
+### 4.2.1
+
+- Improved PolyStrips width when snapping along uneven quads
+- Improved Autofill results
+    - Added support for notched shapes
+    - Added smooth interpolation for bridging and lofting
+    - Lofting now works for multiple closed loops at once
+    - Selecting loops on an existing loft shape will now redo the loft
+- Added solve type and corner angle threshold to the Autofill redo panel
+- Removed edge count display for small single loops
+- Fixed Ctrl and Shift Scroll for Autofill outside of Retopoflow
+- Fixed corners not displaying in Patches when there is only one
+- Fixed knifing from interior verts
+- Fixed curve handles getting stuck outside of Retopoflow mode
+- Fixed custom hotkeys with Ctrl not passing through in some tools
+
+
 ### 4.2.0
 
 **New Operators**

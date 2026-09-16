@@ -265,7 +265,7 @@ class RFOperator_SpaceEvenly(RFRegisterClass, bpy.types.Operator):
         runs, face_vert_idxs, other_vert_idxs = self.classify_selection(bm)
 
         if not runs and not face_vert_idxs and not other_vert_idxs:
-            self.report({'WARNING'}, 'Space Evenly: nothing selected')
+            self.rf_report({'WARNING'}, 'Space Evenly: nothing selected')
             return {'CANCELLED'}
 
         if runs and not has_space_edge_loops_evenly():
@@ -489,7 +489,7 @@ class RFOperator_SpaceEvenly(RFRegisterClass, bpy.types.Operator):
                     interpolation='CUBIC' if self.smooth_loops else 'LINEAR',
                 )
             except RuntimeError as e:
-                self.report({'WARNING'}, f'Space Evenly: {e}')
+                self.rf_report({'WARNING'}, f'Space Evenly: {e}')
 
         bm = bmesh.from_edit_mesh(me)
         bm.verts.ensure_lookup_table()

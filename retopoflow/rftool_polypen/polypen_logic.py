@@ -700,7 +700,11 @@ class PP_Logic:
                     self.state = PP_Action.NONE
                 elif check_split_face(self.bmv, self.nearest.bmv) is not None:
                     self.state = PP_Action.WIRE_VERT_SPLIT_FACE
-                elif interior:
+                elif interior and not (
+                    # connecting two verts of the same face splits it, which is a knife
+                    bmvs_share_bmf(self.bmv, self.nearest.bmv)
+                    or self.vert_edge_crosses_bmedges(context, self.bmv, self.nearest.bmv)
+                ):
                     self.state = PP_Action.NONE
                 else:
                     self.state = PP_Action.VERT_EDGE  # TODO: VERT_BRIDGE???
@@ -713,7 +717,11 @@ class PP_Logic:
                     self.state = PP_Action.VERT_SPLIT_EDGE
             elif self.update_split_face_loop(context):
                 return
-            elif interior:
+            elif interior and not (
+                # a new vert dropped inside one of the vert's own faces starts a wire knife through it
+                (self.nearest_bmf.bmf and self.bmv in self.nearest_bmf.bmf.verts)
+                or self.vert_edge_crosses_bmedges(context, self.bmv, None)
+            ):
                 self.state = PP_Action.NONE
             else:
                 self.state = PP_Action.VERT_EDGE
@@ -913,6 +921,20 @@ class PP_Logic:
                     key=(lambda bme:distance2d_point_bmedge(context, self.matrix_world, self.hit, bme)),
                 )
             return
+
+    def vert_edge_crosses_bmedges(self, context:Context, bmv:BMVert, bmv_hovered:BMVert|None) -> bool:
+        ''' True when the screen segment from bmv to the mouse crosses mesh edges, meaning a
+        VERT_EDGE from bmv would knife through faces rather than lay an edge on top of them. '''
+        p0, p1 = self.project(bmv.co), self.project(self.hit)
+        if not p0 or not p1: return False
+        splits = find_bmedges_to_split(
+            context, self.matrix_world, bmv, p0, p1,
+            self.vec_forward if self.ignore_splitting_backfaces else None,
+        )
+        if bmv_hovered:
+            # the segment ends on the hovered vert, so it grazes that vert's own edges
+            splits = [(bme, pt) for (bme, pt) in splits if bme not in bmv_hovered.link_edges]
+        return bool(splits)
 
     def update_split_face_loop(self, context:Context) -> bool:
         """

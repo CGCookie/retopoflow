@@ -19,18 +19,26 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+import os
 import bpy
+import tomllib
+from functools import cache
 
 DEBUG = False
 
+MANIFEST_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'blender_manifest.toml'))
 
+
+@cache
 def current_version() -> tuple[int, int, int]:
-    ''' RetopoFlow's own version. '''
-    # deferred: the add-on root imports rfcore, which reaches this module
-    # bl_info['version'] is RetopoFlow's version. bl_info['blender'] is the minimum Blender version,
-    # and the two are the same tuple as of 4.2.0, so reading the wrong one looks right for now.
-    from .. import bl_info
-    return tuple(bl_info['version'])
+    ''' RetopoFlow's own version, as the manifest gives it. '''
+    # The manifest, not the add-on root's bl_info. Blender deletes bl_info when loading as extension.
+    with open(MANIFEST_PATH, 'rb') as f:
+        version = tomllib.load(f)['version']
+    major, minor, patch = version.split('.', 2)
+    # The patch part may carry a suffix, e.g. '4.2.0-beta'. Blender reads its leading digits and so do we.
+    digits = patch[:next((i for i, c in enumerate(patch) if not c.isdigit()), len(patch))]
+    return (int(major), int(minor), int(digits or 0))
 
 
 def saved_version(props) -> tuple[int, int, int]:

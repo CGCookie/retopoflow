@@ -227,13 +227,8 @@ class RFOperator_LegacyPatches_QuickSwitch(RFOperator):
         # one: no undo step of its own, and no entry in the operator history, which is where Adjust
         # Last Operation reads the settings it offers. With it, a tap in PolyPen gets the same redo
         # panel as F inside Patches.
-        # Only when Patches handed the key on does it belong to Blender's own F, which is where it
-        # would have gone without us. A fill, or a patch of faces joined into an n-gon, is done already
-        if 'PASS_THROUGH' not in bpy_ops_retopoflow('legacy_patches_fill', 'INVOKE_DEFAULT', True): return
-        try:
-            _ = bpy.ops.mesh.edge_face_add('INVOKE_DEFAULT', True)
-        except RuntimeError:
-            pass
+        # The fill makes whatever Blender's own F would have made where no patch is on offer.
+        _ = bpy_ops_retopoflow('legacy_patches_fill', 'INVOKE_DEFAULT', True)
 
     def finish(self, context : Context):
         self._restore()     # also covers being cancelled out from under us

@@ -36,7 +36,7 @@ from ..rfglobals import RFGlobals
 from ..rftool_base import RFTool_Base
 from ..rfoverlay_base import RFOverlay_Base
 from ..rfoverlays.overlays import overlay_names
-from ..rfoverlays.curve_overlay import create_curve_overlay_logic, _internal_bl_idname
+from ..rfoverlays.curve_overlay import create_curve_overlay_logic
 from bmesh.types import BMesh
 from mathutils import Vector
 from ..common.curves import QuadStripChainProvider, LoopStripChainProvider, ChainProvider, ChainSpec
@@ -47,7 +47,7 @@ from ...addon_common.common.blender import event_modifier_check
 from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.resetter import Resetter
 
-from ..common.bpy_helper import BL_OPTIONS
+from ..common.bpy_helper import BL_OPTIONS, internal_bl_idname
 from ..common.bmesh import get_bmesh_emesh
 from ..common.icons import get_path_to_blender_icon
 from ..common.interface import draw_tool_settings, draw_tool_panels
@@ -72,6 +72,27 @@ from ..preferences import RF_Prefs
 from .legacy_patches_logic import LegacyPatches_Logic, DrawGesture, PatchSettings, MAIN_OP_IDNAME, PATCH_SETTING_NAMES
 
 
+_solve_items = []   # Blender keeps no reference to the strings a dynamic enum hands back, so this does
+
+def setting_values(src):
+    ''' PATCH_SETTING_NAMES read off `src`. Solve is a dynamic enum, which keeps its index when the items
+    change under it, so reading one can fail outright; its automatic choice stands in until the next
+    rebuild puts the index back. '''
+    out = {}
+    for name in PATCH_SETTING_NAMES:
+        try: out[name] = getattr(src, name)
+        except Exception: out[name] = getattr(PatchSettings, name)
+    return out
+
+
+def solve_items(self, context):
+    ''' The kinds of fill the current selection could take, ranked, best first: the live ranking on the
+    tool, the last fill's on the Fill operator, whose redo panel this is. '''
+    global _solve_items
+    _solve_items = LegacyPatches_Logic.solve_items(redo=getattr(self, 'bl_idname', '') == RFOperator_LegacyPatches_Fill.bl_idname)
+    return _solve_items or [('NONE', 'None', 'Nothing to fill', 0)]
+
+
 # The main operator never runs (there is no stroke or brush), so RFCore.km_context stays 'init' and
 # every keymap entry that should show in the status bar needs km_context 'init'.
 
@@ -89,7 +110,7 @@ class LegacyPatches_Properties:
     )
     smooth: bpy.props.IntProperty(
         name='Smooth',
-        description='Relax passes applied to the new vertices before they are created, evening out the spacing of the interior loops. 0 keeps the pure interpolation',
+        description=('How smoothly the patch is interpolated. 0 keeps a linear blend.'),
         min=0,
         soft_max=10,
         max=50,
@@ -123,6 +144,11 @@ class LegacyPatches_Properties:
         soft_max=10.0,
         subtype='DISTANCE',
     )
+    solve: bpy.props.EnumProperty(
+        name='Solve',
+        description='Which kind of fill the selection gets',
+        items=solve_items,
+    )
 
     # the fills LegacyPatches_Logic.solutions_for ranks for a loop, and the placement of the chosen one
     solution: bpy.props.IntProperty(
@@ -151,8 +177,8 @@ class LegacyPatches_Properties:
         name='Distance',
         description=('How far each stepped row reaches, against the spacing of the run it steps from. '
                      'Only the rows that extrude are affected: one that lands on existing geometry still lands on it'),
-        min=0.05,
-        soft_min=0.25,
+        min=0.01,
+        soft_min=0.05,
         soft_max=4.0,
         max=16.0,
         default=PatchSettings.step_scale,
@@ -234,7 +260,7 @@ class RFOperator_LegacyPatches_Fill(LegacyPatches_Properties, RFOperator_Execute
     bl_idname : str = 'retopoflow.legacy_patches_fill'
     bl_label : str = 'Auto Fill (Retopoflow)'
     bl_description : str = ('Fill the holes bounded by the selected boundary edges; a patch of selected faces is joined into one n-gon. '
-                            'Whatever this cannot fill falls through to Blender\'s own New Edge/Face')
+                            'Whatever this cannot fill as a patch is closed with one edge or face, as New Edge/Face would')
     bl_options : BL_OPTIONS = { 'UNDO', 'REGISTER' }
 
     # An unspecified modifier in a tool keymap means "not held", so keys that must work while Ctrl is
@@ -270,16 +296,20 @@ class RFOperator_LegacyPatches_Fill(LegacyPatches_Properties, RFOperator_Execute
                                            or LegacyPatches_Logic.ctrl_forced)
 
         # a fresh fill starts from the tool's settings (a redo comes straight to execute with the redo panel's);
-        # outside the tool the operator's own last values stand, at the automatic Solution and Offset
+        # outside the tool the operator's own last values stand, at the automatic Solution and Offset.
+        # This operator's Type items are the last fill's, so the fill about to happen takes the live
+        # ranking first, or a Type the tool shows could not be set here
+        LegacyPatches_Logic.filled_solve_ranked = list(LegacyPatches_Logic.solve_ranked)
         src = LegacyPatches_Logic.tool_props(context)
         if src:
-            for name in PATCH_SETTING_NAMES:
-                setattr(self, name, getattr(src, name))
+            for name, value in setting_values(src).items():
+                try: setattr(self, name, value)
+                except Exception: pass      # a Solve this selection does not offer; the rebuild resets it
         else:
             self.steps = PatchSettings.steps
             self.step_scale = PatchSettings.step_scale
             self.solution, self.offset = 1, 0
-        settings = PatchSettings(**{ name: getattr(self, name) for name in PATCH_SETTING_NAMES })
+        settings = PatchSettings(**setting_values(self))
 
         # rebuild for the selection as it is now, with the settings the fill will use: outside the tool no overlay
         # keeps a preview alive, and inside it a preview left from the last selection must not decide the key's fate
@@ -300,24 +330,36 @@ class RFOperator_LegacyPatches_Fill(LegacyPatches_Properties, RFOperator_Execute
                     pass
                 context.area.tag_redraw()
                 return { 'CANCELLED' }
-            # anything else is Blender's own fill's. PASS_THROUGH from invoke, not a failing poll: Blender re-checks
-            # poll before a redo, when the preview is empty
-            return { 'PASS_THROUGH' }
-        # the fill re-reads the selection itself; if it finds nothing after all, the key is still Blender's
+            # Anything else is what Blender's own F would make of it
+            return self._fill_contextual(context)
+        # the fill re-reads the selection itself; if it finds nothing after all, the same stands in
         if not self._fill(context):
-            return { 'PASS_THROUGH' }
+            return self._fill_contextual(context)
         return { 'FINISHED' }
 
+    def _fill_contextual(self, context : Context) -> set[str]:
+        if LegacyPatches_Logic.fill_contextual(context):
+            context.area.tag_redraw()
+            return { 'FINISHED' }
+        return { 'CANCELLED' }
+
     def _fill(self, context : Context) -> bool:
-        settings = PatchSettings(**{ name: getattr(self, name) for name in PATCH_SETTING_NAMES })
+        settings = PatchSettings(**setting_values(self))
         if not LegacyPatches_Logic.fill(context, settings): return False
+        # The rebuild may have landed on a different kind of fill than was asked for, a Solve that could
+        # not build having given way to one that could. It writes that back to the tool, but the redo
+        # panel here draws this operator's own properties, so they have to be told as well.
+        solved = LegacyPatches_Logic.solved_as
+        if solved and solved != settings.solve:
+            try: self.solve = solved
+            except Exception: pass
         context.area.tag_redraw()
         return True
 
     def execute(self, context : Context) -> set[str]:
-        # the redo panel's path: no key waits behind a failed refill, so it is worth a word
-        if not self._fill(context):
-            self.report({'WARNING'}, LegacyPatches_Logic.error or 'Patches: nothing to fill. Select boundary edges forming a rectangle, L, C, two parallel strips, a single strip to step outward, or four vertices, or hold Ctrl and hover between four nearby vertices')
+        # the redo panel's path: a patch where the settings now make one, else the plain edge or face again.
+        if not self._fill(context) and self._fill_contextual(context) != { 'FINISHED' }:
+            self.rf_report({'WARNING'}, LegacyPatches_Logic.error or 'Patches: nothing to fill. Select boundary edges forming a rectangle, L, C, two parallel strips, a single strip to step outward, or four vertices, or hold Ctrl and hover between four nearby vertices')
             return { 'CANCELLED' }
         return { 'FINISHED' }
 
@@ -604,7 +646,7 @@ class RFOperator_LegacyPatches_OffsetIncrease(LegacyPatches_ScrollHotkey, RFOper
 class RFOperator_LegacyPatches_ClearCorners(RFOperator_Execute):
     bl_idname : str = 'retopoflow.legacy_patches_clear_corners'
     bl_label : str = 'Reset Corners'
-    bl_description : str = 'Forget all manually toggled corners'
+    bl_description : str = 'Forget all manually toggled corners and placed poles'
     bl_options : BL_OPTIONS = { 'INTERNAL', 'UNDO' }
 
     rf_keymaps : RFKeyMaps = [
@@ -692,7 +734,7 @@ class RFOperator_LegacyPatches_Overlay(LegacyPatches_Curve_Overlay, RFOperator):
     # The Ctrl modal only reads the mouse, the same reason it carries rf_patches_passive. Without
     # this the curve rebuild treats it as a foreign op and the handles blink out while Ctrl is held.
     ignore_modal_bl_idnames = LegacyPatches_Curve_Overlay.ignore_modal_bl_idnames | {
-        _internal_bl_idname(RFOperator_LegacyPatches_Draw.bl_idname),
+        internal_bl_idname(RFOperator_LegacyPatches_Draw.bl_idname),
     }
 
     def is_done(self):
@@ -730,11 +772,19 @@ class RFOperator_LegacyPatches_Overlay(LegacyPatches_Curve_Overlay, RFOperator):
             context.area.tag_redraw()    # passing an event through does not redraw on its own
         return {'PASS_THROUGH'}
 
+    corner_chains_seen : list = []
+
     def draw_postpixel_overlay(self):
         if not self.is_done():
             context = bpy.context
-            LegacyPatches_Logic.update(context)
-            LegacyPatches_Logic.draw(context)
+            L = LegacyPatches_Logic
+            L.update(context)
+            # the curve overlay only re-collects its chains when the mesh changes; Split Angle moves the corner
+            # control points without touching it, so a change in them has to ask for the rebuild
+            if L.corner_chains != self.corner_chains_seen:
+                self.corner_chains_seen = L.corner_chains
+                type(self).depsgraph_version = -42
+            L.draw(context)
         # curve handles, no-ops while show_curve_handles is off; after the preview so the corner control
         # points sit on top of its face colour rather than under it
         super().draw_postpixel_overlay()
@@ -763,12 +813,16 @@ def draw_patches_props(layout : UILayout, props, *, header : bool, redo : bool =
     L = LegacyPatches_Logic
     has_bridge, has_grid, has_loft, has_offset, has_quad = (
         L.filled_flags if redo else (L.has_bridge, L.has_grid, L.has_loft, L.has_offset, L.has_quad))
+    has_solves = len(LegacyPatches_Logic.solve_items(redo=redo)) > 1
+    has_options = has_quad or has_offset or has_grid or has_loft or has_solves
+
+    if redo and has_solves:
+        layout.prop(props, 'solve', text='Type')
 
     if not header:
         layout = layout.column()
         layout.use_property_split = True
         layout.use_property_decorate = False
-
     if header:
         row = layout.row(align=True)
         row.prop(props, 'span_insert_mode', text='')
@@ -783,20 +837,29 @@ def draw_patches_props(layout : UILayout, props, *, header : bool, redo : bool =
                 layout.prop(props, 'span_length', text='Distance')
             elif props.span_insert_mode == 'FIXED':
                 layout.prop(props, 'crosses', text='Count')
-    if not redo:
-        layout.prop(props, 'split_angle', text='Split Angle')
-    if not redo or L.filled_smoothing:
-        layout.prop(props, 'smooth')
-
-    has_options = has_quad or has_offset or has_grid or has_loft
+    layout.prop(props, 'split_angle', text='Split Angle')
+    if not redo or L.filled_smoothing or has_bridge:
+        row = layout.row()
+        row.enabled = not (has_bridge and props.span_insert_mode == 'FIXED' and props.crosses == 0)
+        row.prop(props, 'smooth')
     if has_options:
         if header:
             layout.separator(type='LINE')
         elif not redo:
             layout.separator()
+        if not redo and has_solves:
+            layout.prop(props, 'solve', text='Type')
         if has_grid:
             layout.prop(props, 'solution', text='Solution')
-            layout.prop(props, 'offset', text='Offset')
+            # a fill with one placement has no Offset to turn: the live panels leave the knob out, the redo panel
+            # greys it so its rows do not jump as Type and Solution change
+            offsets = L.filled_offsets if redo else L.offsets
+            if redo:
+                row = layout.row()
+                row.enabled = offsets > 1
+                row.prop(props, 'offset', text='Offset')
+            elif offsets > 1:
+                layout.prop(props, 'offset', text='Offset')
         if has_quad:
             layout.prop(props, 'crosses', text='Cuts')
         if has_offset:
@@ -808,7 +871,7 @@ def draw_patches_props(layout : UILayout, props, *, header : bool, redo : bool =
         if not header and not redo:
             layout.separator()
 
-    if not redo and L.has_manual_corners:
+    if not redo and (L.has_manual_corners or L.pole_pos):
         layout.operator(RFOperator_LegacyPatches_ClearCorners.bl_idname, icon='X')
 
 

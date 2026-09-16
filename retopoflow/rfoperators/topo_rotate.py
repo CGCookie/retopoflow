@@ -316,10 +316,10 @@ class RFOperator_TopoRotate(RFOperator_Invoke):
         if self.hotkey and not hotkey_owns_context(context, 'toporotate_tool_context'):
             return {'PASS_THROUGH'}
         if not context.region_data:
-            self.report({'ERROR'}, 'Topo Rotate: needs a 3D viewport')
+            self.rf_report({'ERROR'}, 'Topo Rotate: needs a 3D viewport')
             return {'CANCELLED'}
         if not self.rip(context):
-            self.report({'ERROR'}, 'Topo Rotate: selection has no single closed perimeter')
+            self.rf_report({'ERROR'}, 'Topo Rotate: selection has no single closed perimeter')
             return {'CANCELLED'}
 
         pts = [
@@ -356,7 +356,7 @@ class RFOperator_TopoRotate(RFOperator_Invoke):
 
     def abort(self, context, message):
         ''' Zip the ripped patch back exactly where it was, then let go of it. '''
-        self.report({'ERROR'}, message)
+        self.rf_report({'ERROR'}, message)
         self.revert_to_original()
         self.zip_patch(context)
         self.release(context)
@@ -417,7 +417,7 @@ class RFOperator_TopoRotate(RFOperator_Invoke):
     def execute(self, context):
         ''' Non-modal path, used by the redo panel and by scripts. '''
         if not self.rip(context):
-            self.report({'ERROR'}, 'Topo Rotate: selection has no single closed perimeter')
+            self.rf_report({'ERROR'}, 'Topo Rotate: selection has no single closed perimeter')
             return {'CANCELLED'}
         # delta_angle straight from offset: in a redo there is no mouse to measure against
         self.apply_offset(context, self.offset, self.offset * 2.0 * math.pi / self.count)

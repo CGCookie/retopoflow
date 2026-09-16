@@ -738,11 +738,12 @@ class PolyStrips_Logic:
 
     @staticmethod
     def rail_sizing_length(bme):
-        ''' Sizing length for a swept rail edge. On a quad the stroke is parallel to, averages the perpendicular edges,
-        i.e. the quad's depth. Otherwise, uses the edge length itself. '''
+        ''' Sizing length for a swept rail edge. On a quad the stroke is parallel to, averages the perpendicular
+        edges (the quad's depth) but never exceeds the edge's own length. Otherwise, uses the edge length itself. '''
+        L = bme_length(bme)
         quads = [bmf for bmf in bme.link_faces if len(bmf.edges) == 4]
         if not quads:
-            return bme_length(bme)
+            return L
         bme_verts = set(bme.verts)
         sides = [
             bme_length(e)
@@ -751,7 +752,8 @@ class PolyStrips_Logic:
             # a quad's side edges share exactly one vert with bme; the opposite edge shares none
             if e is not bme and len(set(e.verts) & bme_verts) == 1
         ]
-        return (sum(sides) / len(sides)) if sides else bme_length(bme)
+        if not sides: return L
+        return min(sum(sides) / len(sides), L)
 
     @staticmethod
     def snapped_edge_radius(bmf, pts):
@@ -856,7 +858,7 @@ class PolyStrips_Logic:
     def nearest_edge_halfwidth(edges, ref_pt, *, max_dist=None, rail_sizing=False):
         ''' Half length (local space) of the edge in `edges` whose closest point to ref_pt is nearest, or None. `edges` must be pre-filtered.
         Pass max_dist (a multiple of the edge's length) to reject an edge whose nearest point is farther away than that.
-        rail_sizing sizes each edge by its quad's depth instead of its own length, so pass it for rails, not caps.
+        rail_sizing sizes each edge by its quad's depth (capped at its own length) instead of its own length, so pass it for rails, not caps.
         '''
         best = None
         for bme in edges:

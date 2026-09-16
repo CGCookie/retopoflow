@@ -64,7 +64,7 @@ class RFOperator_AdjustSegmentCount(RFOperator_Invoke):
         if not self.properties.is_property_set('count'):
             found = detect_adjustable_strip(context)
             if found is None:
-                self.report({'WARNING'}, 'Adjust Segment Count: select a single quad strip, ring, or edge run first')
+                self.rf_report({'WARNING'}, 'Adjust Segment Count: select a single quad strip, ring, or edge run first')
                 return {'CANCELLED'}
             bm, em, provider, descriptor = found
             recipe = provider.capture(context, bm, descriptor)
@@ -121,7 +121,7 @@ class RFOperator_AdjustSegmentCount(RFOperator_Invoke):
     def execute(self, context):
         found = detect_adjustable_strip(context)
         if found is None:
-            self.report({'WARNING'}, 'Adjust Segment Count: select a single quad strip, ring, or edge run first')
+            self.rf_report({'WARNING'}, 'Adjust Segment Count: select a single quad strip, ring, or edge run first')
             return {'CANCELLED'}
         bm, em, provider, descriptor = found
 

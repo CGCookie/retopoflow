@@ -242,7 +242,7 @@ def plan_phantom(loop):
         padded = list(counts)
         padded[j] += 1
         for s in cc_solve(padded, strict=True):
-            at = cs[j] + s[j - 1]                   # the extra vertex is side j's split vertex
+            at = (cs[j] + s[j - 1]) % len(loop.nodes)   # the extra vertex is side j's split vertex; the side may wrap past the tuple's end
             nodes = loop.nodes[:at] + (('phantom', j),) + loop.nodes[at:]
             corners = tuple(c if c < at else c + 1 for c in cs)
             piece = Loop(nodes, corners)

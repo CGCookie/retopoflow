@@ -34,7 +34,7 @@ from .bmesh import (
     wind_bmfs_to_match_neighbors,
 )
 from .raycast import is_point_occluded, MatrixInfo, FindNearest
-from .maths import point_to_bvec4, view_forward_direction
+from .maths import point_to_bvec4
 from ...addon_common.common.maths import closest_point_segment, Point, Direction, Plane
 from ...addon_common.ext.circle_fit import hyperLSQ
 from ...addon_common.common.utils import iter_pairs
@@ -177,11 +177,55 @@ def get_strip_bmvs(strip, bmv_start):
         bmvs.append(bmv)
     return bmvs
 
-def check_bmf_normals(fwd, bmfs):
-    for bmf in bmfs:
-        bmf.normal_update()
-        if fwd.dot(bmf.normal) > 0:
-            bmf.normal_flip()
+def bmfs_outwardness(group):
+    org = next(iter(group)).verts[0].co.copy()   # only to keep the arithmetic near zero; once the
+    mag = vol = 0.0                              # surface is closed the sum is the same from anywhere
+    def add(cos):
+        nonlocal mag, vol
+        for i in range(1, len(cos) - 1):
+            t = cos[0].dot(cos[i].cross(cos[i + 1]))
+            vol += t
+            mag += abs(t)
+    for bmf in group: add([ bmv.co - org for bmv in bmf.verts ])
+
+    # A cap walks its loop the way the one face on those edges does not, as any two faces sharing an
+    # edge do. loop.vert is the vert its face walks from, so the cap walks back to it.
+    nxt = {}
+    for bmf in group:
+        for loop in bmf.loops:
+            if len(loop.edge.link_faces) == 1:
+                nxt.setdefault(loop.edge.other_vert(loop.vert), loop.vert)
+    while nxt:
+        start = bmv = next(iter(nxt))
+        ring = []
+        while bmv in nxt:
+            ring.append(bmv)
+            bmv = nxt.pop(bmv)
+        # a boundary that pinches on itself caps no better than it closes, and a wrong answer here
+        # flips real geometry: leave the group as it is instead
+        if bmv is not start or len(ring) < 3: return 0.0
+        add([ v.co - org for v in ring ])
+    return vol if abs(vol) > 1e-6 * mag else 0.0
+
+def check_bmf_normals(bmfs):
+    for bmf in bmfs: bmf.normal_update()
+    left = set(bmfs)
+    while left:
+        group, stack = set(), [next(iter(left))]
+        while stack:
+            bmf = stack.pop()
+            if bmf in group: continue
+            group.add(bmf)
+            stack += [ loop_n.face for loop in bmf.loops for loop_n in loop.edge.link_loops
+                       if loop_n.face in left and loop_n.face not in group ]
+        left -= group
+        # loop.vert is the vert each face walks *from*, so sharing it means sharing a direction
+        vote = sum(-1 if loop_n.vert == loop.vert else 1
+                   for bmf in group for loop in bmf.loops
+                   for loop_n in loop.edge.link_loops if loop_n.face not in group)
+        if vote == 0: vote = bmfs_outwardness(group)
+        if vote < 0:
+            for bmf in group: bmf.normal_flip()
 
 def orient_bmf_normals(
     context : Context,
@@ -229,7 +273,7 @@ def orient_bmf_normals(
     bmfs = wind_bmfs_to_match_neighbors(bmfs_unresolved)
     if not bmfs or not new_faces: return  # whatever is left is attached to nothing settled
 
-    check_bmf_normals(matinfo.w2l_direction(view_forward_direction(context)), bmfs)
+    check_bmf_normals(bmfs)
 
 def fit_template2D(template, p0, *, target=None, along=None):
     t0, t1 = template[0], template[-1]
@@ -443,20 +487,28 @@ def fit_plane_of_verts(verts : Sequence[BMVert]) -> tuple[Vector|None, Vector|No
     ''' Best-fit plane and center for a collection of BMVerts. '''
     from ...addon_common.common.maths import Plane, Point
     from ...addon_common.ext.circle_fit import hyperLSQ
+    import numpy as np
     points = [ Point(v.co) for v in verts ]
+    middle = sum((v.co for v in verts), Vector()) / len(verts)
     try:
         plane  = Plane.fit_to_points(points)
         if not plane:
             return (None, None)
         normal = plane.n.copy()
+        center = middle
         try:
-            circle = hyperLSQ([list(plane.w2l_point(p).xy) for p in points])
-            center = Vector(plane.l2w_point(Point((circle[0], circle[1], 0))))
+            # Points with no width in the plane -- collinear, or all the same -- describe no circle:
+            # the fit divides by zero there and hands back nan instead of raising, so what comes out
+            # is checked rather than trusted, and numpy is told not to shout about a handled case.
+            with np.errstate(invalid='ignore', divide='ignore'):
+                circle = hyperLSQ([list(plane.w2l_point(p).xy) for p in points])
+            if all(math.isfinite(c) for c in circle[:2]):
+                center = Vector(plane.l2w_point(Point((circle[0], circle[1], 0))))
         except Exception:
-            center = sum((v.co for v in verts), Vector()) / len(verts)
+            pass
     except Exception:
         normal = None
-        center = sum((v.co for v in verts), Vector()) / len(verts)
+        center = middle
     return normal, center
 
 
@@ -554,3 +606,49 @@ def bary_reconstruct(v0, v1, v2, w0, w1, w2, offset):
     n     = (B - A).cross(C - A)
     n_len = n.length
     return base + offset * (n / n_len) if n_len > 1e-12 else base
+
+
+def order_rings_along_axis(centroids, normals, *, align=0.5, start=0):
+    ''' Order cross-section rings along the axis they stack on. Walked outward from `start` in both directions,
+    each step taking the nearest ring ahead of the current one along its own normal. A ring whose normal
+    did not fit borrows the mean of the rest. `align` is the smallest |dot| between two normals that
+    still reads as the same run. Returns indices into the inputs, leaving out any ring the walk never reaches. '''
+    n_rings = len(centroids)
+    if n_rings < 2: return list(range(n_rings))
+
+    mean = Vector((0.0, 0.0, 0.0))
+    for nrm in normals:
+        if nrm is not None: mean += nrm
+    mean = mean.normalized() if mean.length > 1e-9 else Vector((0.0, 0.0, 1.0))
+
+    def axis_of(i):
+        nrm = normals[i]
+        return nrm.normalized() if (nrm is not None and nrm.length > 1e-9) else mean
+
+    used = {start}
+
+    def walk(sign):
+        chain, cur = [], start
+        heading = axis_of(start) * sign
+        while True:
+            here, ax = centroids[cur], axis_of(cur)
+            ahead = ax if ax.dot(heading) > 0 else -ax      # the way this ring faces along the walk
+            best, best_d = None, float('inf')
+            for i in range(n_rings):
+                if i in used or centroids[i] is None: continue
+                d_vec = centroids[i] - here
+                if d_vec.dot(ahead) <= 1e-9: continue           # not ahead along this ring's axis
+                if abs(axis_of(i).dot(ax)) < align: continue    # not aligned with this ring
+                d = d_vec.length                                # nearest aligned ring ahead
+                if d < best_d: best_d, best = d, i
+            if best is None: return chain
+            chain.append(best)
+            used.add(best)
+            # the step just taken is where the run is going, whatever the next ring's normal is signed
+            step = centroids[best] - here
+            heading = step.normalized() if step.length > 1e-9 else ahead
+            cur = best
+
+    fwd = walk(+1)
+    bwd = walk(-1)
+    return list(reversed(bwd)) + [start] + fwd
