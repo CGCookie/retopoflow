@@ -132,6 +132,11 @@ class RF_Prefs(AddonPreferences):
         default='blue',
         update=lambda self, context: Theme.set_theme(context, str(self.theme))
     )
+    show_counts: bpy.props.BoolProperty(
+        name='Show Counts',
+        description='Show selected vertex and edge counts in the viewport',
+        default=True,
+    )
     #endregion
 
     """ Hotkeys """

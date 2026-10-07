@@ -5640,7 +5640,8 @@ class LegacyPatches_Logic:
                     Drawing.draw2D_points(context, pts2d, AUTO_KNOT_FILL_COLOR, radius=KNOT_RADIUS, border=2, borderColor=KNOT_BORDER_COLOR)
 
             # text last, so it sits on top of the face fill
-            for text, cos in L.labels:
+            labels = L.labels if RF_Prefs.get_prefs(context).show_counts else []
+            for text, cos in labels:
                 pts = [p for co in cos if (p := proj(co))]
                 if not pts: continue
                 xy = sum(pts, Vector((0, 0))) / len(pts)

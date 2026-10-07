@@ -35,6 +35,7 @@ from ..rfoverlay_base import RFOverlay_Base
 from .overlays import overlay_names
 
 from ..rfglobals import RFGlobals
+from ..preferences import RF_Prefs
 from ..common.bpy_helper import bpy_ops_retopoflow, RFCORE_OPERATOR_BL_IDNAME, internal_bl_idname
 from ..common.operator import RFOperator
 from ..rftool_statusbar import SharedStatusbarKeymap
@@ -827,7 +828,8 @@ def create_curve_overlay_logic(
                 return
             M = context.edit_object.matrix_world
 
-            for (lbl, count, cos) in self.label_data:
+            label_data = self.label_data if RF_Prefs.get_prefs(context).show_counts else []
+            for (lbl, count, cos) in label_data:
                 lbl_pos = get_label_pos(context, lbl, cos)
                 if not lbl_pos:
                     continue

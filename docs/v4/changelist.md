@@ -2,6 +2,8 @@
 
 This document contains details about what has changed in Retopoflow in version 4.
 
+### 4.2.2
+
 ### 4.2.1
 
 - Improved PolyStrips width when snapping along uneven quads
