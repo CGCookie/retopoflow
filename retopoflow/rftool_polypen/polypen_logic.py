@@ -32,6 +32,7 @@ from mathutils.geometry import intersect_line_line_2d
 from collections import deque
 from collections.abc import Iterable, Iterator
 from enum import auto
+from math import pi
 from typing import Callable, cast
 import time
 
@@ -41,13 +42,13 @@ from ..common.bmesh import (
     bmvs_share_bmf, bmf_opposite_bmelem,
     bme_other_bmv, bme_other_bmf, bme_midpoint, bme_cos, bme_length,
     order_bmvs_for_new_bmf,
-    bmes_share_bmv, bmes_shared_bmv,
+    bmes_share_bmv, bmes_shared_bmv, bmvs_shared_bme,
     bmf_midpoint, bmf_opposite_bme, bmf_is_quad, bmf_is_pentagon, bmf_radius_squared,
     bmf_is_tri,
     get_bmesh_emesh, get_bmv_avg_edge_len,
     clean_select_layers,
     NearestBMVert, NearestBMEdge, NearestBMFace,
-    bme_is_interior, bmv_is_interior,
+    bme_is_interior, bmv_is_interior, bmvs_share_open_bme,
 )
 from ..common.object import has_mirror_x, has_mirror_y, has_mirror_z, mirror_threshold
 from ..common.accel import SourceCache
@@ -728,6 +729,12 @@ class PP_Logic:
             # find closest selected BMVert from which to extrude
             return
 
+        # A hovered edge leading out of the selection becomes a side of the new face.
+        # Resolved as if hovering the edge's far vert.
+        if not self.nearest.bmv and (bmv_corner := self.side_edge_corner()):
+            self.nearest.bmv = bmv_corner
+            self.hit = bmv_corner.co
+
         if insert_mode in {'TRI/QUAD', 'QUAD-ONLY'} and self.nearest_bme.bme and not self.nearest.bmv:
             # find hovered bme but make sure it doesn't share a face with selected bme
             sel_bmes : set[BMEdge] = self.selected[BMEdge]  # pyright: ignore[reportAssignmentType, reportRedeclaration]
@@ -772,9 +779,10 @@ class PP_Logic:
 
                     if bmv2 in sel_bme.verts or bmv3 in sel_bme.verts:
                         # hovered edge shares vert with selected edge!  (issue #1443)
-                        # treat this as though the artist is hovering the other vert
-                        # interior edges may only knife, never create a triangle
-                        self.state = PP_Action.NONE if bme_is_interior(sel_bme) else PP_Action.EDGE_TRI
+                        # side_edge_corner already turned every edge that can become a side into a hovered vert,
+                        # so this one is interior or shares a face with the selection. A face built here would
+                        # land on top of existing faces, and a bridge would collapse into a triangle.
+                        self.state = PP_Action.NONE
                         return
 
                     if not bme_is_interior(self.bme) and not bme_is_interior(self.bme_hovered):
@@ -802,6 +810,8 @@ class PP_Logic:
 
         if insert_mode == 'QUAD-ONLY':
             sel_bmes : set[BMEdge] = self.selected[BMEdge]  # pyright: ignore[reportAssignmentType, reportRedeclaration]
+            if self.nearest.bmv and self.update_edge_quad_corner(context, sel_bmes, self.nearest.bmv):
+                return
             sel_bme = min(
                 sel_bmes,
                 key=(lambda bme:distance2d_point_bmedge(context, self.matrix_world, self.hit, bme)),
@@ -852,10 +862,13 @@ class PP_Logic:
             self.bmf = next(iter(sel_bmfs), None)
             if self.bmf and bmf_is_tri(self.bmf):
                 self.state = PP_Action.TRI_QUAD
-                self.bme = min(
-                    self.bmf.edges,
-                    key=lambda bme:distance2d_point_bmedge(context, self.matrix_world, self.hit, bme),
-                )
+                if base := self.corner_base_bme(self.bmf.edges, self.nearest.bmv):
+                    self.bme = base[0]
+                else:
+                    self.bme = min(
+                        self.bmf.edges,
+                        key=lambda bme:distance2d_point_bmedge(context, self.matrix_world, self.hit, bme),
+                    )
                 return
 
         if self.update_split_face_loop(context):
@@ -916,10 +929,13 @@ class PP_Logic:
             sel_bmes = { bme for bme in sel_bmes if bme.is_boundary }
             if sel_bmes:
                 self.state = PP_Action.EDGE_TRI
-                self.bme = min(
-                    sel_bmes,
-                    key=(lambda bme:distance2d_point_bmedge(context, self.matrix_world, self.hit, bme)),
-                )
+                if base := self.corner_base_bme(sel_bmes, self.nearest.bmv):
+                    self.bme = base[0]
+                else:
+                    self.bme = min(
+                        sel_bmes,
+                        key=(lambda bme:distance2d_point_bmedge(context, self.matrix_world, self.hit, bme)),
+                    )
             return
 
     def vert_edge_crosses_bmedges(self, context:Context, bmv:BMVert, bmv_hovered:BMVert|None) -> bool:
@@ -935,6 +951,93 @@ class PP_Logic:
             # the segment ends on the hovered vert, so it grazes that vert's own edges
             splits = [(bme, pt) for (bme, pt) in splits if bme not in bmv_hovered.link_edges]
         return bool(splits)
+
+    def side_edge_corner(self) -> BMVert | None:
+        ''' The far vert of the hovered edge when that edge leads out of the selection
+        and can become a side of a new face, otherwise None. '''
+        bme = self.nearest_bme.bme if self.nearest_bme else None
+        if not bme or bme.hide or bme_is_interior(bme): return None
+        bmv0, bmv1 = bme.verts
+        if bmv0.select == bmv1.select: return None
+        bmv_sel, bmv_far = (bmv0, bmv1) if bmv0.select else (bmv1, bmv0)
+        # sharing a face with a selected edge means the hovered edge runs across existing geometry, which is a knife
+        if any(bme_face.select for bmf in bme.link_faces for bme_face in bmf.edges if bmv_sel in bme_face.verts):
+            return None
+        return bmv_far
+
+    def corner_base_bme(self, bmes : Iterable[BMEdge], bmv_corner : BMVert | None) -> tuple[BMEdge, BMVert] | None:
+        ''' The edge in bmes to build a new face through bmv_corner on, when an existing edge already links
+        bmv_corner to one of its verts. Returns (edge, linked vert), or None when no edge qualifies. '''
+        if not bmv_corner: return None
+        pc = self.project(bmv_corner.co)
+        if not pc: return None
+
+        best : tuple[BMEdge, BMVert] | None = None
+        best_key : tuple[int, float] | None = None
+        for bme in bmes:
+            if bme_is_interior(bme) or bmv_corner in bme.verts: continue
+            # the new face would fold over a face that already holds the corner
+            if any(bmv_corner in bmf.verts for bmf in bme.link_faces): continue
+            bmvs_linked = [bmv for bmv in bme.verts if bmvs_share_open_bme(bmv, bmv_corner)]
+            for bmv in bmvs_linked:
+                p, po = self.project_all(bmv.co, bme_other_bmv(bme, bmv).co)
+                if not p or not po: continue
+                # An edge linked at both ends closes a hole, so it wins outright. Otherwise the smallest angle
+                # between the edge and the link fills the nearest gap instead of folding back over the selection.
+                key = (-len(bmvs_linked), (po - p).angle(pc - p, pi))
+                if best_key is None or key < best_key:
+                    best, best_key = (bme, bmv), key
+        return best
+
+    def update_edge_quad_corner(self, context : Context, sel_bmes : Iterable[BMEdge], bmv_corner : BMVert) -> bool:
+        ''' Set up EDGE_QUAD with bmv_corner as one of its two new corners. Returns False,
+        leaving the free quad to the caller, when bmv_corner cannot be one. '''
+        if bmv_corner.select: return False
+        M, Mi = self.matrix_world, self.matrix_world_inv
+
+        if base := self.corner_base_bme(sel_bmes, bmv_corner):
+            bme, bmv_pair = base
+        else:
+            # nothing links the corner to the selection, so pair it with the nearer end of the nearest selected edge
+            bme = min(sel_bmes, key=lambda bme: distance2d_point_bmedge(context, M, bmv_corner.co, bme))
+            if bme_is_interior(bme) or any(bmv_corner in bmf.verts for bmf in bme.link_faces):
+                return False
+            bmv_pair = min(bme.verts, key=lambda bmv: distance2d_point_bmvert(context, M, bmv_corner.co, bmv))
+            if (bme_link := bmvs_shared_bme(bmv_pair, bmv_corner)) and bme_is_interior(bme_link):
+                # an interior link already has a face on both sides, so a third would make it non-manifold
+                return False
+        bmv_other = bme_other_bmv(bme, bmv_pair)
+        if not bmv_other: return False
+
+        # The fourth corner closes an existing hole when the far ends of the selected edge and the side
+        # already share a neighbor with free sides ...
+        bmvs_taken = {bmv for bmf in bme.link_faces for bmv in bmf.verts} | {bmv_pair, bmv_corner}
+        bmv_fourth : BMVert | None = None
+        for bme_n in bmv_other.link_edges:
+            bmv_n = bme_other_bmv(bme_n, bmv_other)
+            if not bmv_n or bmv_n in bmvs_taken or bme_is_interior(bme_n): continue
+            if bmvs_share_open_bme(bmv_n, bmv_corner):
+                bmv_fourth = bmv_n
+                break
+        if bmv_fourth:
+            co_fourth = bmv_fourth.co
+        else:
+            # ... otherwise copy the selected edge across the side and land it on the surface, or on a vert already there
+            co_fourth = bmv_other.co + (bmv_corner.co - bmv_pair.co)
+            if snapped := nearest_point_valid_sources(context, M @ co_fourth, respect_clip_planes=True):
+                co_fourth = Mi @ snapped
+            self.nearest.update(context, co_fourth)
+            if self.nearest.bmv and self.nearest.bmv not in bmvs_taken:
+                bmv_fourth = self.nearest.bmv
+                co_fourth = bmv_fourth.co
+        self.nearest.bmv = bmv_corner  # keep the corner highlighted as the hovered vert
+
+        # EDGE_QUAD builds its face as bme.verts followed by (bmv2, bmv3), so bmv2 sits beside bme.verts[1]
+        corner, fourth = (bmv_corner, bmv_corner.co), (bmv_fourth, co_fourth)
+        (self.bmv2, self.hit2), (self.bmv3, self.hit3) = (corner, fourth) if bmv_pair == bme.verts[1] else (fourth, corner)
+        self.bme = bme
+        self.state = PP_Action.EDGE_QUAD
+        return True
 
     def update_split_face_loop(self, context:Context) -> bool:
         """
