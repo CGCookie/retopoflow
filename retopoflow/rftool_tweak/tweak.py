@@ -251,14 +251,14 @@ class RFOperator_Tweak(RFOperator):
     logic : Tweak_Logic | None = None
     timer : TimerHandler | None = None
     mouse_down : tuple[int, int] = (0, 0)  # press position, to tell a click from a stroke
-    _drag_select_candidate : bool = False  # press landed off the source, so a drag can select
 
     def init(self, context : Context, event : Event):
         # print(f'STARTING POLYPEN')
         assert RFTool_Tweak.rf_brush
         RFTool_Tweak.rf_brush.update(context, event, force=True)
         self.mouse_down = mouse_from_event(event)
-        self._drag_select_candidate = not RFTool_Tweak.rf_brush.is_displayed(context)
+        # with nothing in reach a drag selects instead, and the brush hides until that is settled
+        RFTool_Tweak.rf_brush.drag_select_pending = not RFTool_Tweak.rf_brush.reaches_target_verts(context)
         self.logic = Tweak_Logic(context, event, RFTool_Tweak.rf_brush, self)
         self.tickle(context)
         self.timer = TimerHandler(120, context=context, enabled=True)
@@ -272,11 +272,14 @@ class RFOperator_Tweak(RFOperator):
     def update(self, context : Context, event : Event):
         if not self.logic: return {'CANCELLED'}
 
-        if self._drag_select_candidate and event.type in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE'}:
-            # off the source, so hand it to the fallback select gesture if it is a drag
+        brush = RFTool_Tweak.rf_brush
+        if brush.drag_select_pending and event.type in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE'}:
+            # nothing in reach, so hand it to the fallback select gesture if it is a drag
             if (Vector(mouse_from_event(event)) - Vector(self.mouse_down)).length > mouse_drag():
-                self._drag_select_candidate = False
+                brush.drag_select_pending = False
                 if try_drag_select(context, event):
+                    # the gesture eats the mouse moves, so drop the stale position until the cursor moves again
+                    brush.mouse = None
                     self.logic.cancel(context)
                     return {'CANCELLED'}
 

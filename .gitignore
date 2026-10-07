@@ -7,6 +7,7 @@
 
 # Byte-compiled / optimized
 __pycache__/
+.mypy_cache/
 *.pyc
 *.pyo
 # *.pyd
@@ -28,6 +29,9 @@ var/
 *.egg-info/
 .installed.cfg
 *.egg
+
+# Python project
+.venv/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -62,6 +66,9 @@ _site/
 
 # PyBuilder
 target/
+
+# Assistants
+.claude/
 
 # Mac OS X
 .DS_Store
@@ -121,14 +128,10 @@ test-models
 tmp/
 test/
 issues/
+dev/
 
 # blender backup files
 *.blend1
 *.blend2
 *.blend3
 *.blend4
-
-
-.venv/
-.mypy_cache/
-/dev

@@ -30,7 +30,7 @@ import math
 from typing import Callable
 from collections.abc import Sequence
 
-from ..common.accel import EdgeMarkAccel, SourceAccel, Accel, SourceCache
+from ..common.accel import EdgeMarkAccel, SourceAccel, Accel, SourceCache, target_verts_kd
 from ..common.drawing import Drawing, CC_2D_POINTS
 from ...addon_common.common.colors import Color4
 from ..common.bmesh import get_bmesh_emesh, is_bmvert_boundary, is_bmvert_corner, bmv_co_isnan, get_bmv_avg_edge_len, get_bmv_next_loop_vert
@@ -43,7 +43,7 @@ from ..common.maths import point_to_bvec3, direction_to_bvec3, local_to_world
 from ..common.raycast import (
     source_xform_tuple,
     raycast_valid_sources, nearest_point_valid_sources, raycast_point_capped_valid_sources,
-    mouse_from_event, iter_all_valid_sources, make_hidden_tester,
+    mouse_from_event, iter_all_valid_sources, make_hidden_tester, region_2d_to_location_3d_stable,
 )
 
 from ...addon_common.common.maths import sign_threshold
@@ -222,11 +222,11 @@ class Tweak_Logic(SourceSnapMixin):
         self.mouse = Vector(mouse_from_event(event))
         self.mouse_prev = self.mouse.copy()
 
-        hit = raycast_valid_sources(context, self.mouse, respect_clip_planes=True)
-        if not hit: return
+        # The brush owns the center, which also covers a cursor just off the source
+        if not self.brush.hit or not self.brush.hit_p: return
 
         M = self.matrix_world
-        brush_center_world = Vector(hit['co_world'])
+        brush_center_world = Vector(self.brush.hit_p)
 
         def is_bmvert_on_symmetry_plane(bmv):
             # TODO: IMPLEMENT!
@@ -237,10 +237,12 @@ class Tweak_Logic(SourceSnapMixin):
 
         self.bm.verts.ensure_lookup_table() # Ensure here so the per-vert filters don't need to call it
 
-        self.verts_filtered = [
-            bmv for bmv in self.bm.verts
-            if not bmv.hide and ((M @ bmv.co) - brush_center_world).length <= radius3D
-        ]
+        target_kd = target_verts_kd(context)
+        if not target_kd: return
+        self.verts_filtered = sorted(
+            (bmv for bmv in target_kd.get(self.bm, brush_center_world, radius3D) if not bmv.hide),
+            key=lambda bmv: bmv.index,
+        )
 
         if Tweak_Logic.check_nans:
             self.verts_filtered = [ bmv for bmv in self.verts_filtered if not bmv_co_isnan(bmv) ]
@@ -903,10 +905,18 @@ class Tweak_Logic(SourceSnapMixin):
             # Compute 3D displacement: raycast both the current and previous mouse positions
             # onto the source surface and take the difference as the true 3D brush motion.
             delta_3d: 'Vector | None' = None
+            d3: 'Vector | None' = None
             curr_hit = raycast_valid_sources(context, mouse, respect_clip_planes=True)
             prev_hit = raycast_valid_sources(context, self.mouse_prev, respect_clip_planes=True)
             if curr_hit and prev_hit:
                 d3 = Vector(curr_hit['co_world']) - Vector(prev_hit['co_world'])
+            elif self.brush.hit and self.brush.hit_p:
+                # Off the source, so take the motion on the view plane through the brush center
+                rgn, r3d = context.region, context.region_data
+                curr_co = region_2d_to_location_3d_stable(rgn, r3d, mouse, self.brush.hit_p)
+                prev_co = region_2d_to_location_3d_stable(rgn, r3d, self.mouse_prev, self.brush.hit_p)
+                if curr_co is not None and prev_co is not None: d3 = curr_co - prev_co
+            if d3 is not None:
                 # Reject a movement spike from a bad projection
                 world_per_px = self.brush.hit_scale or 0.0
                 spike = world_per_px > 0.0 and d3.length > delta.length * world_per_px * 3.0

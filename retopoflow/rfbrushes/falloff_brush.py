@@ -21,22 +21,70 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy
 from bpy.types import Context, Event, Area, SpaceView3D, View3DOverlay
+from bpy.types import Object as BObject
+from bpy_extras.view3d_utils import location_3d_to_region_2d
 from mathutils import Vector, Matrix
 
 from typing import Protocol, cast
 from collections.abc import Sequence, Callable
 
 import math
+import weakref
 from ..rfglobals import RFGlobals
 from ..rfbrush_base import RFBrush_Base
+from ..common.accel import target_verts_kd
 from ..common.bpy_helper import bpy_ops_retopoflow, RFCORE_OPERATOR_BL_IDNAME, internal_bl_idname
 from ..common.drawing import Drawing
 from ..common.operator import RFOperator, execute_operator, RFKeyMaps
-from ..common.raycast import raycast_valid_sources, size2D_to_size, mouse_from_event
+from ..common.raycast import (
+    raycast_valid_sources, size2D_to_size, mouse_from_event, ray_from_point,
+    region_2d_to_location_3d_stable, iter_all_valid_sources, source_xform_tuple, is_point_occluded,
+)
 from ...addon_common.common.maths import Color, clamp
 from ...addon_common.common import gpustate
 from ...addon_common.common.maths import Direction, Vec, Point, Point2D, Vec2D
 from ..common.easing import CubicEaseIn
+
+
+def source_near_disc(context : Context, obj : BObject, center2D : Vector, radius : float) -> bool:
+    ''' Whether the source's screen-space bounds come within radius of center2D. '''
+    rgn, r3d = context.region, context.region_data
+    M = obj.matrix_world
+    pts = [location_3d_to_region_2d(rgn, r3d, M @ Vector(co)) for co in obj.bound_box]
+    if any(pt is None for pt in pts): return True  # straddles the view plane, so its screen bounds are unknown
+    return (
+        min(pt.x for pt in pts) - radius <= center2D.x <= max(pt.x for pt in pts) + radius and
+        min(pt.y for pt in pts) - radius <= center2D.y <= max(pt.y for pt in pts) + radius
+    )
+
+
+_reach_visible : dict[int, bool] = {}  # bm vert index -> not occluded, for the current view
+_reach_visible_key : tuple | None = None  # holds the tree weakly, so it never keeps one alive after RF frees it
+
+def target_verts_in_reach(context : Context, center_world : Vector, radius_world : float, *, wait : bool = True) -> bool:
+    ''' Whether a target vert Relax or Tweak may move lies within radius_world of center_world.
+    Covers the masks that exclude verts by default (pinned, occluded) and the selection mask,
+    but not the opt-in edge masks. With wait=False it answers from the last finished lookup,
+    which can predate recent edits, rather than stall while the current one builds. '''
+    global _reach_visible, _reach_visible_key
+    vkd = target_verts_kd(context, wait=wait)
+    if vkd is None: return not wait  # nothing built yet, so keep the brush lit until there is
+    # Only snapshot positions are read, never bm indices, so a lookup that predates an edit is still safe here
+    found = vkd.find_range(center_world, radius_world)
+    if not found: return False
+    if context.scene.retopoflow.include_occluded: return True
+
+    # Thin source parts put occluded verts inside the brush, so remember visibility while the view holds
+    r3d = context.region_data
+    view_key = (weakref.ref(vkd), tuple(v for row in r3d.perspective_matrix for v in row), context.space_data.overlay.retopology_offset)
+    if view_key != _reach_visible_key:
+        _reach_visible, _reach_visible_key = {}, view_key
+    for co, i, _dist in sorted(found, key=lambda f: f[2]):
+        if i not in _reach_visible:
+            _reach_visible[i] = not is_point_occluded(context, co)
+        if _reach_visible[i]: return True
+    return False
+
 
 class ConvertSetCallable(Protocol):
     def __call__(self, distance : float, context : Context):
@@ -73,6 +121,7 @@ def create_falloff_brush(
         # brush visualization settings
         color           : Color = arg_color
         below_alpha     : Color = Color((1,1,1,0.25))  # multiplied against color when occluded
+        unavailable_alpha : float = 0.10                # multiplied against color when no target verts are in reach
         brush_min_alpha : float = 0.100
         brush_max_alpha : float = 0.700
         depth_fill      : float = 0.998 # see note on gl_FragDepth in circle_3D.glsl
@@ -94,6 +143,8 @@ def create_falloff_brush(
         hit_y : Direction | None = None
         hit_z : Direction | None = None
         hit_rmat : Matrix | None = None
+        hit_off_source : bool = False  # the cursor misses the source and the center stands in beside it
+        drag_select_pending : bool = False  # set by the owning tool while a press with nothing in reach may still become a drag select
         disabled : bool = False
         offset : float = 0.0
         hit_scale_offset : float = 0.0
@@ -125,10 +176,14 @@ def create_falloff_brush(
             self.hit_y = None
             self.hit_z = None
             self.hit_rmat = None
+            self.hit_off_source = False
             self.disabled = False
 
-        def is_displayed(self, context : Context) -> bool:
-            return bool(self.hit and not self.disabled and context.area in self.mouse_areas)
+        def reaches_target_verts(self, context : Context, *, wait : bool = True) -> bool:
+            ''' Whether the brush has a target vert it may move within its radius. Without one the
+            brush draws dimmed and a drag hands off to the selection tool. '''
+            if not self.hit or not self.hit_p: return False
+            return target_verts_in_reach(context, Vector(self.hit_p), self.get_scaled_radius(), wait=wait)
 
         def stop(self):
             self.set_operator(None)
@@ -224,6 +279,9 @@ def create_falloff_brush(
             if not self.mouse: return
             # print(f'RFBrush_Falloff.update {(event.mouse_region_x, event.mouse_region_y)}') #{context.region=} {context.region_data=}')
             hit = raycast_valid_sources(context, self.mouse, respect_clip_planes=True)
+            off_source = not hit
+            if off_source:
+                hit = self._raycast_beside_source(context)
             # print(f'  {hit=}')
             if not hit:
                 return
@@ -250,6 +308,59 @@ def create_falloff_brush(
             self.hit_y = Direction(rmat @ Direction.Y())
             self.hit_z = Direction(rmat @ Direction.Z())
             self.hit_rmat = rmat
+            self.hit_off_source = off_source
+
+        def _raycast_beside_source(self, context : Context) -> dict | None:
+            ''' Stand-in hit for a cursor just off the source, so the edge of the brush can still
+            work the verts along a silhouette. Shaped like a raycast_valid_sources hit. '''
+            rgn, r3d = context.region, context.region_data
+            mouse = Vector(self.mouse)
+            radius = self.radius
+            sources = [
+                source_xform_tuple(obj)
+                for obj in iter_all_valid_sources(context)
+                if source_near_disc(context, obj, mouse, radius)
+            ]
+            if not sources: return None
+
+            def raycast(d : Vector, r : float):
+                return raycast_valid_sources(context, mouse + d * r, respect_clip_planes=True, sources=sources)
+
+            # Rings from the center out, so the first ring to hit holds the source closest to the cursor on screen
+            dirs = [Vector((math.cos(math.tau * i / 16), math.sin(math.tau * i / 16))) for i in range(16)]
+            r_empty = 0.0  # every direction misses at this radius, the cursor ray included
+            for frac in (0.25, 0.5, 0.75, 1.0):
+                r_ring = radius * frac
+                hits = [(d, hit) for d in dirs if (hit := raycast(d, r_ring))]
+                if hits: break
+                r_empty = r_ring
+            else:
+                return None
+
+            # Near a silhouette the depth changes fast across a few pixels, so a ring hit can sit well in
+            # front of the edge. Bisect each hit back toward the empty ring to find where the source starts.
+            nearest, r_nearest = None, math.inf
+            for d, hit in hits:
+                r_miss, r_hit = r_empty, r_ring
+                for _ in range(5):  # narrows the source edge to 1/32 of the ring spacing
+                    r_mid = (r_miss + r_hit) / 2
+                    if (hit_mid := raycast(d, r_mid)): r_hit, hit = r_mid, hit_mid
+                    else: r_miss = r_mid
+                if r_hit < r_nearest: nearest, r_nearest = hit, r_hit
+
+            # The center sits on the cursor ray at the depth of that source and faces the viewer, as the brush draws there
+            ray_origin, ray_dir = ray_from_point(context, mouse)
+            co_world = region_2d_to_location_3d_stable(rgn, r3d, mouse, nearest['co_world'])
+            if not ray_origin or not ray_dir or co_world is None: return None
+            no_world = -ray_dir.xyz.normalized()
+            Met = context.edit_object.matrix_world.transposed()
+            return {
+                'ray_world': (ray_origin, ray_dir),
+                'distance':  (co_world - ray_origin.xyz).length,
+                'co_world':  co_world,
+                'no_world':  no_world,
+                'no_local':  (Met.to_3x3() @ no_world).normalized(),
+            }
 
         def draw_postpixel(self, context : Context):
             if not RFBrush_Falloff.operator:
@@ -335,12 +446,8 @@ def create_falloff_brush(
                 return
 
             self._update(context)
-            if not self.hit or not self.hit_p or not self.hit_n or not self.hit_ray:
-                return # Ensure we have a hit and a normal
-
-            # Calculate position and orientation
-            p = self.hit_p - self.hit_ray[1].xyz * self.offset
-            n = self.hit_n
+            if not self.mouse:
+                return
 
             # Calculate outer radius based on actual brush radius and scale
             ro = self.radius
@@ -352,8 +459,32 @@ def create_falloff_brush(
             # Map strength 0.0 → min_radius, strength 1.0 → outer_radius
             ri = rmin + self.strength * (ro - rmin)
 
-            # Color.
-            color : Color = self.color
+            # Color, dimmed where there is nothing to move and a drag would select instead.
+            # Mid-stroke the mesh changes every frame, and rebuilding the vert lookup that often is too slow.
+            if RFBrush_Falloff.operator and RFBrush_Falloff.operator.is_active():
+                if self.drag_select_pending:
+                    return  # out of the way of the selection the press may become
+                alpha = 1.0
+            else:
+                # Never waits on a rebuild after an edit, so the cursor keeps moving on big meshes
+                alpha = 1.0 if self.reaches_target_verts(context, wait=False) else self.unavailable_alpha
+            color : Color = Color((self.color.r, self.color.g, self.color.b, self.color.a * alpha))
+
+            if not self.hit or self.hit_off_source or not self.hit_n or not self.hit_ray:
+                # Off the source the brush faces the screen
+                gpustate.blend('ALPHA')
+                gpustate.depth_test('NONE')
+                gpustate.depth_mask(False)
+                Drawing.draw2D_smooth_circle(context, self.mouse, ro, color, width=2, apply_ui_scale=False)
+                Drawing.draw2D_smooth_circle(context, self.mouse, ri, color, width=1, apply_ui_scale=False)
+                gpustate.depth_test('LESS_EQUAL')
+                gpustate.depth_mask(True)
+                return
+
+            # Calculate position and orientation
+            p = self.hit_p - self.hit_ray[1].xyz * self.offset
+            n = self.hit_n
+
             # Ensure below_alpha has alpha component 'a'
             below_alpha_val = (
                 self.below_alpha.a if hasattr(self.below_alpha, 'a') else (
