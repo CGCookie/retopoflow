@@ -5640,7 +5640,7 @@ class LegacyPatches_Logic:
                     Drawing.draw2D_points(context, pts2d, AUTO_KNOT_FILL_COLOR, radius=KNOT_RADIUS, border=2, borderColor=KNOT_BORDER_COLOR)
 
             # text last, so it sits on top of the face fill
-            labels = L.labels if RF_Prefs.get_prefs(context).show_counts else []
+            labels = L.labels if RF_Prefs.get_prefs(context).show_counts and Drawing.overlays_shown(context) else []
             for text, cos in labels:
                 pts = [p for co in cos if (p := proj(co))]
                 if not pts: continue

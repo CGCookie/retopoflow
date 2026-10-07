@@ -774,6 +774,9 @@ def create_curve_overlay_logic(
         ) -> tuple[int, int, list] | None:
             if not context.edit_object:
                 return None
+            if not Drawing.overlays_shown(context):
+                # hidden handles must not be grabbable either
+                return None
             if not self.update_data(context):
                 return None
             rgn, r3d = context.region, context.region_data
@@ -819,6 +822,8 @@ def create_curve_overlay_logic(
 
         def draw_overlay(self, context : Context):
             if not context.edit_object:
+                return
+            if not Drawing.overlays_shown(context):
                 return
             if not self.update_data(context):
                 # also covers a native transform being mid-drag
