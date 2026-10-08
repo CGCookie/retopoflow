@@ -25,12 +25,14 @@ from bmesh.types import BMesh, BMVert, BMEdge
 from bpy.types import Context, Event, Region, RegionView3D, Mesh, PropertyGroup
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_origin_3d, region_2d_to_vector_3d, region_2d_to_location_3d
 from mathutils import Vector, Matrix
+from mathutils.kdtree import KDTree
 
 import math
 from typing import Callable
+from collections import deque
 from collections.abc import Sequence
 
-from ..common.accel import EdgeMarkAccel, SourceAccel, Accel, SourceCache, target_verts_kd
+from ..common.accel import EdgeMarkAccel, SourceAccel, Accel, SourceCache, VertsKD, MovedVerts, target_verts_kd
 from ..common.drawing import Drawing, CC_2D_POINTS
 from ...addon_common.common.colors import Color4
 from ..common.bmesh import get_bmesh_emesh, is_bmvert_boundary, is_bmvert_corner, bmv_co_isnan, get_bmv_avg_edge_len, get_bmv_next_loop_vert
@@ -97,7 +99,13 @@ class Tweak_Logic(SourceSnapMixin):
 
     verts_filtered : list[BMVert]
     verts : list[tuple]  # (bmv, original co, projected xy, brush strength) captured at grab time
-    active_island : 'set[BMVert] | None'  # verts of the island under the brush, or None when not isolating
+    verts_kd : 'VertsKD | None'  # shared target tree from press, only correct for verts this stroke hasn't moved
+    moved : MovedVerts  # verts moved this stroke
+
+    # The island under the brush at press, filled in as needed by on_active_island
+    island_in : 'set[BMVert] | None'  # verts known to be on it, or None when not isolating
+    island_out : 'set[BMVert]'  # verts known to be on other islands
+    island_frontier : 'deque[BMVert]'  # verts in island_in whose neighbors haven't been checked yet
 
     mouse : Vector
     mouse_prev : Vector
@@ -186,8 +194,18 @@ class Tweak_Logic(SourceSnapMixin):
         self.vert_accel : 'Accel | None' = Accel(context, all_verts, self.matrix_world) if all_verts else None
 
         # Cache mesh-wide edge-mark presence so per-vert checks in sweeps don't scan all edges.
-        self.has_any_seam  = any(bme.seam for bme in self.bm.edges)
-        self.has_any_sharp = any(not bme.smooth for bme in self.bm.edges)
+        # Only needed for the EXCLUDE masks, so skip the full edge scan otherwise.
+        self.has_any_seam  = self.mask_opt('seams')  == 'EXCLUDE' and any(bme.seam for bme in self.bm.edges)
+        self.has_any_sharp = self.mask_opt('sharps') == 'EXCLUDE' and any(not bme.smooth for bme in self.bm.edges)
+
+        # Sweeps find unmoved verts in the shared tree and moved verts in self.moved
+        self.verts_kd = target_verts_kd(context)
+        self.moved = MovedVerts(self.matrix_world, self.brush.get_scaled_radius())
+
+        # Vert visibility is tested at the vert's position from the start of the stroke. Loop verts and
+        # companions skip the test on the first sweep, so they're tested later at their current position.
+        self.visibility_from_current_co: set[BMVert] = set()
+        self.first_sweep_done = False
 
         self.collect_verts(context, event)
 
@@ -218,7 +236,7 @@ class Tweak_Logic(SourceSnapMixin):
 
     def collect_verts(self, context, event):
         self.verts = []
-        self.active_island = None  # set below when isolating to one island
+        self.island_in = None  # set below when isolating to one island
         self.mouse = Vector(mouse_from_event(event))
         self.mouse_prev = self.mouse.copy()
 
@@ -237,10 +255,9 @@ class Tweak_Logic(SourceSnapMixin):
 
         self.bm.verts.ensure_lookup_table() # Ensure here so the per-vert filters don't need to call it
 
-        target_kd = target_verts_kd(context)
-        if not target_kd: return
+        if not self.verts_kd: return
         self.verts_filtered = sorted(
-            (bmv for bmv in target_kd.get(self.bm, brush_center_world, radius3D) if not bmv.hide),
+            (bmv for bmv in self.verts_kd.get(self.bm, brush_center_world, radius3D) if not bmv.hide),
             key=lambda bmv: bmv.index,
         )
 
@@ -276,12 +293,11 @@ class Tweak_Logic(SourceSnapMixin):
             if self.bm.edges.layers.float.get('crease_edge'):
                 self.verts_filtered = [ bmv for bmv in self.verts_filtered if not is_bmvert_on_edgemark(self.bm, bmv, BMMarking.crease) ]
         # Tier 5: iterate link_edges with any()/all()
-        if self.mask_opt('seams') == 'EXCLUDE':
-            if any(bme.seam for bme in self.bm.edges):
-                self.verts_filtered = [ bmv for bmv in self.verts_filtered if not is_bmvert_on_edgemark(self.bm, bmv, BMMarking.seam) ]
-        if self.mask_opt('sharps') == 'EXCLUDE':
-            if any(not bme.smooth for bme in self.bm.edges):
-                self.verts_filtered = [ bmv for bmv in self.verts_filtered if not is_bmvert_on_edgemark(self.bm, bmv, BMMarking.sharp) ]
+        # has_any_seam/has_any_sharp are only True when their mask is EXCLUDE
+        if self.has_any_seam:
+            self.verts_filtered = [ bmv for bmv in self.verts_filtered if not is_bmvert_on_edgemark(self.bm, bmv, BMMarking.seam) ]
+        if self.has_any_sharp:
+            self.verts_filtered = [ bmv for bmv in self.verts_filtered if not is_bmvert_on_edgemark(self.bm, bmv, BMMarking.sharp) ]
         if self.mask_opt('angle') == 'EXCLUDE' and self.angle_verts:
             self.verts_filtered = [ bmv for bmv in self.verts_filtered if bmv not in self.angle_verts ]
         # Tier 6: iterate link_edges calling a function per edge
@@ -341,10 +357,12 @@ class Tweak_Logic(SourceSnapMixin):
                 )
 
             visibility_cache = self.visibility_cache  # Bind to a local to avoid a reference cycle
+            start_co, from_current_co = self.moved.start_co, self.visibility_from_current_co
 
             def is_bmvert_hidden(bmv : BMVert) -> bool:
                 if bmv not in visibility_cache:
-                    visibility_cache[bmv] = is_point_hidden_fast(matrix_world @ bmv.co)
+                    co = bmv.co if bmv in from_current_co else start_co.get(bmv, bmv.co)
+                    visibility_cache[bmv] = is_point_hidden_fast(matrix_world @ co)
                 return visibility_cache[bmv]
 
             self.is_bmvert_hidden = is_bmvert_hidden
@@ -357,8 +375,10 @@ class Tweak_Logic(SourceSnapMixin):
         # Keep focused on one mesh island at a time to prevent spillover unless "All Islands" masking option is on.
         if self.verts_filtered and not self.include_opt('all_islands'):
             nearest = min(self.verts_filtered, key=lambda v: ((M @ v.co) - brush_center_world).length_squared)
-            self.active_island = self.flood_island(nearest)
-            self.verts_filtered = [bmv for bmv in self.verts_filtered if bmv in self.active_island]
+            self.island_in = {nearest}
+            self.island_out = set()
+            self.island_frontier = deque((nearest,))
+            self.verts_filtered = [bmv for bmv in self.verts_filtered if self.on_active_island(bmv)]
 
         self.verts = [
             (
@@ -374,19 +394,50 @@ class Tweak_Logic(SourceSnapMixin):
         self.grab_brush_centre_world: Vector | None = Vector(self.brush.hit_p) if self.brush.hit_p else None
         self.grab_brush_radius: float = self.brush.get_scaled_radius()
 
-    def flood_island(self, seed: BMVert) -> 'set[BMVert]':
-        ''' All verts reachable from seed through edges, i.e. the whole connected mesh island.
-        Locked once at stroke start so the sweep stays on the starting island even as the brush moves. '''
-        island = {seed}
-        stack = [seed]
-        while stack:
-            v = stack.pop()
+    def on_active_island(self, bmv: BMVert) -> bool:
+        ''' True if bmv is on the same island as the vert nearest the brush at press, so the stroke stays on
+        one island. Always True when not isolating. '''
+        # Flooding the whole island at press is too slow on big meshes, so verts are checked as they come up.
+        # Walk out from bmv and from the seed one vert at a time each. If the walks meet, bmv is on the island.
+        # If either walk runs out of verts first, it isn't. That costs at most twice the size of the smaller
+        # island, and the results are kept for the rest of the stroke.
+        island_in = self.island_in
+        if island_in is None or bmv in island_in: return True
+        if bmv in self.island_out: return False
+        frontier = self.island_frontier
+        if not frontier: return False  # the seed flood finished, so island_in is the whole island
+
+        def join(seen, unwalked):
+            # Unwalked verts may have unchecked neighbors, so add them to the seed flood's queue
+            island_in.update(seen)
+            frontier.extend(unwalked)
+            return True
+
+        seen, queue = {bmv}, deque((bmv,))
+        while queue:
+            v = queue.popleft()
             for bme in v.link_edges:
                 nb = bme.other_vert(v)
-                if nb not in island:
-                    island.add(nb)
-                    stack.append(nb)
-        return island
+                if nb in island_in:
+                    queue.append(v)  # v's remaining neighbors weren't checked
+                    return join(seen, queue)
+                if nb not in seen:
+                    seen.add(nb)
+                    queue.append(nb)
+
+            s = frontier.popleft()
+            met = False
+            for bme in s.link_edges:
+                nb = bme.other_vert(s)
+                if nb in island_in: continue
+                island_in.add(nb)
+                frontier.append(nb)
+                met = met or nb in seen
+            if met: return join(seen, queue)
+            if not frontier: return False
+
+        self.island_out.update(seen)
+        return False
 
 
     def elect_nudge_loop(self, context, delta: Vector):
@@ -523,6 +574,42 @@ class Tweak_Logic(SourceSnapMixin):
 
         return set(dist)
 
+    def verts_near(self, co_world: Vector, radius: float) -> 'set[BMVert]':
+        ''' Verts within radius of co_world at their current positions. The radius is padded slightly so the
+        caller's own distance check makes the final cut. Can leave out hidden, selection-masked and pinned verts,
+        since the shared tree skips them. '''
+        if not self.verts_kd: return set()
+        reach = radius * 1.0001
+        # The tree is only out of date for verts this stroke moved, and self.moved has those
+        return self.verts_kd.get(self.bm, co_world, reach) | self.moved.get(co_world, reach)
+
+    def verts_near_loop(self, radius: float) -> 'dict[BMVert, float]':
+        ''' Verts within radius of any loop vert, mapped to their distance to the nearest loop vert. '''
+        M = self.matrix_world
+        loop_worlds = [M @ v.co for v in self.nudge_loop_verts if v.is_valid and not v.hide]
+        if not loop_worlds or not self.verts_kd: return {}
+        loop_kd = KDTree(len(loop_worlds))
+        for i, co in enumerate(loop_worlds): loop_kd.insert(co, i)
+        loop_kd.balance()
+
+        # KDTree uses single precision, so pad the search slightly and compare exact distances below
+        reach = radius * 1.0001
+        verts, count = self.bm.verts, len(self.bm.verts)
+        indices = {i for lw in loop_worlds for _co, i, _dist in self.verts_kd.find_range(lw, reach)}
+        pool = {verts[i] for i in indices if i < count}
+        for lw in loop_worlds: pool.update(self.moved.near(lw, reach))
+
+        near: dict[BMVert, float] = {}
+        for bmv in pool:
+            bmv_world = M @ bmv.co
+            _co, i, nearest = loop_kd.find(bmv_world)
+            if nearest > reach: continue
+            # The KD nearest can be off by float error, so compare exact distances to any near-ties
+            ties = loop_kd.find_range(bmv_world, nearest * 1.0001)
+            dist = min((bmv_world - loop_worlds[j]).length for _co, j, _dist in ties) if ties else (bmv_world - loop_worlds[i]).length
+            if dist <= radius: near[bmv] = dist
+        return near
+
 
     def cancel(self, context):
         if not self.verts: return
@@ -558,7 +645,7 @@ class Tweak_Logic(SourceSnapMixin):
         from collect_verts so that nudge and pinch respect the same masking as GRAB).
         ignore_occluded skips only the occlusion test, for verts that move as a unit,
         i.e. a nudged loop and its neighbors. '''
-        if self.active_island is not None and bmv not in self.active_island:
+        if not self.on_active_island(bmv):
             return True
         if self.mask_opt('selected') == 'ONLY' and not bmv.select:
             return True
@@ -711,6 +798,11 @@ class Tweak_Logic(SourceSnapMixin):
     def snap_grabbed_set(self):
         return {t[0] for t in self.verts}
 
+    def kick_corner_occupant(self, occupant, corner_co, incoming_bmv, context=None, stroke_disp_2d=None):
+        self.moved.remember(occupant)
+        super().kick_corner_occupant(occupant, corner_co, incoming_bmv, context, stroke_disp_2d)
+        self.moved.rebin(occupant)
+
     def push_crowded_edge_neighbors(self, context, stroke_disp_2d):
         ''' After grabbed verts have moved, check every snapped vert's direct neighbors.
         If a neighbor is also on the source edge and too close, push it off the edge perpendicularly '''
@@ -774,7 +866,7 @@ class Tweak_Logic(SourceSnapMixin):
                 hit = raycast_valid_sources(context, sample_2d, respect_clip_planes=True)
                 if hit is None: continue
 
-                nb.co = Vector(hit['co_local'])
+                self.moved.write(nb, Vector(hit['co_local']))
                 self.snapped_verts.discard(nb)
                 self.snap_target_world.pop(nb, None)
 
@@ -786,7 +878,7 @@ class Tweak_Logic(SourceSnapMixin):
             getattr(self.tweak, 'brush_type', 'GRAB') == 'NUDGE'
             and (getattr(self.tweak, 'nudge_loops', False) ^ self.nudge_loops_alt_flip)
         )
-        # Nudge+Loops sweeps self.bm.verts directly so it works even with an empty brush.
+        # Nudge+Loops sweeps around the elected loop, so it works even with an empty brush.
         if not self.verts and not is_nudge_loops: return
         if event.type != 'MOUSEMOVE': return
 
@@ -890,7 +982,7 @@ class Tweak_Logic(SourceSnapMixin):
                 new_co = co
 
 
-            if new_co: bmv.co = new_co
+            if new_co: self.moved.write(bmv, new_co)
 
         if is_nudge:
             # Loops mode: defer election to the first meaningful movement so stroke direction
@@ -972,14 +1064,23 @@ class Tweak_Logic(SourceSnapMixin):
         if brush_centre_2d is None:
             return
 
-        # In Loops mode, precompute world positions of loop verts once for O(loop) distance queries per vert.
-        loop_vert_worlds: list[Vector] = []
+        # In Loops mode each loop vert acts as a brush center, so get each vert's distance to the loop up front.
+        near_loop: 'dict[BMVert, float]' = {}
         companions: 'set[BMVert]' = set()
         if self.nudge_loop_verts:
-            loop_vert_worlds = [M @ v.co for v in self.nudge_loop_verts if v.is_valid and not v.hide]
+            near_loop = self.verts_near_loop(radius3D)
             companions = self.nudge_companion_verts(radius3D)
+            candidates = {v for v in self.nudge_loop_verts if v.is_valid} | near_loop.keys()
+        else:
+            candidates = self.verts_near(brush_centre_world, radius3D)
+        if not self.first_sweep_done:
+            # Loop verts and companions skip the visibility test on this sweep, so test them later
+            self.visibility_from_current_co.update(self.nudge_loop_verts, companions)
+            self.first_sweep_done = True
 
-        for bmv in self.bm.verts:
+        # Sort to match bm.verts order. A Loops tangent computed on first encounter reads neighbors that may
+        # have already moved this frame, so the order changes the result.
+        for bmv in sorted(candidates, key=lambda v: v.index):
             if bmv.hide or not bmv.is_valid:
                 continue
             # The elected loop and the verts beside it move even where they dip behind the source.
@@ -996,11 +1097,8 @@ class Tweak_Logic(SourceSnapMixin):
                 else:
                     # Non-loop vert: falloff from the nearest loop vert in world space,
                     # as if every loop vert were its own brush center.
-                    if not loop_vert_worlds:
-                        continue
-                    bmv_world = M @ bmv.co
-                    dist_to_loop = min((bmv_world - lw).length for lw in loop_vert_worlds)
-                    if dist_to_loop > radius3D:
+                    dist_to_loop = near_loop.get(bmv)
+                    if dist_to_loop is None:
                         continue
                     t_lin = 1.0 - dist_to_loop / radius3D
                     t = t_lin
@@ -1107,7 +1205,7 @@ class Tweak_Logic(SourceSnapMixin):
             new_co = self.matrix_world_inv @ new_pt
             new_co = self.apply_slide_constraints(bmv, new_co)
             new_co = self.apply_mirror_clip(context, bmv, new_co)
-            bmv.co = new_co
+            self.moved.write(bmv, new_co)
 
     def pinch_magnify_sweep(self, context, mouse: Vector, delta: Vector, pressure: float, is_pinch: bool):
         ''' Pinch/Magnify: every vert under the brush is pulled toward (Pinch) or pushed
@@ -1137,7 +1235,7 @@ class Tweak_Logic(SourceSnapMixin):
         if brush_centre_2d is None:
             return
 
-        for bmv in self.bm.verts:
+        for bmv in sorted(self.verts_near(brush_centre_world, radius3D), key=lambda v: v.index):
             if bmv.hide or not bmv.is_valid:
                 continue
             if self.is_vert_excluded(bmv):
@@ -1183,7 +1281,7 @@ class Tweak_Logic(SourceSnapMixin):
                 continue
             new_co = self.apply_slide_constraints(bmv, new_co)
             new_co = self.apply_mirror_clip(context, bmv, new_co)
-            bmv.co = new_co
+            self.moved.write(bmv, new_co)
 
     def do_relax_step(self, context):
         ''' Run one Relax iteration on grabbed verts + expanded neighbours.
@@ -1228,7 +1326,10 @@ class Tweak_Logic(SourceSnapMixin):
         engine = Relax_Logic.for_options(context, relax_opts)
         filtered = engine.filter_verts(all_verts)
         filtered_strength = {bmv: vert_strength[bmv] for bmv in filtered if bmv in vert_strength}
+        # relax_verts writes only the verts it is given
+        for bmv in filtered_strength: self.moved.remember(bmv)
         engine.relax_verts(context, set(filtered_strength.keys()), filtered_strength)
+        for bmv in filtered_strength: self.moved.rebin(bmv)
 
     def draw(self, context: Context):
         Drawing.draw_snap_circles(context, self.snapped_verts, self.matrix_world)

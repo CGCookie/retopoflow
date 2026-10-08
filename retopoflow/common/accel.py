@@ -180,18 +180,82 @@ class VertsKD:
         ''' (snapshot position, bm.verts index, distance) for each snapshot position within radius_world. '''
         return [hit for kd in self.trees for hit in kd.find_range(co_world, radius_world)]
 
-    def get(self, bm : BMesh, co_world : Vector, radius_world : float, *, slack : float = 0.0) -> set[BMVert]:
-        ''' Verts within radius_world of co_world. `slack` covers how far verts may have moved since the build.
-        A topology edit can land before the depsgraph marks this tree stale, so indices are bounds-checked
-        and callers must re-apply their own masks to the returned verts. '''
+    def get(self, bm : BMesh, co_world : Vector, radius_world : float) -> set[BMVert]:
+        ''' Verts within radius_world of co_world. A vert moved since the build can be missed, so strokes look
+        up moved verts in MovedVerts. A topology edit can land before the depsgraph marks this tree stale, so
+        indices are bounds-checked and callers must re-apply their own masks to the returned verts. '''
         M, verts = self.matrix_world, bm.verts
         count = len(verts)
         r2 = radius_world * radius_world
         return {
             bmv
-            for _co, i, _dist in self.find_range(co_world, radius_world + slack)
+            for _co, i, _dist in self.find_range(co_world, radius_world)
             if i < count and (M @ (bmv := verts[i]).co - co_world).length_squared <= r2
         }
+
+
+class MovedVerts:
+    ''' Verts moved during a stroke, with their start positions and a spatial grid of their current positions.
+    The shared VertsKD only has positions from before the stroke. A Tweak Nudge can drag a vert any distance from
+    there, and a Relax stroke keeps moving verts as long as it is held, so strokes look up moved verts here. '''
+    matrix_world : Matrix
+    start_co : dict[BMVert, Vector]
+    inv_cell : float
+    cells : dict[tuple[int, int, int], set[BMVert]]
+    cell_of : dict[BMVert, tuple[int, int, int]]
+
+    def __init__(self, matrix_world : Matrix, cell : float):
+        self.matrix_world = matrix_world.copy()
+        self.start_co = {}
+        self.inv_cell = 1.0 / cell if cell > 0 else 0.0  # 0 puts every vert in one cell
+        self.cells = {}
+        self.cell_of = {}
+
+    def write(self, bmv : BMVert, co : Vector):
+        self.remember(bmv)
+        bmv.co = co
+        self.rebin(bmv)
+
+    def remember(self, bmv : BMVert):
+        ''' Call before moving bmv without write(), then call rebin() after. '''
+        if bmv not in self.start_co: self.start_co[bmv] = bmv.co.copy()
+
+    def key(self, co : Vector) -> tuple[int, int, int]:
+        s = self.inv_cell
+        return (math.floor(co.x * s), math.floor(co.y * s), math.floor(co.z * s))
+
+    def rebin(self, bmv : BMVert):
+        co = self.matrix_world @ bmv.co
+        old = self.cell_of.get(bmv)
+        # floor() raises on NaN and inf. Those verts can't be near the brush, so drop them.
+        key = self.key(co) if math.isfinite(co.length_squared) else None
+        if key == old: return
+        if old is not None: self.cells[old].discard(bmv)
+        if key is None:
+            del self.cell_of[bmv]
+            return
+        self.cells.setdefault(key, set()).add(bmv)
+        self.cell_of[bmv] = key
+
+    def near(self, co : Vector, reach : float) -> Iterable[BMVert]:
+        ''' Verts in the cells that overlap reach of co. Some may be farther than reach. '''
+        x0, y0, z0 = self.key(co - Vector((reach, reach, reach)))
+        x1, y1, z1 = self.key(co + Vector((reach, reach, reach)))
+        if (x1 - x0 + 1) * (y1 - y0 + 1) * (z1 - z0 + 1) > len(self.cell_of):
+            return self.cell_of.keys()  # fewer moved verts than cells, so check them all
+        cells = self.cells
+        return [
+            bmv
+            for x in range(x0, x1 + 1)
+            for y in range(y0, y1 + 1)
+            for z in range(z0, z1 + 1)
+            for bmv in cells.get((x, y, z), ())
+        ]
+
+    def get(self, co_world : Vector, radius_world : float) -> set[BMVert]:
+        ''' Moved verts within radius_world of co_world at their current positions. '''
+        M, r2 = self.matrix_world, radius_world * radius_world
+        return { bmv for bmv in self.near(co_world, radius_world) if (M @ bmv.co - co_world).length_squared <= r2 }
 
 
 # Shared by the falloff brush's hover check and the Relax and Tweak strokes, which start from it on press.
