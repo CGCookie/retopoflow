@@ -38,7 +38,7 @@ from typing import Callable
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 
-from ..common.accel import EdgeMarkAccel, SourceAccel, SourceCache, VertsKD, target_verts_kd
+from ..common.accel import EdgeMarkAccel, SourceAccel, SourceCache, VertsKD, MovedVerts, target_verts_kd
 from ..common.snapping import FeatureRunsMixin, source_snap_radius, source_snap_settings
 from ..common.bmesh import (
     get_bmesh_emesh, is_bmedge_boundary, is_bmvert_boundary, is_bmvert_corner, is_bmvert_on_ngon,
@@ -160,8 +160,8 @@ class Relax_Logic(FeatureRunsMixin):
     bounce_mult : dict[BMVert, float]       # ...
 
     verts_filtered_set : set[BMVert]
-    verts_kd : VertsKD
-    verts_kd_time : float                   # when verts_kd was last binned
+    verts_kd : VertsKD                      # shared target tree from press, only correct for verts this stroke hasn't moved
+    moved : MovedVerts                      # verts moved this stroke
     avg_edge_len_cache : dict[BMVert, float]
     laplacian_cache : dict[BMVert, tuple[tuple[BMVert, ...], bool, float] | None]
     straighten_cache : dict[BMVert, tuple[bool, tuple[BMVert, ...], tuple[BMVert, ...], int] | None]
@@ -313,7 +313,7 @@ class Relax_Logic(FeatureRunsMixin):
         timings.append(('verts accel', time.time()))
         self.verts_filtered_set = set(self.verts_filtered)
         self.verts_kd = target_verts_kd(context) or VertsKD.build(self.verts_filtered, self.matrix_world)
-        self.verts_kd_time = time.time()
+        self.moved = MovedVerts(self.matrix_world, brush.get_scaled_radius())
 
         timings.append(('finished', time.time()))
         total_time = timings[-1][1] - timings[0][1]
@@ -519,8 +519,9 @@ class Relax_Logic(FeatureRunsMixin):
         ''' Filtered verts within the brush radius. Empty when the brush is not active. '''
         if not self.brush.hit or not self.brush.hit_p or not self.verts_filtered: return set()
         radius3D = self.brush.get_scaled_radius()
-        # Verts relaxed since the last re-bin have drifted from where the tree has them, so search a brush radius further
-        verts = self.verts_kd.get(self.bm, Vector(self.brush.hit_p), radius3D, slack=radius3D) & self.verts_filtered_set
+        center = Vector(self.brush.hit_p)
+        # The tree is only out of date for verts this stroke moved, and self.moved has those
+        verts = (self.verts_kd.get(self.bm, center, radius3D) | self.moved.get(center, radius3D)) & self.verts_filtered_set
         if self.exclude_opt('occluded'):
             verts = { bmv for bmv in verts if not self.is_bmvert_hidden(bmv) }
         return verts
@@ -543,10 +544,6 @@ class Relax_Logic(FeatureRunsMixin):
         if time_delta < 1.0 / 120: return
         time_delta = clamp(time_delta, 0.0, 0.1)
         self._time = cur_time
-        if cur_time - self.verts_kd_time > 2.0:
-            # Relaxed verts drift from where the tree has them, so re-bin every couple of seconds
-            self.verts_kd = VertsKD.build(self.verts_filtered, self.matrix_world)
-            self.verts_kd_time = cur_time
 
         # # Debug: select all verts under brush
         # bmops.deselect_all(self.bm)
@@ -573,6 +570,7 @@ class Relax_Logic(FeatureRunsMixin):
             time_delta         = time_delta,
             debug_print        = debug_print,
         )
+        for bmv in verts: self.moved.rebin(bmv)  # relax_verts writes only the verts it is given
         if PROFILE_RELAX: self._profiler.disable()
 
     def relax_verts(self, context:Context, verts:'set[BMVert]', vert_strength:'dict[BMVert, float]', *,
