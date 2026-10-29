@@ -40,7 +40,7 @@ from ..common.drawing import (
     CC_2D_LINES,
 )
 from ..common.maths import Point
-from ..common.operator import RFOperator_Invoke, RFKeyMaps, rf_is_running, hotkey_owns_context
+from ..common.operator import RFOperator_Invoke, RFKeyMaps, rf_is_running, hotkey_owns_context, hotkey_operator
 from ..common.raycast import nearest_point_valid_sources, vec_right
 from ..common.snapping import SNAP_TO_ITEMS, build_island_bvh, build_snap_sources, draw_snap_to_props
 
@@ -147,7 +147,7 @@ class RFOperator_TopoRotate(RFOperator_Invoke):
     # The modal header (see header_modal_text) carries this instead, in and out of RF.
     rf_status = ['LMB: Commit', 'MMB: (nothing)', 'RMB: Cancel']
 
-    # set on the standalone Mesh-keymap item only, so hotkey_owns_context governs the key
+    # set by the standalone Mesh-keymap item's shim only, so hotkey_owns_context governs the key
     # and not the tool keymap above or the right-click menu entry
     hotkey: bpy.props.BoolProperty(
         name='From Hotkey',
@@ -552,14 +552,15 @@ class RFOperator_TopoRotate(RFOperator_Invoke):
 
 
 # Global hotkey outside the tool-scoped one every RF tool already carries in its own bl_keymap
+RFOperator_TopoRotate_Hotkey = hotkey_operator(RFOperator_TopoRotate)
+
 keymaps = []
 
 def register():
     keyconfigs = bpy.context.window_manager.keyconfigs.addon
     if not keyconfigs: return
     km = keyconfigs.keymaps.new(name='Mesh')
-    kmi = km.keymap_items.new(RFOperator_TopoRotate.bl_idname, 'R', 'PRESS', ctrl=False, shift=False, alt=True)
-    kmi.properties.hotkey = True
+    kmi = km.keymap_items.new(RFOperator_TopoRotate_Hotkey.bl_idname, 'R', 'PRESS', ctrl=False, shift=False, alt=True)
     keymaps.append((km, kmi))
 
 def unregister():

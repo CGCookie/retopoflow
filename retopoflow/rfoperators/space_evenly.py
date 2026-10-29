@@ -27,7 +27,7 @@ from bpy.props import IntProperty, FloatProperty, BoolProperty, EnumProperty, St
 from mathutils import Vector
 
 from ..rfglobals import RFGlobals
-from ..common.operator import RFRegisterClass, hotkey_owns_context
+from ..common.operator import RFRegisterClass, hotkey_owns_context, hotkey_operator
 from ..common.accel import SourceAccel
 from ..common.bmesh import get_bmv_avg_edge_len, get_bmv_next_loop_vert
 from ..common.bmesh_maths import is_bmvert_pinned
@@ -73,7 +73,7 @@ class RFOperator_SpaceEvenly(RFRegisterClass, bpy.types.Operator):
 
     rf_label = "Space Selection Evenly"
 
-    # set on the standalone Mesh-keymap item only, so hotkey_owns_context governs the key
+    # set by the standalone Mesh-keymap item's shim only, so hotkey_owns_context governs the key
     # and not the right-click menu entry
     hotkey: BoolProperty(
         name='From Hotkey',
@@ -679,14 +679,15 @@ class RFOperator_SpaceEvenly(RFRegisterClass, bpy.types.Operator):
         return sharp
 
 
+RFOperator_SpaceEvenly_Hotkey = hotkey_operator(RFOperator_SpaceEvenly)
+
 keymaps = []
 
 def register():
     keyconfigs = bpy.context.window_manager.keyconfigs.addon
     if not keyconfigs: return
     km = keyconfigs.keymaps.new(name='Mesh')
-    kmi = km.keymap_items.new(RFOperator_SpaceEvenly.bl_idname, 'R', 'PRESS', ctrl=False, shift=True, alt=True)
-    kmi.properties.hotkey = True
+    kmi = km.keymap_items.new(RFOperator_SpaceEvenly_Hotkey.bl_idname, 'R', 'PRESS', ctrl=False, shift=True, alt=True)
     keymaps.append((km, kmi))
 
 def unregister():

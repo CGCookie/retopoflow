@@ -27,7 +27,7 @@ import bpy
 import numpy as np
 
 from ..common.maths import (
-    build_graph_pyramid, diffuse_graph_fields, diffuse_graph_fields_pyramid,
+    build_graph_pyramid, diffuse_graph_fields_pyramid,
     get_face_adjacency,
 )
 from ..common.operator import RFOperator_Execute
@@ -64,42 +64,41 @@ WALL_ANGLE_DEG = 60.0             # upper wall tier: unconditional
 WALL_CORROB_DEG = 4.0             # smoothed-normal angle confirming a wall
 CAVITY_FRACS = (0.25, 0.35, 0.5, 0.7, 1.0, 1.4)
 TURN_FRACS = (0.25, 1.0, 2.5)     # smoothed-normal ladder for turn channels
-K_CAP = 400
-GROWTH_STAGES = 8
 CREST_VETO_FACTOR = 3.0           # band p90 >= this x interface median: veto
 CREST_BAND_FRAC = 0.5             # merge-veto band depth, x feature scale
-CREST_WALK_DOM = 0.85             # walk face >= this x its transverse max
 CREST_TURN_MIN_DEG = 1.0          # min raw bend, deg per scale of travel
-CREST_NODE_STEP = 0.25            # trace-node spacing target, x scale
 CREST_MARCH_STEP = 0.25           # marching step length, x scale
-CREST_MARCH_KEEP = 0.35           # keep marching vs own median level
-CREST_MARCH_COAST = 3             # tolerated consecutive bad probes
 CREST_GROW_Q = 12                 # new band faces per curve-growth step
 CREST_RATE_WIN = 0.02             # band area between rate checks, x scale^2
 CREST_PATH_COST = 3.0             # off-crest penalty in band paths
-CREST_PROFILE_X = 1.0             # transverse profile half-width, x rung
-CREST_CLAIM_R = 0.35              # curve claim radius, x scale
-CREST_SEED_SPACING = 1.0          # min seed separation, x scale
-CREST_SEED_CAP = 512              # max marching seeds per polarity
 CREST_FUSE_GAP = 1.0              # max fragment fusion gap, x scale
 CREST_RELAX_ITERS = 6             # active-contour relaxation passes
 CREST_CURVE_PEAK_MIN = 0.6        # min fraction of peaked profiles
 CREST_CURVE_WIGGLE_MAX = 35.0     # max mean turning per point, deg
 CREST_ELONG_MIN = 6.0             # length/width ratio that locks a line
 CREST_LOCK_LEN = 0.5              # min length to lock, x scale
-CREST_FAT_X = 1.75                # stop when width > this x own lock width
 CREST_COLL_COS = 0.7              # collinearity cone for feature joins
 CREST_MIN_LEN = 0.75              # minimum open-chain length, x scale
 CREST_SHARP_JOIN_COS = 0.7        # junction straight-through pairing cos
 CREST_SHARP_STREN_DEG = 5.0       # dihedral degrees per strength unit
 CREST_SHARP_SPUR = 0.35           # junction-twig prune length, x scale
+CREST_SHARP_CORNER_GAP = 0.3      # ends this close fuse regardless of tangent
+CREST_SHARP_FUZZ_LEN = 1.5        # sub-median sharp chains shorter than this die
+CREST_SHARP_FUZZ_REL = 0.9        # fuzz = weaker than this x polarity median
+LOOP_SHIFT_R = 0.35               # loop centerline reach, x scale
+LOOP_ABSORB_R = 0.25              # evidence this close to a loop is absorbed, x scale
+LOOP_SMOOTH = 1.0                 # loop smoothing sigma along arc, x scale
+LOOP_ATTRACT = 0.5                # pull back toward crease evidence per pass
+LOOP_GAP = 1.5                    # loop gap bridging + junction reach, x scale
+LOOP_MIN_LEN = 2.0                # open loops shorter than this are scraps, x scale
+LOOP_PARALLEL_COS = 0.7           # tangent agreement for same-loop evidence
+PATCH_MIN_AREA = 1.0              # patches under this x scale^2 dissolve
+PATCH_SUPPORT_MIN = 0.5           # chain support below this dissolves
+PATCH_KEEP_CHAIN = 3.0            # chains this long survive low support, x scale
+PATCH_BIG_AREA = 4.0              # two patches this big never merge on support, x scale^2
 CREST_LOOP_MIN_FACES = 6          # minimum faces for a closed loop
-CREST_CONE_COS = 0.5              # bridge-walk cone (~60 deg half-angle)
 CREST_TENSOR_RAD_X = 1.0          # structure-tensor smoothing, x rung
 CREST_TENSOR_PRE_X = 0.5          # field pre-smooth, x rung radius
-CREST_ANISO_MIN = 0.15            # orientation coherence gate for lines
-CREST_NMS_COS = 0.75              # across-cone: past the ~45 deg zigzag
-CREST_STEP_COS = 0.3              # walker step alignment with line axis
 CLUSTER_MAX_AREA_X = 4.0          # feature-blob size cap, x scale^2
 CLUSTER_MIN_AREA_X = 0.25         # feature-blob size floor, x scale^2
 CLUSTER_NORMAL_MIN = 0.6          # min |mean normal| of a feature blob
@@ -150,7 +149,7 @@ def compute_energy(co, tris, feature_scale):
     # MULTIGRID (round 38): all large-radius smoothing runs on a Gaussian
     # pyramid of the face graph — the (radius/step)^2 fine-iteration
     # explosion becomes near-constant, and radii no longer saturate at an
-    # iteration cap (K_CAP retired), so large Feature Scales stay honest
+    # iteration cap, so large Feature Scales stay honest
     # on dense meshes. Fine radii (< ~8 steps) remain exact.
     pyramid = build_graph_pyramid(fa, fb, t_areas, t_centers)
 
@@ -192,15 +191,11 @@ def compute_energy(co, tris, feature_scale):
             win[m] = frac
         return best, win
 
-    # the LADDER itself is the crest tracer's substrate (per-curve rung
-    # tracing): every feature lives at its own scale, and any per-face
-    # argmax composite both starves narrow features of their rung and
-    # jumps rungs mid-feature. hm remains the argmax for the energy
-    # channels and displays; hf is exactly the finest rung.
+    # hm = per-face argmax across the rung ladder (energy channels and
+    # displays); hf = exactly the finest rung
     ladder = []
     hm, win_m = cavity(CAVITY_FRACS, collect=ladder)
     hf = ladder[0]
-    ladder = np.stack(ladder)
 
     def mednz(x):
         a = x[x > 0]
@@ -311,528 +306,127 @@ def compute_energy(co, tris, feature_scale):
         we = float(w[i])
         adj_ns[a].append((b, we))
         adj_ns[b].append((a, we))
-    order_f = np.argsort(E_f, kind='stable')
-    return dict(E_f=E_f, adj_ns=adj_ns, order_f=order_f, t_areas=t_areas,
+    return dict(E_f=E_f, adj_ns=adj_ns, t_areas=t_areas,
                 fa=fa, fb=fb, w=w, sharp=sharp, everts=everts,
                 snap_rad=snap_rad, pyramid=pyramid,
                 mean_step=mean_step, t_centers=t_centers,
                 t_normals=t_normals, verts=co, tris=tris,
-                cav_multi=hm, cav_fine=hf, ladder=ladder,
+                cav_multi=hm, cav_fine=hf,
                 normals_fine=nsf,
                 normals_coarse=ns_ladder[TURN_FRACS[-1]])
 
 
-def harvest_line_faces(hs, bend_ok, adj_e, t_areas, t_centers,
-                       feature_scale, nF):
-    ''' PERIMETER-DESCRIPTOR harvest (round 52): the sweep contains the
-        lines — a human watching Cavity Multi flood sees every one — so
-        extraction quality lives entirely in the component descriptors.
-        Bbox chord + area/chord measured GLOBAL straightness: a welt
-        wrapping the heel stopped growing in chord while its area rose,
-        read as "fattening", and died mid-line; a tread lattice grew in
-        both bbox directions and read isotropic though it is thin at
-        every point. A human judges LOCAL thinness, which for a surface
-        region is the perimeter: width = 2*area/perimeter (mean local
-        thickness, curvature-proof), length = perimeter/2. Both update
-        incrementally in the union-find. A component LOCKS as a line
-        when length >= CREST_LOCK_LEN x scale and length >=
-        CREST_ELONG_MIN x width (cumulative shape ratio — no rate
-        windows); it records its OWN width at lock, and STOPS when its
-        width passes CREST_FAT_X x that personal baseline (the flanks
-        arriving, measured against the line's own thinness at its own
-        level). Curved lines, closed rings, and lattices all read
-        correctly with no special cases. Union identity rules: two
-        TRACING components join only when COLLINEAR (bbox axes + the
-        centroid offset agree — crossings stay junctions, side-by-side
-        parallels stay separate); a young pool always joins (its width
-        contribution IS the stop signal) but is marked only when it
-        lies along the line's axis; STOPPED never joins a live line.
-        Perimeter caveat: contact accumulated between components that
-        earlier REFUSED to union is not discounted if they later merge
-        (rare; overestimates width, erring toward stopping sooner).
-        bend_ok is the BENDING-REALITY gate: only faces whose smoothed
-        normals actually turn may enter the sweep — DC-removal halos on
-        flat faces beside sub-scale features carry cavity amplitude
-        comparable to the features themselves (beveled cube: flat-
-        interior |hm| p50 2.6e-2 vs 2.3e-2 on the bevels) but bend
-        nothing (~0.2 deg vs several), and an elongated halo band
-        otherwise locks as a ghost line.
-        Returns the marked-face mask. '''
-    lock_len = CREST_LOCK_LEN * feature_scale
-    order = np.argsort(-hs, kind='stable')
-    order = order[(hs[order] > 0.0) & bend_ok[order]]
-    parent = np.full(nF, -1, dtype=np.int64)
-    area, perim, bb_lo, bb_hi, csum, members = {}, {}, {}, {}, {}, {}
-    state = {}                      # 0 young/blob, 1 tracing, 2 stopped
-    w_lock = {}                     # width at lock, per tracing feature
-    line = np.zeros(nF, bool)
-
-    def find(x):
-        while parent[x] != x:
-            parent[x] = parent[parent[x]]
-            x = parent[x]
-        return x
-
-    def axis_of(r):
-        d = bb_hi[r] - bb_lo[r]
-        dl = float(np.linalg.norm(d))
-        return d / dl if dl > 1e-12 else d
-
-    def offset_dir(ra, rb):
-        off = csum[rb] / area[rb] - csum[ra] / area[ra]
-        ol = float(np.linalg.norm(off))
-        return off / ol if ol > 1e-12 else None
-
-    for f in order:
-        f = int(f)
-        parent[f] = f
-        c = t_centers[f]
-        a0 = float(t_areas[f])
-        area[f], perim[f] = a0, 0.0
-        bb_lo[f], bb_hi[f] = c.copy(), c.copy()
-        csum[f] = c * a0
-        members[f], state[f] = [f], 0
-        r = f
-        for nb, _ei in adj_e[f]:
-            elen = float(np.linalg.norm(t_centers[nb] - t_centers[f]))
-            if parent[nb] < 0:
-                r = find(r)
-                perim[r] += elen    # boundary toward inactive ground
-                continue
-            r2 = find(int(nb))
-            r = find(r)
-            if r2 == r:
-                perim[r] -= elen    # edge became interior (nb side was
-                continue            # counted at nb's activation)
-            s1, s2 = state[r], state[r2]
-            mark2 = None            # faces to mark if the union happens
-            refuse = False
-            if s1 == 1 and s2 == 1:
-                ax1, ax2 = axis_of(r), axis_of(r2)
-                off = offset_dir(r, r2)
-                if off is None or abs(float(ax1 @ ax2)) < CREST_COLL_COS \
-                        or abs(float(ax1 @ off)) < CREST_COLL_COS \
-                        or abs(float(ax2 @ off)) < CREST_COLL_COS:
-                    refuse = True   # junction or parallel: keep apart
-            elif (s1, s2) in ((1, 2), (2, 1)):
-                refuse = True       # a stopped feature never joins a line
-            elif 1 in (s1, s2):
-                # young pool joins a tracing line: mark it only if it
-                # lies along the axis (the line's own continuation)
-                rt, rp = (r, r2) if s1 == 1 else (r2, r)
-                off = offset_dir(rt, rp)
-                if off is not None and abs(float(axis_of(rt) @ off)) \
-                        >= CREST_COLL_COS:
-                    mark2 = list(members[rp])
-            if refuse:
-                perim[r] += elen    # boundary on both sides now
-                continue
-            # the surviving feature keeps the larger side's lock width
-            wl1, wl2 = w_lock.get(r), w_lock.get(r2)
-            if wl1 is not None and wl2 is not None:
-                wl = wl1 if area[r] >= area[r2] else wl2
-            else:
-                wl = wl1 if wl1 is not None else wl2
-            if len(members[r2]) > len(members[r]):
-                r, r2 = r2, r
-            parent[r2] = r
-            w_lock.pop(r2, None)
-            if wl is not None:
-                w_lock[r] = wl
-            state[r] = max(state[r], state.pop(r2))
-            area[r] += area.pop(r2)
-            perim[r] = perim[r] + perim.pop(r2) - elen
-            np.minimum(bb_lo[r], bb_lo.pop(r2), out=bb_lo[r])
-            np.maximum(bb_hi[r], bb_hi.pop(r2), out=bb_hi[r])
-            csum[r] = csum[r] + csum.pop(r2)
-            members[r].extend(members.pop(r2))
-            if mark2 is not None and state[r] == 1:
-                line[mark2] = True
-        r = find(f)
-        if state[r] == 1:
-            line[f] = True
-        P = perim[r]
-        if P > 1e-12:
-            W = 2.0 * area[r] / P
-            L = 0.5 * P
-            if state[r] == 0:
-                if L >= lock_len and L >= CREST_ELONG_MIN * W:
-                    state[r] = 1
-                    w_lock[r] = W
-                    line[members[r]] = True
-            elif state[r] == 1 and W > CREST_FAT_X * w_lock[r]:
-                state[r] = 2
-    return line
-
-
-def trace_crest_lines(h, sign, bend_ok, adj_e, t_areas, t_centers,
-                      t_normals, across, aniso, feature_scale, nF):
-    ''' FIELD-FOLLOWING ridge tracing on a SIGNED field (crest lines
-        v5): the growth-signature harvest supplies a per-feature support
-        set (each line connected at its own level — no global floor);
-        oriented NMS survivors within it SEED chains (strongest first);
-        the walker then follows the FIELD inside the harvest — step
-        along the line axis, take the strongest in-cone neighbor
-        (transverse re-centering), stop when no forward face is still
-        harvested ridge. The v3 mask-confined walker manufactured dashes
-        the field never had (a global 1.5x-median support cut dropped
-        weaker ring sections while Cavity Multi ran unbroken); the
-        harvest removes the global cut, and strict per-step transverse
-        dominance keeps the walk from flooding flanks.
-        Returns (line_mask, chains); chains are maximal paths between
-        endpoints/junctions plus closed loops, as face lists. '''
-    hs = h * sign
-    pos = hs > 0
-    if not pos.any():
-        return np.zeros(nF, bool), []
-    harvest = harvest_line_faces(hs, bend_ok, adj_e, t_areas, t_centers,
-                                 feature_scale, nF)
-    if not harvest.any():
-        return np.zeros(nF, bool), []
-    support = harvest & (aniso >= CREST_ANISO_MIN)
-
-    line_dir = np.cross(t_normals, across)
-    line_dir = line_dir / np.maximum(
-        np.linalg.norm(line_dir, axis=1, keepdims=True), 1e-12)
-
-    # directional NMS: compare against the NEAREST face inside a tight
-    # across cone on each side. The cone must exclude the along-strip
-    # zigzag (tri centers wobble ~45 deg around the line axis, so a
-    # loose cone makes spine faces kill each other and dash the line),
-    # and the 1-ring alone often has no true across face at all (an
-    # "up" triangle only borders one side) — hence the 2-ring.
-    crest = np.zeros(nF, bool)
-    for f in np.nonzero(support)[0]:
-        f = int(f)
-        A = across[f]
-        cand = set()
-        for nb, _ei in adj_e[f]:
-            cand.add(nb)
-            for nb2, _ei2 in adj_e[nb]:
-                if nb2 != f:
-                    cand.add(nb2)
-        best_p = best_m = -1
-        dist_p = dist_m = 1e30
-        for nb in cand:
-            d = t_centers[nb] - t_centers[f]
-            dl = np.linalg.norm(d)
-            if dl < 1e-12:
-                continue
-            a = float(d @ A) / dl
-            if a >= CREST_NMS_COS and dl < dist_p:
-                dist_p, best_p = dl, nb
-            elif a <= -CREST_NMS_COS and dl < dist_m:
-                dist_m, best_m = dl, nb
-        if best_p >= 0 and hs[best_p] > hs[f]:
-            continue
-        if best_m >= 0 and hs[best_m] > hs[f]:
-            continue
-        crest[f] = True
-
-    # chain assembly: FIELD-FOLLOWING walker — from each seed, step
-    # roughly along the line axis (sign-matched to travel, blended with
-    # momentum) and take the STRONGEST in-cone HARVESTED neighbor;
-    # picking by field value re-centers the walk onto the spine, so NMS
-    # membership never breaks a line. A single dead face may be hopped
-    # if the ridge resumes beyond it. Each face joins at most one chain.
-    claimed = np.zeros(nF, bool)
-
-    # ridge-ness of a walk face: within CREST_WALK_DOM of its transverse
-    # max (nearest across-cone neighbor per side, as in the NMS). Kept
-    # SOFT (0.85): the harvest mask already bounds the walk, and the
-    # strict 1.0 test measured as the dominant break cause on the boot
-    # welt (73% of chain endpoints had harvested, strong continuation
-    # the walker refused — one face of spine wobble failed every
-    # forward candidate).
-    ridge_cache = {}
-
-    def ridge_ok(f):
-        r = ridge_cache.get(f)
-        if r is None:
-            A = across[f]
-            cand = set()
-            for nb, _ei in adj_e[f]:
-                cand.add(nb)
-                for nb2, _ei2 in adj_e[nb]:
-                    if nb2 != f:
-                        cand.add(nb2)
-            dist_p = dist_m = 1e30
-            hs_p = hs_m = -1e30
-            for nb in cand:
-                d = t_centers[nb] - t_centers[f]
-                dl = np.linalg.norm(d)
-                if dl < 1e-12:
+def fuse_fragments(frags, fuse_gap, corner_gap=0.0, pair_ok=None):
+    ''' Chain open polyline fragments end-to-end. frags = [Nx3 points,
+        N >= 2]. Mutually facing ends within fuse_gap link greedily by gap
+        (tangent agreement > 0.4 on both sides; coincident ends test
+        opposition instead); ends within corner_gap whose tangents are
+        not parallel also link — a crease turning a corner between two
+        dashes, the lug-outline case — ranked behind aligned links.
+        pair_ok(i, j) can veto a fragment pair, self-closure included. A
+        traversal that returns to its first fragment, or whose far ends
+        face each other within fuse_gap, is a loop. Returns
+        [(order, is_loop)] with order = [(fragment index, reversed)];
+        every fragment appears in exactly one chain. '''
+    ends = []
+    for p in frags:
+        for q, t in ((p[0], p[0] - p[min(2, len(p) - 1)]),
+                     (p[-1], p[-1] - p[-min(3, len(p))])):
+            tl = float(np.linalg.norm(t))
+            ends.append((q, t / tl if tl > 1e-12 else t))
+    cands = []
+    if ends:
+        P = np.array([e[0] for e in ends])
+        for i in range(len(ends)):
+            d = np.linalg.norm(P[i + 1:] - P[i], axis=1)
+            for off in np.nonzero(d <= fuse_gap)[0]:
+                j = i + 1 + int(off)
+                if i // 2 == j // 2:
                     continue
-                a = float(d @ A) / dl
-                if a >= CREST_NMS_COS and dl < dist_p:
-                    dist_p, hs_p = dl, hs[nb]
-                elif a <= -CREST_NMS_COS and dl < dist_m:
-                    dist_m, hs_m = dl, hs[nb]
-            r = hs[f] >= CREST_WALK_DOM * max(hs_p, hs_m)
-            ridge_cache[f] = r
-        return r
-
-    def step_cands(cur, ref):
-        cands = []
-        for nb, _ei in adj_e[cur]:
-            if claimed[nb] or not harvest[nb]:
-                continue
-            d = t_centers[nb] - t_centers[cur]
-            dl = np.linalg.norm(d)
-            if dl < 1e-12:
-                continue
-            d = d / dl
-            if float(d @ ref) > CREST_STEP_COS and ridge_ok(nb):
-                cands.append((hs[nb], nb, d, None))
-        if not cands:
-            # hop a single dead face if the ridge resumes in-line
-            for nb, _ei in adj_e[cur]:
-                if claimed[nb]:
+                if pair_ok is not None and not pair_ok(i // 2, j // 2):
                     continue
-                for nb2, _ei2 in adj_e[nb]:
-                    if nb2 == cur or claimed[nb2] or not harvest[nb2]:
-                        continue
-                    d2 = t_centers[nb2] - t_centers[cur]
-                    dl2 = np.linalg.norm(d2)
-                    if dl2 < 1e-12:
-                        continue
-                    d2 = d2 / dl2
-                    if float(d2 @ ref) > 0.5 and ridge_ok(nb2):
-                        cands.append((hs[nb2], nb2, d2, nb))
-        return cands
-
-    def walk(start_f):
-        chain = [start_f]
-        claimed[start_f] = True
-        for _dirsign in (1, -1):
-            cur = chain[-1] if _dirsign == 1 else chain[0]
-            if len(chain) >= 2:
-                a_, b_ = (chain[-2], chain[-1]) if _dirsign == 1 \
-                    else (chain[1], chain[0])
-                pd = t_centers[b_] - t_centers[a_]
-                pl = np.linalg.norm(pd)
-                prev_dir = pd / pl if pl > 1e-12 \
-                    else _dirsign * line_dir[cur]
-            else:
-                prev_dir = _dirsign * line_dir[start_f]
-            while True:
-                L = line_dir[cur]
-                if float(L @ prev_dir) < 0.0:
-                    L = -L
-                ref = 0.6 * prev_dir + 0.4 * L
-                rl = np.linalg.norm(ref)
-                ref = ref / rl if rl > 1e-12 else L
-                cands = step_cands(cur, ref)
-                if not cands:
-                    break
-                _v, nb, d, via = max(cands, key=lambda c: c[0])
-                if via is not None:
-                    claimed[via] = True
-                    if _dirsign == 1:
-                        chain.append(via)
-                    else:
-                        chain.insert(0, via)
-                claimed[nb] = True
-                if _dirsign == 1:
-                    chain.append(nb)
+                gap = float(d[off])
+                ti, tj = ends[i][1], ends[j][1]
+                if gap > 1e-9:
+                    g = (P[j] - P[i]) / gap
+                    ok = float(ti @ g) > 0.4 and float(tj @ -g) > 0.4
                 else:
-                    chain.insert(0, nb)
-                prev_dir = 0.7 * ref + 0.3 * d
-                pl = np.linalg.norm(prev_dir)
-                prev_dir = prev_dir / pl if pl > 1e-12 else d
-                cur = nb
-        is_loop = len(chain) > 3 and any(
-            nb == chain[0] for nb, _ei in adj_e[chain[-1]])
-        return chain, is_loop
-
-    chains = []
-    seeds = np.nonzero(crest)[0]
-    for f in seeds[np.argsort(-hs[seeds], kind='stable')]:
-        f = int(f)
-        if not claimed[f]:
-            chains.append(walk(f))
-    line_mask = np.zeros(nF, bool)
-    line_mask[[f for ch, _ in chains for f in ch]] = True
-    return line_mask, chains
-
-
-def march_crest_curves(rungs, bend_ok, surf, t_centers, t_normals,
-                       adj_e, feature_scale, nF):
-    ''' MARCHING TRACER with PER-CURVE RUNG (round 59): every feature
-        lives at its own scale, so each curve traces ONE rung of the
-        cavity ladder — the rung that detected its seed — with a
-        profile width matched to that rung. Any per-face argmax
-        composite both starves narrow features (a sewing crease is a
-        0.25-rung feature that coarse-only search never saw) and jumps
-        rungs mid-feature (value discontinuities along a continuous
-        groove). rungs = [dict(hs, across, line_dir, aniso, prof)] per
-        ladder rung, already polarity-signed. Seeds gathered across
-        ALL rungs, strongest first (rung values share units via the
-        1/frac normalization), spatially thinned per rung (nested
-        features at different scales are legitimate), claims SHARED
-        across rungs (the same feature seeded at adjacent rungs traces
-        once, from its strongest seed). March/correct/stop logic as
-        round 56. Returns [(points Nx3, is_loop, rung_idx)]. '''
-    step = CREST_MARCH_STEP * feature_scale
-    claim_r = CREST_CLAIM_R * feature_scale
-    cell = claim_r
-
-    def cell_of(p):
-        return (int(np.floor(p[0] / cell)), int(np.floor(p[1] / cell)),
-                int(np.floor(p[2] / cell)))
-
-    claim = {}
-
-    def near_claim(p):
-        cx, cy, cz = cell_of(p)
-        for dx in (-1, 0, 1):
-            for dy in (-1, 0, 1):
-                for dz in (-1, 0, 1):
-                    for q in claim.get((cx + dx, cy + dy, cz + dz), ()):
-                        if float(np.linalg.norm(p - q)) < claim_r:
-                            return True
-        return False
-
-    # seeds: bend-gated, orientation-coherent 1-ring maxima of EVERY
-    # rung, pooled and sorted by strength, thinned per rung
-    cand = []
-    for k, R in enumerate(rungs):
-        hs, aniso = R.get('hs_seed', R['hs']), R['aniso']
-        pos = hs > 0.0
-        if not pos.any():
+                    ok = float(ti @ tj) <= -0.4
+                key = gap
+                if not ok and corner_gap > 0.0 and gap <= corner_gap \
+                        and float(ti @ tj) <= 0.5:
+                    # corner rule: a bend, never a hairpin (ends pointing
+                    # the same way are parallel dashes side by side); it
+                    # ranks behind any aligned link within the same reach.
+                    # Gap 0 counts: two chains ending on one junction
+                    # vertex at a lug corner is the commonest corner
+                    ok = True
+                    key = gap + corner_gap
+                if ok:
+                    cands.append((key, i, j))
+    cands.sort()
+    match = {}
+    for _gap, i, j in cands:
+        if i in match or j in match:
             continue
-        # rank in FLOOR UNITS OF THE RUNG: the 1/frac normalization
-        # makes fine rungs numerically hot (x4 at 0.25), and raw-value
-        # ranking let rung-0 grain maxima consume the whole seed cap
-        # while real coarse features starved (boot: 200 -> 26 curves)
-        med = max(float(np.median(hs[pos])), 1e-30)
-        ok = pos & bend_ok & (aniso >= CREST_ANISO_MIN)
-        for f in np.nonzero(ok)[0]:
-            f = int(f)
-            if all(hs[f] >= hs[nb] for nb, _ei in adj_e[f]):
-                cand.append((float(hs[f]) / med, f, k))
-    cand.sort(reverse=True)
-    scell = CREST_SEED_SPACING * feature_scale
-    taken = [{} for _ in rungs]
-    seeds = []
-    for _v, f, k in cand:
-        p = t_centers[f]
-        c = (int(np.floor(p[0] / scell)), int(np.floor(p[1] / scell)),
-             int(np.floor(p[2] / scell)))
-        clash = False
-        for dx in (-1, 0, 1):
-            for dy in (-1, 0, 1):
-                for dz in (-1, 0, 1):
-                    for q in taken[k].get((c[0] + dx, c[1] + dy,
-                                           c[2] + dz), ()):
-                        if float(np.linalg.norm(p - q)) < scell:
-                            clash = True
-                            break
-        if clash:
+        match[i] = j
+        match[j] = i
+    visited = [False] * len(frags)
+    out = []
+    for start in range(len(frags)):
+        if visited[start]:
             continue
-        taken[k].setdefault(c, []).append(p)
-        seeds.append((f, k))
-        if len(seeds) >= CREST_SEED_CAP:
-            break
+        # walk back to the chain's head (an unmatched entry port)
+        cur, entry = start, 0
+        seen = {start}
+        cycle = False
+        while True:
+            k = match.get(2 * cur + entry)
+            if k is None:
+                break
+            nc, np_ = divmod(k, 2)
+            if nc in seen:
+                cycle = True
+                break
+            seen.add(nc)
+            cur, entry = nc, 1 - np_
+        order = []
+        forward = (entry == 0)
+        first = cur
+        while True:
+            visited[cur] = True
+            order.append((cur, not forward))
+            k = match.get(2 * cur + (1 if forward else 0))
+            if k is None:
+                break
+            nc, np_ = divmod(k, 2)
+            if visited[nc]:
+                cycle = cycle or nc == first
+                break
+            cur = nc
+            forward = (np_ == 0)
+        looped = cycle
+        if not looped and sum(len(frags[i]) for i, _r in order) >= 6:
+            # self-closure: one end points at the other and the ends are
+            # not a hairpin (an uneven-armed U has parallel arms: both
+            # outward tangents agree; a lug ring missing one side has a
+            # tail aimed at a head that sits at a corner, perpendicular),
+            # under the same pair veto as any other link
+            hi, hrev = order[0]
+            li, lrev = order[-1]
+            if pair_ok is None or pair_ok(hi, li):
+                pa = frags[hi][-1] if hrev else frags[hi][0]
+                pb = frags[li][0] if lrev else frags[li][-1]
+                th = ends[2 * hi + (1 if hrev else 0)][1]
+                te = ends[2 * li + (0 if lrev else 1)][1]
+                g = float(np.linalg.norm(pa - pb))
+                if 1e-12 < g <= fuse_gap and float(th @ te) <= 0.5:
+                    d = (pa - pb) / g
+                    looped = g <= corner_gap or float(te @ d) > 0.4 \
+                        or float(th @ -d) > 0.4
+        out.append((order, looped))
+    return out
 
-    curves = []
-    for sf, kr in seeds:
-        R = rungs[kr]
-        hs, across = R['hs'], R['across']
-        line_dir, prof = R['line_dir'], R['prof']
-        p0 = t_centers[sf].astype(np.float64)
-        if near_claim(p0):
-            continue
-        own = [p0]
-        level = [float(hs[sf])]
-
-        def march(d0):
-            pts = []
-            p, fi = p0.copy(), sf
-            heading = d0.copy()
-            looped = False
-            pending = []
-            streak = 0
-            for _it in range(1500):
-                n = t_normals[fi]
-                d = heading - n * float(heading @ n)
-                dl = float(np.linalg.norm(d))
-                if dl < 1e-9:
-                    break
-                d = d / dl
-                loc, fi2 = surf(p + d * step)
-                A = across[fi2] - t_normals[fi2] \
-                    * float(across[fi2] @ t_normals[fi2])
-                al = float(np.linalg.norm(A))
-                if al < 1e-9:
-                    break
-                A = A / al
-                vals = np.empty(len(prof))
-                for k2, t_ in enumerate(prof):
-                    _lq, fq = surf(loc + A * t_)
-                    vals[k2] = hs[fq]
-                kmax = int(np.argmax(vals))
-                wgt = np.maximum(vals - float(vals.min()), 0.0)
-                ws = float(wgt.sum())
-                bad = (kmax == 0 or kmax == len(prof) - 1
-                       or ws <= 1e-30)
-                if not bad:
-                    t_pk = float((wgt * prof).sum() / ws)
-                    p_new, fi_new = surf(loc + A * t_pk)
-                    v = float(hs[fi_new])
-                    med = float(np.median(level[-48:]))
-                    bad = v <= 0.0 or v < CREST_MARCH_KEEP * med
-                if bad:
-                    # COAST: a single bad probe is noise, not evidence
-                    # the feature ended — continue straight for up to
-                    # CREST_MARCH_COAST steps; sustained failure stops,
-                    # a recovered crest flushes the coasted points in
-                    streak += 1
-                    if streak >= CREST_MARCH_COAST:
-                        break
-                    pending.append(loc)
-                    p, fi = loc, fi2
-                    continue
-                if near_claim(p_new):
-                    break           # merged into an existing curve
-                if len(own) > 8:
-                    dd = np.linalg.norm(np.asarray(own[:-8]) - p_new,
-                                        axis=1)
-                    if float(dd.min()) < claim_r:
-                        looped = True
-                        break
-                mv = p_new - p
-                ml = float(np.linalg.norm(mv))
-                if ml < 0.2 * step:
-                    break           # stalled
-                heading = mv / ml
-                L = line_dir[fi_new]
-                if float(L @ heading) < 0.0:
-                    L = -L
-                heading = 0.6 * heading + 0.4 * L
-                hl = float(np.linalg.norm(heading))
-                heading = heading / hl if hl > 1e-12 else mv / ml
-                streak = 0
-                if pending:
-                    pts.extend(pending)
-                    own.extend(pending)
-                    pending = []
-                pts.append(p_new)
-                own.append(p_new)
-                level.append(v)
-                p, fi = p_new, fi_new
-            return pts, looped
-
-        h1, l1 = march(line_dir[sf])
-        h2, l2 = march(-line_dir[sf])
-        pts = h2[::-1] + [p0] + h1
-        if len(pts) < 3:
-            continue
-        arr = np.asarray(pts)
-        for q in pts:
-            claim.setdefault(cell_of(q), []).append(q)
-        curves.append((arr, bool(l1 or l2), kr))
-    return curves
 
 def refine_crest_curves(curves, hs, across, surf, t_normals,
                         feature_scale):
@@ -870,81 +464,14 @@ def refine_crest_curves(curves, hs, across, surf, t_normals,
              for p, l, hw, st in curves if l]
     open_c = [(np.asarray(p), hw, st) for p, l, hw, st in curves
               if not l and len(p) >= 3]
-    ends = []
-    for ci, (p, _hw, _st) in enumerate(open_c):
-        for q, t in ((p[0], p[0] - p[min(2, len(p) - 1)]),
-                     (p[-1], p[-1] - p[-min(3, len(p))])):
-            tl = float(np.linalg.norm(t))
-            ends.append((q, t / tl if tl > 1e-12 else t))
-    cands = []
-    for i in range(len(ends)):
-        for j in range(i + 1, len(ends)):
-            if i // 2 == j // 2:
-                continue
-            pi_, ti = ends[i]
-            pj_, tj = ends[j]
-            gap = float(np.linalg.norm(pj_ - pi_))
-            if gap > fuse_gap or gap < 1e-12:
-                continue
-            d = (pj_ - pi_) / gap
-            if float(ti @ d) > 0.4 and float(tj @ -d) > 0.4:
-                cands.append((gap, i, j))
-    cands.sort()
-    match = {}
-    for _gap, i, j in cands:
-        if i in match or j in match:
-            continue
-        match[i] = j
-        match[j] = i
-    visited = [False] * len(open_c)
     fused = []
-    for start in range(len(open_c)):
-        if visited[start]:
-            continue
-        cur, entry = start, 0
-        seen = {start}
-        cycle = False
-        while True:
-            k = match.get(2 * cur + entry)
-            if k is None:
-                break
-            nc, np_ = divmod(k, 2)
-            if nc in seen:
-                cycle = True
-                break
-            seen.add(nc)
-            cur, entry = nc, 1 - np_
-        pts_list = []
-        hw_max = 0.0
-        st_max = 0.0
-        forward = (entry == 0)
-        first = cur
-        while True:
-            visited[cur] = True
-            seg_p, seg_hw, seg_st = open_c[cur]
-            hw_max = max(hw_max, seg_hw)
-            st_max = max(st_max, seg_st)
-            pts_list.append(seg_p if forward else seg_p[::-1])
-            k = match.get(2 * cur + (1 if forward else 0))
-            if k is None:
-                break
-            nc, np_ = divmod(k, 2)
-            if visited[nc]:
-                cycle = cycle or nc == first
-                break
-            cur = nc
-            forward = (np_ == 0)
-        pts = np.vstack(pts_list)
-        looped = cycle
-        if not looped and len(pts) >= 6:
-            g = float(np.linalg.norm(pts[0] - pts[-1]))
-            if 1e-12 < g <= fuse_gap:
-                d = (pts[0] - pts[-1]) / g
-                te = pts[-1] - pts[-3]
-                te = te / max(float(np.linalg.norm(te)), 1e-12)
-                if float(te @ d) > 0.4:
-                    looped = True
-        fused.append((pts, looped, hw_max, st_max))
+    for order, looped in fuse_fragments([p for p, _hw, _st in open_c],
+                                        fuse_gap):
+        pts = np.vstack([open_c[i][0][::-1] if rev else open_c[i][0]
+                         for i, rev in order])
+        fused.append((pts, looped,
+                      max(open_c[i][1] for i, _r in order),
+                      max(open_c[i][2] for i, _r in order)))
     fused.extend(loops)
 
     # --- relax + prune ---
@@ -1035,7 +562,6 @@ def sweep_crest_curves(hs, bend_ok, adj_e, t_areas, t_centers,
     state, w_lock, peak = {}, {}, {}
     curve, pend, looped_r, ck = {}, {}, {}, {}
     rate_win = CREST_RATE_WIN * feature_scale ** 2
-    line_dummy = np.zeros(nF, bool)
 
     def find(x):
         while parent[x] != x:
@@ -1474,81 +1000,14 @@ def trace_sharp_chains(pair_idx, theta_deg, everts, verts_co,
         chains.append([chain, eids, looped])
 
     # (3) gap fusion: the threshold dashes a continuous crease into
-    # many short chains; mutually-facing open ends re-join here
-    fuse_gap = CREST_FUSE_GAP * feature_scale
-
-    def end_tangent(vlist, at_end):
-        # outward direction at a chain end, a few points deep
-        idx = vlist[-4:] if at_end else vlist[:4][::-1]
-        pts = verts_co[np.asarray(idx, dtype=np.int64)]
-        t = pts[-1] - pts[0]
-        tl = float(np.linalg.norm(t))
-        return t / tl if tl > 1e-12 else t
-
-    ports = []           # (chain_idx, at_end, pos, outward_tangent)
-    for ci, (chain, _eids, looped) in enumerate(chains):
-        if looped or len(chain) < 2:
-            continue
-        for at_end in (False, True):
-            pos = verts_co[chain[-1] if at_end else chain[0]]
-            ports.append((ci, at_end, pos, end_tangent(chain, at_end)))
-    link = {}
-    if ports:
-        P = np.array([p[2] for p in ports])
-        cands = []
-        for a in range(len(ports)):
-            d = np.linalg.norm(P[a + 1:] - P[a], axis=1)
-            for boff in np.nonzero(d <= fuse_gap)[0]:
-                b = a + 1 + int(boff)
-                if ports[a][0] == ports[b][0]:
-                    continue      # self-closure handled after assembly
-                gap = float(d[boff])
-                ta, tb = ports[a][3], ports[b][3]
-                if gap > 1e-9:
-                    g = (P[b] - P[a]) / gap
-                    ok = float(ta @ g) >= 0.4 and float(tb @ g) <= -0.4
-                else:
-                    ok = float(ta @ tb) <= -0.4
-                if ok:
-                    cands.append((gap, a, b))
-        cands.sort(key=lambda c: c[0])
-        used_p = set()
-        for _gap, a, b in cands:
-            if a in used_p or b in used_p:
-                continue
-            # refuse links that would close a cycle through the link
-            # graph (chain-level); self-closure is decided after
-            seen_c = {ports[a][0]}
-            frontier = [(ports[a][0], ports[a][1])]
-            cyc = False
-            while frontier:
-                ci_, pe_ = frontier.pop()
-                other = link.get((ci_, not pe_))
-                if other is None:
-                    continue
-                if other[0] == ports[b][0]:
-                    cyc = True
-                    break
-                if other[0] not in seen_c:
-                    seen_c.add(other[0])
-                    frontier.append(other)
-            if cyc:
-                continue
-            used_p.add(a)
-            used_p.add(b)
-            link[(ports[a][0], ports[a][1])] = (ports[b][0],
-                                                ports[b][1])
-            link[(ports[b][0], ports[b][1])] = (ports[a][0],
-                                                ports[a][1])
-    # assemble super-chains
+    # many short chains; the corner rule lets two dashes meeting at a
+    # lug corner re-join (their tangents are perpendicular there)
     out = []
     min_len = CREST_MIN_LEN * feature_scale
-    done = set()
 
-    def emit(chain, eids, looped):
-        if len(chain) < 3:
+    def emit(pts, eids, looped):
+        if len(pts) < 3:
             return
-        pts = verts_co[np.asarray(chain, dtype=np.int64)]
         arc = float(np.linalg.norm(np.diff(pts, axis=0), axis=1).sum())
         if looped:
             arc += float(np.linalg.norm(pts[0] - pts[-1]))
@@ -1558,53 +1017,260 @@ def trace_sharp_chains(pair_idx, theta_deg, everts, verts_co,
             / CREST_SHARP_STREN_DEG
         out.append((pts, looped, stren))
 
-    for ci, (chain, eids, looped) in enumerate(chains):
-        if ci in done:
-            continue
+    frags, frag_e = [], []
+    for chain, eids, looped in chains:
+        pts = verts_co[np.asarray(chain, dtype=np.int64)]
         if looped:
-            done.add(ci)
-            emit(chain, eids, looped)
+            emit(pts, eids, True)
+        elif len(chain) >= 2:
+            frags.append(pts)
+            frag_e.append(eids)
+    for order, looped in fuse_fragments(
+            frags, CREST_FUSE_GAP * feature_scale,
+            CREST_SHARP_CORNER_GAP * feature_scale):
+        pts = np.vstack([frags[i][::-1] if rev else frags[i]
+                         for i, rev in order])
+        emit(pts, [e for i, _r in order for e in frag_e[i]], looped)
+    return out
+
+
+def resample_polyline(pts, looped, step):
+    ''' Uniform arc-length resample. A loop keeps its first point and
+        omits the duplicate closing point. '''
+    pts = np.asarray(pts, dtype=np.float64)
+    seg = np.linalg.norm(np.diff(pts, axis=0), axis=1)
+    if looped:
+        seg = np.append(seg, np.linalg.norm(pts[0] - pts[-1]))
+    cum = np.concatenate([[0.0], np.cumsum(seg)])
+    L = float(cum[-1])
+    if L < 1e-12:
+        return pts
+    n = max(4, int(round(L / step)) + (0 if looped else 1))
+    targets = np.linspace(0.0, L, n, endpoint=not looped)
+    src = np.vstack([pts, pts[:1]]) if looped else pts
+    out = np.empty((len(targets), 3))
+    j = 0
+    for i, t in enumerate(targets):
+        while j < len(seg) - 1 and cum[j + 1] < t:
+            j += 1
+        d = cum[j + 1] - cum[j]
+        a = 0.0 if d <= 1e-12 else (t - cum[j]) / d
+        out[i] = src[j] * (1.0 - a) + src[j + 1] * a
+    return out
+
+
+def clean_loops(curves, surf, feature_scale):
+    ''' CLEAN LOOPS (round 65, Jonathan: "the curves point to where the
+        loop should go; they are not the final clean loops"). The traced
+        curves are evidence — braided where a groove's two flanks both
+        classify as sharp, dashed where the threshold flickers, staircased
+        at mesh-vertex granularity, and wandering where the field is soft.
+        Per polarity, strongest curve first: (1) MEAN-SHIFT every sample
+        toward the confidence-weighted centre of the parallel evidence
+        within LOOP_SHIFT_R (two tracks of a braid converge on one
+        centreline; crossing curves are excluded by the tangent test);
+        (2) SMOOTH the curve along its arc at LOOP_SMOOTH and reproject
+        onto the surface — the loop a human would draw through the same
+        crease; (3) ABSORB every weaker sample lying within LOOP_ABSORB_R
+        of the finished loop with a parallel tangent — duplicates and
+        wanderers die, partially absorbed curves continue as their
+        remaining pieces; (4) BRIDGE gaps and close rings with
+        fuse_fragments at LOOP_GAP; (5) TERMINATE open ends on the
+        nearest other loop within reach (T-junctions). Open results
+        shorter than LOOP_MIN_LEN are scraps. The raw curves stay
+        untouched (masks, blobs and the inspection object use them).
+        Returns [(points Nx3, is_loop, sign, strength)]. '''
+    from mathutils import Vector
+    from mathutils.kdtree import KDTree
+    sc = feature_scale
+    step = 0.25 * sc
+
+    def kd_of(P):
+        t = KDTree(len(P))
+        for i, p in enumerate(P):
+            t.insert(Vector((float(p[0]), float(p[1]), float(p[2]))), i)
+        t.balance()
+        return t
+
+    def tangents(P, looped):
+        nxt, prv = np.roll(P, -1, axis=0), np.roll(P, 1, axis=0)
+        if not looped:
+            nxt[-1], prv[0] = P[-1], P[0]
+        T = nxt - prv
+        return T / np.maximum(np.linalg.norm(T, axis=1, keepdims=True),
+                              1e-12)
+
+    def project(P):
+        return np.array([surf(p)[0] for p in P])
+
+    def lap(Q, looped):
+        L = 0.5 * (np.roll(Q, -1, axis=0) + np.roll(Q, 1, axis=0)) - Q
+        if not looped:
+            L[0] = L[-1] = 0.0
+        return L
+
+    def smooth(P, looped, sigma, attract):
+        # snake balance: Taubin smoothing (shrink-free, so small rings
+        # survive a window wide enough to flatten 0.4-scale staircases)
+        # alternating with a pull back onto the parallel crease evidence
+        Q = P.copy()
+        n_iter = max(1, int(round((sigma / step) ** 2)))
+        rounds = 3
+        for _ in range(rounds):
+            for _ in range(max(1, n_iter // rounds)):
+                Q = Q + 0.5 * lap(Q, looped)
+                Q = Q - 0.53 * lap(Q, looped)
+            Q = project(Q)
+            if attract is None:
+                continue
+            kd, T_pool = attract
+            Tq = tangents(Q, looped)
+            R = Q.copy()
+            for i in range(len(Q)):
+                acc, wsum = np.zeros(3), 0.0
+                for _co, j, _d in kd.find_range(Vector(Q[i]),
+                                                LOOP_SHIFT_R * sc):
+                    if abs(float(Tq[i] @ T_pool[j])) < LOOP_PARALLEL_COS:
+                        continue
+                    acc += W[j] * Qpool[j]
+                    wsum += W[j]
+                if wsum > 0.0:
+                    R[i] = Q[i] + LOOP_ATTRACT * (acc / wsum - Q[i])
+            Q = project(R)
+        return Q
+
+    def arc(P, looped):
+        a = float(np.linalg.norm(np.diff(P, axis=0), axis=1).sum())
+        return a + (float(np.linalg.norm(P[0] - P[-1])) if looped else 0.0)
+
+    clean = []        # [pts, looped, sign, strength]
+    Qpool, W = None, None   # bound per polarity, read by smooth()
+    for sign in (1.0, -1.0):
+        cs = [(resample_polyline(p, lp, step), lp, float(st))
+              for p, lp, sg, st in curves if sg == sign and len(p) >= 2]
+        cs = [c for c in cs if len(c[0]) >= 3]
+        if not cs:
             continue
-        # walk to this super-chain's start (unlinked entry port)
-        cur, entry = ci, False
-        seen_c = {ci}
-        while (cur, entry) in link:
-            cur, pe = link[(cur, entry)]
-            entry = not pe
-            if cur in seen_c:
-                break             # pure cycle of links: start anywhere
-            seen_c.add(cur)
-        start = (cur, entry)
-        verts_all, eids_all = [], []
-        cur, entry = start
-        closed = False
-        while True:
-            done.add(cur)
-            cv, ce, _lp = chains[cur]
-            if entry:                     # entered at the END: reverse
-                cv = cv[::-1]
-            verts_all.extend(cv)
-            eids_all.extend(ce)
-            nxt = link.get((cur, not entry))
-            if nxt is None:
-                break
-            if nxt == start:
-                closed = True
-                break
-            cur, entry = nxt[0], nxt[1]
-        if not closed and len(verts_all) >= 4:
-            # self-closure: super-chain ends meet -> loop
-            pa, pb = verts_co[verts_all[0]], verts_co[verts_all[-1]]
-            gap = float(np.linalg.norm(pa - pb))
-            if gap <= fuse_gap:
-                ta = end_tangent(verts_all, False)
-                tb = end_tangent(verts_all, True)
-                g = (pa - pb) / gap if gap > 1e-9 else None
-                if (g is None and float(ta @ tb) <= -0.4) or \
-                        (g is not None and float(tb @ g) >= 0.4
-                         and float(ta @ g) <= -0.4):
-                    closed = True
-        emit(verts_all, eids_all, closed)
+        P = np.vstack([c[0] for c in cs])
+        T = np.vstack([tangents(c[0], c[1]) for c in cs])
+        W = np.concatenate([np.full(len(c[0]), c[2]) for c in cs])
+        offs = np.cumsum([0] + [len(c[0]) for c in cs])
+        # (1) mean shift onto the local centreline of parallel evidence
+        Q = P.copy()
+        for _ in range(2):
+            kd = kd_of(Q)
+            R = Q.copy()
+            for i in range(len(Q)):
+                acc, wsum = np.zeros(3), 0.0
+                for _co, j, _d in kd.find_range(Vector(Q[i]),
+                                                LOOP_SHIFT_R * sc):
+                    if abs(float(T[i] @ T[j])) < LOOP_PARALLEL_COS:
+                        continue
+                    acc += W[j] * Q[j]
+                    wsum += W[j]
+                if wsum > 0.0:
+                    R[i] = acc / wsum
+            Q = project(R)
+        Qpool = Q
+        kd_pool = kd_of(Q)
+        alive = np.ones(len(Q), bool)
+        pieces = []   # (pts, looped, strength) before gap bridging
+        order = sorted(range(len(cs)),
+                       key=lambda i: -cs[i][2] * len(cs[i][0]))
+        for ci in order:
+            idx = np.arange(offs[ci], offs[ci + 1])
+            if not alive[idx].any():
+                continue
+            whole = bool(alive[idx].all())
+            looped_c = cs[ci][1] and whole
+            # contiguous alive runs (a partially absorbed curve continues
+            # as its remaining pieces)
+            runs, cur = [], []
+            for k in idx:
+                if alive[k]:
+                    cur.append(k)
+                elif cur:
+                    runs.append(cur)
+                    cur = []
+            if cur:
+                runs.append(cur)
+            for run in runs:
+                run = np.asarray(run)
+                alive[run] = False
+                if len(run) < 4:
+                    continue
+                # (2) the loop a human would draw through this evidence
+                pts = resample_polyline(
+                    smooth(Q[run], looped_c, LOOP_SMOOTH * sc,
+                           (kd_pool, T)), looped_c, step)
+                pieces.append((pts, looped_c, cs[ci][2]))
+                # (3) absorb parallel evidence lying on the finished loop
+                dense = resample_polyline(pts, looped_c, 0.1 * sc)
+                Td = tangents(dense, looped_c)
+                for k, dp in enumerate(dense):
+                    for _co, j, _d in kd_pool.find_range(
+                            Vector(dp), LOOP_ABSORB_R * sc):
+                        if alive[j] and abs(float(T[j] @ Td[k])) \
+                                >= LOOP_PARALLEL_COS:
+                            alive[j] = False
+        # (4) bridge gaps, close rings
+        loops_p = [pc for pc in pieces if pc[1]]
+        open_p = [pc for pc in pieces if not pc[1]]
+        for order_, looped in fuse_fragments(
+                [pc[0] for pc in open_p], LOOP_GAP * sc, 0.3 * sc):
+            pts = np.vstack([open_p[i][0][::-1] if rev else open_p[i][0]
+                             for i, rev in order_])
+            if len(order_) > 1 or looped:
+                pts = project(resample_polyline(pts, looped, step))
+            clean.append([pts, looped, sign,
+                          max(open_p[i][2] for i, _r in order_)])
+        for pts, looped, st in loops_p:
+            clean.append([pts, True, sign, st])
+    # (5) terminate open ends on the nearest other loop (T-junctions)
+    dense_all, owner = [], []
+    for li, (pts, looped, _sg, _st) in enumerate(clean):
+        d = resample_polyline(pts, looped, 0.1 * sc)
+        dense_all.append(d)
+        owner.append(np.full(len(d), li))
+    if dense_all:
+        D = np.vstack(dense_all)
+        own = np.concatenate(owner)
+        kd_all = kd_of(D)
+        for li, entry in enumerate(clean):
+            pts, looped = entry[0], entry[1]
+            if looped or len(pts) < 3:
+                continue
+            for at_end in (False, True):
+                a_, b_ = (pts[-2], pts[-1]) if at_end else (pts[1], pts[0])
+                t = b_ - a_
+                tl = float(np.linalg.norm(t))
+                if tl < 1e-12:
+                    continue
+                t, p = t / tl, b_.copy()
+                hit = None
+                for _ in range(int(round(LOOP_GAP * sc / step))):
+                    loc, _fi = surf(p + t * step)
+                    mv = loc - p
+                    ml = float(np.linalg.norm(mv))
+                    if ml < 1e-9:
+                        break
+                    t, p = mv / ml, loc
+                    best = None
+                    for _co, j, d_ in kd_all.find_range(Vector(p), 0.3 * sc):
+                        if own[j] != li and (best is None or d_ < best[0]):
+                            best = (d_, j)
+                    if best is not None:
+                        hit = D[best[1]]
+                        break
+                if hit is not None:
+                    pts = np.vstack([pts, hit[None]]) if at_end \
+                        else np.vstack([hit[None], pts])
+            entry[0] = pts
+    out = []
+    for pts, looped, sign, st in clean:
+        L = arc(pts, looped)
+        if (looped and L >= 1.0 * sc) or (not looped and L >= LOOP_MIN_LEN * sc):
+            out.append((pts, looped, sign, st))
     return out
 
 
@@ -1771,18 +1437,16 @@ def complete_crests(energy, feature_scale, bridge_gap):
         nMn = (n_[:, None, :] @ Mn)[:, 0, 0]
         M_t = (M - n_[:, :, None] * nM - Mn * n_[:, None, :]
                + nMn[:, None, None] * (n_[:, :, None] * n_[:, None, :]))
-        evals, evecs = np.linalg.eigh(M_t)
+        _evals, evecs = np.linalg.eigh(M_t)
         across = evecs[:, :, 2]
         across = across - n_ * (across * n_).sum(axis=1, keepdims=True)
         across = across / np.maximum(
             np.linalg.norm(across, axis=1, keepdims=True), 1e-12)
-        aniso = (evals[:, 2] - evals[:, 1]) / np.maximum(
-            evals[:, 2] + evals[:, 1], 1e-30)
-        return across, aniso
+        return across
 
     # ONE tensor from the sweep field itself (hm): the tracer now
     # consumes exactly what the Cavity Multi sweep displays
-    across, aniso = across_axes(hm, 0.5 * feature_scale)
+    across = across_axes(hm, 0.5 * feature_scale)
 
     def paint_chain(pts, looped):
         # apply the curve to faces at the last step: subsample segments
@@ -1814,6 +1478,8 @@ def complete_crests(energy, feature_scale, bridge_gap):
     out['crest_curves'] = []   # (points Nx3, is_loop, sign)
     min_len = CREST_MIN_LEN * feature_scale
     step_len = CREST_MARCH_STEP * feature_scale
+    fuse_gap = CREST_FUSE_GAP * feature_scale
+    fuzz_len = CREST_SHARP_FUZZ_LEN * feature_scale
 
     def extend_end(pts_arr, at_end, own_faces, pol_faces):
         # CURVE-STAGE wall/junction connection (replaces the face-walk
@@ -1864,8 +1530,19 @@ def complete_crests(energy, feature_scale, bridge_gap):
         # crease already — relax would smooth the very corners they
         # exist to preserve, and the prune gates measure field
         # profiles that mean nothing on a wall
+        sc = sharp_chains[sign]
+        if sc:
+            # fuzz: a sharp chain clearly weaker than this polarity's
+            # median AND shorter than CREST_SHARP_FUZZ_LEN is threshold
+            # flicker, not a feature (short strong chains — eyelet rims —
+            # stay; the 0.9 keeps equal-dihedral CAD edges off the knife)
+            med = CREST_SHARP_FUZZ_REL * float(np.median(
+                [s_ for _p, _l, s_ in sc]))
+            sc = [(p_, l_, s_) for p_, l_, s_ in sc
+                  if l_ or s_ >= med or float(np.linalg.norm(
+                      np.diff(p_, axis=0), axis=1).sum()) >= fuzz_len]
         curves += [(p_, l_, 0.25 * feature_scale, s_, True)
-                   for p_, l_, s_ in sharp_chains[sign]]
+                   for p_, l_, s_ in sc]
         entries = []
         pol_faces = np.zeros(nF, bool)
         for pts, looped, _hw, st, fixed in curves:
@@ -1906,6 +1583,28 @@ def complete_crests(energy, feature_scale, bridge_gap):
                         if w[ei] < stamp:
                             w[ei] = stamp
                 e[0], e[2] = pts, faces
+        # sharp <-> soft fusion: a crease that fades from sharp to soft
+        # arrives here as a sharp chain plus a soft curve whose end has
+        # just walked to the wall; facing ends join into ONE curve.
+        # Soft-soft pairs were fused in refine and are not re-tried (two
+        # same-polarity curves ending on a wall from opposite sides must
+        # not join through it); sharp-sharp was fused in the tracer.
+        open_e = [e for e in entries if not e[1]]
+        fused_e = []
+        for order, looped in fuse_fragments(
+                [e[0] for e in open_e], fuse_gap,
+                pair_ok=lambda i, j: open_e[i][4] != open_e[j][4]):
+            pts = np.vstack([open_e[i][0][::-1] if rev else open_e[i][0]
+                             for i, rev in order])
+            # re-paint the joined polyline: concatenated fragment faces
+            # would leave the join gaps and a loop's closing segment
+            # unpainted (consider_ring leaks through such holes)
+            faces = open_e[order[0][0]][2] if len(order) == 1 \
+                and not looped else paint_chain(pts, looped)
+            fused_e.append([pts, looped, faces,
+                            max(open_e[i][3] for i, _r in order),
+                            any(open_e[i][4] for i, _r in order)])
+        entries = [e for e in entries if e[1]] + fused_e
         for pts, looped, faces, st, _fx in entries:
             out['crest_curves'].append((pts, looped, sign, st))
             all_chains.append((faces, looped, sign))
@@ -2037,6 +1736,10 @@ def complete_crests(energy, feature_scale, bridge_gap):
                     continue  # mostly the same ring as an earlier cycle
                 processed[cyc] = True
                 consider_ring(cyc)
+
+    # the loop network proper: evidence curves -> clean loops
+    out['loop_curves'] = clean_loops(out['crest_curves'], surf,
+                                     feature_scale)
 
     E2 = np.zeros(nF)
     np.maximum.at(E2, fa, w)
@@ -2461,17 +2164,6 @@ def merge_regions(labels, energy, feature_scale, merge_below):
     return merged, int(merged.max()) + 1
 
 
-def segment_faces(co, tris, feature_scale, seed_threshold, seed_area,
-                  bridge_gap=2.0):
-    ''' Full pipeline (energy + crest completion + watershed) for one-shot
-        callers. Returns (face_labels, energy, region count, extras). '''
-    energy = complete_crests(compute_energy(co, tris, feature_scale),
-                             feature_scale, bridge_gap)
-    lab, seeds0, n = watershed(energy, feature_scale, seed_threshold,
-                                seed_area)
-    return lab, energy['E_f'], n, gather_extras(energy, seeds0)
-
-
 def gather_extras(energy, seeds0):
     return dict(cav_multi=energy['cav_multi'], cav_fine=energy['cav_fine'],
                 normals_fine=energy['normals_fine'],
@@ -2562,13 +2254,231 @@ def diverging_colors(vals):
                      np.ones_like(t)], axis=1)
 
 
-def build_crest_curve_object(context, target, crest_curves):
+def patch_graph(labels, fa, fb, everts, verts, t_areas, feature_scale,
+                loops=None):
+    ''' PATCH GRAPH (round 66, Jonathan: "our curves need to define the
+        boundaries of the patches we fill; patches from these curves would
+        be a mess"). A fill stage needs a valid partition: every boundary
+        runs junction to junction or closes, crossings share a vertex,
+        every face is a patch. A soup of curves has none of that; the
+        watershed partition has all of it by construction. So the patch
+        graph is read off the REGION boundaries: junctions = mesh verts
+        where the boundary graph has degree != 2, chains = boundary walks
+        between junctions (closed walks without one are rings), patches
+        = regions with their chains. Each chain records the fraction of
+        its length within 0.5 x scale of a clean loop (its SUPPORT — the
+        pruning signal for step 2), each patch its side count, area and
+        number of boundary cycles (1 = disc). Returns a dict with
+        'chains' [(vert ids, region a, region b, length, support)],
+        'junctions' {vert: degree}, 'patches' {region: dict(sides, area,
+        cycles, chain ids)}. '''
+    la, lb = labels[fa], labels[fb]
+    bidx = np.nonzero((la != lb) & (la >= 0) & (lb >= 0))[0]
+    ev = everts[bidx]
+    pair = np.stack([np.minimum(la[bidx], lb[bidx]),
+                     np.maximum(la[bidx], lb[bidx])], axis=1)
+    elen = np.linalg.norm(verts[ev[:, 0]] - verts[ev[:, 1]], axis=1)
+    v_adj = {}
+    for k, (v0, v1) in enumerate(ev):
+        v_adj.setdefault(int(v0), []).append(k)
+        v_adj.setdefault(int(v1), []).append(k)
+    junctions = {v: len(inc) for v, inc in v_adj.items() if len(inc) != 2}
+    used = np.zeros(len(ev), bool)
+    chains = []
+
+    def walk(v, k):
+        # follow boundary edges through degree-2 verts
+        vs, ks = [v], []
+        while True:
+            used[k] = True
+            ks.append(k)
+            a, b = int(ev[k][0]), int(ev[k][1])
+            v = b if a == v else a
+            vs.append(v)
+            if v in junctions:
+                return vs, ks
+            k2 = [k3 for k3 in v_adj[v] if not used[k3]]
+            if not k2:
+                return vs, ks      # closed walk back to the start
+            k = k2[0]
+
+    for v in junctions:
+        for k in v_adj[v]:
+            if used[k]:
+                continue
+            vs, ks = walk(v, k)
+            chains.append([vs, int(pair[ks[0]][0]), int(pair[ks[0]][1]),
+                           float(elen[ks].sum()), 0.0, ks])
+    for k0 in range(len(ev)):
+        if used[k0]:
+            continue
+        vs, ks = walk(int(ev[k0][0]), k0)
+        chains.append([vs, int(pair[ks[0]][0]), int(pair[ks[0]][1]),
+                       float(elen[ks].sum()), 0.0, ks])
+    # support by clean loops: fraction of chain length within 0.5 x scale
+    if loops:
+        from mathutils import Vector
+        from mathutils.kdtree import KDTree
+        samp, stan = [], []
+        for p, lp, _sg, _st in loops:
+            if len(p) < 2:
+                continue
+            q = resample_polyline(p, lp, 0.25 * feature_scale)
+            t = np.roll(q, -1, axis=0) - np.roll(q, 1, axis=0)
+            if not lp:
+                t[0], t[-1] = q[1] - q[0], q[-1] - q[-2]
+            samp.append(q)
+            stan.append(t / np.maximum(np.linalg.norm(t, axis=1,
+                                                      keepdims=True), 1e-12))
+        samp, stan = np.vstack(samp), np.vstack(stan)
+        kd = KDTree(len(samp))
+        for i, q in enumerate(samp):
+            kd.insert(Vector((float(q[0]), float(q[1]), float(q[2]))), i)
+        kd.balance()
+        tol = 0.5 * feature_scale
+        for ch in chains:
+            vs, ks = ch[0], ch[5]
+            # an edge is supported when a loop passes within tol of its
+            # midpoint AND runs along it — merely being near a loop is
+            # true of every speckle beside the welt. The chain's direction
+            # is taken over a window (a face-walk zigzags at +-45 deg
+            # around the line it follows; per-edge tangents fail on real
+            # seams too and the merge cascades)
+            Pv = verts[np.asarray(vs)]
+            w = max(1, int(round(0.75 * feature_scale
+                                 / max(float(elen[ks].mean()), 1e-12))))
+            n = len(Pv)
+            sup = 0.0
+            for i, k in enumerate(ks):
+                a, b = max(0, i - w), min(n - 1, i + 1 + w)
+                t = Pv[b] - Pv[a]
+                tl = float(np.linalg.norm(t))
+                if tl < 1e-12:
+                    continue
+                mid = 0.5 * (Pv[i] + Pv[i + 1])
+                _co, j, d = kd.find(Vector(mid.tolist()))
+                if d <= tol and abs(float((t / tl) @ stan[j])) >= 0.7:
+                    sup += float(elen[k])
+            ch[4] = sup / max(ch[3], 1e-12)
+    # patches
+    nR = int(labels.max()) + 1
+    area = np.zeros(nR)
+    np.add.at(area, labels[labels >= 0], t_areas[labels >= 0])
+    region_chains = {}
+    for ci, ch in enumerate(chains):
+        region_chains.setdefault(ch[1], []).append(ci)
+        region_chains.setdefault(ch[2], []).append(ci)
+    patches = {}
+    for r in range(nR):
+        cids = region_chains.get(r, [])
+        # boundary cycles: chains of this region linked through shared
+        # junction verts
+        parent = {c: c for c in cids}
+
+        def find(x):
+            while parent[x] != x:
+                parent[x] = parent[parent[x]]
+                x = parent[x]
+            return x
+        by_v = {}
+        for c in cids:
+            for v in (chains[c][0][0], chains[c][0][-1]):
+                if v in by_v:
+                    parent[find(c)] = find(by_v[v])
+                else:
+                    by_v[v] = c
+        cycles = len({find(c) for c in cids}) if cids else 0
+        patches[r] = dict(sides=len(cids), area=float(area[r]),
+                          cycles=cycles, chains=cids)
+    return dict(chains=[tuple(ch[:5]) for ch in chains],
+                junctions=junctions, patches=patches)
+
+
+def prune_patch_graph(labels, fa, fb, everts, verts, t_areas,
+                      feature_scale, loops, rounds=8):
+    ''' Step 2 of the patch graph (round 66): dissolve what no fill stage
+        can use. (a) Patches smaller than PATCH_MIN_AREA x scale^2 (under
+        one target-edge quad) merge into the neighbour they share the most
+        boundary with; (b) chains that no clean loop runs along (support <
+        PATCH_SUPPORT_MIN) dissolve, merging their two regions — the
+        criterion the energy-level merge saga never had: coherence, not
+        amplitude. Repeat until stable. Returns relabelled faces
+        (compacted ids). '''
+    lab = labels.copy()
+    for _ in range(rounds):
+        pg = patch_graph(lab, fa, fb, everts, verts, t_areas,
+                         feature_scale, loops)
+        nR = int(lab.max()) + 1
+        parent = np.arange(nR)
+        big = PATCH_BIG_AREA * feature_scale ** 2
+        isbig = np.array([pg['patches'][r]['area'] >= big
+                          for r in range(nR)])
+
+        def find(x):
+            while parent[x] != x:
+                parent[x] = parent[parent[x]]
+                x = parent[x]
+            return x
+
+        def union(a, b, guard=False):
+            # guard: two big panels never join, not even transitively
+            # through a medium region unioned with both in one round
+            ra, rb = find(a), find(b)
+            if ra == rb or (guard and isbig[ra] and isbig[rb]):
+                return False
+            lo, hi = min(ra, rb), max(ra, rb)
+            parent[hi] = lo
+            isbig[lo] = isbig[lo] or isbig[hi]
+            return True
+        merged = 0
+        # (a) tiny patches -> the neighbour across their longest chain
+        for r, p in pg['patches'].items():
+            if p['area'] >= PATCH_MIN_AREA * feature_scale ** 2:
+                continue
+            best, best_len = None, 0.0
+            for ci in p['chains']:
+                vs, a, b, L, _sup = pg['chains'][ci]
+                other = b if a == r else a
+                if L > best_len:
+                    best, best_len = other, L
+            if best is not None and union(r, best):
+                merged += 1
+        # (b) unsupported SHORT chains dissolve; a long boundary no loop
+        # runs along is more likely a seam the loops missed than junk.
+        # Only once no tiny patch is left: speckle along a seam chops it
+        # into short pieces, and judging those pieces first dissolved
+        # real seams and cascaded the whole boot into one patch
+        if merged == 0:
+            # judged per REGION PAIR: a seam between two panels is chopped
+            # into chains by every junction along it, and one short weak
+            # piece must not dissolve the whole seam (it did: collar seam
+            # and sole rim went, each costing points of recall)
+            pair_len, pair_sup = {}, {}
+            for vs, a, b, L, sup in pg['chains']:
+                key = (min(a, b), max(a, b))
+                pair_len[key] = pair_len.get(key, 0.0) + L
+                pair_sup[key] = pair_sup.get(key, 0.0) + sup * L
+            for key, L in sorted(pair_len.items(), key=lambda kv: kv[1]):
+                if L < PATCH_KEEP_CHAIN * feature_scale \
+                        and pair_sup[key] / max(L, 1e-12) < PATCH_SUPPORT_MIN:
+                    if union(*key, guard=True):
+                        merged += 1
+        if merged == 0:
+            break
+        roots = np.array([find(r) for r in range(nR)])
+        _u, inv = np.unique(roots, return_inverse=True)
+        lab = np.where(lab >= 0, inv[np.maximum(lab, 0)], -1)
+    return lab
+
+
+def build_crest_curve_object(context, target, crest_curves,
+                             suffix='CrestCurves'):
     ''' Publish the marched polylines as a POLY-spline curve object
         ("<target>.CrestCurves", replaced on each run) so the traced
         lines can be inspected directly, independent of any face
         painting. Loops become cyclic splines. Bevel radius encodes
         per-curve CONFIDENCE (sharp chains thick, soft traces thin). '''
-    name = f'{target.name}.CrestCurves'
+    name = f'{target.name}.{suffix}'
     cd = bpy.data.curves.get(name)
     if cd is None:
         cd = bpy.data.curves.new(name, 'CURVE')
@@ -2577,7 +2487,7 @@ def build_crest_curve_object(context, target, crest_curves):
     cd.bevel_depth = 0.005
     cd.use_fill_caps = True
     for entry in crest_curves:
-        pts, looped, sign = entry[0], entry[1], entry[2]
+        pts, looped = entry[0], entry[1]
         stren = entry[3] if len(entry) > 3 else 4.0
         sp = cd.splines.new('POLY')
         sp.points.add(len(pts) - 1)
@@ -2843,6 +2753,9 @@ class RFOperator_SegmentMesh(RFOperator_Execute):
         me.update()
         build_crest_curve_object(context, context.active_object,
                                  crested.get('crest_curves', []))
+        build_crest_curve_object(context, context.active_object,
+                                 crested.get('loop_curves', []),
+                                 suffix='Loops')
         self.rf_report({'INFO'}, f'Segment Mesh: {n_regions} regions '
                               f'({n_raw} before merge, feature scale '
                               f'{scale:.4f}'

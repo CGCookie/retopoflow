@@ -123,6 +123,32 @@ class RFRegisterClass(RFReporting):
     def unregister(cls): pass
 
 
+def hotkey_operator(op : type[Operator]) -> type[RFRegisterClass]:
+    ''' A stand-in for op's standalone keymap item that runs op with hotkey=True. '''
+    # The keymap item must not carry the flag itself. While the add-on is disabled its operators are
+    # gone, and Blender then strips the properties from the artist's saved keymap edits. On re-enable
+    # those edits no longer match an item that sets hotkey=True, so a key the artist had turned off
+    # came back on. This item has no properties, so the edits stay matched.
+    module, name = op.bl_idname.split('.')
+    def invoke(self, context : Context, event : Event) -> set[str]:
+        fn = getattr(getattr(bpy.ops, module), name)
+        if not fn.poll(): return { 'PASS_THROUGH' }
+        # `True` is the undo argument: op then gets its own undo step, redo panel and remembered
+        # settings, as if the key had run it directly
+        try:
+            ret = fn('INVOKE_DEFAULT', True, hotkey=True)
+        except RuntimeError:
+            return { 'CANCELLED' }
+        # a modal op runs on by itself, and this shim must not claim to be modal
+        return { 'PASS_THROUGH' } if 'PASS_THROUGH' in ret else { 'FINISHED' }
+    return type(f'{op.__name__}_Hotkey', (RFRegisterClass, Operator), {
+        'bl_idname': f'{op.bl_idname}_hotkey',
+        'bl_label': op.bl_label,
+        'bl_options': { 'INTERNAL' },
+        'invoke': invoke,
+    })
+
+
 
 RFKeyMap : TypeAlias = tuple[
     str,

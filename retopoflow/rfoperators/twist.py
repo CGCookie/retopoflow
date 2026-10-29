@@ -41,7 +41,7 @@ from ..common.bmesh_maths import (
     order_rings_along_axis,
 )
 from ..common.maths import closest_point_linesegment, get_co_on_arc
-from ..common.operator import RFOperator_Invoke, RFKeyMaps, hotkey_owns_context
+from ..common.operator import RFOperator_Invoke, RFKeyMaps, hotkey_owns_context, hotkey_operator
 
 
 TWIST_SENSITIVITY = 0.05   # degrees per pixel of horizontal mouse movement
@@ -781,7 +781,7 @@ class RFOperator_TwistLoop(RFOperator_Invoke):
 
     rf_keymaps : RFKeyMaps = []
 
-    # set on the standalone Mesh-keymap item only, so hotkey_owns_context governs the key
+    # set by the standalone Mesh-keymap item's shim only, so hotkey_owns_context governs the key
     # and not the right-click menu entry
     hotkey: bpy.props.BoolProperty(
         name='From Hotkey',
@@ -1428,14 +1428,15 @@ class RFOperator_TwistLoop(RFOperator_Invoke):
         return {'PASS_THROUGH'}
 
 
+RFOperator_TwistLoop_Hotkey = hotkey_operator(RFOperator_TwistLoop)
+
 keymaps = []
 
 def register():
     keyconfigs = bpy.context.window_manager.keyconfigs.addon
     if not keyconfigs: return
     km = keyconfigs.keymaps.new(name='Mesh')
-    kmi = km.keymap_items.new(RFOperator_TwistLoop.bl_idname, 'T', 'PRESS', ctrl=False, shift=False, alt=True)
-    kmi.properties.hotkey = True
+    kmi = km.keymap_items.new(RFOperator_TwistLoop_Hotkey.bl_idname, 'T', 'PRESS', ctrl=False, shift=False, alt=True)
     keymaps.append((km, kmi))
 
 def unregister():

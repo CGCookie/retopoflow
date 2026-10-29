@@ -26,7 +26,7 @@ from bpy.props import IntProperty, BoolProperty, EnumProperty, FloatProperty
 from mathutils import Vector
 
 from ..rfglobals import RFGlobals
-from ..common.operator import OperatorPropertyWrapper, RFRegisterClass, hotkey_owns_context
+from ..common.operator import OperatorPropertyWrapper, RFRegisterClass, hotkey_owns_context, hotkey_operator
 from ..common.interface import draw_expandable_enum
 from ..common.accel import SourceAccel
 from ..common.bmesh import get_falloff_verts
@@ -69,7 +69,7 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
 
     rf_label = "Relax Selected Vertices"
 
-    # set on the standalone Mesh-keymap item only, so hotkey_owns_context governs the key
+    # set by the standalone Mesh-keymap item's shim only, so hotkey_owns_context governs the key
     # and not the right-click menu entry
     hotkey: BoolProperty(
         name='From Hotkey',
@@ -511,14 +511,15 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
         return {'FINISHED'}
 
 
+RFOperator_RelaxSelected_Hotkey = hotkey_operator(RFOperator_RelaxSelected)
+
 keymaps = []
 
 def register():
     keyconfigs = bpy.context.window_manager.keyconfigs.addon
     if not keyconfigs: return
     km = keyconfigs.keymaps.new(name='Mesh')
-    kmi = km.keymap_items.new(RFOperator_RelaxSelected.bl_idname, 'R', 'PRESS', ctrl=False, shift=True, alt=False)
-    kmi.properties.hotkey = True
+    kmi = km.keymap_items.new(RFOperator_RelaxSelected_Hotkey.bl_idname, 'R', 'PRESS', ctrl=False, shift=True, alt=False)
     keymaps.append((km, kmi))
 
 def unregister():

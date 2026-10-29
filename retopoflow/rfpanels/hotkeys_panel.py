@@ -33,17 +33,17 @@ def draw_hotkeys(self, context, layout):
     layout.separator()
 
     # each of these also binds inside individual RF tools' own keymaps, so narrow to the general one
-    fill_kmi = get_user_keymap_item(context, 'retopoflow.legacy_patches_fill', km_name='Mesh')
+    fill_kmi = get_user_keymap_item(context, 'retopoflow.legacy_patches_fill_hotkey', km_name='Mesh')
     draw_keymap_options(self, layout, fill_kmi, 'Auto Fill', in_RF_tools='optional', trigger_prop='fill_tool_context')
-    topo_rotate_kmi = get_user_keymap_item(context, 'retopoflow.toporotate', km_name='Mesh')
+    topo_rotate_kmi = get_user_keymap_item(context, 'retopoflow.toporotate_hotkey', km_name='Mesh')
     draw_keymap_options(self, layout, topo_rotate_kmi, 'Rotate Topology', in_RF_tools='optional', trigger_prop='toporotate_tool_context')
-    twist_loop_kmi = get_user_keymap_item(context, 'retopoflow.twist_loop', km_name='Mesh')
+    twist_loop_kmi = get_user_keymap_item(context, 'retopoflow.twist_loop_hotkey', km_name='Mesh')
     draw_keymap_options(self, layout, twist_loop_kmi, 'Twist Loops', in_RF_tools='optional', trigger_prop='twist_loop_tool_context')
-    diamond_bevel_kmi = get_user_keymap_item(context, 'retopoflow.insert_diamond_junction', km_name='Mesh')
+    diamond_bevel_kmi = get_user_keymap_item(context, 'retopoflow.insert_diamond_junction_hotkey', km_name='Mesh')
     draw_keymap_options(self, layout, diamond_bevel_kmi, 'Diamond Bevel', in_RF_tools='optional', trigger_prop='diamond_bevel_tool_context')
-    relax_kmi = get_user_keymap_item(context, 'retopoflow.relax_selected', km_name='Mesh')
+    relax_kmi = get_user_keymap_item(context, 'retopoflow.relax_selected_hotkey', km_name='Mesh')
     draw_keymap_options(self, layout, relax_kmi, 'Relax', in_RF_tools='optional', trigger_prop='relax_tool_context')
-    even_kmi = get_user_keymap_item(context, 'retopoflow.space_evenly', km_name='Mesh')
+    even_kmi = get_user_keymap_item(context, 'retopoflow.space_evenly_hotkey', km_name='Mesh')
     draw_keymap_options(self, layout, even_kmi, 'Even', in_RF_tools='optional', trigger_prop='even_tool_context')
     # poll blocks it whenever RF is running, so it only ever fires outside a Retopoflow tool
     edit_as_curve_kmi = get_user_keymap_item(context, 'retopoflow.edit_as_curve', km_name='Mesh')
