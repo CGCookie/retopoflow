@@ -70,6 +70,7 @@ from ..common.maths import (
     clamp, xform_direction,
     perpendicular_direction2,
 )
+from ..rfoperators.pinning import fix_interpolated_pin
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.bmesh_ops import BMElemType, BMElem
 from ...addon_common.common.maths import intersection2d_line_line, sign_threshold, point_inside_face, points_of_bmface, point_inside_face_2d
@@ -178,6 +179,40 @@ def check_split_face(bmv_selected : BMVert, bmelem_hovered : BMVert | BMEdge) ->
         else:
             return (wire, bmfs[1])
     return None
+
+
+def interp_bmvert_from_bmverts(bm : BMesh, bmv : BMVert, bmv0 : BMVert, bmv1 : BMVert):
+    ''' Interpolate the attributes of `bmv`, which was cut into the edge between `bmv0` and `bmv1`. '''
+    d0, d1 = (bmv.co - bmv0.co).length, (bmv.co - bmv1.co).length
+    fac = d0 / (d0 + d1) if d0 + d1 > 0 else 0.5
+    bmv.copy_from_vert_interp((bmv0, bmv1), fac)
+    fix_interpolated_pin(bm, bmv, (bmv0, bmv1))
+
+def interp_bmvert_from_bmface(bm : BMesh, bmv : BMVert, bmf : BMFace):
+    ''' Interpolate the attributes of `bmv`, which sits inside `bmf`, from all of `bmf`'s verts. '''
+    # copy_from_face_interp projects onto the face plane and newly created faces can have a zero normal
+    bmf.normal_update()
+    bmv.copy_from_face_interp(bmf)
+    fix_interpolated_pin(bm, bmv, bmf.verts)
+
+def interp_wire_end_from_bmface(bm : BMesh, bmv : BMVert):
+    ''' Interpolate the attributes of a wire's free end from the face it sits in, if any. '''
+    if found := get_wire_split_face(bmv):
+        interp_bmvert_from_bmface(bm, bmv, found[1])
+
+def connect_with_junction(bm : BMesh, bmf : BMFace, bmv0 : BMVert, bmv1 : BMVert, co : Vector, bmv_opposite : BMVert):
+    ''' Connect `bmv0` and `bmv1` across `bmf`, with a junction vert at `co` that also connects to `bmv_opposite`. '''
+    # Interpolate the junction from bmf's verts before the cut changes bmf.
+    # Splitting the new edge would interpolate from bmv0 and bmv1 only, so weld the split vert into the junction.
+    bmv_junction = bm.verts.new(co)
+    interp_bmvert_from_bmface(bm, bmv_junction, bmf)
+    bme = next(iter(connect_verts(bm, verts=[bmv0, bmv1])['edges']), None)
+    if not bme:
+        bm.verts.remove(bmv_junction)
+        return
+    _, bmv_split = edge_split(bme, bmv0, 0.5)
+    bmesh.ops.weld_verts(bm, targetmap={bmv_split: bmv_junction})
+    connect_verts(bm, verts=[bmv_junction, bmv_opposite])  # pyright: ignore [reportUnusedCallResult]
 
 def find_opposite_and_corner(bme0 : BMEdge, bme1 : BMEdge) -> tuple[BMVert, BMVert] | tuple[None, None]:
     bmfs = set(bme0.link_faces) & set(bme1.link_faces)
@@ -1919,6 +1954,17 @@ class PP_Logic:
         select_later = []   # to be selected after move
         free_move = self.state not in PP_KNIFE_SNAP_STATES or not self.constrain_edge_vert # only needed when knifing
 
+        # edge_split interpolates attributes at the split factor but users can move the new vert after inserting.
+        # Record each cut vert with its edge's verts, and interpolate again at commit.
+        # Until then its pin can be 0.5. Any face containing it also contains both edge verts, so the pin check still works.
+        edge_cut_verts : list[tuple[BMVert, BMVert, BMVert]] = []
+        wire_end_verts : list[BMVert] = []  # new verts at the free end of a wire, which may sit inside a face
+        def split_bme(bme : BMEdge, bmv : BMVert, fac : float) -> tuple[BMEdge, BMVert]:
+            bmv0, bmv1 = bme.verts
+            bme_new, bmv_new = edge_split(bme, bmv, fac)
+            edge_cut_verts.append((bmv_new, bmv0, bmv1))
+            return bme_new, bmv_new
+
         match self.state:
             case PP_Action.VERT:
                 # create new detached vertex
@@ -1933,7 +1979,7 @@ class PP_Logic:
                 # split hovered edge
                 bme = self.nearest_bme.bme
                 bmev0, bmev1 = bme.verts
-                bme_new, bmv_new = edge_split(bme, bmev0, 0.5)
+                bme_new, bmv_new = split_bme(bme, bmev0, 0.5)
                 if not self.constrain_edge_vert:
                     bmv_new.co = self.hit
                 else:
@@ -1971,14 +2017,14 @@ class PP_Logic:
                 p1 = p10 + (p11 - p10) * percent
                 splits = find_bmedges_to_split(context, self.matrix_world, self.bme, p0, p1, self.vec_forward if self.ignore_splitting_backfaces else None)
 
-                _, bmv0_new = edge_split(bme0, bmv00, percent)
-                _, bmv1_new = edge_split(bme1, bmv10, percent)
+                _, bmv0_new = split_bme(bme0, bmv00, percent)
+                _, bmv1_new = split_bme(bme1, bmv10, percent)
                 snap_verts.extend([bmv0_new, bmv1_new])
                 if len(splits) > 1:
                     bmv_from = bmv0_new
                     for (bme, pt) in splits:
                         if bme == bme0 or bme == bme1: continue
-                        _, bmv_new = edge_split(bme, bme.verts[0], 0.5)
+                        _, bmv_new = split_bme(bme, bme.verts[0], 0.5)
                         if pt3d := raycast_point_valid_sources(context, pt, respect_clip_planes=True):     # raycast to surface
                             bmv_new.co = self.matrix_world_inv @ pt3d
                         feature_snap_verts.append(bmv_new)
@@ -2000,7 +2046,7 @@ class PP_Logic:
                 bmv_end = self.split_info['bmv end']
                 bmvs_new = []
                 for (bme, (bmv0, bmv1)) in zip(self.split_info['bmes split'], self.split_info['bmvs split']):
-                    _, bmv_new = edge_split(bme, bmv0, v)
+                    _, bmv_new = split_bme(bme, bmv0, v)
                     bmvs_new.append(bmv_new)
                 for (bmv0, bmv1) in iter_pairs(bmvs_new, False):
                     connect_verts(self.bm, verts=[bmv0, bmv1])
@@ -2014,6 +2060,7 @@ class PP_Logic:
                     bmv_new = self.bm.verts.new(self.hit)  # self.hit is on surface
                     bme_new = self.bm.edges.new((bmv_new, bmvs_new[-1]))
                     feature_snap_verts.append(bmv_new)
+                    wire_end_verts.append(bmv_new)
                     select_now = [bmv_new]
                     free_move = True
                 elif bmv_end:
@@ -2056,12 +2103,15 @@ class PP_Logic:
                 co1  = self.matrix_world_inv @ rc1   if rc1   else None
                 conn = self.matrix_world_inv @ rcnn  if rcnn  else None
 
-                _, bmv0_new = edge_split(bme0, bmvc, 0.5)
-                _, bmv1_new = edge_split(bme1, bmvc, 0.5)
+                # interpolate the junction from the quad's verts before the cuts below add two more
+                bmv_new = self.bm.verts.new(conn if conn else bmvc.co)  # raycast to surface
+                interp_bmvert_from_bmface(self.bm, bmv_new, bmf)
+
+                _, bmv0_new = split_bme(bme0, bmvc, 0.5)
+                _, bmv1_new = split_bme(bme1, bmvc, 0.5)
 
                 if co0:  bmv0_new.co = co0                              # raycast to surface
                 if co1:  bmv1_new.co = co1                              # raycast to surface
-                bmv_new = self.bm.verts.new(conn if conn else bmvc.co)  # raycast to surface
                 feature_snap_verts.extend([bmv0_new, bmv1_new, bmv_new])
 
                 # split bmf into 3 quads
@@ -2098,7 +2148,7 @@ class PP_Logic:
 
                 bmv_from = None
                 for (bme_split, pt_split) in splits:
-                    _, bmv_split = edge_split(bme_split, bme_split.verts[0], 0.5)
+                    _, bmv_split = split_bme(bme_split, bme_split.verts[0], 0.5)
                     if rc := raycast_point_valid_sources(context, pt_split, respect_clip_planes=True):
                         bmv_split.co = self.matrix_world_inv @ rc  # raycast to surface
                     feature_snap_verts.append(bmv_split)
@@ -2113,6 +2163,7 @@ class PP_Logic:
                     bmv1 = self.bm.verts.new(self.hit)  # self.hit is on surface
                     self.bm.edges.new((bmv_from, bmv1))
                     feature_snap_verts.append(bmv1)
+                    wire_end_verts.append(bmv1)
                 elif self.nearest.bmv:
                     connect_verts(self.bm, verts=[bmv_from, self.nearest.bmv])
                     bmv1 = self.nearest.bmv
@@ -2165,18 +2216,16 @@ class PP_Logic:
                     co = self.correct_mirror_side(context, self.hit, [bmv0])
                     bmv1 = self.bm.verts.new(co)
                     snap_verts.append(bmv1)
+                    wire_end_verts.append(bmv1)
 
                 if not splits:
                     bmf_split = next((bmf for bmf in bmv0.link_faces if bmv1 in bmf.verts), None)
                     bme = None
                     if bmf_split:
-                        ret = connect_verts(self.bm, verts=[bmv0, bmv1])
-                        bme = next(iter(ret['edges']), None)
                         if split_co:
-                            bme_cut = bme
-                            _, bmv_cut = edge_split(bme_cut, self.bmv, 0.5)
-                            bmv_cut.co = split_co  # already snapped to surface
-                            connect_verts(self.bm, verts=[bmv_cut, bmv_opposite])
+                            connect_with_junction(self.bm, bmf_split, bmv0, bmv1, split_co, bmv_opposite)  # split_co is already snapped to surface
+                        else:
+                            connect_verts(self.bm, verts=[bmv0, bmv1])
                         bme = None
                     else:
                         bme = next(iter(bmops.shared_link_edges([bmv0, bmv1])), None)
@@ -2193,7 +2242,7 @@ class PP_Logic:
                     bmv_first_new = None
                     for (bme_split, pt_split) in splits:
                         if bme_split == self.nearest_bme.bme: break
-                        _, bmv_split = edge_split(bme_split, bme_split.verts[0], 0.5)
+                        _, bmv_split = split_bme(bme_split, bme_split.verts[0], 0.5)
                         if rc := raycast_point_valid_sources(context, pt_split, respect_clip_planes=True):
                             bmv_split.co = self.matrix_world_inv @ rc  # raycast to surface
                         feature_snap_verts.append(bmv_split)
@@ -2246,7 +2295,7 @@ class PP_Logic:
 
                     bmv_opposite, bmv_center = find_opposite_and_center_wire(self.bmv, bme) if self.quad_preserve else (None, None)
 
-                    _, bmv_new = edge_split(bme, bmev0, 0.5)
+                    _, bmv_new = split_bme(bme, bmev0, 0.5)
                     if not self.constrain_edge_vert:
                         bmv_new.co = self.hit
                         feature_snap_verts.append(bmv_new)
@@ -2318,7 +2367,7 @@ class PP_Logic:
                                     split_co = self.matrix_world_inv @ snapped
                                 splits = []
 
-                _, bmv_new = edge_split(self.nearest_bme.bme, bmev0, 0.5)
+                _, bmv_new = split_bme(self.nearest_bme.bme, bmev0, 0.5)
                 if not self.constrain_edge_vert:
                     bmv_new.co = self.hit
                     feature_snap_verts.append(bmv_new)
@@ -2331,12 +2380,10 @@ class PP_Logic:
                 if not splits:
                     bmf_split = next((bmf for bmf in self.bmv.link_faces if bmv_new in bmf.verts), None)
                     if bmf_split:
-                        ret = connect_verts(self.bm, verts=[self.bmv, bmv_new])
                         if split_co:
-                            bme_cut = ret['edges'][0]
-                            _, bmv_cut = edge_split(bme_cut, self.bmv, 0.5)
-                            bmv_cut.co = split_co  # already snappend to surface
-                            connect_verts(self.bm, verts=[bmv_cut, bmv_opposite])
+                            connect_with_junction(self.bm, bmf_split, self.bmv, bmv_new, split_co, bmv_opposite)  # split_co is already snapped to surface
+                        else:
+                            connect_verts(self.bm, verts=[self.bmv, bmv_new])
                     else:
                         bme_new = self.bm.edges.new((self.bmv, bmv_new))
                 else:
@@ -2344,7 +2391,7 @@ class PP_Logic:
                     bmv_first_new = None
                     for (bme_split, pt_split) in splits:
                         if bme_split == self.nearest_bme.bme: break
-                        _, bmv_split = edge_split(bme_split, bme_split.verts[0], 0.5)
+                        _, bmv_split = split_bme(bme_split, bme_split.verts[0], 0.5)
                         if rc := raycast_point_valid_sources(context, pt_split, respect_clip_planes=True):
                             bmv_split.co = self.matrix_world_inv @ rc  # raycast to surface
                         feature_snap_verts.append(bmv_split)
@@ -2478,6 +2525,15 @@ class PP_Logic:
             for bmv in feature_snap_verts:
                 if bmv.is_valid:
                     bmv.co = self.snap_co_to_feature(bmv.co)
+
+        # Interpolate attributes for the cut verts now that they are in place.
+        # Do edge cuts first, since a wire end's face can contain them.
+        for bmv, bmv0, bmv1 in edge_cut_verts:
+            if bmv.is_valid and bmv0.is_valid and bmv1.is_valid:
+                interp_bmvert_from_bmverts(self.bm, bmv, bmv0, bmv1)
+        for bmv in wire_end_verts:
+            if bmv.is_valid:
+                interp_wire_end_from_bmface(self.bm, bmv)
 
         orient_bmf_normals(context, orient_bmfs, new_faces=True)
 

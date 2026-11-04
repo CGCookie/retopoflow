@@ -29,6 +29,17 @@ DEBUG = False
 
 original_crease_color = [0.8, 0, 0.6]
 
+# While Retopoflow is running and pinning is enabled, crease_vert is the crease divided by 100.
+# A pin adds this amount on top so pinned verts draw using the crease color. Only up to 0.99 so the previous value is preserved.
+PIN_CREASE = 0.99
+
+
+def crease_without_pin(crease, pin=1.0):
+    ''' Remove the pin's share of PIN_CREASE from a stored crease value. '''
+    # Subtracting in float32 leaves about 1e-8 of error. The smallest crease Blender sets, 0.001, is stored as 1e-5.
+    crease -= pin * PIN_CREASE
+    return crease if crease > 1e-6 else 0.0
+
 
 def get_theme_crease(context):
     theme = context.preferences.themes[0].view_3d
@@ -76,9 +87,8 @@ def setup_pinning(context):
         if not crease_vert_layer:
             crease_vert_layer = bm.verts.layers.float.new('crease_vert')
         for bmv in bm.verts:
-            # Only going up to 0.99 so the previous value is preserved
             if bmv[pin_vert_layer]:
-                bmv[crease_vert_layer] += 0.99
+                bmv[crease_vert_layer] += PIN_CREASE
     else:
         pin_vert_layer = bm.verts.layers.float.new('retopoflow_pins')
 
@@ -115,13 +125,10 @@ def restore_pinning(context):
 
     if crease_vert_layer:
         for bmv in bm.verts:
-            if pin_vert_layer:
-                if bmv[pin_vert_layer]:
-                    bmv[crease_vert_layer] -= 0.99
-                # Avoids precision errors
-                if bmv[crease_vert_layer] < 0.001:
-                    bmv[crease_vert_layer] = 0
-            bmv[crease_vert_layer] = max(min(bmv[crease_vert_layer] * 100, 1), 0)
+            crease = bmv[crease_vert_layer]
+            if bmv[pin_vert_layer]:
+                crease = crease_without_pin(crease)
+            bmv[crease_vert_layer] = max(min(crease * 100, 1), 0)
 
     if crease_edge_layer:
         for bme in bm.edges:
@@ -165,7 +172,7 @@ def pin_bmvs(bm):
     for bmv in [bmv for bmv in bm.verts if bmv.select]:
         if bmv[pin_vert_layer] == False:
             bmv[pin_vert_layer] = True
-            bmv[crease_vert_layer] += 0.99
+            bmv[crease_vert_layer] += PIN_CREASE
 
 
 def unpin_bmvs(bm):
@@ -177,10 +184,28 @@ def unpin_bmvs(bm):
     for bmv in [bmv for bmv in bm.verts if bmv.select]:
         if bmv[pin_vert_layer]:
             bmv[pin_vert_layer] = False
-            bmv[crease_vert_layer] = bmv[crease_vert_layer] - 0.99
-            # Avoids precision errors
-            if bmv[crease_vert_layer] < 0.001:
-                bmv[crease_vert_layer] = 0
+            bmv[crease_vert_layer] = crease_without_pin(bmv[crease_vert_layer])
+
+
+def fix_interpolated_pin(bm, bmv, bmvs_interp):
+    ''' Pin `bmv` only if every vert in `bmvs_interp` is pinned. Call after interpolating `bmv`'s attributes from them. '''
+    pin_vert_layer = bm.verts.layers.float.get('retopoflow_pins')
+    if not pin_vert_layer:
+        return
+
+    # Interpolation leaves fractional pins such as 0.5, and any nonzero pin counts as pinned
+    pin_interp = bmv[pin_vert_layer]
+    pinned = all(bmv_interp[pin_vert_layer] for bmv_interp in bmvs_interp)
+    if not pin_interp and not pinned:
+        return
+    bmv[pin_vert_layer] = 1.0 if pinned else 0.0
+
+    crease_vert_layer = bm.verts.layers.float.get('crease_vert')
+    if not crease_vert_layer:
+        return
+    # PIN_CREASE was interpolated into the crease with the same weights as the pin
+    crease = crease_without_pin(bmv[crease_vert_layer], pin_interp)
+    bmv[crease_vert_layer] = crease + (PIN_CREASE if pinned else 0)
 
 
 class RFOperator_PinVerts(RFRegisterClass, bpy.types.Operator):
