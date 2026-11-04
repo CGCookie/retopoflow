@@ -214,6 +214,45 @@ def connect_with_junction(bm : BMesh, bmf : BMFace, bmv0 : BMVert, bmv1 : BMVert
     bmesh.ops.weld_verts(bm, targetmap={bmv_split: bmv_junction})
     connect_verts(bm, verts=[bmv_junction, bmv_opposite])  # pyright: ignore [reportUnusedCallResult]
 
+def replace_bmface(bm : BMesh, bmf : BMFace, bmvs_faces : list[list[BMVert]]) -> list[BMFace]:
+    ''' Replace `bmf` with a face for each vert list in `bmvs_faces`, keeping `bmf`'s face and corner attributes. '''
+    # faces.new copies face attributes such as smooth and material from the example, but leaves corner attributes such as UVs empty
+    bmf.normal_update()
+    bmfs_new = [bm.faces.new(bmvs, bmf) for bmvs in bmvs_faces]
+    for bmf_new in bmfs_new:
+        bmf_new.normal_update()
+        for bml in bmf_new.loops:
+            bml.copy_from_face_interp(bmf, False)  # False skips vert attributes, which are interpolated separately
+    bm.faces.remove(bmf)
+    return bmfs_new
+
+def split_bmface_by_wire(bm : BMesh, bmf : BMFace, wire : list[BMVert | BMEdge], bmv_end : BMVert) -> list[BMFace]:
+    ''' Connect the end of `wire` to `bmv_end`, then split `bmf` in two along the wire. The wire starts on `bmf`, and `bmv_end` is on `bmf`. '''
+    wire_bmvs = [ bmelem for bmelem in wire if isinstance(bmelem, BMVert) ]
+    bm.edges.new((wire_bmvs[-1], bmv_end))
+    wire_bmvs.append(bmv_end)
+    bmf_bmvs = [ loop.vert for loop in bmf.loops ]
+
+    idx = bmf_bmvs.index(wire_bmvs[-1])
+    bmf0_bmvs = bmf_bmvs[idx:] + bmf_bmvs[:idx]  # rotate so wire_bmvs[-1] is bmf_bmvs[0]
+    idx = bmf0_bmvs.index(wire_bmvs[0])
+    bmf0_bmvs = wire_bmvs + bmf0_bmvs[1:idx]
+
+    idx = bmf_bmvs.index(wire_bmvs[0])
+    bmf1_bmvs = bmf_bmvs[idx:] + bmf_bmvs[:idx]  # rotate so wire_bmvs[0] is bmf_bmvs[0]
+    idx = bmf1_bmvs.index(wire_bmvs[-1])
+    bmf1_bmvs = wire_bmvs[::-1] + bmf1_bmvs[1:idx]
+
+    return replace_bmface(bm, bmf, [bmf0_bmvs, bmf1_bmvs])
+
+def shade_new_bmface(bmf : BMFace, material_index : int):
+    ''' Set smooth shading on a new face from the faces around it, and give it `material_index`. '''
+    # Smooth when more of the faces touching its verts are smooth than flat.
+    bmfs_near = { bmf_near for bmv in bmf.verts for bmf_near in bmv.link_faces if bmf_near != bmf }
+    smooth_count = sum(1 for bmf_near in bmfs_near if bmf_near.smooth)
+    bmf.smooth = smooth_count * 2 > len(bmfs_near)
+    bmf.material_index = material_index
+
 def find_opposite_and_corner(bme0 : BMEdge, bme1 : BMEdge) -> tuple[BMVert, BMVert] | tuple[None, None]:
     bmfs = set(bme0.link_faces) & set(bme1.link_faces)
     if len(bmfs) != 1: return (None, None)
@@ -2077,8 +2116,10 @@ class PP_Logic:
             case PP_Action.SPLIT_QUAD_CENTER:
                 bme0, bme1 = self.bme, self.nearest_bme.bme
                 bmvc = bmes_shared_bmv(bme0, bme1)
+                if not bmvc: return
                 bmv0 = bme_other_bmv(bme0, bmvc)
                 bmv1 = bme_other_bmv(bme1, bmvc)
+                if not bmv0 or not bmv1: return
                 bmf = next(iter(set(bme0.link_faces) & set(bme1.link_faces)))
                 bmvo = next(iter(set(bmf.verts) - { bmv0, bmv1, bmvc }))
 
@@ -2115,12 +2156,11 @@ class PP_Logic:
                 feature_snap_verts.extend([bmv0_new, bmv1_new, bmv_new])
 
                 # split bmf into 3 quads
-                self.bm.faces.remove(bmf)
-                bmf0 = self.bm.faces.new([bmvc, bmv0_new, bmv_new, bmv1_new])
-                bmf1 = self.bm.faces.new([bmv0_new, bmv0, bmvo, bmv_new])
-                bmf2 = self.bm.faces.new([bmv1_new, bmv_new, bmvo, bmv1])
-
-                orient_bmfs += [bmf0, bmf1, bmf2]
+                orient_bmfs += replace_bmface(self.bm, bmf, [
+                    [bmvc, bmv0_new, bmv_new, bmv1_new],
+                    [bmv0_new, bmv0, bmvo, bmv_new],
+                    [bmv1_new, bmv_new, bmvo, bmv1],
+                ])
 
                 select_now = [bmv1_new]
                 select_later = []
@@ -2253,23 +2293,7 @@ class PP_Logic:
                     wire = get_wire_split_face(self.bmv)
                     if wire and bmv_first_new:
                         wire, bmf_split = wire
-                        self.bm.edges.new((wire[-1], bmv_first_new))
-
-                        wire_bmvs = wire[::2] + [bmv_first_new]
-                        bmf_bmvs = [ loop.vert for loop in bmf_split.loops ]    # includes new bmvert from splitting edge
-                        self.bm.faces.remove(bmf_split)                         # remove face, and then rebuild it as two faces...
-
-                        idx = bmf_bmvs.index(wire_bmvs[-1])
-                        bmf0_bmvs = bmf_bmvs[idx:] + bmf_bmvs[:idx]  # rotate so wire_bmvs[-1] is bmf_bmvs[0]
-                        idx = bmf0_bmvs.index(wire_bmvs[0])
-                        bmf0_bmvs = wire_bmvs + bmf0_bmvs[1:idx]
-                        self.bm.faces.new(bmf0_bmvs)
-
-                        idx = bmf_bmvs.index(wire_bmvs[0])
-                        bmf1_bmvs = bmf_bmvs[idx:] + bmf_bmvs[:idx]  # rotate so wire_bmvs[0] is bmf_bmvs[0]
-                        idx = bmf1_bmvs.index(wire_bmvs[-1])
-                        bmf1_bmvs = wire_bmvs[::-1] + bmf1_bmvs[1:idx]
-                        self.bm.faces.new(bmf1_bmvs)
+                        split_bmface_by_wire(self.bm, bmf_split, wire, bmv_first_new)
 
 
                     if self.nearest.bmv:
@@ -2306,23 +2330,7 @@ class PP_Logic:
                         snap_verts.append(bmv_new)
                     bmv_connect = bmv_new
 
-                self.bm.edges.new((wire[-1], bmv_connect))
-
-                wire_bmvs = wire[::2] + [bmv_connect]
-                bmf_bmvs = [ loop.vert for loop in bmf_split.loops ]    # includes new bmvert from splitting edge
-                self.bm.faces.remove(bmf_split)                         # remove face, and then rebuild it as two faces...
-
-                idx = bmf_bmvs.index(wire_bmvs[-1])
-                bmf0_bmvs = bmf_bmvs[idx:] + bmf_bmvs[:idx]  # rotate so wire_bmvs[-1] is bmf_bmvs[0]
-                idx = bmf0_bmvs.index(wire_bmvs[0])
-                bmf0_bmvs = wire_bmvs + bmf0_bmvs[1:idx]
-                self.bm.faces.new(bmf0_bmvs)
-
-                idx = bmf_bmvs.index(wire_bmvs[0])
-                bmf1_bmvs = bmf_bmvs[idx:] + bmf_bmvs[:idx]  # rotate so wire_bmvs[0] is bmf_bmvs[0]
-                idx = bmf1_bmvs.index(wire_bmvs[-1])
-                bmf1_bmvs = wire_bmvs[::-1] + bmf1_bmvs[1:idx]
-                self.bm.faces.new(bmf1_bmvs)
+                split_bmface_by_wire(self.bm, bmf_split, wire, bmv_connect)
 
                 if bmv_opposite:
                     connect_verts(self.bm, verts=[self.bmv, bmv_opposite])
@@ -2403,23 +2411,7 @@ class PP_Logic:
                     wire = get_wire_split_face(self.bmv)
                     if wire and bmv_first_new:
                         wire, bmf_split = wire
-                        self.bm.edges.new((wire[-1], bmv_first_new))
-
-                        wire_bmvs = wire[::2] + [bmv_first_new]
-                        bmf_bmvs = [ loop.vert for loop in bmf_split.loops ]    # includes new bmvert from splitting edge
-                        self.bm.faces.remove(bmf_split)                         # remove face, and then rebuild it as two faces...
-
-                        idx = bmf_bmvs.index(wire_bmvs[-1])
-                        bmf0_bmvs = bmf_bmvs[idx:] + bmf_bmvs[:idx]  # rotate so wire_bmvs[-1] is bmf_bmvs[0]
-                        idx = bmf0_bmvs.index(wire_bmvs[0])
-                        bmf0_bmvs = wire_bmvs + bmf0_bmvs[1:idx]
-                        self.bm.faces.new(bmf0_bmvs)
-
-                        idx = bmf_bmvs.index(wire_bmvs[0])
-                        bmf1_bmvs = bmf_bmvs[idx:] + bmf_bmvs[:idx]  # rotate so wire_bmvs[0] is bmf_bmvs[0]
-                        idx = bmf1_bmvs.index(wire_bmvs[-1])
-                        bmf1_bmvs = wire_bmvs[::-1] + bmf1_bmvs[1:idx]
-                        self.bm.faces.new(bmf1_bmvs)
+                        split_bmface_by_wire(self.bm, bmf_split, wire, bmv_first_new)
 
                 select_now = [bmv_new]
                 select_later = []
@@ -2448,6 +2440,7 @@ class PP_Logic:
                         select_later += [bmf1]
                 else:
                     bmf = self.bm.faces.new(order_bmvs_for_new_bmf(self.bme, (bmv0, bmv1, bmv)))
+                    shade_new_bmface(bmf, context.edit_object.active_material_index)
                     orient_bmfs.append(bmf)
                 select_later += [bmf]
                 free_move = True
@@ -2458,6 +2451,7 @@ class PP_Logic:
                 bmv2, bmv3 = self.bme_hovered_bmvs
                 # wind from the selected edge as the hovered edge can belong to a separately wound island
                 bmf = self.bm.faces.new(order_bmvs_for_new_bmf(self.bme, (bmv0, bmv1, bmv2, bmv3)))
+                shade_new_bmface(bmf, context.edit_object.active_material_index)
                 orient_bmfs.append(bmf)
                 select_now = [bmv2, bmv3]
                 select_later = [bmf]
@@ -2478,6 +2472,7 @@ class PP_Logic:
                     bmv3 = self.bm.verts.new(co3)
                     snap_verts.append(bmv3)
                 bmf = self.bm.faces.new(order_bmvs_for_new_bmf(self.bme, (bmv0, bmv1, bmv2, bmv3)))
+                shade_new_bmface(bmf, context.edit_object.active_material_index)
                 orient_bmfs.append(bmf)
                 select_now = [bmv2, bmv3]
                 select_later = [bmf]
