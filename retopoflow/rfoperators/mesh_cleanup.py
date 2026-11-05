@@ -24,7 +24,7 @@ import bpy, bmesh
 from ..common.operator import RFRegisterClass
 from ..common.raycast import nearest_point_valid_sources
 from ..common.selection import get_selected, restore_selected
-from ..common.bmesh_maths import is_bmvert_pinned
+from ..common.bmesh_attributes import is_bmvert_pinned
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_options
 
 

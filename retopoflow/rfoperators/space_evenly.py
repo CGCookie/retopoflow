@@ -30,7 +30,7 @@ from ..rfglobals import RFGlobals
 from ..common.operator import RFRegisterClass, hotkey_owns_context, hotkey_operator
 from ..common.accel import SourceAccel
 from ..common.bmesh import get_bmv_avg_edge_len, get_bmv_next_loop_vert
-from ..common.bmesh_maths import is_bmvert_pinned
+from ..common.bmesh_attributes import is_bmvert_pinned
 from ..common.maths import point_to_bvec3
 from ..common.raycast import iter_all_valid_sources, nearest_point_valid_sources, source_xform_tuple
 from ..common.snapping import (

@@ -39,8 +39,6 @@ from ...addon_common.common.maths import closest_point_segment, Point, Direction
 from ...addon_common.ext.circle_fit import hyperLSQ
 from ...addon_common.common.utils import iter_pairs
 
-from enum import IntEnum, auto
-from typing import Any
 
 
 ## TODO: organize and generalize this code a bit better!
@@ -432,55 +430,6 @@ def is_bmvert_hidden(context:Context, bmv:BMVert) -> bool:
     if bmv.hide: return True
     point = context.edit_object.matrix_world @ point_to_bvec4(bmv.co)
     return is_point_occluded(context, point.xyz)
-
-
-class BMMarking(IntEnum):
-    seam = auto()
-    sharp = auto()
-    crease = auto()
-
-def is_bmedge_edgemark(bm:BMesh, bme:BMEdge, mark:BMMarking):
-    match mark:
-        case BMMarking.seam:
-            return getattr(bme, 'seam')
-        case BMMarking.sharp:
-            return not getattr(bme, 'smooth')
-        case BMMarking.crease:
-            layer = bm.edges.layers.float.get('crease_edge')
-            if not layer: return False
-            return bme[layer]
-    return False
-
-def is_bmvert_on_edgemark(bm:BMesh, bmv:BMVert, mark:BMMarking) -> bool:
-    match mark:
-        case BMMarking.seam:
-            return any( getattr(bme, 'seam') for bme in bmv.link_edges )
-        case BMMarking.sharp:
-            return not all( getattr(bme, 'smooth') for bme in bmv.link_edges )
-        case BMMarking.crease:
-            layer = bm.edges.layers.float.get('crease_edge')
-            if not layer: return False
-            return any( bme[layer] for bme in bmv.link_edges )
-    return False
-
-
-def is_bmvert_pinned(bm : BMesh, bmv: BMVert, *, ensure_lookup_table: bool = True) -> bool:
-    return get_bmvert_attribute(bm, bmv, 'retopoflow_pins', 'float', ensure_lookup_table=ensure_lookup_table)
-
-def is_bmvert_creased(bm : BMesh, bmv : BMVert, *, ensure_lookup_table: bool = True) -> bool:
-    return get_bmvert_attribute(bm, bmv, 'crease_vert', 'float', ensure_lookup_table=ensure_lookup_table)
-
-
-def get_bmvert_attribute(bm:BMesh, bmv:BMVert, attribute:str, data_type:str, *, ensure_lookup_table: bool = True) -> Any:  # pyright: ignore[reportExplicitAny, reportAny]
-    # Callers that have already ensured the lookup table (e.g. when filtering many verts
-    # in a tight loop) can pass ensure_lookup_table=False to skip this per-vert call.
-    if ensure_lookup_table:
-        bm.verts.ensure_lookup_table()
-    layer = getattr(bm.verts.layers, data_type).get(attribute) # pyright: ignore[reportAny]
-    if layer:
-        return bmv[layer]  # pyright: ignore[reportAny]
-    else:
-        return None
 
 
 def fit_plane_of_verts(verts : Sequence[BMVert]) -> tuple[Vector|None, Vector|None]:

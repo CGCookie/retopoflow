@@ -52,6 +52,7 @@ from ..common.bmesh_maths import (
     get_longest_strip_cycle,
     generate_point_inside_bmf,
 )
+from ..common.bmesh_attributes import shade_new_bmfaces
 from ..common.raycast import raycast_ray_valid_sources, nearest_point_valid_sources, nearest_normal_valid_sources
 from ..common.accel import SourceCache
 from ..common.snapping import source_snap_radius, source_snap_settings, fold_crease
@@ -698,6 +699,7 @@ class PolyStrips_Logic:
                 K = new_vert(a[1].co + b[1].co - C.co, i_corner)
                 make_quad((a[1], K, b[1], C))
         orient_bmf_normals(context, new_bmfs, new_faces=True)
+        shade_new_bmfaces(new_bmfs, context.edit_object.active_material_index)
 
         run['first_pair'], run['last_pair'] = made[0], made[-1]
         d0 = verts[0].co - verts[1].co
@@ -1685,6 +1687,7 @@ class PolyStrips_Logic:
                 sec_bmfs += [ bmf ]
                 select_geo.append(bmf)
             orient_bmf_normals(context, new_bmfs, new_faces=True)
+            shade_new_bmfaces(new_bmfs, context.edit_object.active_material_index)
 
             if sec_bmfs: pivot_face = sec_bmfs[-1]
             actual_strip_count += 1

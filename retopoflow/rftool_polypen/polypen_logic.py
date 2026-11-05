@@ -70,7 +70,7 @@ from ..common.maths import (
     clamp, xform_direction,
     perpendicular_direction2,
 )
-from ..rfoperators.pinning import fix_interpolated_pin
+from ..common.bmesh_attributes import interp_bmvert_from_bmverts, interp_bmvert_from_bmface, replace_bmface, shade_new_bmfaces
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.bmesh_ops import BMElemType, BMElem
 from ...addon_common.common.maths import intersection2d_line_line, sign_threshold, point_inside_face, points_of_bmface, point_inside_face_2d
@@ -181,20 +181,6 @@ def check_split_face(bmv_selected : BMVert, bmelem_hovered : BMVert | BMEdge) ->
     return None
 
 
-def interp_bmvert_from_bmverts(bm : BMesh, bmv : BMVert, bmv0 : BMVert, bmv1 : BMVert):
-    ''' Interpolate the attributes of `bmv`, which was cut into the edge between `bmv0` and `bmv1`. '''
-    d0, d1 = (bmv.co - bmv0.co).length, (bmv.co - bmv1.co).length
-    fac = d0 / (d0 + d1) if d0 + d1 > 0 else 0.5
-    bmv.copy_from_vert_interp((bmv0, bmv1), fac)
-    fix_interpolated_pin(bm, bmv, (bmv0, bmv1))
-
-def interp_bmvert_from_bmface(bm : BMesh, bmv : BMVert, bmf : BMFace):
-    ''' Interpolate the attributes of `bmv`, which sits inside `bmf`, from all of `bmf`'s verts. '''
-    # copy_from_face_interp projects onto the face plane and newly created faces can have a zero normal
-    bmf.normal_update()
-    bmv.copy_from_face_interp(bmf)
-    fix_interpolated_pin(bm, bmv, bmf.verts)
-
 def interp_wire_end_from_bmface(bm : BMesh, bmv : BMVert):
     ''' Interpolate the attributes of a wire's free end from the face it sits in, if any. '''
     if found := get_wire_split_face(bmv):
@@ -214,18 +200,6 @@ def connect_with_junction(bm : BMesh, bmf : BMFace, bmv0 : BMVert, bmv1 : BMVert
     bmesh.ops.weld_verts(bm, targetmap={bmv_split: bmv_junction})
     connect_verts(bm, verts=[bmv_junction, bmv_opposite])  # pyright: ignore [reportUnusedCallResult]
 
-def replace_bmface(bm : BMesh, bmf : BMFace, bmvs_faces : list[list[BMVert]]) -> list[BMFace]:
-    ''' Replace `bmf` with a face for each vert list in `bmvs_faces`, keeping `bmf`'s face and corner attributes. '''
-    # faces.new copies face attributes such as smooth and material from the example, but leaves corner attributes such as UVs empty
-    bmf.normal_update()
-    bmfs_new = [bm.faces.new(bmvs, bmf) for bmvs in bmvs_faces]
-    for bmf_new in bmfs_new:
-        bmf_new.normal_update()
-        for bml in bmf_new.loops:
-            bml.copy_from_face_interp(bmf, False)  # False skips vert attributes, which are interpolated separately
-    bm.faces.remove(bmf)
-    return bmfs_new
-
 def split_bmface_by_wire(bm : BMesh, bmf : BMFace, wire : list[BMVert | BMEdge], bmv_end : BMVert) -> list[BMFace]:
     ''' Connect the end of `wire` to `bmv_end`, then split `bmf` in two along the wire. The wire starts on `bmf`, and `bmv_end` is on `bmf`. '''
     wire_bmvs = [ bmelem for bmelem in wire if isinstance(bmelem, BMVert) ]
@@ -244,14 +218,6 @@ def split_bmface_by_wire(bm : BMesh, bmf : BMFace, wire : list[BMVert | BMEdge],
     bmf1_bmvs = wire_bmvs[::-1] + bmf1_bmvs[1:idx]
 
     return replace_bmface(bm, bmf, [bmf0_bmvs, bmf1_bmvs])
-
-def shade_new_bmface(bmf : BMFace, material_index : int):
-    ''' Set smooth shading on a new face from the faces around it, and give it `material_index`. '''
-    # Smooth when more of the faces touching its verts are smooth than flat.
-    bmfs_near = { bmf_near for bmv in bmf.verts for bmf_near in bmv.link_faces if bmf_near != bmf }
-    smooth_count = sum(1 for bmf_near in bmfs_near if bmf_near.smooth)
-    bmf.smooth = smooth_count * 2 > len(bmfs_near)
-    bmf.material_index = material_index
 
 def find_opposite_and_corner(bme0 : BMEdge, bme1 : BMEdge) -> tuple[BMVert, BMVert] | tuple[None, None]:
     bmfs = set(bme0.link_faces) & set(bme1.link_faces)
@@ -2440,7 +2406,7 @@ class PP_Logic:
                         select_later += [bmf1]
                 else:
                     bmf = self.bm.faces.new(order_bmvs_for_new_bmf(self.bme, (bmv0, bmv1, bmv)))
-                    shade_new_bmface(bmf, context.edit_object.active_material_index)
+                    shade_new_bmfaces([bmf], context.edit_object.active_material_index)
                     orient_bmfs.append(bmf)
                 select_later += [bmf]
                 free_move = True
@@ -2451,7 +2417,7 @@ class PP_Logic:
                 bmv2, bmv3 = self.bme_hovered_bmvs
                 # wind from the selected edge as the hovered edge can belong to a separately wound island
                 bmf = self.bm.faces.new(order_bmvs_for_new_bmf(self.bme, (bmv0, bmv1, bmv2, bmv3)))
-                shade_new_bmface(bmf, context.edit_object.active_material_index)
+                shade_new_bmfaces([bmf], context.edit_object.active_material_index)
                 orient_bmfs.append(bmf)
                 select_now = [bmv2, bmv3]
                 select_later = [bmf]
@@ -2472,7 +2438,7 @@ class PP_Logic:
                     bmv3 = self.bm.verts.new(co3)
                     snap_verts.append(bmv3)
                 bmf = self.bm.faces.new(order_bmvs_for_new_bmf(self.bme, (bmv0, bmv1, bmv2, bmv3)))
-                shade_new_bmface(bmf, context.edit_object.active_material_index)
+                shade_new_bmfaces([bmf], context.edit_object.active_material_index)
                 orient_bmfs.append(bmf)
                 select_now = [bmv2, bmv3]
                 select_later = [bmf]

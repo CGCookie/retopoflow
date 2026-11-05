@@ -37,7 +37,7 @@ from ..common.drawing import Drawing, CC_2D_POINTS
 from ...addon_common.common.colors import Color4
 from ..common.bmesh import get_bmesh_emesh, is_bmvert_boundary, is_bmvert_corner, bmv_co_isnan, get_bmv_avg_edge_len, get_bmv_next_loop_vert
 from ..common.object import mirror_settings
-from ..common.bmesh_maths import (
+from ..common.bmesh_attributes import (
     is_bmvert_on_edgemark, is_bmedge_edgemark, BMMarking,
     is_bmvert_pinned, is_bmvert_creased,
 )

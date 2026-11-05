@@ -49,7 +49,7 @@ from ..common.bmesh import (
     bmf_is_flipped,
 )
 from ..common.object import mirror_settings
-from ..common.bmesh_maths import (
+from ..common.bmesh_attributes import (
     is_bmvert_on_edgemark, is_bmedge_edgemark, BMMarking,
     is_bmvert_pinned,
     is_bmvert_creased,

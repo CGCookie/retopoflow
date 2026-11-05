@@ -36,7 +36,7 @@ from bmesh.types import BMesh, BMVert
 from ...addon_common.common.maths import clamp_int
 from .iter_utils import AttrIter, CastIter
 from .bmesh import edges_to_triangles, is_bmedge_boundary, bme_cos, get_bmesh_emesh
-from .bmesh_maths import is_bmedge_edgemark, BMMarking
+from .bmesh_attributes import is_bmedge_edgemark, BMMarking
 from .maths import point_to_bvec3
 from .raycast import iter_all_valid_sources
 from ..rfglobals import RFGlobals
