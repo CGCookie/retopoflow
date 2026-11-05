@@ -202,8 +202,8 @@ class RFProps_Snapping(bpy.types.PropertyGroup):
     correct_face_normals: bpy.props.BoolProperty(
         name='Correct Face Normals',
         description=(
-            'Point newly created and transformed faces outwards, matching the nearest surface on '
-            'the source mesh where there is one and the surrounding faces where there is not'
+            'Keep transformed faces consistent with their neighbors and point pieces '
+            'with nothing around them outwards using the nearest surface on the source mesh'
         ),
         default=True,
     )
