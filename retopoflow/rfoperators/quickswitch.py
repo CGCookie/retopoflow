@@ -29,6 +29,7 @@ from ..rfglobals import RFGlobals
 from ..common.operator import RFOperator, RFKeyMaps
 from ..common.bpy_helper import BpyOperatorCallable, bpy_ops_retopoflow
 from ..common.selection import is_gesture_running
+from ...config.keymaps import get_user_keymap_item
 
 
 _op_prop_names_cache: dict[str, list[str]] = {}
@@ -149,11 +150,14 @@ class RFOperator_LegacyPatches_QuickSwitch(RFOperator):
     ]
 
     @classmethod
-    def can_start(cls, _context : Context) -> bool:
+    def can_start(cls, context : Context) -> bool:
         # Imported lazily. A module-level import here would run rftool_patches.patches as a
         # side effect of importing this file, jumping Patches to the top of the toolbar.
         from ..rftool_patches.patches import USE_NEW_PATCHES
-        return not USE_NEW_PATCHES
+        if USE_NEW_PATCHES: return False
+        # Needs to respect the keymap preference
+        kmi = get_user_keymap_item(context, 'retopoflow.legacy_patches_fill_hotkey', km_name='Mesh')
+        return kmi is not None and kmi.active and kmi.type == 'F' and not (kmi.any or kmi.shift or kmi.ctrl or kmi.alt or kmi.oskey)
 
     prev_tool : str | None # pyright: ignore[reportUninitializedInstanceVariable]
     switched : bool # pyright: ignore[reportUninitializedInstanceVariable]
