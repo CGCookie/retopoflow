@@ -28,6 +28,8 @@ from bpy.types import Context, Event
 from ..rfglobals import RFGlobals
 from ..common.operator import RFOperator, RFKeyMaps
 from ..common.bpy_helper import BpyOperatorCallable, bpy_ops_retopoflow
+from ..common.selection import is_gesture_running
+from ...config.keymaps import get_user_keymap_item
 
 
 _op_prop_names_cache: dict[str, list[str]] = {}
@@ -116,11 +118,11 @@ class RFOperator_Relax_QuickSwitch(RFOperator):
             quick_switch_tool('relax')
             return {'PASS_THROUGH'}
 
-        # since RFCore is running (above test), then there _should_ be
-        # at least one modal operator active
-        op = context.window.modal_operators[0]
-        if 'quickswitch_to_relax' not in op.bl_idname:
-            # still relaxing
+        # Check the operator this switch started, not the top one.
+        # This switch otherwise gets stuck if another modal started in between.
+        from ..rftool_relax.relax import RFOperator_Relax
+        if RFOperator_Relax.is_running() or is_gesture_running():
+            # still relaxing, or Relax handed the drag to the fallback select gesture
             return {'PASS_THROUGH'}
 
         # finished relaxing
@@ -148,11 +150,14 @@ class RFOperator_LegacyPatches_QuickSwitch(RFOperator):
     ]
 
     @classmethod
-    def can_start(cls, _context : Context) -> bool:
+    def can_start(cls, context : Context) -> bool:
         # Imported lazily. A module-level import here would run rftool_patches.patches as a
         # side effect of importing this file, jumping Patches to the top of the toolbar.
         from ..rftool_patches.patches import USE_NEW_PATCHES
-        return not USE_NEW_PATCHES
+        if USE_NEW_PATCHES: return False
+        # Needs to respect the keymap preference
+        kmi = get_user_keymap_item(context, 'retopoflow.legacy_patches_fill_hotkey', km_name='Mesh')
+        return kmi is not None and kmi.active and kmi.type == 'F' and not (kmi.any or kmi.shift or kmi.ctrl or kmi.alt or kmi.oskey)
 
     prev_tool : str | None # pyright: ignore[reportUninitializedInstanceVariable]
     switched : bool # pyright: ignore[reportUninitializedInstanceVariable]
@@ -273,9 +278,10 @@ class RFOperator_Tweak_QuickSwitch(RFOperator):
             quick_switch_tool('tweak')
             return {'PASS_THROUGH'}
 
-        op = context.window.modal_operators[0]
-        if 'quickswitch_to_tweak' not in op.bl_idname:
-            # still tweaking
+        # Same check as RFOperator_Relax_QuickSwitch.update
+        from ..rftool_tweak.tweak import RFOperator_Tweak
+        if RFOperator_Tweak.is_running() or is_gesture_running():
+            # still tweaking, or Tweak handed the drag to the fallback select gesture
             return {'PASS_THROUGH'}
 
         # finished tweaking

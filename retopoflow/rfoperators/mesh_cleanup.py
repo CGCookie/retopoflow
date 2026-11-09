@@ -24,7 +24,7 @@ import bpy, bmesh
 from ..common.operator import RFRegisterClass
 from ..common.raycast import nearest_point_valid_sources
 from ..common.selection import get_selected, restore_selected
-from ..common.bmesh_maths import get_bmvert_attribute
+from ..common.bmesh_attributes import is_bmvert_pinned
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_options
 
 
@@ -50,7 +50,7 @@ class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
         return (
             not bmv.hide and
             (self.affect_all or bmv.select) and
-            (props.cleaning_include_pins or not get_bmvert_attribute(bm, bmv, 'crease_vert', 'float'))
+            (props.cleaning_include_pins or not is_bmvert_pinned(bm, bmv))
         )
 
     def is_bmc_included(self, bmc):

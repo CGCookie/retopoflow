@@ -38,7 +38,7 @@ from typing import Callable
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 
-from ..common.accel import EdgeMarkAccel, SourceAccel, Accel, SourceCache
+from ..common.accel import EdgeMarkAccel, SourceAccel, SourceCache, VertsKD, MovedVerts, target_verts_kd
 from ..common.snapping import FeatureRunsMixin, source_snap_radius, source_snap_settings
 from ..common.bmesh import (
     get_bmesh_emesh, is_bmedge_boundary, is_bmvert_boundary, is_bmvert_corner, is_bmvert_on_ngon,
@@ -49,7 +49,7 @@ from ..common.bmesh import (
     bmf_is_flipped,
 )
 from ..common.object import mirror_settings
-from ..common.bmesh_maths import (
+from ..common.bmesh_attributes import (
     is_bmvert_on_edgemark, is_bmedge_edgemark, BMMarking,
     is_bmvert_pinned,
     is_bmvert_creased,
@@ -61,9 +61,7 @@ from ..common.maths import (
 )
 from ..common.raycast import (
     source_xform_tuple,
-    raycast_valid_sources,
     nearest_point_valid_sources,
-    mouse_from_event,
     iter_all_valid_sources,
     make_hidden_tester,
     source_ray_cast,
@@ -155,14 +153,15 @@ class Relax_Logic(FeatureRunsMixin):
     right : Vector
     up : Vector
 
-    mouse : tuple[int, int]
     pressure : float
 
     prev_position : dict[BMVert, Vector]    # remember where verts were in case of cancel
     prev_displace : 'tuple[dict[BMVert, int], object]'  # (bmv -> row into array, (T,3) array)
     bounce_mult : dict[BMVert, float]       # ...
 
-    verts_accel : Accel
+    verts_filtered_set : set[BMVert]
+    verts_kd : VertsKD                      # shared target tree from press, only correct for verts this stroke hasn't moved
+    moved : MovedVerts                      # verts moved this stroke
     avg_edge_len_cache : dict[BMVert, float]
     laplacian_cache : dict[BMVert, tuple[tuple[BMVert, ...], bool, float] | None]
     straighten_cache : dict[BMVert, tuple[bool, tuple[BMVert, ...], tuple[BMVert, ...], int] | None]
@@ -187,7 +186,6 @@ class Relax_Logic(FeatureRunsMixin):
 
         self.brush = brush
         self._time = time.time()
-        self.mouse = mouse_from_event(event)
         self.pressure = 1.0
 
         def is_bmvert_on_symmetry_plane(bmv):
@@ -313,7 +311,9 @@ class Relax_Logic(FeatureRunsMixin):
             # ]
 
         timings.append(('verts accel', time.time()))
-        self.verts_accel = Accel(context, self.verts_filtered, self.matrix_world)
+        self.verts_filtered_set = set(self.verts_filtered)
+        self.verts_kd = target_verts_kd(context) or VertsKD.build(self.verts_filtered, self.matrix_world)
+        self.moved = MovedVerts(self.matrix_world, brush.get_scaled_radius())
 
         timings.append(('finished', time.time()))
         total_time = timings[-1][1] - timings[0][1]
@@ -515,36 +515,35 @@ class Relax_Logic(FeatureRunsMixin):
         # The seed edge itself must still exist between the two verts.
         return any(e.other_vert(gv0) is gv1 for e in gv0.link_edges)
 
+    def verts_under_brush(self) -> 'set[BMVert]':
+        ''' Filtered verts within the brush radius. Empty when the brush is not active. '''
+        if not self.brush.hit or not self.brush.hit_p or not self.verts_filtered: return set()
+        radius3D = self.brush.get_scaled_radius()
+        center = Vector(self.brush.hit_p)
+        # The tree is only out of date for verts this stroke moved, and self.moved has those
+        verts = (self.verts_kd.get(self.bm, center, radius3D) | self.moved.get(center, radius3D)) & self.verts_filtered_set
+        if self.exclude_opt('occluded'):
+            verts = { bmv for bmv in verts if not self.is_bmvert_hidden(bmv) }
+        return verts
+
     def update(self, context:Context, event:Event, *, debug_print:bool=False): #MARK: Update
         match event.type:
             case 'MOUSEMOVE':
                 self.pressure = getattr(event, 'pressure', 1.0)
-                self.mouse = mouse_from_event(event)
             case 'TIMER':
-                mouse = mouse_from_event(event)
-                if mouse: self.mouse = mouse
+                pass  # keeps relaxing while the cursor holds still
             case 'INBETWEEN_MOUSEMOVE':
                 # explicitly ignoring!!
                 return
             case _:
                 return
 
-        # Throttle to 120 Hz so we don't raycast_valid_sources hundreds of times per second
-        # self.mouse is already updated above so we always act on the latest position
+        # Throttle to 120 Hz so we don't relax hundreds of times per second
         cur_time = time.time()
         time_delta = cur_time - self._time
         if time_delta < 1.0 / 120: return
         time_delta = clamp(time_delta, 0.0, 0.1)
         self._time = cur_time
-        self.verts_accel.rebuild(context)
-
-        hit = raycast_valid_sources(context, self.mouse, respect_clip_planes=True)
-        if not hit: return
-        co_world : Vector = hit['co_world']  # pyright: ignore[reportAssignmentType]
-        brush_center_world = Vector(co_world.xyz)  # save before inner loop overwrites co_world
-
-        M = self.matrix_world
-        radius3D = self.brush.get_scaled_radius()
 
         # # Debug: select all verts under brush
         # bmops.deselect_all(self.bm)
@@ -552,11 +551,11 @@ class Relax_Logic(FeatureRunsMixin):
         #     bmops.select(self.bm, bmelem)
         # bmops.flush_selection(self.bm, self.em)
 
-        if not self.verts_filtered: return
-        verts = self.verts_accel.get(co_world, radius3D)
-        if self.exclude_opt('occluded'):
-            verts = { bmv for bmv in verts if not self.is_bmvert_hidden(bmv) }
+        verts = self.verts_under_brush()
         if not verts: return
+        brush_center_world = Vector(self.brush.hit_p)
+        M = self.matrix_world
+        radius3D = self.brush.get_scaled_radius()
         vert_strength = { bmv: self.brush.get_strength_Point(M @ bmv.co) for bmv in verts }
 
         if PROFILE_RELAX:
@@ -571,6 +570,7 @@ class Relax_Logic(FeatureRunsMixin):
             time_delta         = time_delta,
             debug_print        = debug_print,
         )
+        for bmv in verts: self.moved.rebin(bmv)  # relax_verts writes only the verts it is given
         if PROFILE_RELAX: self._profiler.disable()
 
     def relax_verts(self, context:Context, verts:'set[BMVert]', vert_strength:'dict[BMVert, float]', *,

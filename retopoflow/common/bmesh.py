@@ -970,6 +970,11 @@ def bmv_is_interior(bmv : BMVert) -> bool:
     ''' True when the vert is fully surrounded by faces, i.e. not wire, not on a boundary. '''
     return bool(bmv.link_faces) and not bmv.is_wire and not bmv.is_boundary
 
+def bmvs_share_open_bme(bmv0 : BMVert, bmv1 : BMVert) -> bool:
+    ''' True when an edge joins the two verts and still has a free side for a new face. '''
+    bme = bmvs_shared_bme(bmv0, bmv1)
+    return bme is not None and not bme_is_interior(bme)
+
 
 def get_vert_connected(verts):
     ''' Split a vertex collection into connected islands via shared edges.

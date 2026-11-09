@@ -2,6 +2,19 @@
 
 This document contains details about what has changed in Retopoflow in version 4.
 
+### 4.2.2
+
+- Added an option to hide component count overlays in the viewport
+- Overlays now respect Blender's viewport overlays toggle
+- The Tweak and Relax brushes are now enabled whenever verts are within range
+    - This also means you can drag to select whenever verts are not in range
+- Improved Tweak performance on dense meshes when using the Nudge mode
+- Improved attribute interpolation in PolyPen, Strokes, and PolyStrips
+- Improved normal recalculation during transforms
+- Fixed autofill skipping some valid quads
+- Fixed Tweak and Relax quick switch getting stuck when using other add-ons
+- Fixed some hotkeys not staying disabled in Preferences
+
 ### 4.2.1
 
 - Improved PolyStrips width when snapping along uneven quads

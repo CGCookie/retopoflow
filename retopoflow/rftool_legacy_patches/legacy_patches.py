@@ -59,6 +59,7 @@ from ..common.operator import (
     chain_rf_keymaps,
     poll_retopoflow,
     BLKeyMaps,
+    hotkey_operator,
 )
 
 from ..rfoperators.quickswitch import RFOperator_Relax_QuickSwitch, RFOperator_Tweak_QuickSwitch
@@ -275,7 +276,7 @@ class RFOperator_LegacyPatches_Fill(LegacyPatches_Properties, RFOperator_Execute
         ( bl_idname, { 'type': 'NUMPAD_ENTER', 'value': 'PRESS', 'ctrl': 1 }, None ),
     ]
 
-    # set on the keymap item only, so fill_patches_owns_f governs the key and not the menu entry
+    # set by the keymap item's shim only, so fill_patches_owns_f governs the key and not the menu entry
     hotkey: bpy.props.BoolProperty(
         name='From Hotkey',
         default=False,
@@ -947,6 +948,12 @@ def switch_rftool(context : Context):
     RFTool_LegacyPatches.activate_tool(context)
 
 
+Fill_Hotkey = hotkey_operator(RFOperator_LegacyPatches_Fill)
+Scroll_Hotkeys = { op: hotkey_operator(op) for op in (
+    RFOperator_LegacyPatches_CountDecrease, RFOperator_LegacyPatches_CountIncrease,
+    RFOperator_LegacyPatches_OffsetDecrease, RFOperator_LegacyPatches_OffsetIncrease,
+) }
+
 # F outside a Patches tool keymap: addon items in the Mesh keymap, which Blender checks before its
 # own F. Both items stay put whatever the preference says; each hands the key back when it is not
 # theirs, so it falls through to Blender's own F as if these were never here.
@@ -956,8 +963,7 @@ def register():
     keyconfigs = bpy.context.window_manager.keyconfigs.addon
     if not keyconfigs: return
     km = keyconfigs.keymaps.new(name='Mesh')
-    kmi = km.keymap_items.new(RFOperator_LegacyPatches_Fill.bl_idname, 'F', 'PRESS', ctrl=False, shift=False, alt=False)
-    kmi.properties.hotkey = True
+    kmi = km.keymap_items.new(Fill_Hotkey.bl_idname, 'F', 'PRESS', ctrl=False, shift=False, alt=False)
     keymaps.append((km, kmi))
     # Blender puts Fill on Alt+F, but with F taken there is nowhere else for New Edge/Face to go
     kmi = km.keymap_items.new(RFOperator_LegacyPatches_EdgeFaceAdd.bl_idname, 'F', 'PRESS', ctrl=False, shift=False, alt=True)
@@ -968,8 +974,7 @@ def register():
         (RFOperator_LegacyPatches_OffsetDecrease, 'WHEELDOWNMOUSE', 'shift'),
         (RFOperator_LegacyPatches_OffsetIncrease, 'WHEELUPMOUSE',   'shift'),
     ):
-        kmi = km.keymap_items.new(op.bl_idname, wheel, 'PRESS', **{ modifier: True })
-        kmi.properties.hotkey = True
+        kmi = km.keymap_items.new(Scroll_Hotkeys[op].bl_idname, wheel, 'PRESS', **{ modifier: True })
         keymaps.append((km, kmi))
 
 def unregister():

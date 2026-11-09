@@ -39,8 +39,6 @@ from ...addon_common.common.maths import closest_point_segment, Point, Direction
 from ...addon_common.ext.circle_fit import hyperLSQ
 from ...addon_common.common.utils import iter_pairs
 
-from enum import IntEnum, auto
-from typing import Any
 
 
 ## TODO: organize and generalize this code a bit better!
@@ -207,9 +205,10 @@ def bmfs_outwardness(group):
         add([ v.co - org for v in ring ])
     return vol if abs(vol) > 1e-6 * mag else 0.0
 
-def check_bmf_normals(bmfs):
-    for bmf in bmfs: bmf.normal_update()
+def bmfs_connected_groups(bmfs : Sequence[BMFace]) -> list[set[BMFace]]:
+    ''' Split bmfs into groups of faces connected through shared edges. '''
     left = set(bmfs)
+    groups = []
     while left:
         group, stack = set(), [next(iter(left))]
         while stack:
@@ -219,6 +218,12 @@ def check_bmf_normals(bmfs):
             stack += [ loop_n.face for loop in bmf.loops for loop_n in loop.edge.link_loops
                        if loop_n.face in left and loop_n.face not in group ]
         left -= group
+        groups.append(group)
+    return groups
+
+def check_bmf_normals(bmfs):
+    for bmf in bmfs: bmf.normal_update()
+    for group in bmfs_connected_groups(bmfs):
         # loop.vert is the vert each face walks *from*, so sharing it means sharing a direction
         vote = sum(-1 if loop_n.vert == loop.vert else 1
                    for bmf in group for loop in bmf.loops
@@ -226,6 +231,19 @@ def check_bmf_normals(bmfs):
         if vote == 0: vote = bmfs_outwardness(group)
         if vote < 0:
             for bmf in group: bmf.normal_flip()
+
+def bmf_source_facing(context : Context, bmf : BMFace, matinfo : MatrixInfo) -> float:
+    ''' Cosine between bmf's normal and the source surface under it, or 0 if the source has no answer. '''
+    # Sample every vert not the face midpoint. On a thin surface the midpoint lands
+    # on either side more or less at random: https://github.com/CGCookie/retopoflow/issues/1762
+    no_local = Vector((0, 0, 0))
+    for bmv in bmf.verts:
+        nearest = FindNearest(context, point_world=matinfo.l2w_point(bmv.co), matinfo=matinfo)
+        if not nearest.found: continue
+        no_local += nearest.normal_local
+    # no source under the face, or the sampled normals cancelled out on a thin fin
+    if no_local.length_squared < 1e-12: return 0.0
+    return bmf.normal.dot(no_local.normalized())
 
 def orient_bmf_normals(
     context : Context,
@@ -235,45 +253,26 @@ def orient_bmf_normals(
     new_faces : bool = False,
 ) -> None:
     '''
-    Point newly created or freshly moved faces outwards if Correct Face Normals is on.
-
+    Choose the winding of newly created faces and, if Correct Face Normals is on, moved faces.
     Pass new_faces = True for newly created faces.
-
-    Faces are compared against the source mesh, so call this after snapping, not before.
-    Falls back to its neighbor's direction, then to the view direction, then to doing nothing.
-    Blender's default is pointing away from the object origin.
     '''
     bmfs = [bmf for bmf in bmfs if bmf is not None and bmf.is_valid]
     if not bmfs: return
 
-    if not context.scene.retopoflow.snapping.correct_face_normals:
-        if new_faces: wind_bmfs_to_match_neighbors(bmfs)
-        return
+    correct = context.scene.retopoflow.snapping.correct_face_normals
+    if not correct and not new_faces: return
+
+    for bmf in bmfs: bmf.normal_update()
+
+    bmfs = wind_bmfs_to_match_neighbors(bmfs)
+    if not bmfs or not correct: return
 
     if not matinfo: matinfo = MatrixInfo(context=context)
-    bmfs_unresolved = []
-    for bmf in bmfs:
-        bmf.normal_update()
-        # Sample every vert not the face midpoint. On a thin surface the midpoint lands
-        # on either side more or less at random: https://github.com/CGCookie/retopoflow/issues/1762
-        no_local = Vector((0, 0, 0))
-        for bmv in bmf.verts:
-            nearest = FindNearest(context, point_world=matinfo.l2w_point(bmv.co), matinfo=matinfo)
-            if not nearest.found: continue
-            no_local += nearest.normal_local
-        if no_local.length_squared < 1e-12:
-            # no source under the face, or the sampled normals cancelled out on a thin fin
-            bmfs_unresolved.append(bmf)
-            continue
-        if bmf.normal.dot(no_local) < 0:
-            bmf.normal_flip()
-    if not bmfs_unresolved: return
-
-    # the source had nothing to say, so agree with the surrounding faces instead
-    bmfs = wind_bmfs_to_match_neighbors(bmfs_unresolved)
-    if not bmfs or not new_faces: return  # whatever is left is attached to nothing settled
-
-    check_bmf_normals(bmfs)
+    for group in bmfs_connected_groups(bmfs):
+        vote = sum(bmf_source_facing(context, bmf, matinfo) for bmf in group)
+        if not vote and new_faces: vote = bmfs_outwardness(group)
+        if vote < 0:
+            for bmf in group: bmf.normal_flip()
 
 def fit_template2D(template, p0, *, target=None, along=None):
     t0, t1 = template[0], template[-1]
@@ -432,55 +431,6 @@ def is_bmvert_hidden(context:Context, bmv:BMVert) -> bool:
     if bmv.hide: return True
     point = context.edit_object.matrix_world @ point_to_bvec4(bmv.co)
     return is_point_occluded(context, point.xyz)
-
-
-class BMMarking(IntEnum):
-    seam = auto()
-    sharp = auto()
-    crease = auto()
-
-def is_bmedge_edgemark(bm:BMesh, bme:BMEdge, mark:BMMarking):
-    match mark:
-        case BMMarking.seam:
-            return getattr(bme, 'seam')
-        case BMMarking.sharp:
-            return not getattr(bme, 'smooth')
-        case BMMarking.crease:
-            layer = bm.edges.layers.float.get('crease_edge')
-            if not layer: return False
-            return bme[layer]
-    return False
-
-def is_bmvert_on_edgemark(bm:BMesh, bmv:BMVert, mark:BMMarking) -> bool:
-    match mark:
-        case BMMarking.seam:
-            return any( getattr(bme, 'seam') for bme in bmv.link_edges )
-        case BMMarking.sharp:
-            return not all( getattr(bme, 'smooth') for bme in bmv.link_edges )
-        case BMMarking.crease:
-            layer = bm.edges.layers.float.get('crease_edge')
-            if not layer: return False
-            return any( bme[layer] for bme in bmv.link_edges )
-    return False
-
-
-def is_bmvert_pinned(bm : BMesh, bmv: BMVert, *, ensure_lookup_table: bool = True) -> bool:
-    return get_bmvert_attribute(bm, bmv, 'retopoflow_pins', 'float', ensure_lookup_table=ensure_lookup_table)
-
-def is_bmvert_creased(bm : BMesh, bmv : BMVert, *, ensure_lookup_table: bool = True) -> bool:
-    return get_bmvert_attribute(bm, bmv, 'crease_vert', 'float', ensure_lookup_table=ensure_lookup_table)
-
-
-def get_bmvert_attribute(bm:BMesh, bmv:BMVert, attribute:str, data_type:str, *, ensure_lookup_table: bool = True) -> Any:  # pyright: ignore[reportExplicitAny, reportAny]
-    # Callers that have already ensured the lookup table (e.g. when filtering many verts
-    # in a tight loop) can pass ensure_lookup_table=False to skip this per-vert call.
-    if ensure_lookup_table:
-        bm.verts.ensure_lookup_table()
-    layer = getattr(bm.verts.layers, data_type).get(attribute) # pyright: ignore[reportAny]
-    if layer:
-        return bmv[layer]  # pyright: ignore[reportAny]
-    else:
-        return None
 
 
 def fit_plane_of_verts(verts : Sequence[BMVert]) -> tuple[Vector|None, Vector|None]:

@@ -560,6 +560,12 @@ class Drawing:
         return s * (bpy.context.preferences.system.ui_scale) if s is not None else None
 
     @staticmethod
+    def overlays_shown(context : Context) -> bool:
+        ''' Whether the 3D View's Overlays toggle is on. True outside a 3D View. '''
+        overlay = getattr(context.space_data, 'overlay', None)
+        return overlay is None or overlay.show_overlays
+
+    @staticmethod
     def get_pixel_matrix(context):
         rgn = context.region
         # r3d = bpy.context.region_data

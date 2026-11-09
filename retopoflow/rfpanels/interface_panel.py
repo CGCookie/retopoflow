@@ -58,6 +58,8 @@ def draw_ui_options(context, layout):
         col2.prop(prefs, 'edge_width')
     #col.prop(prefs, 'highlight_color', text='Highlight')
     col.separator()
+    col.prop(prefs, 'show_counts')
+    col.separator()
 
     col2 = col.column(align=True)
     col2.row(heading='Expand').prop(prefs, 'expand_masking', text='Masking Options')

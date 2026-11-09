@@ -392,6 +392,22 @@ def run_surface_tangents(sv, toward):
     return tans
 
 
+def quad_is_sound(q):
+    ''' Whether four corners in ring order make an acceptable quad. True if no sides of
+    zero length, a turn at every corner, and no fold across a diagonal. '''
+    MIN_TURN = 35.0     # a corner nearer straight than this is a vert along a side: a run bent less is an L to fill, not a quad
+    MAX_WARP = 45.0
+    sides = [q[(i + 1) % 4] - q[i] for i in range(4)]
+    if min(s.length for s in sides) < 1e-9: return False
+    for i in range(4):
+        if 180.0 - angle_deg(-sides[i - 1].normalized(), sides[i].normalized()) < MIN_TURN: return False
+    for d in (0, 1):
+        n0 = (q[(d + 1) % 4] - q[d]).cross(q[(d + 2) % 4] - q[d])
+        n1 = (q[(d + 2) % 4] - q[d]).cross(q[(d + 3) % 4] - q[d])
+        if n0.length_squared < 1e-18 or n1.length_squared < 1e-18: return False
+        if angle_deg(n0.normalized(), n1.normalized()) > MAX_WARP: return False
+    return True
+
 def tri_shape_ok(cos):
     ''' Whether three points make a usable triangle. '''
     MIN_ANGLE = 20.0    # three verts along a strip are nearly straight: stepping the strip was wanted there, not a sliver across them
@@ -431,38 +447,42 @@ def quad_from_points(pts2d, cos3d, mouse):
 def corner_overlaps_faces(bmv, co_prev, co_next, *, tol_deg=5.0):
     ''' Whether the wedge of directions a new quad takes up at bmv overlaps a face already there,
     beyond the tolerance that lets them share an edge. '''
+    MAX_TILT = 60.0     # a face tilted further than this from the new quad cannot lie under it
     faces = [ f for f in bmv.link_faces if not f.hide ]
     if not faces: return False
-    n = sum((f.normal for f in faces), Vector())
-    if n.length_squared < 1e-18: return False
-    n.normalize()
-    frame = plane_frame(n, co_prev - bmv.co)
-    if frame is None: return False
-    u, w = frame
-
-    def angle_of(co):
-        d = co - bmv.co
-        d = d - n * d.dot(n)
-        if d.length_squared < 1e-18: return None
-        return math.degrees(math.atan2(d.dot(w), d.dot(u)))
+    n_new = (co_prev - bmv.co).cross(co_next - bmv.co)
+    n_new = n_new.normalized() if n_new.length_squared > 1e-18 else None
 
     def wrap(a):
         return (a + 180.0) % 360.0 - 180.0
 
-    def arc(co_a, co_b):
-        # (centre, width) of the slice between two directions, the short way round
-        a0, a1 = angle_of(co_a), angle_of(co_b)
-        if a0 is None or a1 is None: return None
-        span = wrap(a1 - a0)
-        return wrap(a0 + span / 2), abs(span)
-
-    new_arc = arc(co_prev, co_next)
-    if new_arc is None: return False
+    # Each face needs to be judged in its own plane.
     for f in faces:
         nbrs = [ bme.other_vert(bmv) for bme in bmv.link_edges if bme in f.edges ]
         if len(nbrs) != 2: continue
+        n = f.normal
+        if n.length_squared < 1e-18: continue
+        if n_new is not None and abs(n.dot(n_new)) < math.cos(math.radians(MAX_TILT)): continue
+        frame = plane_frame(n, co_prev - bmv.co)
+        if frame is None: continue
+        u, w = frame
+
+        def angle_of(co):
+            d = co - bmv.co
+            d = d - n * d.dot(n)
+            if d.length_squared < 1e-18: return None
+            return math.degrees(math.atan2(d.dot(w), d.dot(u)))
+
+        def arc(co_a, co_b):
+            # (centre, width) of the slice between two directions, the short way round
+            a0, a1 = angle_of(co_a), angle_of(co_b)
+            if a0 is None or a1 is None: return None
+            span = wrap(a1 - a0)
+            return wrap(a0 + span / 2), abs(span)
+
+        new_arc = arc(co_prev, co_next)
         f_arc = arc(nbrs[0].co, nbrs[1].co)
-        if f_arc is None: continue
+        if new_arc is None or f_arc is None: continue
         gap = abs(wrap(new_arc[0] - f_arc[0]))
         if gap < (new_arc[1] + f_arc[1]) / 2 - tol_deg: return True
     return False
@@ -493,11 +513,18 @@ def mesh_juts_into_face(verts, cos, is_existing, *, depth=3):
         if not point_inside_face_2d(p, poly): return False
         return min(dist2d_point_segment(p, poly[i], poly[(i + 1) % n_pts]) for i in range(n_pts)) > eps
 
+    def side(a, b, p):
+        # side2d with eps as a distance: a point within eps of the line is on it
+        ab = b - a
+        if ab.length_squared < 1e-18: return 0
+        c = (ab.x * (p.y - a.y) - ab.y * (p.x - a.x)) / ab.length
+        return 0 if abs(c) < eps else (1 if c > 0 else -1)
+
     def crosses(pa, pb):
         for i in range(n_pts):
             qa, qb = poly[i], poly[(i + 1) % n_pts]
-            s1, s2 = side2d(pa, pb, qa), side2d(pa, pb, qb)
-            s3, s4 = side2d(qa, qb, pa), side2d(qa, qb, pb)
+            s1, s2 = side(pa, pb, qa), side(pa, pb, qb)
+            s3, s4 = side(qa, qb, pa), side(qa, qb, pb)
             if s1 and s2 and s3 and s4 and s1 != s2 and s3 != s4: return True
         return False
 
@@ -3593,6 +3620,37 @@ class LegacyPatches_Logic:
                     if best_dot is None or d.dot(out) > best_dot: best, best_dot = w, d.dot(out)
                 return best
 
+            def rail_pair():
+                ''' (weld at the start, weld at the end) when both ends of the run have an open edge
+                leading outward, or None. '''
+                def rails(i_end, i_prev):
+                    v = sv[i_end]
+                    arrive = v.co - sv[i_prev].co
+                    if arrive.length_squared < 1e-14: return
+                    arrive.normalize()
+                    topo_corner = bool(v.link_faces) and is_bmvert_corner(v)
+                    for _bme, w in open_edges_at(v, (bmes[-1] if i_end == n - 1 else bmes[0],)):
+                        if w in run_verts: continue
+                        d = w.co - v.co
+                        if d.length_squared < 1e-14: continue
+                        d = d.normalized()
+                        if leans_back(d, i_end): continue
+                        yield w, d.dot(outs[i_end]), topo_corner or angle_deg(-arrive, d) < min_angle
+                best, best_dot = None, None
+                for w0, dot0, corner0 in rails(0, 1):
+                    for w1, dot1, corner1 in rails(n - 1, n - 2):
+                        if w0 is w1 or not (corner0 or corner1): continue
+                        # one edge makes one quad, and it is the whole row; a longer run carries each
+                        # rail across as the parallelogram keeps_shape looks at
+                        if n == 2:
+                            ends = [[sv[0], sv[1], w1, w0]]
+                        else:
+                            ends = [[sv[1], sv[0], w0, cos[1] + (w0.co - cos[0])],
+                                    [sv[-2], sv[-1], w1, cos[-2] + (w1.co - cos[-1])]]
+                        if not all(quad_is_sound([ M @ co_of(c) for c in q ]) and face_is_placeable(bm, q) for q in ends): continue
+                        if best_dot is None or dot0 + dot1 > best_dot: best, best_dot = (w0, w1), dot0 + dot1
+                return best
+
             def rail_next(bmv, from_co, came_along, used):
                 ''' Once a row has welded onto a rail, later rows keep following it: the straightest open
                 edge on from here. '''
@@ -3635,6 +3693,7 @@ class LegacyPatches_Logic:
             if not cyclic:
                 weld0 = pinned(0, 1)
                 weld1 = pinned(n - 1, n - 2)
+                if weld0 is None and weld1 is None: weld0, weld1 = rail_pair() or (None, None)
                 if weld0 is None: weld0 = weld_target(0, 1, used_welds)
                 if weld1 is None: weld1 = weld_target(n - 1, n - 2, used_welds)
                 if weld0 is not None and weld0 is weld1: return True   # both ends fold onto one vert: not a row of quads
@@ -3698,7 +3757,7 @@ class LegacyPatches_Logic:
                 Returns the closed loop (starting with the run) or None when the boundary forks,
                 dead-ends or pinches. '''
                 loop, seen, came, cur = list(sv), set(sv), None, sv[-1]
-                while len(loop) < limit:
+                while len(loop) <= limit:
                     step_to = [ w for bme, w in open_edges_at(cur, ())
                                 if bme not in run_edges and w is not came ]
                     if len(step_to) != 1: return None
@@ -5051,7 +5110,7 @@ class LegacyPatches_Logic:
             order = sorted(range(4), key=lambda k: math.atan2((cos[k] - c).dot(w), (cos[k] - c).dot(u)))
         verts = [ sel_verts[k] for k in order ]
         ring = [ M @ v.co for v in verts ]
-        if fit and quad_squareness(ring) is None: return None
+        if fit and not quad_is_sound(ring): return None
         if not fit and (min((ring[(k + 1) % 4] - ring[k]).length for k in range(4)) < MIN_SIDE
                         or sum(((ring[k] - ring[0]).cross(ring[k + 1] - ring[0])).length
                                for k in (1, 2)) / 2 < MIN_AREA): return None
@@ -5640,7 +5699,8 @@ class LegacyPatches_Logic:
                     Drawing.draw2D_points(context, pts2d, AUTO_KNOT_FILL_COLOR, radius=KNOT_RADIUS, border=2, borderColor=KNOT_BORDER_COLOR)
 
             # text last, so it sits on top of the face fill
-            for text, cos in L.labels:
+            labels = L.labels if RF_Prefs.get_prefs(context).show_counts and Drawing.overlays_shown(context) else []
+            for text, cos in labels:
                 pts = [p for co in cos if (p := proj(co))]
                 if not pts: continue
                 xy = sum(pts, Vector((0, 0))) / len(pts)

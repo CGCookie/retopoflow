@@ -45,7 +45,7 @@ from .common.bmesh import get_object_bmesh, get_bmesh_emesh, clear_object_bmesh,
 from .common.bpy_helper import bpy_ops_retopoflow, RFCORE_OPERATOR_BL_IDNAME, BL_SPACE_TYPES
 from .common.operator import RFOperator_Base, RFOperator, RFOperator_Execute, RFRegisterClass, RFAssetShelf
 from .common.raycast import prep_raycast_valid_sources, iter_all_valid_sources, invalidate_source_caches
-from .common.accel import SourceCache
+from .common.accel import SourceCache, clear_target_verts_kd
 from .common.interface import show_message
 from .common import icons as icons_module
 from ..addon_common.common.drawing import free_shaders_and_batches
@@ -794,6 +794,7 @@ class RFCore:
             attempt('remove RetopoFlow draw handlers', RFCore.remove_handlers)
             attempt('clear the running areas', RFCore.running_in_areas.clear)
             attempt('free the cached object bmeshes', free_object_bmeshes)  # only a face-count check would catch edits made between sessions
+            attempt('free the target vert lookup', clear_target_verts_kd)   # same as above
             attempt('clear the saved tool', clear_saved_tool)
             attempt('restore pinning', lambda: pinning.restore_pinning(bpy.context))
             attempt('clean up the mirror', lambda: mirror.cleanup_mirror(bpy.context))

@@ -25,7 +25,7 @@ from bpy.props import BoolProperty, EnumProperty, FloatProperty
 from mathutils import Vector
 from mathutils.geometry import intersect_line_line
 
-from ..common.operator import RFRegisterClass, hotkey_owns_context
+from ..common.operator import RFRegisterClass, hotkey_owns_context, hotkey_operator
 from ..common.raycast import iter_all_valid_sources, nearest_point_valid_sources, source_xform_tuple
 from ..rfglobals import RFGlobals
 
@@ -74,7 +74,7 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
         default='LOOPS',
     )
 
-    # set on the standalone Mesh-keymap item only, so hotkey_owns_context governs the key
+    # set by the standalone Mesh-keymap item's shim only, so hotkey_owns_context governs the key
     # and not the right-click menu entry
     hotkey: BoolProperty(
         name='From Hotkey',
@@ -790,14 +790,15 @@ class RFOperator_InsertDiamondJunction(RFRegisterClass, bpy.types.Operator):
             capped(n - 1, n - 2, m - 1, not forward(m - 1))
 
 
+RFOperator_InsertDiamondJunction_Hotkey = hotkey_operator(RFOperator_InsertDiamondJunction)
+
 keymaps = []
 
 def register():
     keyconfigs = bpy.context.window_manager.keyconfigs.addon
     if not keyconfigs: return
     km = keyconfigs.keymaps.new(name='Mesh')
-    kmi = km.keymap_items.new(RFOperator_InsertDiamondJunction.bl_idname, 'B', 'PRESS', ctrl=True, shift=False, alt=True)
-    kmi.properties.hotkey = True
+    kmi = km.keymap_items.new(RFOperator_InsertDiamondJunction_Hotkey.bl_idname, 'B', 'PRESS', ctrl=True, shift=False, alt=True)
     keymaps.append((km, kmi))
 
 def unregister():

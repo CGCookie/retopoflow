@@ -27,6 +27,7 @@ from bpy.types import Context
 from collections.abc import Sequence
 
 from ..rfglobals import RFGlobals
+from ..preferences import RF_Prefs
 from ..common.bmesh import get_bmesh_emesh, bme_midpoint, get_boundary_strips_cycles
 from ..common.drawing import Drawing
 from ..common.raycast import is_point_hidden
@@ -67,6 +68,8 @@ def draw_loopstrip_selection_labels(host, *, only_boundary : bool):
     which matters when it already inherits one. '''
     RFCore = RFGlobals.RFCore_None
     if not RFCore:
+        return
+    if not RF_Prefs.get_prefs(bpy.context).show_counts or not Drawing.overlays_shown(bpy.context):
         return
 
     if host.loopstrip_depsgraph_version != RFCore.depsgraph_version:

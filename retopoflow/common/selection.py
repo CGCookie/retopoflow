@@ -222,6 +222,11 @@ def _running_gesture():
     ), None)
 
 
+def is_gesture_running() -> bool:
+    ''' True while the fallback select gesture that RF started is running. '''
+    return _running_gesture() is not None
+
+
 def _watch_gesture_timer() -> float | None:
     global _watching, _restore_select_mode, _circle_radius
     op = _running_gesture()

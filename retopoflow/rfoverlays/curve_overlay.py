@@ -35,6 +35,7 @@ from ..rfoverlay_base import RFOverlay_Base
 from .overlays import overlay_names
 
 from ..rfglobals import RFGlobals
+from ..preferences import RF_Prefs
 from ..common.bpy_helper import bpy_ops_retopoflow, RFCORE_OPERATOR_BL_IDNAME, internal_bl_idname
 from ..common.operator import RFOperator
 from ..rftool_statusbar import SharedStatusbarKeymap
@@ -773,6 +774,9 @@ def create_curve_overlay_logic(
         ) -> tuple[int, int, list] | None:
             if not context.edit_object:
                 return None
+            if not Drawing.overlays_shown(context):
+                # hidden handles must not be grabbable either
+                return None
             if not self.update_data(context):
                 return None
             rgn, r3d = context.region, context.region_data
@@ -819,6 +823,8 @@ def create_curve_overlay_logic(
         def draw_overlay(self, context : Context):
             if not context.edit_object:
                 return
+            if not Drawing.overlays_shown(context):
+                return
             if not self.update_data(context):
                 # also covers a native transform being mid-drag
                 return
@@ -827,7 +833,8 @@ def create_curve_overlay_logic(
                 return
             M = context.edit_object.matrix_world
 
-            for (lbl, count, cos) in self.label_data:
+            label_data = self.label_data if RF_Prefs.get_prefs(context).show_counts else []
+            for (lbl, count, cos) in label_data:
                 lbl_pos = get_label_pos(context, lbl, cos)
                 if not lbl_pos:
                     continue

@@ -21,6 +21,7 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy
 import bmesh
+from bmesh.types import BMVert
 from mathutils import Vector, Matrix
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 from ..common.bmesh import (
@@ -51,6 +52,7 @@ from ..common.bmesh_maths import (
     get_longest_strip_cycle,
     fit_plane_of_verts,
 )
+from ..common.bmesh_attributes import shade_new_bmfaces
 from ..common.raycast import raycast_point_valid_sources, nearest_normal_valid_sources, nearest_point_valid_sources
 from ..common.maths import lerp, bvec_to_point, point_to_bvec3, bvec_point_to_bvec4, bvec_vector_to_bvec4
 from ..common.maths import xform_point, xform_vector, local_to_world
@@ -65,6 +67,7 @@ from ...addon_common.common.utils import iter_pairs, rip
 
 import math
 from collections import deque
+from collections.abc import Iterable
 from itertools import takewhile
 
 r'''
@@ -128,6 +131,16 @@ DEBUG = False
 #       in fact, corners **SHOULD** have a vertex, too, similar to corners in PolyStrips.
 
 # TODO: if two endpoints are on the same mirror, then all verts between them should also be on that mirror too
+
+
+def swap_merged_bmvs(bmvs : Iterable[BMVert | None], merged : dict[BMVert, BMVert]) -> list[BMVert]:
+    ''' `bmvs` with each zipped patch vert swapped for the existing vert it merged into, skipping missing and invalid verts. '''
+    swapped = []
+    for bmv in bmvs:
+        if not bmv: continue
+        bmv = merged.get(bmv, bmv)
+        if bmv.is_valid: swapped.append(bmv)
+    return swapped
 
 
 class Strokes_Logic:
@@ -1035,6 +1048,7 @@ class Strokes_Logic:
                 bmfs.append(bmf)
 
         orient_bmf_normals(context, bmfs, new_faces=True)
+        shade_new_bmfaces(bmfs, context.edit_object.active_material_index)
 
         # select newly created geometry
         bmops.deselect_all(self.bm)
@@ -1115,6 +1129,7 @@ class Strokes_Logic:
                 bmfs.append(bmf)
 
         orient_bmf_normals(context, bmfs, new_faces=True)
+        shade_new_bmfaces(bmfs, context.edit_object.active_material_index)
 
         # select newly created geometry
         bmops.deselect_all(self.bm)
@@ -1208,6 +1223,7 @@ class Strokes_Logic:
                 bmfs.append(bmf)
 
         orient_bmf_normals(context, bmfs, new_faces=True)
+        shade_new_bmfaces(bmfs, context.edit_object.active_material_index)
 
         # select newly created geometry
         bmops.deselect_all(self.bm)
@@ -1422,12 +1438,14 @@ class Strokes_Logic:
 
         # zip patch sides into adjacent boundary geometry
         patch_all_bmvs = {bmv for row in bmvs for bmv in row if bmv}
+        merged : dict[BMVert, BMVert] = {}
         for anchor, side_verts in zip_pairs:
-            self.zip_boundary(anchor, side_verts, patch_all_bmvs)
+            merged |= self.zip_boundary(anchor, side_verts, patch_all_bmvs)
+        shade_new_bmfaces(bmfs, context.edit_object.active_material_index)  # after zipping, so the boundary faces count as neighbors
 
         # select newly created geometry
         bmops.deselect_all(self.bm)
-        bmops.select_iter(self.bm, [bmv for bmv in bmvs_select if bmv and bmv.is_valid])
+        bmops.select_iter(self.bm, swap_merged_bmvs(bmvs_select, merged))
 
         self.cut_count = nspans
         self.action = 'T-Strip'
@@ -1521,12 +1539,13 @@ class Strokes_Logic:
 
         # zip patch sides into adjacent boundary geometry
         patch_all_bmvs = {bmv for row in bmvs for bmv in row if bmv}
-        self.zip_boundary(bmvs[0][0],   bmvs[0][1:-1],  patch_all_bmvs)
-        self.zip_boundary(bmvs[-1][0],  bmvs[-1][1:-1], patch_all_bmvs)
+        merged = self.zip_boundary(bmvs[0][0],   bmvs[0][1:-1],  patch_all_bmvs)
+        merged |= self.zip_boundary(bmvs[-1][0], bmvs[-1][1:-1], patch_all_bmvs)
+        shade_new_bmfaces(bmfs, context.edit_object.active_material_index)  # after zipping, so the boundary faces count as neighbors
 
         # select newly created geometry
         bmops.deselect_all(self.bm)
-        bmops.select_iter(self.bm, [row[i_select] for row in bmvs if row[i_select] and row[i_select].is_valid])
+        bmops.select_iter(self.bm, swap_merged_bmvs([row[i_select] for row in bmvs], merged))
 
         self.cut_count = nspans
         self.action = 'I-Strip'
@@ -1618,6 +1637,7 @@ class Strokes_Logic:
                 bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
                 bmfs.append(bmf)
         orient_bmf_normals(context, bmfs, new_faces=True)
+        shade_new_bmfaces(bmfs, context.edit_object.active_material_index)
 
         # select bottom row
         bmops.deselect_all(self.bm)
@@ -1733,6 +1753,7 @@ class Strokes_Logic:
                 bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
                 bmfs.append(bmf)
         orient_bmf_normals(context, bmfs, new_faces=True)
+        shade_new_bmfaces(bmfs, context.edit_object.active_material_index)
 
         # select bottom row
         bmops.deselect_all(self.bm)
@@ -2022,14 +2043,16 @@ class Strokes_Logic:
         patch_all_bmvs = {bmv for row in bmvs for bmv in row if bmv}
         bl_is_anchor = self.snap_bmv0_nosel or bool(strip_l_bmvs)
         br_is_anchor = self.snap_bmv1_nosel or bool(strip_r_bmvs)
+        merged : dict[BMVert, BMVert] = {}
         if bl_is_anchor and bmvs[-1][0]:
-            self.zip_boundary(bmvs[-1][0], [v for v in bmvs[-1][1:] if v], patch_all_bmvs)
+            merged |= self.zip_boundary(bmvs[-1][0], [v for v in bmvs[-1][1:] if v], patch_all_bmvs)
         if br_is_anchor and bmvs[-1][-1]:
-            self.zip_boundary(bmvs[-1][-1], [v for v in reversed(bmvs[-1][:-1]) if v], patch_all_bmvs)
+            merged |= self.zip_boundary(bmvs[-1][-1], [v for v in reversed(bmvs[-1][:-1]) if v], patch_all_bmvs)
+        shade_new_bmfaces(bmfs, context.edit_object.active_material_index)  # after zipping, so the boundary faces count as neighbors
 
         # select bottom row
         bmops.deselect_all(self.bm)
-        bmops.select_iter(self.bm, [bmv for bmv in bmvs[-1] if bmv and bmv.is_valid])
+        bmops.select_iter(self.bm, swap_merged_bmvs(bmvs[-1], merged))
 
         self.action = 'Equals-Strip'
         self.show_extrapolate_mode = False
@@ -2089,28 +2112,33 @@ class Strokes_Logic:
             bmvs += [bmv]
         return (l, bmvs)
 
-    def zip_boundary(self, anchor_bmv, patch_side_bmvs, patch_all_bmvs):
+    def zip_boundary(self, anchor_bmv, patch_side_bmvs, patch_all_bmvs) -> dict[BMVert, BMVert]:
         ''' Walk outward from anchor_bmv along boundary or wire edges, merging to existing by distance.
-        Stops at the first vert that is too far away. '''
+        Stops at the first vert that is too far away. Returns {patch vert: existing vert it merged into}. '''
         threshold_sq = (self.spacing3D * 0.5) ** 2
         visited = set(patch_all_bmvs) | {anchor_bmv}
         current = anchor_bmv
+        merged = {}
         for patch_bmv in patch_side_bmvs:
             if not patch_bmv:
                 continue
-            candidates = [
-                bme_other_bmv(bme, current)
-                for bme in current.link_edges
-                if not bme.hide and (bme.is_wire or bme.is_boundary)
-                and bme_other_bmv(bme, current) not in visited
-            ]
+            if not patch_bmv.is_valid:
+                break  # an earlier zip merged from here on
+            candidates : list[BMVert] = []
+            for bme in current.link_edges:
+                if bme.hide or not (bme.is_wire or bme.is_boundary): continue
+                bmv_other = bme_other_bmv(bme, current)
+                if bmv_other and bmv_other not in visited:
+                    candidates.append(bmv_other)
             if not candidates:
                 break
             next_bmv = min(candidates, key=lambda v: (v.co - patch_bmv.co).length_squared)
             if (next_bmv.co - patch_bmv.co).length_squared > threshold_sq:
                 break
-            saved_co = next_bmv.co.copy()
-            bmesh.ops.weld_verts(self.bm, targetmap={next_bmv: patch_bmv})
-            patch_bmv.co = saved_co
+            # Merge the patch vert into the existing one, so the existing vert keeps its position and attributes
+            bmesh.ops.weld_verts(self.bm, targetmap={patch_bmv: next_bmv})
+            merged[patch_bmv] = next_bmv
+            patch_all_bmvs.add(next_bmv)  # a later zip must not walk onto it again
             visited.add(next_bmv)
-            current = patch_bmv
+            current = next_bmv
+        return merged

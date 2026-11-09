@@ -22,6 +22,9 @@ Created by Jonathan Denning, Jonathan Lampel
 from __future__ import annotations
 
 from mathutils import Vector
+from mathutils.bvhtree import BVHTree
+from mathutils.geometry import intersect_point_line
+from mathutils.kdtree import KDTree
 from bmesh.types import BMesh, BMFace, BMVert, BMEdge
 from bpy.types import Context
 
@@ -33,6 +36,7 @@ from ..common.bmesh import (
 )
 from ..common.object import has_mirror_x, has_mirror_y, has_mirror_z, mirror_threshold
 from ..common.bmesh_maths import orient_bmf_normals
+from ..common.bmesh_attributes import interp_bmvert_from_bmverts, bme_has_attributes
 from ..common.curves import (
     find_quadstrip_chains, fit_centerline_spline, ordered_rung_rails, ordered_rungs,
     ordered_strip_bmvs, sharp_angle_indices,
@@ -69,6 +73,7 @@ class SegmentRecipe:
         'end0_verts', 'end1_verts',  # (BMVert, BMVert) live refs to reuse if welded, None if cyclic
                                      # coupled runs have a single vert per end, so both are 1-tuples
         'strip_faces',        # list[BMFace]: the strip's own faces (to delete)
+        'strip_rungs',        # list[BMEdge]: a quad strip's rungs in order, None for a coupled run
         'strip_edges',        # list[BMEdge]: a coupled run's own edges (to delete), None for a quad strip
         'strip_verts',        # list[BMVert]: the strip's verts (delete only if wireless)
         'mirror_axes',        # frozenset[str]: mirror axes to keep new verts pinned onto
@@ -84,6 +89,68 @@ class SegmentRecipe:
 
 def vert_is_external(v : BMVert, strip_faces : set) -> bool:
     return any(f not in strip_faces for f in v.link_faces)
+
+
+def distance_to_bme(co : Vector, bme : BMEdge) -> float:
+    a, b = bme.verts[0].co, bme.verts[1].co
+    pt, t = intersect_point_line(co, a, b)
+    if t <= 0: return (co - a).length
+    if t >= 1: return (co - b).length
+    return (co - pt).length
+
+
+class ReplacedEdges:
+    ''' Nearest-edge lookups into edges a rebuild replaces, so new geometry can take their attributes before they are deleted. '''
+
+    def __init__(self, bmes : list[BMEdge]):
+        self.bmes = [bme for bme in bmes if bme.is_valid]
+        self.kd = KDTree(len(self.bmes))
+        for i, bme in enumerate(self.bmes):
+            self.kd.insert(bme_midpoint(bme), i)
+        self.kd.balance()
+
+    def nearest(self, co : Vector) -> BMEdge | None:
+        # Find candidates by edge midpoint, then pick the edge closest to co
+        candidates = [self.bmes[i] for (_, i, _) in self.kd.find_n(co, 6)]
+        return min(candidates, key=lambda bme: distance_to_bme(co, bme), default=None)
+
+    def interp_bmverts(self, bm : BMesh, bmvs : list[BMVert]):
+        ''' Interpolate each vert's attributes from the replaced edge it now lies along. '''
+        for bmv in bmvs:
+            if bme := self.nearest(bmv.co):
+                interp_bmvert_from_bmverts(bm, bmv, bme.verts[0], bme.verts[1])
+
+    def new_bme(self, bm : BMesh, bmv0 : BMVert, bmv1 : BMVert) -> BMEdge:
+        ''' Make an edge with the attributes of the replaced edge nearest it. '''
+        return bm.edges.new((bmv0, bmv1), self.nearest((bmv0.co + bmv1.co) / 2))
+
+
+class ReplacedFaces:
+    ''' Nearest-face lookups into faces a rebuild replaces, so new faces can take their attributes before they are deleted. '''
+
+    def __init__(self, bmfs : list[BMFace]):
+        self.bmfs = [bmf for bmf in bmfs if bmf.is_valid]
+        self.bvh : BVHTree | None = None
+        if self.bmfs:
+            bmvs = list({bmv for bmf in self.bmfs for bmv in bmf.verts})
+            idx = {bmv: i for i, bmv in enumerate(bmvs)}
+            self.bvh = BVHTree.FromPolygons([bmv.co for bmv in bmvs], [[idx[bmv] for bmv in bmf.verts] for bmf in self.bmfs])
+        for bmf in self.bmfs:
+            bmf.normal_update()  # copy_from_face_interp projects onto the face plane
+
+    def nearest(self, co : Vector) -> BMFace | None:
+        if not self.bvh: return None
+        _, _, i, _ = self.bvh.find_nearest(co)
+        return self.bmfs[i] if i is not None else None
+
+    def new_bmf(self, bm : BMesh, bmvs : list[BMVert]) -> BMFace:
+        ''' Make a face with the face attributes of the replaced face nearest it, and each corner interpolated from the replaced face under it. '''
+        center = sum((bmv.co for bmv in bmvs), Vector()) / len(bmvs)
+        bmf = bm.faces.new(bmvs, self.nearest(center))
+        for bml in bmf.loops:
+            if bmf_old := self.nearest(bml.vert.co):
+                bml.copy_from_face_interp(bmf_old, False)  # False skips vert attributes, which are interpolated separately
+        return bmf
 
 
 def chord_fracs(cos : list, cyclic : bool) -> list[float]:
@@ -405,6 +472,7 @@ class QuadStripProvider:
                 end0_verts=end0_verts,
                 end1_verts=end1_verts,
                 strip_faces=strip_faces,
+                strip_rungs=list(rungs),
                 strip_verts=strip_verts,
                 mirror_axes=shape_of.mirror_axes,
                 bend_tolerance_factor=shape_of.bend_tolerance_factor,
@@ -441,6 +509,7 @@ class QuadStripProvider:
             end0_verts=end0_verts,
             end1_verts=end1_verts,
             strip_faces=strip_faces,
+            strip_rungs=list(rungs),
             strip_verts=strip_verts,
             mirror_axes=active_mirror_axes(context),
             bend_tolerance_factor=props.bend_tolerance_factor,
@@ -564,13 +633,13 @@ class QuadStripProvider:
             for f in fracs
         ]
 
-        # Delete the old strip, keeping externally-connected verts
-        for f in recipe.strip_faces:
-            if f.is_valid:
-                bm.faces.remove(f)
-        for v in recipe.strip_verts:
-            if v.is_valid and not v.link_faces:
-                bm.verts.remove(v)
+        # Keep the old strip until its attributes are copied to the new one.
+        # Only end verts with faces outside the strip survive its deletion, so only those get reused.
+        strip_faces = set(recipe.strip_faces)
+        def survives(v): return v is not None and v.is_valid and vert_is_external(v, strip_faces)
+        rungs_old = [bme for bme in (recipe.strip_rungs or []) if bme.is_valid]
+        rails_old = ReplacedEdges(list({bme for f in strip_faces for bme in f.edges} - set(rungs_old)))
+        faces_old = ReplacedFaces(recipe.strip_faces)
 
         # Build the two new rails, reusing any welded end verts
         new_verts : list[BMVert] = []
@@ -591,8 +660,8 @@ class QuadStripProvider:
                     for0, for1 = vA, vB
                 else:
                     for0, for1 = vB, vA
-                v0 = for0 if (for0 is not None and for0.is_valid) else _new_vert(slot0_pos, i)
-                v1 = for1 if (for1 is not None and for1.is_valid) else _new_vert(slot1_pos, i)
+                v0 = for0 if survives(for0) else _new_vert(slot0_pos, i)
+                v1 = for1 if survives(for1) else _new_vert(slot1_pos, i)
                 return v0, v1
             return _new_vert(slot0_pos, i), _new_vert(slot1_pos, i)
 
@@ -613,20 +682,52 @@ class QuadStripProvider:
             if snapped := snap_along_normal(context, v.co, Mw, Mwi, along_local=n, max_correction=cap):
                 v.co = snapped
         pin_to_mirror_planes(context, new_verts, recipe.mirror_axes)
+        rails_old.interp_bmverts(bm, new_verts)
 
-        # Create the quads
+        # Copy each old rung that has a seam, sharp or other attribute onto the nearest new rung not already taken,
+        # so a seam across the strip stays one rung at any count. Reused end rungs keep their own.
+        rung_examples : dict[int, BMEdge | None] = {
+            i: None for i in range(nstations) if bm.edges.get((rail0[i], rail1[i]))
+        }
+        rungs_kd = KDTree(nstations)
+        for i in range(nstations):
+            rungs_kd.insert((rail0[i].co + rail1[i].co) / 2, i)
+        rungs_kd.balance()
+        for bme in rungs_old:
+            if all(survives(v) for v in bme.verts) or not bme_has_attributes(bm, bme):
+                continue
+            for (_, i, _) in rungs_kd.find_n(bme_midpoint(bme), nstations):
+                if i not in rung_examples:
+                    rung_examples[i] = bme
+                    break
+        for i in range(nstations):
+            if rail0[i] != rail1[i] and not bm.edges.get((rail0[i], rail1[i])):
+                bm.edges.new((rail0[i], rail1[i]), rung_examples.get(i))
+
+        # Create the quads. Rail edges and faces copy attributes from the nearest old ones.
         bmfs : list[BMFace] = []
         npairs = nstations if cyclic else nstations - 1
         for i in range(npairs):
             j = (i + 1) % nstations
+            for (a, b) in ((rail0[i], rail0[j]), (rail1[i], rail1[j])):
+                if a != b and not bm.edges.get((a, b)):
+                    rails_old.new_bme(bm, a, b)
             verts = dedup(rail0[i], rail0[j], rail1[j], rail1[i])
             if len(verts) < 3:
                 continue
             try:
-                bmfs.append(bm.faces.new(verts))
+                bmfs.append(faces_old.new_bmf(bm, verts))
             except ValueError:
                 # Face already exists, probably degenerate overlap on a very tight bend
                 continue
+
+        # Delete the old strip, keeping externally-connected verts
+        for f in recipe.strip_faces:
+            if f.is_valid:
+                bm.faces.remove(f)
+        for v in recipe.strip_verts:
+            if v.is_valid and not v.link_faces:
+                bm.verts.remove(v)
         orient_bmf_normals(context, bmfs, new_faces=True)
 
         return bmfs
@@ -760,13 +861,11 @@ class EdgeLoopProvider:
             for p in (Vector(spline.eval(t)) for t in ts_at_arc_fracs(spline, fracs))
         ]
 
-        # Delete the old run, keeping verts that still hold other geometry
-        for bme in (recipe.strip_edges or []):
-            if bme.is_valid:
-                bm.edges.remove(bme)
-        for v in recipe.strip_verts:
-            if v.is_valid and not v.link_edges and not v.link_faces:
-                bm.verts.remove(v)
+        # Keep the old run until its attributes are copied to the new one.
+        # Only end verts connected to something besides the run survive its deletion, so only those get reused.
+        run_edges = set(recipe.strip_edges or [])
+        def survives(v): return v is not None and v.is_valid and (bool(v.link_faces) or any(e not in run_edges for e in v.link_edges))
+        edges_old = ReplacedEdges(list(run_edges))
 
         # Build the new run, reusing the surviving end verts so whatever they
         # were welded to stays welded (they keep their own positions, anchoring the ends)
@@ -775,7 +874,7 @@ class EdgeLoopProvider:
         def vert_at(i):
             if not cyclic:
                 reuse = recipe.end0_verts if i == 0 else (recipe.end1_verts if i == nstations - 1 else None)
-                if reuse and reuse[0] is not None and reuse[0].is_valid:
+                if reuse and survives(reuse[0]):
                     return reuse[0]
             nv = bm.verts.new(stations[i])
             new_verts.append(nv)
@@ -783,6 +882,7 @@ class EdgeLoopProvider:
 
         run_verts = [vert_at(i) for i in range(nstations)]
         pin_to_mirror_planes(context, new_verts, recipe.mirror_axes)
+        edges_old.interp_bmverts(bm, new_verts)
 
         bmes : list[BMEdge] = []
         npairs = nstations if cyclic else nstations - 1
@@ -791,10 +891,18 @@ class EdgeLoopProvider:
             if run_verts[i] == run_verts[j]:
                 continue
             try:
-                bmes.append(bm.edges.new((run_verts[i], run_verts[j])))
+                bmes.append(edges_old.new_bme(bm, run_verts[i], run_verts[j]))
             except ValueError:
                 # Edge already exists, probably a degenerate overlap on a very tight bend
                 continue
+
+        # Delete the old run, keeping verts that still hold other geometry
+        for bme in run_edges:
+            if bme.is_valid:
+                bm.edges.remove(bme)
+        for v in recipe.strip_verts:
+            if v.is_valid and not v.link_edges and not v.link_faces:
+                bm.verts.remove(v)
         return bmes
 
 

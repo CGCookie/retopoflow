@@ -22,7 +22,7 @@ Created by Jonathan Denning, Jonathan Lampel
 import heapq
 import math, time
 from math import inf, isnan
-from typing import Iterator
+from typing import Iterable, Iterator
 
 import bpy
 import bmesh
@@ -35,8 +35,8 @@ from bmesh.types import BMesh, BMVert
 
 from ...addon_common.common.maths import clamp_int
 from .iter_utils import AttrIter, CastIter
-from .bmesh import edges_to_triangles, is_bmedge_boundary, bme_cos
-from .bmesh_maths import is_bmedge_edgemark, BMMarking
+from .bmesh import edges_to_triangles, is_bmedge_boundary, bme_cos, get_bmesh_emesh
+from .bmesh_attributes import is_bmedge_edgemark, BMMarking
 from .maths import point_to_bvec3
 from .raycast import iter_all_valid_sources
 from ..rfglobals import RFGlobals
@@ -145,6 +145,207 @@ class Accel:
             for v in self.bins[ix][iy][iz]
             if (M @ v.co - co_world).length_squared <= r2
         }
+
+
+class VertsKD:
+    ''' World-space KD lookup over bmesh verts, stored by bm.verts index. It holds several smaller trees
+    so a build can be spread over timer steps. Positions are a snapshot from the build, so get() checks
+    each candidate's live position before returning it. '''
+    matrix_world : Matrix
+    trees : list[KDTree]
+
+    def __init__(self, matrix_world : Matrix):
+        # obj.matrix_world is a live view of the object, which reads freed memory once the object is gone
+        self.matrix_world = matrix_world.copy()
+        self.trees = []
+
+    @classmethod
+    def build(cls, bmverts : Iterable[BMVert], matrix_world : Matrix) -> 'VertsKD':
+        vkd = cls(matrix_world)
+        vkd.add(list(bmverts))
+        return vkd
+
+    def add(self, bmverts : list[BMVert]):
+        if not bmverts: return
+        M = self.matrix_world
+        kd = KDTree(len(bmverts))
+        for bmv in bmverts:
+            co = M @ bmv.co
+            if isnan(co.length_squared): continue  # a NaN would scramble the tree
+            kd.insert(co, bmv.index)
+        kd.balance()
+        self.trees.append(kd)
+
+    def find_range(self, co_world : Vector, radius_world : float) -> list[tuple[Vector, int, float]]:
+        ''' (snapshot position, bm.verts index, distance) for each snapshot position within radius_world. '''
+        return [hit for kd in self.trees for hit in kd.find_range(co_world, radius_world)]
+
+    def get(self, bm : BMesh, co_world : Vector, radius_world : float) -> set[BMVert]:
+        ''' Verts within radius_world of co_world. A vert moved since the build can be missed, so strokes look
+        up moved verts in MovedVerts. A topology edit can land before the depsgraph marks this tree stale, so
+        indices are bounds-checked and callers must re-apply their own masks to the returned verts. '''
+        M, verts = self.matrix_world, bm.verts
+        count = len(verts)
+        r2 = radius_world * radius_world
+        return {
+            bmv
+            for _co, i, _dist in self.find_range(co_world, radius_world)
+            if i < count and (M @ (bmv := verts[i]).co - co_world).length_squared <= r2
+        }
+
+
+class MovedVerts:
+    ''' Verts moved during a stroke, with their start positions and a spatial grid of their current positions.
+    The shared VertsKD only has positions from before the stroke. A Tweak Nudge can drag a vert any distance from
+    there, and a Relax stroke keeps moving verts as long as it is held, so strokes look up moved verts here. '''
+    matrix_world : Matrix
+    start_co : dict[BMVert, Vector]
+    inv_cell : float
+    cells : dict[tuple[int, int, int], set[BMVert]]
+    cell_of : dict[BMVert, tuple[int, int, int]]
+
+    def __init__(self, matrix_world : Matrix, cell : float):
+        self.matrix_world = matrix_world.copy()
+        self.start_co = {}
+        self.inv_cell = 1.0 / cell if cell > 0 else 0.0  # 0 puts every vert in one cell
+        self.cells = {}
+        self.cell_of = {}
+
+    def write(self, bmv : BMVert, co : Vector):
+        self.remember(bmv)
+        bmv.co = co
+        self.rebin(bmv)
+
+    def remember(self, bmv : BMVert):
+        ''' Call before moving bmv without write(), then call rebin() after. '''
+        if bmv not in self.start_co: self.start_co[bmv] = bmv.co.copy()
+
+    def key(self, co : Vector) -> tuple[int, int, int]:
+        s = self.inv_cell
+        return (math.floor(co.x * s), math.floor(co.y * s), math.floor(co.z * s))
+
+    def rebin(self, bmv : BMVert):
+        co = self.matrix_world @ bmv.co
+        old = self.cell_of.get(bmv)
+        # floor() raises on NaN and inf. Those verts can't be near the brush, so drop them.
+        key = self.key(co) if math.isfinite(co.length_squared) else None
+        if key == old: return
+        if old is not None: self.cells[old].discard(bmv)
+        if key is None:
+            del self.cell_of[bmv]
+            return
+        self.cells.setdefault(key, set()).add(bmv)
+        self.cell_of[bmv] = key
+
+    def near(self, co : Vector, reach : float) -> Iterable[BMVert]:
+        ''' Verts in the cells that overlap reach of co. Some may be farther than reach. '''
+        x0, y0, z0 = self.key(co - Vector((reach, reach, reach)))
+        x1, y1, z1 = self.key(co + Vector((reach, reach, reach)))
+        if (x1 - x0 + 1) * (y1 - y0 + 1) * (z1 - z0 + 1) > len(self.cell_of):
+            return self.cell_of.keys()  # fewer moved verts than cells, so check them all
+        cells = self.cells
+        return [
+            bmv
+            for x in range(x0, x1 + 1)
+            for y in range(y0, y1 + 1)
+            for z in range(z0, z1 + 1)
+            for bmv in cells.get((x, y, z), ())
+        ]
+
+    def get(self, co_world : Vector, radius_world : float) -> set[BMVert]:
+        ''' Moved verts within radius_world of co_world at their current positions. '''
+        M, r2 = self.matrix_world, radius_world * radius_world
+        return { bmv for bmv in self.near(co_world, radius_world) if (M @ bmv.co - co_world).length_squared <= r2 }
+
+
+# Shared by the falloff brush's hover check and the Relax and Tweak strokes, which start from it on press.
+# Hover reads the last finished tree while a timer builds the next one a slice at a time, so an edit to a
+# big mesh never stalls the cursor. A press waits for the current tree.
+_target_kd : VertsKD | None = None        # last finished tree
+_target_kd_key : tuple | None = None      # what it was built from
+_target_build : dict | None = None        # tree in progress: key, vkd, vert count, next vert index
+_target_kd_wanted : tuple | None = None   # what hover last asked for, the only thing the timer builds
+
+def _target_kd_key_now(context : Context) -> tuple | None:
+    RFCore = RFGlobals.RFCore_None
+    obj = context.edit_object
+    if not RFCore or not obj or context.mode != 'EDIT_MESH': return None
+    opts = getattr(context.scene, 'retopoflow', None)  # gone once the add-on is disabled mid-build
+    if not opts: return None
+    return (RFCore.depsgraph_version, obj.name, opts.mask_selected, opts.include_pinned)
+
+def _target_kd_step(context : Context, key : tuple, budget : int | None) -> bool:
+    ''' Adds up to `budget` verts (all of them when None) to the tree in progress for key, starting
+    over if the mesh changed. Returns True once the finished tree is in place. '''
+    # Only coordinates and vert indices outlive a slice. The bmesh is fetched fresh each time since an undo
+    # between timer steps can free it, and the count check covers a topology edit the key hasn't caught yet.
+    global _target_kd, _target_kd_key, _target_build
+    bm, _em = get_bmesh_emesh(context)
+    bm.verts.ensure_lookup_table()
+    verts = bm.verts
+    b = _target_build
+    if b is None or b['key'] != key or b['count'] != len(verts):
+        verts.index_update()
+        b = _target_build = {'key': key, 'vkd': VertsKD(context.edit_object.matrix_world), 'count': len(verts), 'next': 0}
+    opts = context.scene.retopoflow
+    sel = opts.mask_selected
+    pins = None if opts.include_pinned else verts.layers.float.get('retopoflow_pins')
+    stop = b['count'] if budget is None else min(b['next'] + budget, b['count'])
+    b['vkd'].add([
+        bmv for bmv in (verts[i] for i in range(b['next'], stop))
+        if not bmv.hide
+        and not (sel == 'ONLY' and not bmv.select)
+        and not (sel == 'EXCLUDE' and bmv.select)
+        and not (pins and bmv[pins])
+    ])
+    b['next'] = stop
+    if stop < b['count']: return False
+    _target_kd, _target_kd_key, _target_build = b['vkd'], key, None
+    return True
+
+def _target_kd_timer() -> float | None:
+    global _target_build
+    context = bpy.context
+    key = _target_kd_key_now(context)
+    if key is None or key == _target_kd_key or key != _target_kd_wanted:
+        # done, or the mesh changed since hover asked, as it does every frame mid-stroke
+        _target_build = None
+        return None
+    # A foreign modal like bevel can rebuild the bmesh on any event, so stay off it until that ends.
+    # The build is kept, and the next hover request resumes it.
+    RFCore = RFGlobals.RFCore_None
+    for window in context.window_manager.windows:
+        with context.temp_override(window=window):
+            if RFCore.is_foreign_modal_running(bpy.context): return None
+    if not _target_kd_step(context, key, 50_000):  # about 13 ms of work, so a frame can draw in between
+        return 0.0
+    RFCore.tag_redraw_areas()  # let the brush pick up the finished tree
+    return None
+
+def clear_target_verts_kd():
+    ''' Drops the shared tree. The depsgraph version in its key only advances while RF runs, so a tree kept
+    across sessions would miss edits made in between. '''
+    global _target_kd, _target_kd_key, _target_build, _target_kd_wanted
+    _target_kd = _target_kd_key = _target_build = _target_kd_wanted = None
+    if bpy.app.timers.is_registered(_target_kd_timer):
+        bpy.app.timers.unregister(_target_kd_timer)
+
+def target_verts_kd(context : Context, *, wait : bool = True) -> VertsKD | None:
+    ''' VertsKD over the target verts Relax and Tweak may move, after the hidden, selection and pin masks.
+    Rebuilt whenever the depsgraph reports a change. With wait=False this never blocks: it returns the
+    last finished tree, which can predate recent edits or be None, and leaves a timer building the current one. '''
+    global _target_kd_wanted
+    key = _target_kd_key_now(context)
+    if key is None: return None
+    if key == _target_kd_key: return _target_kd
+    if wait:
+        _target_kd_step(context, key, None)  # picks up where the timer left off
+        return _target_kd
+    _target_kd_wanted = key
+    if not bpy.app.timers.is_registered(_target_kd_timer):
+        bpy.app.timers.register(_target_kd_timer, first_interval=0.0)
+    # a tree from another object would only answer for verts that are not there
+    return _target_kd if _target_kd_key and _target_kd_key[1] == key[1] else None
 
 
 class EdgeMarkAccel:
